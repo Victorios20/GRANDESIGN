@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Trash, Pencil, Plus, X, Edit, Save } from "lucide-react"
+import { Trash, Plus, X, Edit, Save } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
@@ -33,6 +33,13 @@ import {
     TableRow,
 } from "@/components/ui/table"
 
+type Material = {
+    id: number
+    nome: string
+    quantidade: number
+    preco: number
+}
+
 export default function GerarOrcamentoPage() {
     const router = useRouter()
 
@@ -50,9 +57,9 @@ export default function GerarOrcamentoPage() {
     const progressoEtapa1 = (camposPreenchidos / totalCampos) * 33
 
     const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(null)
-    const [materiais, setMateriais] = useState<any[]>([])
+    const [materiais, setMateriais] = useState<Material[]>([])
     const [editId, setEditId] = useState<number | null>(null)
-    const [editData, setEditData] = useState({ nome: "", quantidade: 0, preco: 0 })
+    const [editData, setEditData] = useState<Omit<Material, "id">>({ nome: "", quantidade: 0, preco: 0 })
 
     const progresso = Math.round(progressoEtapa1 + (produtoSelecionado ? 33 : 0))
 
@@ -67,7 +74,7 @@ export default function GerarOrcamentoPage() {
 
     const handleSelecionarProduto = (value: string) => {
         setProdutoSelecionado(value)
-        const base =
+        const base: Material[] =
             value === "caramanchao"
                 ? [
                     { id: 1, nome: "MDF 15mm", quantidade: 2, preco: 50 },
@@ -84,10 +91,10 @@ export default function GerarOrcamentoPage() {
 
     const addMaterial = () => {
         const newId = materiais.length ? materiais[materiais.length - 1].id + 1 : 1
-        const novo = { id: newId, nome: "", quantidade: 1, preco: 0 }
+        const novo: Material = { id: newId, nome: "", quantidade: 1, preco: 0 }
         setMateriais([...materiais, novo])
         setEditId(newId)
-        setEditData(novo)
+        setEditData({ nome: "", quantidade: 1, preco: 0 })
     }
 
     const saveMaterial = () => {
@@ -103,7 +110,7 @@ export default function GerarOrcamentoPage() {
         if (editId === id) setEditId(null)
     }
 
-    const startEdit = (mat: any) => {
+    const startEdit = (mat: Material) => {
         setEditId(mat.id)
         setEditData({ nome: mat.nome, quantidade: mat.quantidade, preco: mat.preco })
     }

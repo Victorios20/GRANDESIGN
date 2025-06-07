@@ -23,8 +23,8 @@ import {
   TableHead, TableBody, TableCell,
 } from "@/components/ui/table"
 import {
-  Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogFooter, DialogClose,
+  Dialog, DialogContent,
+ DialogFooter, DialogClose,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
