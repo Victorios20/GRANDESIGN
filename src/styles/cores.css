@@ -1,0 +1,154 @@
+/* src/styles/cores.css */
+
+/* -------------------------
+   TONALIDADES AMADEIRADAS
+   ------------------------- */
+
+/* Fundo bege */
+/* Várias variações para “bg-bege”. Descomente apenas UMA linha abaixo para testar no seu código. */
+
+/* Opção 1 – Bege antigo claro (atual: #F5E6CC) */
+/* .bg-bege { background-color: #F5E6CC; } */
+
+/* Opção 2 – Bege rosado suave */
+/* .bg-bege { background-color: #ECD9B0; } */
+
+/* Opção 3 – Bege amarelado pálido */
+/* .bg-bege { background-color: #EFE3C1; } */
+
+/* Opção 4 – Bege neutro médio */
+/* .bg-bege { background-color: #E8D8B0; } */
+
+/* Opção 5 – Bege levemente acinzentado */
+/* .bg-bege { background-color: #EDE0C8; } */
+
+/* Opção 6 – Bege cremoso suave */
+/* .bg-bege { background-color: #F3E8D2; } */
+
+/* Opção 7 – Bege claro esmaecido */
+/* .bg-bege { background-color: #F9EFE2; } */
+
+/* Opção 8 – Bege quente com leve toque laranja */
+/* .bg-bege { background-color: #F4D8B1; } */
+
+/* Opção 9 – Bege amarronzado pálido */
+/* .bg-bege { background-color: #DBC7A4; } */
+
+/* Opção 10 – Bege claro levemente dourado */
+/* .bg-bege { background-color: #F5E1B7; } */
+
+.bg-bege {
+  background-color: #E8C99A;
+}
+/* Texto bege (caso precise aplicar bege no texto) */
+.text-bege {
+  color: #F5E6CC;
+}
+
+/* Fundo marrom-claro (sidebar, hover, bordas leves, etc.) */
+.bg-marromClaro {
+  background-color: #F5E1B7;
+}
+
+/* Texto marrom-claro (breadcrumbs, ícones, rótulos secundários, etc.) */
+.text-marromClaro {
+  color: #D9B99B;
+}
+
+/* Fundo marrom-escuro (itens ativos ou destaques fortemente contrastantes) */
+.bg-marromEscuro {
+  background-color: #8B5E3C;
+}
+
+/* Texto marrom-escuro (títulos, links principais, texto padrão) */
+.text-marromEscuro {
+  color: #8B5E3C;
+}
+
+/* -------------------------
+   TONALIDADES COMPLEMENTARES “MADEIRA”
+   ------------------------- */
+
+/* Fundo madeira-100 (tons intermediários, cartões leves) */
+.bg-madeira-100 {
+  background-color: #EDE6D9;
+}
+
+/* Texto madeira-700 (para contrastar sobre madeira-100, se necessário) */
+.text-madeira-700 {
+  color: #693E24;
+}
+
+/* Texto madeira-500 (para variações de texto secundário) */
+.text-madeira-500 {
+  color: #A06F3D;
+}
+
+/* -------------------------
+   BORDAS E SEMI-TRANSPARÊNCIAS
+   ------------------------- */
+
+/* Borda marrom-claro (inputs, botões de outline, etc.) */
+.border-marromClaro {
+  border-color: #D9B99B;
+}
+
+/* Overlay bege semitransparente (por exemplo, modal backdrop) */
+.bg-bege\/50 {
+  background-color: rgba(245, 230, 204, 0.5);
+}
+
+/* -------------------------
+   EXEMPLOS DE USO
+   -------------------------
+   1. Sidebar (fundo marrom-claro):
+      <aside class="w-64 bg-marromClaro">…</aside>
+
+   2. Item ativo na sidebar (fundo bege + texto marrom-escuro):
+      <Link
+        href="/"
+        class="flex items-center px-4 py-2 bg-bege text-marromEscuro rounded-md"
+      >Home</Link>
+
+   3. Item inativo na sidebar com hover bege:
+      <Link
+        href="/outra-rota"
+        class="flex items-center px-4 py-2 text-marromEscuro hover:bg-bege transition-colors"
+      >+ Gerar Orçamento</Link>
+
+   4. Breadcrumb separator em marrom-claro:
+      <BreadcrumbSeparator>
+        <ChevronRight class="h-4 w-4 text-marromClaro" />
+      </BreadcrumbSeparator>
+
+   5. Botão de outline com borda marrom-claro:
+      <button class="border border-marromClaro text-marromClaro px-4 py-2 rounded-md">
+        Ok
+      </button>
+
+   6. Overlay semitransparente bege:
+      <div class="fixed inset-0 bg-bege/50">…</div>
+*/
+/* -------------------------------------------
+   NOVOS TONS DE BEGE PARA BACKGROUND VISUAL
+--------------------------------------------*/
+
+/* Fundo geral da página (bege acinzentado bem claro) */
+.bg-bege-pagina {
+  background-color: #ECECEC; /* ou #F3E8D2 se preferir ainda mais neutro */
+}
+
+/* Header e Cards (bege suave mais forte para contraste) */
+.bg-bege-header {
+  background-color: #ffff;
+}
+
+/* Sombra leve para destacar header */
+.shadow-header {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+/* Cor exclusiva para a sidebar */
+.bg-sidebar {
+  background-color: #ffff; /* ou outro tom da paleta, como #E8C99A */
+}
