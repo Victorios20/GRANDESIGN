@@ -153,3 +153,11 @@
   background-color: #E8C99A; /* ou outro tom da paleta, como #E8C99A */
 }
 
+/* Se ainda não existir no arquivo, adicione: */
+.border-marromEscuro {
+  border-color: #8B5E3C;
+}
+
+.border-bege {
+  border-color: #E8C99A;
+}

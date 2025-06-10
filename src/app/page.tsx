@@ -101,7 +101,7 @@ export default function HomePage() {
                 </CardDescription>
               </div>
               <Button
-                variant="outline"
+                variant="secondary"
                 onClick={limpar}
                 className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10"
               >
@@ -140,7 +140,7 @@ export default function HomePage() {
                     <label className="text-sm font-medium text-marromEscuro">{label}</label>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className="justify-start text-left font-normal">
+                        <Button variant="secondary" className="justify-start text-left font-normal">
                           {d ? format(d, "dd/MM/yyyy") : <span>{label}</span>}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
