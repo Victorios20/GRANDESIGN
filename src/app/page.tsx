@@ -176,9 +176,9 @@ export default function HomePage() {
                   Nenhum orçamento encontrado.
                 </p>
               ) : (
-                <div className="relative w-full overflow-x-auto">
+                <div className="rounded-lg overflow-hidden">
                   <Table className="min-w-[640px]">
-                    <TableHeader className="font-semibold">
+                    <TableHeader className="bg-bege font-semibold">
                       <TableRow>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Bairro</TableHead>
