@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table"
 import {
   Dialog, DialogContent,
- DialogFooter, DialogClose,
+  DialogFooter, DialogClose,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
@@ -135,7 +135,7 @@ export default function HomePage() {
 
                 {/* Datas */}
                 {[{ d: dataIni, set: setDataIni, label: "Data Inicial" },
-                  { d: dataFim, set: setDataFim, label: "Data Final" }].map(({ d, set, label }) => (
+                { d: dataFim, set: setDataFim, label: "Data Final" }].map(({ d, set, label }) => (
                   <div key={label} className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-marromEscuro">{label}</label>
                     <Popover>
@@ -220,87 +220,167 @@ export default function HomePage() {
 
         {/* MODAL DETALHES COM CARDS */}
         <Dialog open={!!orcSel} onOpenChange={() => setOrcSel(null)}>
+
           <DialogContent className="w-[96vw] sm:max-w-[94vw] lg:max-w-[80vw] max-h-[80vh] overflow-auto">
+            {/* título */}
             <Card className="border-0 shadow-none">
               <CardHeader className="pb-4">
                 <CardTitle className="text-3xl">
-                  Orçamento #{orcSel?.id}
+                  Orçamento&nbsp;de&nbsp;{orcSel?.cliente} – {orcSel?.bairro}
                 </CardTitle>
               </CardHeader>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ------ dados pessoais ------ */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Dados do Cliente</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <p><b>Nome:</b> {orcSel?.cliente}</p>
+                <p><b>Telefone:</b> (11) 98765-4321</p>
+                <p><b>Cidade:</b> São Paulo</p>
+                <p><b>Bairro:</b> {orcSel?.bairro}</p>
+                <p><b>Endereço:</b> Rua das Flores 123</p>
+              </CardContent>
+            </Card>
+
+            {/* ------ tabelas de materiais ------ */}
+            {[
+              {
+                titulo: "Madeiras",
+                linhas: [
+                  { nome: "Ripa 5 m", qtdLabel: "Metros", qtd: 6, preco: 22, total: 132 },
+                ],
+              },
+              {
+                titulo: "Materiais Gerais",
+                linhas: [
+                  { nome: "Cimento 50 kg", qtdLabel: "Qtd", qtd: 3, preco: 30, total: 90 },
+                ],
+              },
+              {
+                titulo: "Telhas",
+                linhas: [
+                  { nome: "Telha Colonial", qtdLabel: "Qtd", qtd: 40, preco: 8, total: 320 },
+                ],
+              },
+            ].map(({ titulo, linhas }) => (
+              <Card key={titulo}>
+                <CardHeader>
+                  <CardTitle>{titulo}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <div className="rounded-lg overflow-hidden">
+                    <Table >
+                      <TableHeader className="bg-bege">
+                        <TableRow className="bg-bege hover:bg-bege">
+                          <TableHead>Nome</TableHead>
+                          <TableHead>{linhas[0].qtdLabel}</TableHead>
+                          <TableHead>Preço</TableHead>
+                          <TableHead>Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linhas.map((l, i) => (
+                          <TableRow key={i} className="odd:bg-muted/40">
+                            <TableCell>{l.nome}</TableCell>
+                            <TableCell>{l.qtd}</TableCell>
+                            <TableCell>R$ {l.preco.toFixed(2)}</TableCell>
+                            <TableCell>R$ {l.total.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {/* ------ cards de totais + telhas ------ */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Totais por categoria */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Dados do Cliente</CardTitle>
+                  <CardTitle>Totais por Categoria</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <p><b>Nome:</b> {orcSel?.cliente}</p>
-                  <p><b>Telefone:</b> (11) 98765-4321</p>
-                  <p><b>Cidade:</b> São Paulo</p>
-                  <p><b>Bairro:</b> {orcSel?.bairro}</p>
-                  <p><b>Endereço:</b> Rua das Flores 123</p>
+                <CardContent className="p-4">
+                  <Table>
+                    <TableBody>
+                      {[
+                        ["Madeiras", 132],
+                        ["Materiais", 90],
+                        ["Mão de Obra", 900],
+                        ["Empresa PS", 1500],
+                        ["Empresa GD", 1500],
+                      ].map(([label, v]) => (
+                        <TableRow key={label as string}>
+                          <TableCell>{label}</TableCell>
+                          <TableCell>R$ {(v as number).toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+
+                      <TableRow className="font-semibold border-t-2">
+                        <TableCell>Total Geral</TableCell>
+                        <TableCell>R$ 3900.00</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
 
+              {/* Valores fixos – Telhas */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Dados do Serviço</CardTitle>
+                  <CardTitle>Valores fixos – Telhas</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-1 text-sm">
-                  <p><b>Nome do produto:</b> Móvel Planejado</p>
-                  <p><b>Preço dos materiais:</b> R$ 1.255,00</p>
-                  <p><b>Frete:</b> R$ 200,00</p>
-                  <p><b>Mão de obra:</b> Design Móveis</p>
-                  <p><b>Empresa:</b> Design Móveis</p>
-                  <p className="font-semibold"><b>Total:</b> R$ 2.505,00</p>
+                <CardContent className="p-4">
+                  <div className="rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-bege">
+                        <TableRow className="bg-bege hover:bg-bege">
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Pix</TableHead>
+                          <TableHead>10×</TableHead>
+                          <TableHead>18×</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {[
+                          ["Romana", 9200, 1015, 591],
+                          ["Colonial", 8400, 927, 539],
+                          ["Americana", 9100, 1004, 584],
+                        ].map(([tipo, pix, dez, dezoito]) => (
+                          <TableRow key={tipo as string}>
+                            <TableCell>{tipo}</TableCell>
+                            <TableCell>R$ {(pix as number).toFixed(2)}</TableCell>
+                            <TableCell>R$ {(dez as number).toFixed(2)}</TableCell>
+                            <TableCell>R$ {(dezoito as number).toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Matéria-prima</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Material</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Qtd</TableHead>
-                      <TableHead>Preço</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>Madeira</TableCell>
-                      <TableCell>MDF</TableCell>
-                      <TableCell>2 und.</TableCell>
-                      <TableCell>R$ 1.000,00</TableCell>
-                    </TableRow>
-                    <TableRow>
-                      <TableCell>Dobradiças</TableCell>
-                      <TableCell>Metal</TableCell>
-                      <TableCell>8 und.</TableCell>
-                      <TableCell>R$ 255,00</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
+            {/* footer */}
             <DialogFooter className="pt-6">
               <DialogClose asChild>
                 <Button variant="outline">Fechar</Button>
               </DialogClose>
               <Button asChild>
-                <Link href={`/editar-orcamento/${orcSel?.id ?? ""}`} onClick={() => setOrcSel(null)}>
+                <Link
+                  href={`/editar-orcamento/${orcSel?.id ?? ""}`}
+                  onClick={() => setOrcSel(null)}
+                >
                   Editar
                 </Link>
               </Button>
             </DialogFooter>
           </DialogContent>
+
         </Dialog>
       </TooltipProvider>
     </PageLayout>
