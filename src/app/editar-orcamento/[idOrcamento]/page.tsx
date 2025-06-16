@@ -708,10 +708,10 @@ export default function EditarOrcamentoPage() {
 
                 {/* à DIREITA */}
                 <div className="flex gap-2">
-                    <Button variant="default" onClick={handleNovaCopia} className="h-9 md:h-10">
+                    <Button variant="outline" onClick={handleNovaCopia} className="h-9 md:h-10">
                         Nova Cópia
                     </Button>
-                    <Button variant="default" onClick={handleSalvarEdicoes} className="h-9 md:h-10">
+                    <Button variant="outline" onClick={handleSalvarEdicoes} className="h-9 md:h-10">
                         Salvar Edições
                     </Button>
                     <Button variant="default" onClick={handleGerarOrcamento} className="h-9 md:h-10">
