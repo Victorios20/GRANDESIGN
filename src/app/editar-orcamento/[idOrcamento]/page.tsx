@@ -350,9 +350,7 @@ export default function EditarOrcamentoPage() {
             <Card className="w-full shadow-md border rounded-2xl mt-4 md:mt-6">
                 <CardHeader className="p-4 md:p-6 pb-2">
                     <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                            Etapa 2
-                        </Badge>
+                        <Badge variant="outline" className="text-xs">Etapa 2</Badge>
                         <CardTitle className="text-lg md:text-xl">Dados do Serviço</CardTitle>
                     </div>
                     <CardDescription className="text-xs md:text-sm text-muted-foreground mt-0.5">
@@ -361,12 +359,20 @@ export default function EditarOrcamentoPage() {
                 </CardHeader>
 
                 <CardContent className="p-4 md:p-6 pt-2">
-                    {/* Escolha de produto + dimensões */}
-                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
-                        <div className="flex flex-col gap-2 w-full sm:max-w-sm">
+                    {/* seletor + dimensões */}
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
+                        {/* Produto */}
+                        <div className="flex flex-col gap-2">
                             <Label className="text-sm font-medium">Selecionar produto</Label>
-                            <Select value={produtoSelecionado ?? undefined} onValueChange={handleSelecionarProduto}>
-                                <SelectTrigger className="h-9 md:h-10">
+                            <Select
+                                value={produtoSelecionado ?? undefined}
+                                onValueChange={handleSelecionarProduto}
+                            >
+                                {/* mesma largura dos inputs → 140 px */}
+                                <SelectTrigger
+                                    className="h-9 md:h-10 w-[140px]"
+                                    disabled={!!editando}
+                                >
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -376,9 +382,10 @@ export default function EditarOrcamentoPage() {
                             </Select>
                         </div>
 
+                        {/* Largura / Comprimento */}
                         <div className="flex gap-4">
-                            <div className="flex flex-col gap-1 w-[100px]">
-                                <Label className="text-xs">Largura (m)</Label>
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Largura&nbsp;(m)</Label>
                                 <Input
                                     type="number"
                                     min={1}
@@ -386,11 +393,12 @@ export default function EditarOrcamentoPage() {
                                     onChange={(e) =>
                                         setDimensoes((d) => ({ ...d, largura: +e.target.value }))
                                     }
-                                    className="h-8 text-xs"
+                                    disabled={!!editando}
+                                    className="h-8 text-xs w-[140px]"
                                 />
                             </div>
-                            <div className="flex flex-col gap-1 w-[100px]">
-                                <Label className="text-xs">Comprimento (m)</Label>
+                            <div className="flex flex-col gap-1">
+                                <Label className="text-xs">Comprimento&nbsp;(m)</Label>
                                 <Input
                                     type="number"
                                     min={1}
@@ -398,14 +406,16 @@ export default function EditarOrcamentoPage() {
                                     onChange={(e) =>
                                         setDimensoes((d) => ({ ...d, comprimento: +e.target.value }))
                                     }
-                                    className="h-8 text-xs"
+                                    disabled={!!editando}
+                                    className="h-8 text-xs w-[140px]"
                                 />
                             </div>
                         </div>
                     </div>
 
+
                     {/* Tabelas de materiais */}
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col items-center gap-4 md:gap-6">
                         {(
                             [
                                 ["madeiras", "Madeiras"],
@@ -413,7 +423,10 @@ export default function EditarOrcamentoPage() {
                                 ["telhas", "Telhas"],
                             ] as [MaterialCategoria, string][]
                         ).map(([categoria, titulo]) => (
-                            <Card key={categoria} className="border shadow-sm max-w-[600px]">
+                            <Card
+                                key={categoria}
+                                className="w-full max-w-[800px] mx-auto border shadow-sm"
+                            >
                                 <CardHeader className="p-3 md:p-4">
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                         <CardTitle className="text-sm md:text-base">{titulo}</CardTitle>
@@ -430,10 +443,10 @@ export default function EditarOrcamentoPage() {
                                 </CardHeader>
 
                                 <CardContent className="p-3 md:p-4 pt-0">
-                                    <div className="overflow-x-auto">
+                                    <div className="overflow-x-auto rounded-xl">
                                         <Table className="min-w-[280px]">
                                             <TableHeader>
-                                                <TableRow className="bg-muted">
+                                                <TableRow className="bg-bege">
                                                     <TableHead className="text-xs font-medium">Nome</TableHead>
                                                     <TableHead className="text-xs font-medium">
                                                         {categoria === "madeiras" ? "Metros" : "Qtd"}
@@ -448,18 +461,23 @@ export default function EditarOrcamentoPage() {
 
                                             <TableBody>
                                                 {materiais[categoria].map(({ id, nome, quantidade, preco }) => {
-                                                    const area = dimensoes.largura * dimensoes.comprimento || 1
-                                                    const total = quantidade * preco * area
-                                                    const emEdicao = editando?.id === id && editando.categoria === categoria
+                                                    const area = dimensoes.largura * dimensoes.comprimento || 1;
+                                                    const total = quantidade * preco * area;
+                                                    const emEdicao =
+                                                        editando?.id === id && editando.categoria === categoria;
 
                                                     return (
                                                         <TableRow key={id}>
+                                                            {/* nome */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
                                                                         value={editData.nome}
                                                                         onChange={(e) =>
-                                                                            setEditData((d) => ({ ...d, nome: e.target.value }))
+                                                                            setEditData((d) => ({
+                                                                                ...d,
+                                                                                nome: e.target.value,
+                                                                            }))
                                                                         }
                                                                         className="h-8 text-xs"
                                                                     />
@@ -467,6 +485,8 @@ export default function EditarOrcamentoPage() {
                                                                     <span className="text-xs">{nome}</span>
                                                                 )}
                                                             </TableCell>
+
+                                                            {/* qtd / metros */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
@@ -484,6 +504,8 @@ export default function EditarOrcamentoPage() {
                                                                     <span className="text-xs">{quantidade}</span>
                                                                 )}
                                                             </TableCell>
+
+                                                            {/* preço */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
@@ -504,9 +526,13 @@ export default function EditarOrcamentoPage() {
                                                                     </span>
                                                                 )}
                                                             </TableCell>
+
+                                                            {/* total */}
                                                             <TableCell className="p-2 text-xs">
                                                                 R$ {total.toFixed(2)}
                                                             </TableCell>
+
+                                                            {/* ações */}
                                                             <TableCell className="p-2">
                                                                 <div className="flex justify-center gap-1">
                                                                     {emEdicao ? (
@@ -516,7 +542,8 @@ export default function EditarOrcamentoPage() {
                                                                                 size="icon"
                                                                                 onClick={handleEditSave}
                                                                                 disabled={
-                                                                                    editData.nome.trim() === "" || editData.preco <= 0
+                                                                                    editData.nome.trim() === "" ||
+                                                                                    editData.preco <= 0
                                                                                 }
                                                                                 className="h-7 w-7"
                                                                             >
@@ -553,7 +580,9 @@ export default function EditarOrcamentoPage() {
                                                                                 variant="ghost"
                                                                                 size="icon"
                                                                                 disabled={!!editando}
-                                                                                onClick={() => handleRemoveMaterial(categoria, id)}
+                                                                                onClick={() =>
+                                                                                    handleRemoveMaterial(categoria, id)
+                                                                                }
                                                                                 className="h-7 w-7 text-red-500"
                                                                             >
                                                                                 <Trash className="w-3 h-3" />
@@ -563,7 +592,7 @@ export default function EditarOrcamentoPage() {
                                                                 </div>
                                                             </TableCell>
                                                         </TableRow>
-                                                    )
+                                                    );
                                                 })}
                                             </TableBody>
                                         </Table>

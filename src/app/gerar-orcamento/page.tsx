@@ -218,7 +218,7 @@ export default function GerarOrcamentoPage() {
 
 
 
-      {/* ----------------- Etapa 2 - RESPONSIVO ----------------- */}
+      {/* ----------------- Etapa 2 ----------------- */}
       <Card className="w-full shadow-md border rounded-2xl mt-4 md:mt-6">
         <CardHeader className="p-4 md:p-6 pb-2">
           <div className="flex items-center gap-2">
@@ -226,19 +226,25 @@ export default function GerarOrcamentoPage() {
             <CardTitle className="text-lg md:text-xl">Dados do Serviço</CardTitle>
           </div>
 
-          {/* ⬅️ Espaço reduzido entre título e subtítulo */}
           <CardDescription className="text-xs md:text-sm text-muted-foreground mt-0.5">
-            Selecione o produto e edite / adicione os materiais necessários.
+            Selecione o produto e adicione os materiais necessários.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="p-4 md:p-6 pt-2">
-          {/* ⬅️ Seletor de produto e inputs lado a lado */}
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
-            <div className="flex flex-col gap-2 md:gap-3 w-full sm:max-w-sm">
+          {/* seletor + dimensões */}
+          <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-6">
+            {/* Produto */}
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium">Selecionar produto</Label>
-              <Select onValueChange={handleSelecionarProduto}>
-                <SelectTrigger className="h-9 md:h-10">
+              <Select
+                value={produtoSelecionado ?? undefined}
+                onValueChange={handleSelecionarProduto}
+              >
+                <SelectTrigger
+                  className="h-9 md:h-10 w-[140px]"
+                  disabled={!!editando}
+                >
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -248,34 +254,39 @@ export default function GerarOrcamentoPage() {
               </Select>
             </div>
 
-            <div className="flex gap-4">
-              <div className="flex flex-col gap-1 w-[100px]">
-                <Label className="text-xs">Largura</Label>
+            {/* Largura & Comprimento */}
+            <div className="flex gap-6">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Largura&nbsp;(m)</Label>
                 <Input
                   type="number"
                   min={1}
                   value={dimensoes.largura}
-                  onChange={(e) => setDimensoes((d) => ({ ...d, largura: +e.target.value }))}
-                  placeholder="Largura"
-                  className="h-8 text-xs"
+                  onChange={(e) =>
+                    setDimensoes((d) => ({ ...d, largura: +e.target.value }))
+                  }
+                  disabled={!!editando}
+                  className="h-8 text-xs w-[140px]"
                 />
               </div>
-              <div className="flex flex-col gap-1 w-[100px]">
-                <Label className="text-xs">Comprimento</Label>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Comprimento&nbsp;(m)</Label>
                 <Input
                   type="number"
                   min={1}
                   value={dimensoes.comprimento}
-                  onChange={(e) => setDimensoes((d) => ({ ...d, comprimento: +e.target.value }))}
-                  placeholder="Comprimento"
-                  className="h-8 text-xs"
+                  onChange={(e) =>
+                    setDimensoes((d) => ({ ...d, comprimento: +e.target.value }))
+                  }
+                  disabled={!!editando}
+                  className="h-8 text-xs w-[140px]"
                 />
               </div>
             </div>
           </div>
 
           {/* Tabelas de materiais */}
-          <div className="flex flex-col gap-6 mt-2">
+          <div className="flex flex-col items-center gap-4 md:gap-6">
             {(
               [
                 ["madeiras", "Madeiras"],
@@ -283,7 +294,10 @@ export default function GerarOrcamentoPage() {
                 ["telhas", "Telhas"],
               ] as [MaterialCategoria, string][]
             ).map(([categoria, titulo]) => (
-              <Card key={categoria} className="border shadow-sm max-w-[600px]">
+              <Card
+                key={categoria}
+                className="w-full max-w-[800px] mx-auto border shadow-sm"
+              >
                 <CardHeader className="p-3 md:p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <CardTitle className="text-sm md:text-base">{titulo}</CardTitle>
@@ -296,82 +310,157 @@ export default function GerarOrcamentoPage() {
                     >
                       <Plus className="w-3 h-3 mr-1" /> Adicionar
                     </Button>
-
                   </div>
                 </CardHeader>
 
                 <CardContent className="p-3 md:p-4 pt-0">
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-xl">
                     <Table className="min-w-[280px]">
                       <TableHeader>
-                        <TableRow className="bg-muted">
+                        <TableRow className="bg-bege">
                           <TableHead className="text-xs font-medium">Nome</TableHead>
-                          <TableHead className="text-xs font-medium">{categoria === "madeiras" ? "Metros" : "Qtd"}</TableHead>
+                          <TableHead className="text-xs font-medium">
+                            {categoria === "madeiras" ? "Metros" : "Qtd"}
+                          </TableHead>
                           <TableHead className="text-xs font-medium">Preço</TableHead>
                           <TableHead className="text-xs font-medium">Total</TableHead>
-                          <TableHead className="text-center text-xs font-medium w-16">Ações</TableHead>
+                          <TableHead className="text-center text-xs font-medium w-16">
+                            Ações
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
 
                       <TableBody>
                         {materiais[categoria].map(({ id, nome, quantidade, preco }) => {
-                          const total = quantidade * preco * (dimensoes.largura * dimensoes.comprimento || 1)
+                          const total =
+                            quantidade * preco *
+                            (dimensoes.largura * dimensoes.comprimento || 1);
+                          const emEdicao =
+                            editando?.id === id && editando.categoria === categoria;
+
                           return (
                             <TableRow key={id}>
+                              {/* Nome */}
                               <TableCell className="p-2">
-                                {editando?.id === id && editando.categoria === categoria ? (
-                                  <Input value={editData.nome} onChange={(e) => setEditData((d) => ({ ...d, nome: e.target.value }))} className="h-8 text-xs" />
+                                {emEdicao ? (
+                                  <Input
+                                    value={editData.nome}
+                                    onChange={(e) =>
+                                      setEditData((d) => ({
+                                        ...d,
+                                        nome: e.target.value,
+                                      }))
+                                    }
+                                    className="h-8 text-xs"
+                                  />
                                 ) : (
                                   <span className="text-xs">{nome}</span>
                                 )}
                               </TableCell>
+                              {/* Qtd / Metros */}
                               <TableCell className="p-2">
-                                {editando?.id === id && editando.categoria === categoria ? (
-                                  <Input type="number" value={editData.quantidade} onChange={(e) => setEditData((d) => ({ ...d, quantidade: +e.target.value }))} className="h-8 text-xs" />
+                                {emEdicao ? (
+                                  <Input
+                                    type="number"
+                                    value={editData.quantidade}
+                                    onChange={(e) =>
+                                      setEditData((d) => ({
+                                        ...d,
+                                        quantidade: +e.target.value,
+                                      }))
+                                    }
+                                    className="h-8 text-xs"
+                                  />
                                 ) : (
                                   <span className="text-xs">{quantidade}</span>
                                 )}
                               </TableCell>
+                              {/* Preço */}
                               <TableCell className="p-2">
-                                {editando?.id === id && editando.categoria === categoria ? (
-                                  <Input type="number" step="0.01" value={editData.preco} onChange={(e) => setEditData((d) => ({ ...d, preco: +e.target.value }))} className="h-8 text-xs" />
+                                {emEdicao ? (
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editData.preco}
+                                    onChange={(e) =>
+                                      setEditData((d) => ({
+                                        ...d,
+                                        preco: +e.target.value,
+                                      }))
+                                    }
+                                    className="h-8 text-xs"
+                                  />
                                 ) : (
-                                  <span className="text-xs">R$ {preco.toFixed(2)}</span>
+                                  <span className="text-xs">
+                                    R$ {preco.toFixed(2)}
+                                  </span>
                                 )}
                               </TableCell>
-                              <TableCell className="p-2 text-xs">R$ {total.toFixed(2)}</TableCell>
+                              {/* Total */}
+                              <TableCell className="p-2 text-xs">
+                                R$ {total.toFixed(2)}
+                              </TableCell>
+                              {/* Ações */}
                               <TableCell className="p-2">
                                 <div className="flex justify-center gap-1">
-                                  {editando?.id === id && editando.categoria === categoria ? (
+                                  {emEdicao ? (
                                     <>
                                       <Button
                                         variant="ghost"
                                         size="icon"
                                         onClick={handleEditSave}
-                                        disabled={editData.nome.trim() === "" || editData.preco <= 0}
+                                        disabled={
+                                          editData.nome.trim() === "" ||
+                                          editData.preco <= 0
+                                        }
                                         className="h-7 w-7"
                                       >
                                         <Save className="w-3 h-3" />
                                       </Button>
-
-                                      <Button variant="ghost" size="icon" onClick={() => setEditando(null)} className="h-7 w-7">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setEditando(null)}
+                                        className="h-7 w-7"
+                                      >
                                         <X className="w-3 h-3" />
                                       </Button>
                                     </>
                                   ) : (
                                     <>
-                                      <Button variant="ghost" size="icon" disabled={!!editando} onClick={() => handleEditStart(categoria, { id, nome, quantidade, preco })} className="h-7 w-7">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={!!editando}
+                                        onClick={() =>
+                                          handleEditStart(categoria, {
+                                            id,
+                                            nome,
+                                            quantidade,
+                                            preco,
+                                          })
+                                        }
+                                        className="h-7 w-7"
+                                      >
                                         <Edit className="w-3 h-3" />
                                       </Button>
-                                      <Button variant="ghost" size="icon" disabled={!!editando} onClick={() => handleRemoveMaterial(categoria, id)} className="h-7 w-7">
-                                        <Trash className="w-3 h-3 text-red-500" />
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={!!editando}
+                                        onClick={() =>
+                                          handleRemoveMaterial(categoria, id)
+                                        }
+                                        className="h-7 w-7 text-red-500"
+                                      >
+                                        <Trash className="w-3 h-3" />
                                       </Button>
                                     </>
                                   )}
                                 </div>
                               </TableCell>
                             </TableRow>
-                          )
+                          );
                         })}
                       </TableBody>
                     </Table>
@@ -382,6 +471,7 @@ export default function GerarOrcamentoPage() {
           </div>
         </CardContent>
       </Card>
+
 
 
       {/* ----------------- Etapa 3 - RESPONSIVO ----------------- */}
