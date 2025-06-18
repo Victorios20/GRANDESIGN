@@ -296,7 +296,7 @@ export default function GerarOrcamentoPage() {
             ).map(([categoria, titulo]) => (
               <Card
                 key={categoria}
-                className="w-full max-w-[800px] mx-auto border shadow-sm"
+                className="w-full mx-auto border shadow-sm"
               >
                 <CardHeader className="p-3 md:p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
