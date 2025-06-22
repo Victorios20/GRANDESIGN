@@ -230,8 +230,8 @@ export default function EditarMateriaisPage() {
     const [tab, setTab] = useState<"materiais" | "madeiras" | "telhas">("materiais");
 
     const links = [
-        { label: "Home", href: "/home" },
-        { label: "Editar Materiais", href: "/home/editar-materiais" },
+        { label: "Home", href: "/" },
+        { label: "Editar Materiais", href: "/editar-materiais" },
     ];
 
     const triggerBase =

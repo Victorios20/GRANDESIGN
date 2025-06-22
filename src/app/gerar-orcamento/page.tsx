@@ -330,7 +330,7 @@ export default function GerarOrcamentoPage() {
                         <SelectValue placeholder="Adicionar material" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="vazio">Manual</SelectItem>
+                        <SelectItem value="vazio">Novo Material</SelectItem>
                         {Object.keys(
                           categoria === "madeiras"
                             ? madeirasTabela
