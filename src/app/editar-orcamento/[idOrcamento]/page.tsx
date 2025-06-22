@@ -4,7 +4,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { Trash, Plus, X, Edit, Save } from "lucide-react"
+import { Trash, X, Edit, Save } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
@@ -89,6 +89,31 @@ const orcamentosMock: Record<string, OrcamentoMock> = {
     },
 }
 
+
+/* ---------- Tabelas de materiais ---------- */
+const madeirasTabela = {
+    "Viga 3m": { preco: 35 },
+    "Ripa 5m": { preco: 22 },
+    "Tábua": { preco: 20 },
+}
+
+const materiaisGeraisTabela = {
+    "Parafuso 10 mm": { preco: 0.1 },
+    "Cimento 50 kg": { preco: 30 },
+    "Cola Madeira": { preco: 18 },
+}
+
+
+
+
+const telhasPrecoTabela = {
+  Romana: { preco: 7.5 },
+  Colonial: { preco: 8 },
+  Americana: { preco: 7.8 },
+}
+
+
+
 /* ---------- Componente ---------- */
 /* ---------- Componente ---------- */
 // (adicione `useEffect` na sua linha de import)
@@ -123,6 +148,8 @@ export default function EditarOrcamentoPage() {
     const [materiais, setMateriais] = useState<MateriaisPorCategoria>(
         dadosIniciais.materiais,
     )
+    const [adicionandoId, setAdicionandoId] = useState<number | null>(null)
+
 
     /* dimensões da área */
     const [dimensoes, setDimensoes] = useState(dadosIniciais.dimensoes)
@@ -218,6 +245,8 @@ export default function EditarOrcamentoPage() {
         setEditando({ categoria, id: m.id })
         setEditData({ nome: m.nome, quantidade: m.quantidade, preco: m.preco })
     }
+
+
     const handleEditSave = () => {
         if (!editando) return
         setMateriais((prev) => ({
@@ -227,19 +256,41 @@ export default function EditarOrcamentoPage() {
             ),
         }))
         setEditando(null)
+        setAdicionandoId(null)
     }
 
     /* Adicionar material */
-    const handleAddMaterial = (categoria: MaterialCategoria) => {
+    const handleAddMaterial = (categoria: MaterialCategoria, nomeSelecionado: string) => {
         const newId = Date.now()
-        const novo: Material = { id: newId, nome: "", quantidade: 1, preco: 0 }
+        let nome = ""
+        let preco = 0
+
+        if (nomeSelecionado !== "vazio") {
+            if (categoria === "madeiras") {
+                nome = nomeSelecionado
+                preco = madeirasTabela[nomeSelecionado as keyof typeof madeirasTabela].preco
+            }
+            if (categoria === "materiaisGerais") {
+                nome = nomeSelecionado
+                preco = materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
+            }
+            if (categoria === "telhas") {
+                nome = nomeSelecionado
+                preco = telhasPrecoTabela[nomeSelecionado as keyof typeof telhasPrecoTabela].preco
+            }
+
+        }
+
+        const novo: Material = { id: newId, nome, quantidade: 1, preco }
         setMateriais((prev) => ({
             ...prev,
             [categoria]: [...prev[categoria], novo],
         }))
         setEditando({ categoria, id: newId })
         setEditData(novo)
+        setAdicionandoId(newId) // 🟨 controle de adicionando
     }
+
 
     /* Nova cópia (apenas simulação) */
     const handleNovaCopia = () => {
@@ -361,18 +412,13 @@ export default function EditarOrcamentoPage() {
                 <CardContent className="p-4 md:p-6 pt-2">
                     {/* seletor + dimensões */}
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4 mb-6">
-                        {/* Produto */}
                         <div className="flex flex-col gap-2">
                             <Label className="text-sm font-medium">Selecionar produto</Label>
                             <Select
                                 value={produtoSelecionado ?? undefined}
                                 onValueChange={handleSelecionarProduto}
                             >
-                                {/* mesma largura dos inputs → 140 px */}
-                                <SelectTrigger
-                                    className="h-9 md:h-10 w-[140px]"
-                                    disabled={!!editando}
-                                >
+                                <SelectTrigger className="h-9 md:h-10 w-[140px]" disabled={!!editando}>
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -382,7 +428,6 @@ export default function EditarOrcamentoPage() {
                             </Select>
                         </div>
 
-                        {/* Largura / Comprimento */}
                         <div className="flex gap-4">
                             <div className="flex flex-col gap-1">
                                 <Label className="text-xs">Largura&nbsp;(m)</Label>
@@ -413,8 +458,6 @@ export default function EditarOrcamentoPage() {
                         </div>
                     </div>
 
-
-                    {/* Tabelas de materiais */}
                     <div className="flex flex-col items-center gap-4 md:gap-6">
                         {(
                             [
@@ -423,22 +466,32 @@ export default function EditarOrcamentoPage() {
                                 ["telhas", "Telhas"],
                             ] as [MaterialCategoria, string][]
                         ).map(([categoria, titulo]) => (
-                            <Card
-                                key={categoria}
-                                className="w-full mx-auto border shadow-sm"
-                            >
+                            <Card key={categoria} className="w-full mx-auto border shadow-sm">
                                 <CardHeader className="p-3 md:p-4">
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                         <CardTitle className="text-sm md:text-base">{titulo}</CardTitle>
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            onClick={() => handleAddMaterial(categoria)}
+                                        <Select
+                                            onValueChange={(value) => handleAddMaterial(categoria, value)}
                                             disabled={!!editando || !produtoSelecionado}
-                                            className="h-8 text-xs self-start sm:self-auto"
                                         >
-                                            <Plus className="w-3 h-3 mr-1" /> Adicionar
-                                        </Button>
+                                            <SelectTrigger className="h-8 w-[180px] text-xs">
+                                                <SelectValue placeholder="Adicionar material" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="vazio">Manual</SelectItem>
+                                                {Object.keys(
+                                                    categoria === "madeiras"
+                                                        ? madeirasTabela
+                                                        : categoria === "materiaisGerais"
+                                                            ? materiaisGeraisTabela
+                                                            : telhasTabela
+                                                ).map((nome) => (
+                                                    <SelectItem key={nome} value={nome}>
+                                                        {nome}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </CardHeader>
 
@@ -461,23 +514,20 @@ export default function EditarOrcamentoPage() {
 
                                             <TableBody>
                                                 {materiais[categoria].map(({ id, nome, quantidade, preco }) => {
-                                                    const area = dimensoes.largura * dimensoes.comprimento || 1;
-                                                    const total = quantidade * preco * area;
+
+                                                    const total = quantidade * preco;
                                                     const emEdicao =
                                                         editando?.id === id && editando.categoria === categoria;
+                                                    const isAdicionando = adicionandoId === id;
 
                                                     return (
                                                         <TableRow key={id}>
-                                                            {/* nome */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
                                                                         value={editData.nome}
                                                                         onChange={(e) =>
-                                                                            setEditData((d) => ({
-                                                                                ...d,
-                                                                                nome: e.target.value,
-                                                                            }))
+                                                                            setEditData((d) => ({ ...d, nome: e.target.value }))
                                                                         }
                                                                         className="h-8 text-xs"
                                                                     />
@@ -486,11 +536,11 @@ export default function EditarOrcamentoPage() {
                                                                 )}
                                                             </TableCell>
 
-                                                            {/* qtd / metros */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
                                                                         type="number"
+                                                                        step={categoria === "madeiras" ? "0.01" : "1"}
                                                                         value={editData.quantidade}
                                                                         onChange={(e) =>
                                                                             setEditData((d) => ({
@@ -505,7 +555,6 @@ export default function EditarOrcamentoPage() {
                                                                 )}
                                                             </TableCell>
 
-                                                            {/* preço */}
                                                             <TableCell className="p-2">
                                                                 {emEdicao ? (
                                                                     <Input
@@ -513,26 +562,19 @@ export default function EditarOrcamentoPage() {
                                                                         step="0.01"
                                                                         value={editData.preco}
                                                                         onChange={(e) =>
-                                                                            setEditData((d) => ({
-                                                                                ...d,
-                                                                                preco: +e.target.value,
-                                                                            }))
+                                                                            setEditData((d) => ({ ...d, preco: +e.target.value }))
                                                                         }
                                                                         className="h-8 text-xs"
                                                                     />
                                                                 ) : (
-                                                                    <span className="text-xs">
-                                                                        R$ {preco.toFixed(2)}
-                                                                    </span>
+                                                                    <span className="text-xs">R$ {preco.toFixed(2)}</span>
                                                                 )}
                                                             </TableCell>
 
-                                                            {/* total */}
                                                             <TableCell className="p-2 text-xs">
                                                                 R$ {total.toFixed(2)}
                                                             </TableCell>
 
-                                                            {/* ações */}
                                                             <TableCell className="p-2">
                                                                 <div className="flex justify-center gap-1">
                                                                     {emEdicao ? (
@@ -542,21 +584,35 @@ export default function EditarOrcamentoPage() {
                                                                                 size="icon"
                                                                                 onClick={handleEditSave}
                                                                                 disabled={
-                                                                                    editData.nome.trim() === "" ||
-                                                                                    editData.preco <= 0
+                                                                                    editData.nome.trim() === "" || editData.preco <= 0
                                                                                 }
                                                                                 className="h-7 w-7"
                                                                             >
                                                                                 <Save className="w-3 h-3" />
                                                                             </Button>
-                                                                            <Button
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                onClick={() => setEditando(null)}
-                                                                                className="h-7 w-7"
-                                                                            >
-                                                                                <X className="w-3 h-3" />
-                                                                            </Button>
+
+                                                                            {isAdicionando ? (
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    onClick={() => handleRemoveMaterial(categoria, id)}
+                                                                                    className="h-7 w-7 text-red-500"
+                                                                                >
+                                                                                    <Trash className="w-3 h-3" />
+                                                                                </Button>
+                                                                            ) : (
+                                                                                <Button
+                                                                                    variant="ghost"
+                                                                                    size="icon"
+                                                                                    onClick={() => {
+                                                                                        setEditando(null)
+                                                                                        setAdicionandoId(null)
+                                                                                    }}
+                                                                                    className="h-7 w-7"
+                                                                                >
+                                                                                    <X className="w-3 h-3" />
+                                                                                </Button>
+                                                                            )}
                                                                         </>
                                                                     ) : (
                                                                         <>
@@ -580,9 +636,7 @@ export default function EditarOrcamentoPage() {
                                                                                 variant="ghost"
                                                                                 size="icon"
                                                                                 disabled={!!editando}
-                                                                                onClick={() =>
-                                                                                    handleRemoveMaterial(categoria, id)
-                                                                                }
+                                                                                onClick={() => handleRemoveMaterial(categoria, id)}
                                                                                 className="h-7 w-7 text-red-500"
                                                                             >
                                                                                 <Trash className="w-3 h-3" />
@@ -603,6 +657,7 @@ export default function EditarOrcamentoPage() {
                     </div>
                 </CardContent>
             </Card>
+
 
             {/* -------- Etapa 3 -------- */}
             <Card className="w-full shadow-md border rounded-2xl mt-4 md:mt-6">
