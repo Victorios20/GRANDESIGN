@@ -67,9 +67,7 @@ export default function GerarOrcamentoPage() {
   const [editando, setEditando] = useState<{ categoria: MaterialCategoria; id: number } | null>(null)
   const [editData, setEditData] = useState<Omit<Material, "id">>({ nome: "", quantidade: 1, preco: 0 })
   const [dimensoes, setDimensoes] = useState({ largura: 1, comprimento: 1 })
-
   const [adicionandoId, setAdicionandoId] = useState<number | null>(null)
-
 
   const progressoEtapa1 = (camposPreenchidos / totalCampos) * 33
   const progresso = Math.round(progressoEtapa1 + (produtoSelecionado ? 33 : 0))
@@ -77,14 +75,22 @@ export default function GerarOrcamentoPage() {
   const totMadeiras = materiais.madeiras.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
   const totMateriaisGerais = materiais.materiaisGerais.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
   const totTelhas = materiais.telhas.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
-  const totais = {
+
+  const [totaisEditaveis, setTotaisEditaveis] = useState({
     madeiras: totMadeiras,
     materiais: totMateriaisGerais + totTelhas,
     maoDeObra: 900,
     empresaPS: 1500,
     empresaGD: 1500,
+  })
+  const [editandoTotal, setEditandoTotal] = useState<keyof typeof totaisEditaveis | null>(null)
+  const somaTotal = Object.values(totaisEditaveis).reduce((acc, v) => acc + v, 0)
+
+  const telhasPagamentoTabela = {
+    Romana: { pix: 9200, dez: 1015, dezoito: 591 },
+    Colonial: { pix: 8400, dez: 927, dezoito: 539 },
+    Americana: { pix: 9100, dez: 1004, dezoito: 584 },
   }
-  const somaTotal = Object.values(totais).reduce((acc, v) => acc + v, 0)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -110,13 +116,6 @@ export default function GerarOrcamentoPage() {
       })
     }
   }
-
-  const telhasPagamentoTabela = {
-    Romana: { pix: 9200, dez: 1015, dezoito: 591 },
-    Colonial: { pix: 8400, dez: 927, dezoito: 539 },
-    Americana: { pix: 9100, dez: 1004, dezoito: 584 },
-  }
-
 
   const handleEditStart = (categoria: MaterialCategoria, m: Material) => {
     setEditando({ categoria, id: m.id })
@@ -161,9 +160,8 @@ export default function GerarOrcamentoPage() {
     }))
     setEditando({ categoria, id: newId })
     setEditData(novo)
-    setAdicionandoId(newId) // <-- Adiciona isso aqui
+    setAdicionandoId(newId)
   }
-
 
   const handleRemoveMaterial = (categoria: MaterialCategoria, id: number) => {
     setMateriais((prev) => ({
@@ -521,36 +519,48 @@ export default function GerarOrcamentoPage() {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableBody>
-                      <TableRow>
-                        <TableCell className="text-xs md:text-sm">Madeiras</TableCell>
-                        <TableCell className="text-xs md:text-sm font-medium">
-                          R$ {totais.madeiras.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-xs md:text-sm">Materiais</TableCell>
-                        <TableCell className="text-xs md:text-sm font-medium">
-                          R$ {totais.materiais.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-xs md:text-sm">Mão de Obra</TableCell>
-                        <TableCell className="text-xs md:text-sm font-medium">
-                          R$ {totais.maoDeObra.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-xs md:text-sm">Empresa PS</TableCell>
-                        <TableCell className="text-xs md:text-sm font-medium">
-                          R$ {totais.empresaPS.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="text-xs md:text-sm">Empresa GD</TableCell>
-                        <TableCell className="text-xs md:text-sm font-medium">
-                          R$ {totais.empresaGD.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
+                      {Object.entries(totaisEditaveis).map(([categoria, valor]) => (
+                        <TableRow key={categoria}>
+                          <TableCell className="text-xs md:text-sm capitalize">
+                            {categoria.replace(/([A-Z])/g, " $1")}
+                          </TableCell>
+                          <TableCell className="text-xs md:text-sm">
+                            {editandoTotal === categoria ? (
+                              <Input
+                                type="number"
+                                value={valor}
+                                onChange={(e) =>
+                                  setTotaisEditaveis((prev) => ({
+                                    ...prev,
+                                    [categoria]: parseFloat(e.target.value),
+                                  }))
+                                }
+                                className="max-w-[100px] h-8"
+                              />
+                            ) : (
+                              `R$ ${valor.toFixed(2)}`
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                setEditandoTotal(
+                                  editandoTotal === categoria ? null : (categoria as keyof typeof totaisEditaveis)
+                                )
+                              }
+                              className="h-7 w-7"
+                            >
+                              {editandoTotal === categoria ? (
+                                <Save className="w-3 h-3" />
+                              ) : (
+                                <Edit className="w-3 h-3" />
+                              )}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                       <TableRow className="font-bold border-t-2">
                         <TableCell className="text-sm md:text-base">Total Geral</TableCell>
                         <TableCell className="text-sm md:text-base">R$ {somaTotal.toFixed(2)}</TableCell>

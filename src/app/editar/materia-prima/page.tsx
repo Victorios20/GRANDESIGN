@@ -174,9 +174,13 @@ function EditableTable({
                                                 className="h-8 text-xs bg-transparent focus-visible:ring-1 focus-visible:ring-primary"
                                             />
                                         ) : (
-                                            preco.toFixed(2)
+                                            `R$ ${preco.toLocaleString("en-US", {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                            })}`
                                         )}
                                     </TableCell>
+
 
                                     <TableCell className="flex justify-center gap-2">
                                         {editing ? (

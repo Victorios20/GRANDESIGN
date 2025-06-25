@@ -107,9 +107,9 @@ const materiaisGeraisTabela = {
 
 
 const telhasPrecoTabela = {
-  Romana: { preco: 7.5 },
-  Colonial: { preco: 8 },
-  Americana: { preco: 7.8 },
+    Romana: { preco: 7.5 },
+    Colonial: { preco: 8 },
+    Americana: { preco: 7.8 },
 }
 
 
@@ -120,216 +120,173 @@ const telhasPrecoTabela = {
 // import { useState, useEffect } from "react"
 
 export default function EditarOrcamentoPage() {
-    const router = useRouter()
-    const { idOrcamento } = useParams<{ idOrcamento: string }>()
+  const router = useRouter()
+  const { idOrcamento } = useParams<{ idOrcamento: string }>()
 
+  const dadosIniciais =
+    orcamentosMock[idOrcamento] ?? {
+      cliente: { nome: "", telefone: "", cidade: "", bairro: "" },
+      produto: null,
+      materiais: { madeiras: [], materiaisGerais: [], telhas: [] },
+      dimensoes: { largura: 1, comprimento: 1 },
+    }
 
+  const [formValues, setFormValues] = useState(dadosIniciais.cliente)
+  const totalCampos = Object.keys(formValues).length
+  const camposPreenchidos = Object.values(formValues).filter((v) => v.trim() !== "").length
 
-    console.log("param bruto:", idOrcamento);                     // pode exibir ['2'] ou '2%0A'
-    // deve exibir o objeto
+  const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(dadosIniciais.produto)
+  const [materiais, setMateriais] = useState<MateriaisPorCategoria>(dadosIniciais.materiais)
+  const [adicionandoId, setAdicionandoId] = useState<number | null>(null)
+  const [dimensoes, setDimensoes] = useState(dadosIniciais.dimensoes)
 
-    const dadosIniciais =
-        orcamentosMock[idOrcamento] ?? {
-            cliente: { nome: "", telefone: "", cidade: "", bairro: "" },
-            produto: null,
-            materiais: { madeiras: [], materiaisGerais: [], telhas: [] },
-            dimensoes: { largura: 1, comprimento: 1 },
-        }
+  useEffect(() => {
+    if (!idOrcamento) return
+    const data = orcamentosMock[idOrcamento]
+    if (!data) return
+    setFormValues(data.cliente)
+    setProdutoSelecionado(data.produto)
+    setMateriais(data.materiais)
+    setDimensoes(data.dimensoes)
+  }, [idOrcamento])
 
-    /* --- Etapa 1: dados pessoais --- */
-    const [formValues, setFormValues] = useState(dadosIniciais.cliente)
-    const totalCampos = Object.keys(formValues).length
-    const camposPreenchidos = Object.values(formValues).filter((v) => v.trim() !== "")
-        .length
+  const [editando, setEditando] = useState<{ categoria: MaterialCategoria; id: number } | null>(null)
+  const [editData, setEditData] = useState<Omit<Material, "id">>({
+    nome: "",
+    quantidade: 1,
+    preco: 0,
+  })
 
-    /* --- Etapa 2: materiais --- */
-    const [produtoSelecionado, setProdutoSelecionado] =
-        useState<string | null>(dadosIniciais.produto)
-    const [materiais, setMateriais] = useState<MateriaisPorCategoria>(
-        dadosIniciais.materiais,
-    )
-    const [adicionandoId, setAdicionandoId] = useState<number | null>(null)
+  const progressoEtapa1 = (camposPreenchidos / totalCampos) * 33
+  const progresso = Math.round(progressoEtapa1 + (produtoSelecionado ? 33 : 0))
 
+  // 🔁 Calcular totais primeiro
+  const totMadeiras = materiais.madeiras.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+  const totMateriaisGerais = materiais.materiaisGerais.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+  const totTelhas = materiais.telhas.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
 
-    /* dimensões da área */
-    const [dimensoes, setDimensoes] = useState(dadosIniciais.dimensoes)
+  const [totaisEditaveis, setTotaisEditaveis] = useState({
+    madeiras: totMadeiras,
+    materiais: totMateriaisGerais + totTelhas,
+    maoDeObra: 900,
+    empresaPS: 1500,
+    empresaGD: 1500,
+  })
+  const [editandoTotal, setEditandoTotal] = useState<keyof typeof totaisEditaveis | null>(null)
+  const somaTotal = Object.values(totaisEditaveis).reduce((acc, v) => acc + v, 0)
 
-    /* 🔄 repopula quando o id chegar/mudar */
-    useEffect(() => {
-        if (!idOrcamento) return
-        const data = orcamentosMock[idOrcamento]
-        if (!data) return
-        setFormValues(data.cliente)
-        setProdutoSelecionado(data.produto)
-        setMateriais(data.materiais)
-        setDimensoes(data.dimensoes)
-    }, [idOrcamento])
+  const telhasTabela = {
+    Romana: { pix: 9200, dez: 1015, dezoito: 591 },
+    Colonial: { pix: 8400, dez: 927, dezoito: 539 },
+    Americana: { pix: 9100, dez: 1004, dezoito: 584 },
+  }
 
-    /* controle de edição de linha */
-    const [editando, setEditando] = useState<{
-        categoria: MaterialCategoria
-        id: number
-    } | null>(null)
-    const [editData, setEditData] = useState<Omit<Material, "id">>({
-        nome: "",
-        quantidade: 1,
-        preco: 0,
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormValues((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleClearForm = () =>
+    setFormValues({ nome: "", telefone: "", cidade: "", bairro: "" })
+
+  const handleSelecionarProduto = (value: string) => {
+    setProdutoSelecionado(value)
+    if (value === "caramanchao") {
+      setMateriais({
+        madeiras: [{ id: 1, nome: "Viga 3m", quantidade: 4, preco: 35 }],
+        materiaisGerais: [{ id: 1, nome: "Parafuso 10 mm", quantidade: 100, preco: 0.1 }],
+        telhas: [{ id: 1, nome: "Telha Romana", quantidade: 30, preco: 7.5 }],
+      })
+    } else if (value === "cobertura") {
+      setMateriais({
+        madeiras: [{ id: 1, nome: "Ripa 5 m", quantidade: 6, preco: 22 }],
+        materiaisGerais: [{ id: 1, nome: "Cimento 50 kg", quantidade: 3, preco: 30 }],
+        telhas: [{ id: 1, nome: "Telha Colonial", quantidade: 40, preco: 8 }],
+      })
+    }
+  }
+
+  const handleEditStart = (categoria: MaterialCategoria, m: Material) => {
+    setEditando({ categoria, id: m.id })
+    setEditData({ nome: m.nome, quantidade: m.quantidade, preco: m.preco })
+  }
+
+  const handleEditSave = () => {
+    if (!editando) return
+    setMateriais((prev) => ({
+      ...prev,
+      [editando.categoria]: prev[editando.categoria].map((m) =>
+        m.id === editando.id ? { ...m, ...editData } : m
+      ),
+    }))
+    setEditando(null)
+    setAdicionandoId(null)
+  }
+
+  const handleAddMaterial = (categoria: MaterialCategoria, nomeSelecionado: string) => {
+    const newId = Date.now()
+    let nome = ""
+    let preco = 0
+
+    if (nomeSelecionado !== "vazio") {
+      if (categoria === "madeiras") {
+        nome = nomeSelecionado
+        preco = madeirasTabela[nomeSelecionado as keyof typeof madeirasTabela].preco
+      }
+      if (categoria === "materiaisGerais") {
+        nome = nomeSelecionado
+        preco = materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
+      }
+      if (categoria === "telhas") {
+        nome = nomeSelecionado
+        preco = telhasPrecoTabela[nomeSelecionado as keyof typeof telhasPrecoTabela].preco
+      }
+    }
+
+    const novo: Material = { id: newId, nome, quantidade: 1, preco }
+    setMateriais((prev) => ({
+      ...prev,
+      [categoria]: [...prev[categoria], novo],
+    }))
+    setEditando({ categoria, id: newId })
+    setEditData(novo)
+    setAdicionandoId(newId)
+  }
+
+  const handleNovaCopia = () => {
+    console.log("Criar nova cópia deste orçamento →", idOrcamento)
+  }
+
+  const handleSalvarEdicoes = () => {
+    console.log("Salvar edições do orçamento →", {
+      id: idOrcamento,
+      formValues,
+      produtoSelecionado,
+      materiais,
+      dimensoes,
     })
+  }
 
-    /* --- Barra de progresso simples (Etapa 1 / Etapa 2) --- */
-    const progressoEtapa1 = (camposPreenchidos / totalCampos) * 33
-    const progresso = Math.round(progressoEtapa1 + (produtoSelecionado ? 33 : 0))
+  const handleGerarOrcamento = () => {
+    console.log("Gerar orçamento PDF/preview com dados:", {
+      formValues,
+      produtoSelecionado,
+      materiais,
+      dimensoes,
+      totaisEditaveis,
+    })
+  }
 
-    /* --- Totais (Etapa 3) --- */
-    const totMadeiras = materiais.madeiras.reduce(
-        (acc, m) => acc + m.quantidade * m.preco,
-        0,
-    )
-    const totMateriaisGerais = materiais.materiaisGerais.reduce(
-        (acc, m) => acc + m.quantidade * m.preco,
-        0,
-    )
-    const totTelhas = materiais.telhas.reduce(
-        (acc, m) => acc + m.quantidade * m.preco,
-        0,
-    )
-    const totais = {
-        madeiras: totMadeiras,
-        materiais: totMateriaisGerais + totTelhas,
-        maoDeObra: 900,
-        empresaPS: 1500,
-        empresaGD: 1500,
-    }
-    const somaTotal = Object.values(totais).reduce((acc, v) => acc + v, 0)
+  const handleRemoveMaterial = (categoria: MaterialCategoria, id: number) => {
+    setMateriais((prev) => ({
+      ...prev,
+      [categoria]: prev[categoria].filter((m) => m.id !== id),
+    }))
+    if (editando?.id === id && editando?.categoria === categoria) setEditando(null)
+  }
 
-    /* preços fixos por tipo de telha */
-    const telhasTabela = {
-        Romana: { pix: 9200, dez: 1015, dezoito: 591 },
-        Colonial: { pix: 8400, dez: 927, dezoito: 539 },
-        Americana: { pix: 9100, dez: 1004, dezoito: 584 },
-    }
+  // A partir daqui vem o return (mantido por você)
 
-    /* ---------- Handlers ---------- */
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target
-        setFormValues((prev) => ({ ...prev, [name]: value }))
-    }
-
-    const handleClearForm = () =>
-        setFormValues({ nome: "", telefone: "", cidade: "", bairro: "" })
-
-    /* selecionar produto => carrega 3 listas mockadas */
-    const handleSelecionarProduto = (value: string) => {
-        setProdutoSelecionado(value)
-        if (value === "caramanchao") {
-            setMateriais({
-                madeiras: [{ id: 1, nome: "Viga 3m", quantidade: 4, preco: 35 }],
-                materiaisGerais: [
-                    { id: 1, nome: "Parafuso 10 mm", quantidade: 100, preco: 0.1 },
-                ],
-                telhas: [{ id: 1, nome: "Telha Romana", quantidade: 30, preco: 7.5 }],
-            })
-        } else if (value === "cobertura") {
-            setMateriais({
-                madeiras: [{ id: 1, nome: "Ripa 5 m", quantidade: 6, preco: 22 }],
-                materiaisGerais: [
-                    { id: 1, nome: "Cimento 50 kg", quantidade: 3, preco: 30 },
-                ],
-                telhas: [{ id: 1, nome: "Telha Colonial", quantidade: 40, preco: 8 }],
-            })
-        }
-    }
-
-    /* Edição de material */
-    const handleEditStart = (categoria: MaterialCategoria, m: Material) => {
-        setEditando({ categoria, id: m.id })
-        setEditData({ nome: m.nome, quantidade: m.quantidade, preco: m.preco })
-    }
-
-
-    const handleEditSave = () => {
-        if (!editando) return
-        setMateriais((prev) => ({
-            ...prev,
-            [editando.categoria]: prev[editando.categoria].map((m) =>
-                m.id === editando.id ? { ...m, ...editData } : m,
-            ),
-        }))
-        setEditando(null)
-        setAdicionandoId(null)
-    }
-
-    /* Adicionar material */
-    const handleAddMaterial = (categoria: MaterialCategoria, nomeSelecionado: string) => {
-        const newId = Date.now()
-        let nome = ""
-        let preco = 0
-
-        if (nomeSelecionado !== "vazio") {
-            if (categoria === "madeiras") {
-                nome = nomeSelecionado
-                preco = madeirasTabela[nomeSelecionado as keyof typeof madeirasTabela].preco
-            }
-            if (categoria === "materiaisGerais") {
-                nome = nomeSelecionado
-                preco = materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
-            }
-            if (categoria === "telhas") {
-                nome = nomeSelecionado
-                preco = telhasPrecoTabela[nomeSelecionado as keyof typeof telhasPrecoTabela].preco
-            }
-
-        }
-
-        const novo: Material = { id: newId, nome, quantidade: 1, preco }
-        setMateriais((prev) => ({
-            ...prev,
-            [categoria]: [...prev[categoria], novo],
-        }))
-        setEditando({ categoria, id: newId })
-        setEditData(novo)
-        setAdicionandoId(newId) // 🟨 controle de adicionando
-    }
-
-
-    /* Nova cópia (apenas simulação) */
-    const handleNovaCopia = () => {
-        console.log("Criar nova cópia deste orçamento →", idOrcamento)
-    }
-
-    /* Salvar edições (apenas simulação) */
-    const handleSalvarEdicoes = () => {
-        console.log("Salvar edições do orçamento →", {
-            id: idOrcamento,
-            formValues,
-            produtoSelecionado,
-            materiais,
-            dimensoes,
-        })
-    }
-
-    /* Gerar orçamento final */
-    const handleGerarOrcamento = () => {
-        console.log("Gerar orçamento PDF/preview com dados:", {
-            formValues,
-            produtoSelecionado,
-            materiais,
-            dimensoes,
-            totais,
-        })
-    }
-
-    /* Remover material */
-    const handleRemoveMaterial = (categoria: MaterialCategoria, id: number) => {
-        setMateriais((prev) => ({
-            ...prev,
-            [categoria]: prev[categoria].filter((m) => m.id !== id),
-        }))
-        if (editando?.id === id && editando?.categoria === categoria) setEditando(null)
-    }
-
-    /* ---------- Render ---------- */
-    /* ... o restante da renderização permanece inalterado ... */
     return (
         <PageLayout
             links={[
@@ -675,67 +632,64 @@ export default function EditarOrcamentoPage() {
                         {/* Totais por categoria */}
                         <Card className="border shadow-sm">
                             <CardHeader className="p-3 md:p-4">
-                                <CardTitle className="text-sm md:text-base">
-                                    Totais por Categoria
-                                </CardTitle>
+                                <CardTitle className="text-sm md:text-base">Totais por Categoria</CardTitle>
                             </CardHeader>
                             <CardContent className="p-3 md:p-4 pt-0">
                                 <div className="overflow-x-auto">
                                     <Table>
                                         <TableBody>
-                                            <TableRow>
-                                                <TableCell className="text-xs md:text-sm">
-                                                    Madeiras
-                                                </TableCell>
-                                                <TableCell className="text-xs md:text-sm font-medium">
-                                                    R$ {totais.madeiras.toFixed(2)}
-                                                </TableCell>
-                                            </TableRow>
-                                            <TableRow>
-                                                <TableCell className="text-xs md:text-sm">
-                                                    Materiais
-                                                </TableCell>
-                                                <TableCell className="text-xs md:text-sm font-medium">
-                                                    R$ {totais.materiais.toFixed(2)}
-                                                </TableCell>
-                                            </TableRow>
-                                            <TableRow>
-                                                <TableCell className="text-xs md:text-sm">
-                                                    Mão de Obra
-                                                </TableCell>
-                                                <TableCell className="text-xs md:text-sm font-medium">
-                                                    R$ {totais.maoDeObra.toFixed(2)}
-                                                </TableCell>
-                                            </TableRow>
-                                            <TableRow>
-                                                <TableCell className="text-xs md:text-sm">
-                                                    Empresa PS
-                                                </TableCell>
-                                                <TableCell className="text-xs md:text-sm font-medium">
-                                                    R$ {totais.empresaPS.toFixed(2)}
-                                                </TableCell>
-                                            </TableRow>
-                                            <TableRow>
-                                                <TableCell className="text-xs md:text-sm">
-                                                    Empresa GD
-                                                </TableCell>
-                                                <TableCell className="text-xs md:text-sm font-medium">
-                                                    R$ {totais.empresaGD.toFixed(2)}
-                                                </TableCell>
-                                            </TableRow>
+                                            {Object.entries(totaisEditaveis).map(([categoria, valor]) => (
+                                                <TableRow key={categoria}>
+                                                    <TableCell className="text-xs md:text-sm capitalize">
+                                                        {categoria.replace(/([A-Z])/g, " $1")}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs md:text-sm">
+                                                        {editandoTotal === categoria ? (
+                                                            <Input
+                                                                type="number"
+                                                                value={valor}
+                                                                onChange={(e) =>
+                                                                    setTotaisEditaveis((prev) => ({
+                                                                        ...prev,
+                                                                        [categoria]: parseFloat(e.target.value),
+                                                                    }))
+                                                                }
+                                                                className="max-w-[100px] h-8"
+                                                            />
+                                                        ) : (
+                                                            `R$ ${valor.toFixed(2)}`
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                setEditandoTotal(
+                                                                    editandoTotal === categoria ? null : (categoria as keyof typeof totaisEditaveis)
+                                                                )
+                                                            }
+                                                            className="h-7 w-7"
+                                                        >
+                                                            {editandoTotal === categoria ? (
+                                                                <Save className="w-3 h-3" />
+                                                            ) : (
+                                                                <Edit className="w-3 h-3" />
+                                                            )}
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
                                             <TableRow className="font-bold border-t-2">
-                                                <TableCell className="text-sm md:text-base">
-                                                    Total Geral
-                                                </TableCell>
-                                                <TableCell className="text-sm md:text-base">
-                                                    R$ {somaTotal.toFixed(2)}
-                                                </TableCell>
+                                                <TableCell className="text-sm md:text-base">Total Geral</TableCell>
+                                                <TableCell className="text-sm md:text-base">R$ {somaTotal.toFixed(2)}</TableCell>
                                             </TableRow>
                                         </TableBody>
                                     </Table>
                                 </div>
                             </CardContent>
                         </Card>
+
 
                         {/* Tabela de formas de pagamento */}
                         <Card className="border shadow-sm">
