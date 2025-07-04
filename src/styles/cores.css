@@ -69,10 +69,7 @@
    TONALIDADES COMPLEMENTARES “MADEIRA”
    ------------------------- */
 
-/* Fundo madeira-100 (tons intermediários, cartões leves) */
-.bg-madeira-100 {
-  background-color: #EDE6D9;
-}
+
 
 /* Texto madeira-700 (para contrastar sobre madeira-100, se necessário) */
 .text-madeira-700 {
