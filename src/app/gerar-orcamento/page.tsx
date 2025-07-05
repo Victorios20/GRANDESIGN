@@ -1,19 +1,39 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Trash, X, Edit, Save } from "lucide-react"
+import { Trash, X, Edit, Save, Calculator } from "lucide-react"
+
+import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriais"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 /* ---------- Tipos ---------- */
 type Material = { id: number; nome: string; quantidade: number; preco: number }
@@ -24,7 +44,25 @@ type MateriaisPorCategoria = {
   telhas: Material[]
 }
 
-/* ---------- Dados simulados ---------- */
+/* ---------- Constantes ---------- */
+const STORAGE_KEY = "gd_orcamento_draft"
+
+const tiposObraPermitidos = [
+  "Coluna 15",
+  "Coluna 11,5",
+  "Pontalete 15",
+  "Pontalete 11,5",
+  "Linha na Parede 15",
+  "Linha na Parede 11,5",
+  "Linha na Parede + Coluna 15",
+  "Linha na Parede + Coluna 11,5",
+  "Caramanchão 15",
+  "Caramanchão 11,5",
+  "Pergolado 15",
+  "Pergolado 11,5",
+]
+
+/* ---------- Dados simulados (para novo material manual) ---------- */
 const madeirasTabela = {
   "Viga 3m": { preco: 35 },
   "Ripa 5m": { preco: 22 },
@@ -47,76 +85,113 @@ const telhasTabela = {
 export default function GerarOrcamentoPage() {
   const router = useRouter()
 
+  /* ---------- Estados ---------- */
   const [formValues, setFormValues] = useState({
     nome: "",
     telefone: "",
     cidade: "",
     bairro: "",
   })
-
-  const totalCampos = Object.keys(formValues).length
-  const camposPreenchidos = Object.values(formValues).filter((v) => v.trim() !== "").length
-
-  const [produtoSelecionado, setProdutoSelecionado] = useState<string | null>(null)
+  const [tipoObra, setTipoObra] = useState<string | null>(null)
+  const [dimensoes, setDimensoes] = useState({ largura: 1, comprimento: 1 })
   const [materiais, setMateriais] = useState<MateriaisPorCategoria>({
     madeiras: [],
     materiaisGerais: [],
     telhas: [],
   })
 
+  /* edição inline */
   const [editando, setEditando] = useState<{ categoria: MaterialCategoria; id: number } | null>(null)
-  const [editData, setEditData] = useState<Omit<Material, "id">>({ nome: "", quantidade: 1, preco: 0 })
-  const [dimensoes, setDimensoes] = useState({ largura: 1, comprimento: 1 })
+  const [editData, setEditData] = useState<Omit<Material, "id">>({
+    nome: "",
+    quantidade: 1,
+    preco: 0,
+  })
   const [adicionandoId, setAdicionandoId] = useState<number | null>(null)
 
+  /* progress bar */
+  const totalCampos = Object.keys(formValues).length
+  const camposPreenchidos = Object.values(formValues).filter((v) => v.trim() !== "").length
   const progressoEtapa1 = (camposPreenchidos / totalCampos) * 33
-  const progresso = Math.round(progressoEtapa1 + (produtoSelecionado ? 33 : 0))
+  const progresso = Math.round(progressoEtapa1 + (tipoObra ? 33 : 0))
 
-  const totMadeiras = materiais.madeiras.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
-  const totMateriaisGerais = materiais.materiaisGerais.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
-  const totTelhas = materiais.telhas.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+  /* ---------- Persistência localStorage ---------- */
+  /* carregar rascunho */
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      try {
+        const data = JSON.parse(saved)
+        setFormValues(data.formValues ?? formValues)
+        setTipoObra(data.tipoObra ?? null)
+        setDimensoes(data.dimensoes ?? dimensoes)
+        setMateriais(data.materiais ?? materiais)
+      } catch (e) {
+        console.error("Rascunho corrompido:", e)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const [totaisEditaveis, setTotaisEditaveis] = useState({
-    madeiras: totMadeiras,
-    materiais: totMateriaisGerais + totTelhas,
-    maoDeObra: 900,
-    empresaPS: 1500,
-    empresaGD: 1500,
-  })
-  const [editandoTotal, setEditandoTotal] = useState<keyof typeof totaisEditaveis | null>(null)
-  const somaTotal = Object.values(totaisEditaveis).reduce((acc, v) => acc + v, 0)
+  /* salvar rascunho sempre que algo importante mudar */
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const draft = { formValues, tipoObra, dimensoes, materiais }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
+  }, [formValues, tipoObra, dimensoes, materiais])
 
-  const telhasPagamentoTabela = {
-    Romana: { pix: 9200, dez: 1015, dezoito: 591 },
-    Colonial: { pix: 8400, dez: 927, dezoito: 539 },
-    Americana: { pix: 9100, dez: 1004, dezoito: 584 },
+  /* limpar tudo + rascunho */
+  const handleClearForm = () => {
+    setFormValues({ nome: "", telefone: "", cidade: "", bairro: "" })
+    setTipoObra(null)
+    setDimensoes({ largura: 1, comprimento: 1 })
+    setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
+    localStorage.removeItem(STORAGE_KEY)
   }
 
+  /* ---------- handlers gerais ---------- */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormValues((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleClearForm = () =>
-    setFormValues({ nome: "", telefone: "", cidade: "", bairro: "" })
-
-  const handleSelecionarProduto = (value: string) => {
-    setProdutoSelecionado(value)
-    if (value === "caramanchao") {
-      setMateriais({
-        madeiras: [{ id: 1, nome: "Viga 3m", quantidade: 4, preco: 35 }],
-        materiaisGerais: [{ id: 2, nome: "Parafuso 10mm", quantidade: 100, preco: 0.1 }],
-        telhas: [{ id: 3, nome: "Telha Romana", quantidade: 30, preco: 7.5 }],
-      })
-    } else if (value === "cobertura") {
-      setMateriais({
-        madeiras: [{ id: 4, nome: "Ripa 5m", quantidade: 6, preco: 22 }],
-        materiaisGerais: [{ id: 5, nome: "Cimento 50kg", quantidade: 3, preco: 30 }],
-        telhas: [{ id: 6, nome: "Telha Colonial", quantidade: 40, preco: 8 }],
-      })
-    }
+  const handleSelecionarTipoObra = (value: string) => {
+    setTipoObra(value)
+    setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
   }
 
+  /* ---------- Cálculo automático ---------- */
+  const handleCalcular = async () => {
+    if (!tipoObra) return
+
+    const lista = await calcularMateriais(tipoObra, dimensoes.largura, dimensoes.comprimento)
+
+    const madeiras: Material[] = []
+    const materiaisGerais: Material[] = []
+    const telhas: Material[] = []
+
+    lista.forEach((m) => {
+      const base: Material = {
+        id: m.id ?? Date.now() + Math.random(),
+        nome: m.descricao,
+        quantidade: m.quantidade,
+        preco: m.preco_unitario,
+      }
+
+      if (m.tipo === "madeira") {
+        madeiras.push(base)
+      } else if (m.tipo === "telha" || m.descricao.toLowerCase().includes("telha")) {
+        telhas.push(base)
+      } else {
+        materiaisGerais.push(base)
+      }
+    })
+
+    setMateriais({ madeiras, materiaisGerais, telhas })
+  }
+
+  /* ---------- edição inline ---------- */
   const handleEditStart = (categoria: MaterialCategoria, m: Material) => {
     setEditando({ categoria, id: m.id })
     setEditData({ nome: m.nome, quantidade: m.quantidade, preco: m.preco })
@@ -127,12 +202,13 @@ export default function GerarOrcamentoPage() {
     setMateriais((prev) => ({
       ...prev,
       [editando.categoria]: prev[editando.categoria].map((m) =>
-        m.id === editando.id ? { ...m, ...editData } : m
+        m.id === editando.id ? { ...m, ...editData } : m,
       ),
     }))
     setEditando(null)
   }
 
+  /* ---------- adicionar manual ---------- */
   const handleAddMaterial = (categoria: MaterialCategoria, nomeSelecionado: string) => {
     const newId = Date.now()
     let nome = ""
@@ -145,7 +221,8 @@ export default function GerarOrcamentoPage() {
       }
       if (categoria === "materiaisGerais") {
         nome = nomeSelecionado
-        preco = materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
+        preco =
+          materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
       }
       if (categoria === "telhas") {
         nome = nomeSelecionado
@@ -171,10 +248,32 @@ export default function GerarOrcamentoPage() {
     if (editando?.id === id && editando?.categoria === categoria) setEditando(null)
   }
 
+  /* ---------- totais / etapa 3 (sem persistir por enquanto) ---------- */
+  const totMadeiras = materiais.madeiras.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+  const totMateriaisGerais = materiais.materiaisGerais.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+  const totTelhas = materiais.telhas.reduce((acc, m) => acc + m.quantidade * m.preco, 0)
+
+  const [totaisEditaveis, setTotaisEditaveis] = useState({
+    madeiras: totMadeiras,
+    materiais: totMateriaisGerais + totTelhas,
+    maoDeObra: 900,
+    empresaPS: 1500,
+    empresaGD: 1500,
+  })
+  const [editandoTotal, setEditandoTotal] = useState<keyof typeof totaisEditaveis | null>(null)
+  const somaTotal = Object.values(totaisEditaveis).reduce((acc, v) => acc + v, 0)
+
+  const telhasPagamentoTabela = {
+    Romana: { pix: 9200, dez: 1015, dezoito: 591 },
+    Colonial: { pix: 8400, dez: 927, dezoito: 539 },
+    Americana: { pix: 9100, dez: 1004, dezoito: 584 },
+  }
+
   const handleSalvar = () => {
     // Ação de salvar futura
   }
 
+  /* ---------- JSX ---------- */
   return (
     <PageLayout
       links={[
@@ -182,10 +281,12 @@ export default function GerarOrcamentoPage() {
         { label: "Gerar Orçamento", href: "/gerar-orcamento" },
       ]}
     >
-      {/* Cabeçalho principal - RESPONSIVO */}
+      {/* -------- Cabeçalho principal -------- */}
       <Card className="w-full shadow-md border rounded-2xl mb-4 md:mb-6">
         <CardHeader className="p-4 md:p-6">
-          <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">Gerar Orçamento</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
+            Gerar Orçamento
+          </CardTitle>
           <CardDescription className="text-sm md:text-base text-muted-foreground">
             Preencha as três etapas abaixo.
           </CardDescription>
@@ -193,10 +294,9 @@ export default function GerarOrcamentoPage() {
         </CardHeader>
       </Card>
 
-      {/* ----------- Etapa 1 (Dados Pessoais) - RESPONSIVO ----------- */}
+      {/* -------- Etapa 1 – Dados Pessoais -------- */}
       <Card className="w-full shadow-md border rounded-2xl">
         <CardHeader className="p-4 md:p-6">
-          {/* linha superior: título + botão - RESPONSIVO */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 sm:gap-0">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-xs">
@@ -215,13 +315,11 @@ export default function GerarOrcamentoPage() {
             </Button>
           </div>
 
-          {/* subtítulo */}
           <CardDescription className="text-xs md:text-sm text-muted-foreground mt-1">
             Preencha com os dados do cliente
           </CardDescription>
         </CardHeader>
 
-        {/* formulário - GRID RESPONSIVO */}
         <CardContent className="p-4 md:p-6 pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-3 md:gap-y-4">
             {(["nome", "telefone", "cidade", "bairro"] as const).map((id) => (
@@ -243,42 +341,41 @@ export default function GerarOrcamentoPage() {
         </CardContent>
       </Card>
 
-
-
-
-      {/* ----------------- Etapa 2 ----------------- */}
+      {/* -------- Etapa 2 – Dados do Serviço -------- */}
       <Card className="w-full shadow-md border rounded-2xl mt-4 md:mt-6">
         <CardHeader className="p-4 md:p-6 pb-2">
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">Etapa 2</Badge>
+            <Badge variant="outline" className="text-xs">
+              Etapa 2
+            </Badge>
             <CardTitle className="text-lg md:text-xl">Dados do Serviço</CardTitle>
           </div>
           <CardDescription className="text-xs md:text-sm text-muted-foreground mt-0.5">
-            Selecione o produto e adicione os materiais necessários.
+            Selecione o tipo de obra, informe as dimensões e clique em <i>Calcular</i>.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="p-4 md:p-6 pt-2">
-          {/* Produto + Dimensões */}
+          {/* Tipo de obra + dimensões + botão calcular */}
           <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-6">
-            {/* Produto */}
+            {/* tipo de obra */}
             <div className="flex flex-col gap-2">
-              <Label className="text-sm font-medium">Selecionar produto</Label>
-              <Select
-                value={produtoSelecionado ?? undefined}
-                onValueChange={handleSelecionarProduto}
-              >
-                <SelectTrigger className="h-9 md:h-10 w-[140px]" disabled={!!editando}>
+              <Label className="text-sm font-medium">Tipo de Obra</Label>
+              <Select value={tipoObra ?? undefined} onValueChange={handleSelecionarTipoObra}>
+                <SelectTrigger className="h-9 md:h-10 w-[240px]" disabled={!!editando}>
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="caramanchao">Caramanchão</SelectItem>
-                  <SelectItem value="cobertura">Cobertura</SelectItem>
+                <SelectContent className="max-h-[210px] overflow-y-auto">
+                  {tiposObraPermitidos.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Largura e Comprimento */}
+            {/* dimensões */}
             <div className="flex gap-6">
               <div className="flex flex-col gap-1">
                 <Label className="text-xs">Largura&nbsp;(m)</Label>
@@ -286,7 +383,9 @@ export default function GerarOrcamentoPage() {
                   type="number"
                   min={1}
                   value={dimensoes.largura}
-                  onChange={(e) => setDimensoes((d) => ({ ...d, largura: +e.target.value }))}
+                  onChange={(e) =>
+                    setDimensoes((d) => ({ ...d, largura: +e.target.value }))
+                  }
                   disabled={!!editando}
                   className="h-8 text-xs w-[140px]"
                 />
@@ -297,12 +396,25 @@ export default function GerarOrcamentoPage() {
                   type="number"
                   min={1}
                   value={dimensoes.comprimento}
-                  onChange={(e) => setDimensoes((d) => ({ ...d, comprimento: +e.target.value }))}
+                  onChange={(e) =>
+                    setDimensoes((d) => ({ ...d, comprimento: +e.target.value }))
+                  }
                   disabled={!!editando}
                   className="h-8 text-xs w-[140px]"
                 />
               </div>
             </div>
+
+            {/* calcular */}
+            <Button
+              size="sm"
+              onClick={handleCalcular}
+              disabled={!tipoObra || !!editando}
+              className="gap-1"
+            >
+              <Calculator className="w-4 h-4" />
+              Calcular
+            </Button>
           </div>
 
           {/* Tabelas de Materiais */}
@@ -319,10 +431,8 @@ export default function GerarOrcamentoPage() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <CardTitle className="text-sm md:text-base">{titulo}</CardTitle>
                     <Select
-                      onValueChange={(value) => {
-                        handleAddMaterial(categoria, value)
-                      }}
-                      disabled={!!editando || !produtoSelecionado}
+                      onValueChange={(value) => handleAddMaterial(categoria, value)}
+                      disabled={!!editando || !tipoObra}
                     >
                       <SelectTrigger className="h-8 w-[180px] text-xs">
                         <SelectValue placeholder="Adicionar material" />
@@ -334,7 +444,7 @@ export default function GerarOrcamentoPage() {
                             ? madeirasTabela
                             : categoria === "materiaisGerais"
                               ? materiaisGeraisTabela
-                              : telhasTabela
+                              : telhasTabela,
                         ).map((nome) => (
                           <SelectItem key={nome} value={nome}>
                             {nome}
@@ -361,7 +471,6 @@ export default function GerarOrcamentoPage() {
                           </TableHead>
                         </TableRow>
                       </TableHeader>
-
                       <TableBody>
                         {materiais[categoria].map(({ id, nome, quantidade, preco }) => {
                           const total = quantidade * preco
@@ -383,14 +492,16 @@ export default function GerarOrcamentoPage() {
                                   <span className="text-xs">{nome}</span>
                                 )}
                               </TableCell>
-
                               <TableCell className="p-2">
                                 {emEdicao ? (
                                   <Input
                                     type="number"
                                     value={editData.quantidade}
                                     onChange={(e) =>
-                                      setEditData((d) => ({ ...d, quantidade: +e.target.value }))
+                                      setEditData((d) => ({
+                                        ...d,
+                                        quantidade: +e.target.value,
+                                      }))
                                     }
                                     className="h-8 text-xs"
                                   />
@@ -398,7 +509,6 @@ export default function GerarOrcamentoPage() {
                                   <span className="text-xs">{quantidade}</span>
                                 )}
                               </TableCell>
-
                               <TableCell className="p-2">
                                 {emEdicao ? (
                                   <Input
@@ -414,11 +524,9 @@ export default function GerarOrcamentoPage() {
                                   <span className="text-xs">R$ {preco.toFixed(2)}</span>
                                 )}
                               </TableCell>
-
                               <TableCell className="p-2 text-xs">
                                 R$ {total.toFixed(2)}
                               </TableCell>
-
                               <TableCell className="p-2">
                                 <div className="flex justify-center gap-1">
                                   {emEdicao ? (
@@ -427,12 +535,13 @@ export default function GerarOrcamentoPage() {
                                         variant="ghost"
                                         size="icon"
                                         onClick={handleEditSave}
-                                        disabled={editData.nome.trim() === "" || editData.preco <= 0}
+                                        disabled={
+                                          editData.nome.trim() === "" || editData.preco <= 0
+                                        }
                                         className="h-7 w-7"
                                       >
                                         <Save className="w-3 h-3" />
                                       </Button>
-
                                       {isAdicionando ? (
                                         <Button
                                           variant="ghost"
@@ -463,7 +572,12 @@ export default function GerarOrcamentoPage() {
                                         size="icon"
                                         disabled={!!editando}
                                         onClick={() =>
-                                          handleEditStart(categoria, { id, nome, quantidade, preco })
+                                          handleEditStart(categoria, {
+                                            id,
+                                            nome,
+                                            quantidade,
+                                            preco,
+                                          })
                                         }
                                         className="h-7 w-7"
                                       >
@@ -495,10 +609,7 @@ export default function GerarOrcamentoPage() {
         </CardContent>
       </Card>
 
-
-
-
-      {/* ----------------- Etapa 3 - RESPONSIVO ----------------- */}
+      {/* Etapa 3 – Resumo  (sem alterações) */}
       <Card className="w-full shadow-md border rounded-2xl mt-4 md:mt-6">
         <CardHeader className="p-4 md:p-6">
           <div className="flex items-center gap-2">
@@ -606,35 +717,26 @@ export default function GerarOrcamentoPage() {
         </CardContent>
       </Card>
 
-      {/* Botões finais - RESPONSIVOS */}
+      {/* Botões finais */}
       <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-4 md:mt-6">
-        <Button
-          variant="secondary"
-          onClick={() => router.push("/")}
-          className="h-9 md:h-10 order-2 sm:order-1"
-        >
+        <Button variant="secondary" onClick={() => router.push("/")} className="h-9 md:h-10 order-2 sm:order-1">
           Voltar
         </Button>
-
-        {/* Botões à direita agrupados */}
         <div className="flex gap-2 order-1 sm:order-2">
-          <Button
-            variant="outline"
-            onClick={handleSalvar}
-            className="h-9 md:h-10"
-          >
+          <Button variant="outline" onClick={handleSalvar} className="h-9 md:h-10">
             Salvar
           </Button>
           <Button
             variant="default"
-            onClick={() => console.log("Gerar orçamento:", formValues, produtoSelecionado, materiais)}
+            onClick={() =>
+              console.log("Gerar orçamento:", formValues, tipoObra, dimensoes, materiais)
+            }
             className="h-9 md:h-10"
           >
             Gerar Orçamento
           </Button>
         </div>
       </div>
-
     </PageLayout>
   )
 }
