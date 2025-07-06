@@ -284,15 +284,31 @@ export default function GerarOrcamentoPage() {
       {/* -------- Cabeçalho principal -------- */}
       <Card className="w-full shadow-md border rounded-2xl mb-4 md:mb-6">
         <CardHeader className="p-4 md:p-6">
-          <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
-            Gerar Orçamento
-          </CardTitle>
-          <CardDescription className="text-sm md:text-base text-muted-foreground">
-            Preencha as três etapas abaixo.
-          </CardDescription>
+          {/* Cabeçalho com Título e Botão ao lado */}
+          <div className="flex justify-between items-start flex-col sm:flex-row">
+            <div>
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl font-bold">
+                Gerar Orçamento
+              </CardTitle>
+              <CardDescription className="text-sm md:text-base text-muted-foreground">
+                Preencha as três etapas abaixo.
+              </CardDescription>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearForm}
+              className="text-red-500 hover:text-red-700 mt-2 sm:mt-0"
+            >
+              <Trash className="w-4 h-4 mr-1" /> Limpar
+            </Button>
+          </div>
+
           <Progress value={progresso} className="mt-3 md:mt-4" />
         </CardHeader>
       </Card>
+
 
       {/* -------- Etapa 1 – Dados Pessoais -------- */}
       <Card className="w-full shadow-md border rounded-2xl">
@@ -304,15 +320,6 @@ export default function GerarOrcamentoPage() {
               </Badge>
               <CardTitle className="text-lg md:text-xl">Dados Pessoais</CardTitle>
             </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearForm}
-              className="text-red-500 hover:text-red-700 self-start sm:self-auto"
-            >
-              <Trash className="w-4 h-4 mr-1" /> Limpar
-            </Button>
           </div>
 
           <CardDescription className="text-xs md:text-sm text-muted-foreground mt-1">
