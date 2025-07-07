@@ -35,6 +35,11 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+import {
+  listarMateriaisPorTipo,
+  TipoMaterial,
+} from "@/actions/materiais-db/materiais-db"
+
 /* ---------- Tipos ---------- */
 type Material = { id: number; nome: string; quantidade: number; preco: number }
 type MaterialCategoria = "madeiras" | "materiaisGerais" | "telhas"
@@ -62,28 +67,39 @@ const tiposObraPermitidos = [
   "Pergolado 11,5",
 ]
 
-/* ---------- Dados simulados (para novo material manual) ---------- */
-const madeirasTabela = {
-  "Viga 3m": { preco: 35 },
-  "Ripa 5m": { preco: 22 },
-  "Tábua": { preco: 20 },
-}
-
-const materiaisGeraisTabela = {
-  "Parafuso 10mm": { preco: 0.1 },
-  "Cimento 50kg": { preco: 30 },
-  "Cola Madeira": { preco: 18 },
-}
-
-const telhasTabela = {
-  Romana: { preco: 7.5 },
-  Colonial: { preco: 8 },
-  Americana: { preco: 7.8 },
-}
 
 /* ---------- Componente ---------- */
 export default function GerarOrcamentoPage() {
   const router = useRouter()
+
+
+  /* ---------- Estados de carregamento ---------- */
+  const [materiaisDisponiveis, setMateriaisDisponiveis] = useState({
+    madeiras: [] as { nome: string; preco: number }[],
+    materiaisGerais: [] as { nome: string; preco: number }[],
+    telhas: [] as { nome: string; preco: number }[],
+  })
+
+
+  useEffect(() => {
+    const fetchMateriais = async () => {
+      const [madeiras, gerais, telhas] = await Promise.all([
+        listarMateriaisPorTipo("madeira"),
+        listarMateriaisPorTipo("geral"),
+        listarMateriaisPorTipo("telha"),
+      ])
+
+      setMateriaisDisponiveis({
+        madeiras: madeiras.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+        materiaisGerais: gerais.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+        telhas: telhas.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+      })
+    }
+
+    fetchMateriais()
+  }, [])
+
+
 
   /* ---------- Estados ---------- */
   const [formValues, setFormValues] = useState({
@@ -208,37 +224,31 @@ export default function GerarOrcamentoPage() {
     setEditando(null)
   }
 
-  /* ---------- adicionar manual ---------- */
+  /* ---------- adicionar material ---------- */
   const handleAddMaterial = (categoria: MaterialCategoria, nomeSelecionado: string) => {
-    const newId = Date.now()
-    let nome = ""
-    let preco = 0
+  const newId = Date.now()
+  let nome = ""
+  let preco = 0
 
-    if (nomeSelecionado !== "vazio") {
-      if (categoria === "madeiras") {
-        nome = nomeSelecionado
-        preco = madeirasTabela[nomeSelecionado as keyof typeof madeirasTabela].preco
-      }
-      if (categoria === "materiaisGerais") {
-        nome = nomeSelecionado
-        preco =
-          materiaisGeraisTabela[nomeSelecionado as keyof typeof materiaisGeraisTabela].preco
-      }
-      if (categoria === "telhas") {
-        nome = nomeSelecionado
-        preco = telhasTabela[nomeSelecionado as keyof typeof telhasTabela].preco
-      }
+  if (nomeSelecionado !== "vazio") {
+    const fonte = materiaisDisponiveis[categoria]
+    const encontrado = fonte.find((m) => m.nome === nomeSelecionado)
+    if (encontrado) {
+      nome = encontrado.nome
+      preco = encontrado.preco
     }
-
-    const novo: Material = { id: newId, nome, quantidade: 1, preco }
-    setMateriais((prev) => ({
-      ...prev,
-      [categoria]: [...prev[categoria], novo],
-    }))
-    setEditando({ categoria, id: newId })
-    setEditData(novo)
-    setAdicionandoId(newId)
   }
+
+  const novo: Material = { id: newId, nome, quantidade: 1, preco }
+  setMateriais((prev) => ({
+    ...prev,
+    [categoria]: [...prev[categoria], novo],
+  }))
+  setEditando({ categoria, id: newId })
+  setEditData(novo)
+  setAdicionandoId(newId)
+}
+
 
   const handleRemoveMaterial = (categoria: MaterialCategoria, id: number) => {
     setMateriais((prev) => ({
@@ -446,18 +456,13 @@ export default function GerarOrcamentoPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="vazio">Novo Material</SelectItem>
-                        {Object.keys(
-                          categoria === "madeiras"
-                            ? madeirasTabela
-                            : categoria === "materiaisGerais"
-                              ? materiaisGeraisTabela
-                              : telhasTabela,
-                        ).map((nome) => (
+                        {materiaisDisponiveis[categoria].map(({ nome }) => (
                           <SelectItem key={nome} value={nome}>
                             {nome}
                           </SelectItem>
                         ))}
                       </SelectContent>
+
                     </Select>
                   </div>
                 </CardHeader>

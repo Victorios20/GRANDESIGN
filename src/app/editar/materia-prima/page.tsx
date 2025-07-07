@@ -37,7 +37,8 @@ import {
   adicionarMaterial,
   atualizarMaterial,
   excluirMaterial,
-} from "./actions/materiais-service";
+} from "@/actions/materiais-db/materiais-db";
+
 
 /* ───────── tipos auxiliares ───────── */
 type ItemBase = { id: number; nome: string; preco: number };

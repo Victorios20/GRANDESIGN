@@ -17,7 +17,7 @@ import {
   addFrete,
   updateFrete,
   deleteFrete,
-} from "./actions/frete-db"
+} from "@/actions/frete-db/frete-db";
 
 
 
