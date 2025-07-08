@@ -19,6 +19,7 @@ export interface MaterialCalculado {
   quantidade: number;
   preco_unitario: number;     // 0 caso não exista
   total: number;              // quantidade × preço_unitario
+  tamanho?: string
 }
 
 // /* ============= Utils ============= */
