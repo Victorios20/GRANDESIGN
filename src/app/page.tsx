@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { format, parseISO, isWithinInterval } from "date-fns"
+import { format, parseISO } from "date-fns"
 import Link from "next/link"
 
 /* layout */
