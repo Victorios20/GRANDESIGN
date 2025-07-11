@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import { useEffect, useState, useMemo } from "react"
 import { format, parseISO, isWithinInterval } from "date-fns"
 import Link from "next/link"
 
@@ -35,352 +35,361 @@ import {
 import {
   PlusCircle, Trash2, EyeIcon, CalendarIcon,
 } from "lucide-react"
+/* actions (supabase) */
+import {
+  listarBairros,
+  buscarOrcamentos,
+  detalheOrcamento,
+  OrcamentoTabela,
+  OrcamentoDetalhe,
+} from "@/actions/historico-orcamento-db/historico-orcamento-db"
+/* ────────────────────────────────────────────── */
 
-/* ---------- tipos + mock ---------- */
-type Orcamento = { id: number; cliente: string; bairro: string; data: string; valor: string }
-const MOCK_DATA: Orcamento[] = [
-  { id: 1, cliente: "João Silva", bairro: "Centro", data: "2025-05-15", valor: "R$ 1.500,00" },
-  { id: 2, cliente: "Maria Oliveira", bairro: "Jardim", data: "2025-05-20", valor: "R$ 2.300,00" },
-  { id: 3, cliente: "Carlos Santos", bairro: "Vila Nova", data: "2025-05-25", valor: "R$ 1.800,00" },
-  { id: 4, cliente: "Ana Pereira", bairro: "Centro", data: "2025-05-28", valor: "R$ 3.200,00" },
-  { id: 5, cliente: "Paulo Souza", bairro: "Jardim", data: "2025-05-30", valor: "R$ 2.100,00" },
-]
-
+/* ────────────────────────────────────────────── */
 export default function HomePage() {
-  const [nome, setNome] = React.useState("")
-  const [bairro, setBairro] = React.useState<string | undefined>()
-  const [dataIni, setDataIni] = React.useState<Date | undefined>()
-  const [dataFim, setDataFim] = React.useState<Date | undefined>()
-  const [orcSel, setOrcSel] = React.useState<Orcamento | null>(null)
-  const [loading] = React.useState(false)
+  /* filtros */
+  const [nome, setNome]         = useState("")
+  const [bairro, setBairro]     = useState<string>("")       // string vazia = sem filtro
+  const [dataIni, setDataIni]   = useState<Date | undefined>()
+  const [dataFim, setDataFim]   = useState<Date | undefined>()
 
-  const dadosFiltrados = MOCK_DATA.filter(o => {
-    const nOk = nome ? o.cliente.toLowerCase().includes(nome.toLowerCase()) : true
-    const bOk = bairro ? o.bairro === bairro : true
-    if (!dataIni && !dataFim) return nOk && bOk
-    const d = parseISO(o.data)
-    const dOk = isWithinInterval(d, {
-      start: dataIni ?? new Date("1900-01-01"),
-      end: dataFim ?? new Date("9999-12-31"),
-    })
-    return nOk && bOk && dOk
-  })
+  /* dropdown */
+  const [listaBairros, setListaBairros] = useState<string[]>([])
 
-  const limpar = () => {
+  /* tabela */
+  const [orcamentos, setOrcamentos] = useState<OrcamentoTabela[]>([])
+  const [loadingTabela, setLoadingTabela] = useState(true)
+
+  /* modal */
+  const [orcamentoSel, setOrcamentoSel] = useState<OrcamentoDetalhe | null>(null)
+  const [loadingModal, setLoadingModal] = useState(false)
+
+  /* ─── carregamento inicial ─── */
+  useEffect(() => {
+    listarBairros().then(setListaBairros)
+    consultar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /* ─── refetch quando filtros mudam ─── */
+  useEffect(() => {
+    consultar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nome, bairro, dataIni, dataFim])
+
+  async function consultar() {
+    setLoadingTabela(true)
+    const dIniISO = dataIni?.toISOString().slice(0, 10)
+    const dFimISO = dataFim?.toISOString().slice(0, 10)
+    const dados   = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO)
+    setOrcamentos(dados)
+    setLoadingTabela(false)
+  }
+
+  function limparFiltros() {
     setNome("")
-    setBairro(undefined)
+    setBairro("")        /* agora realmente limpa o Select */
     setDataIni(undefined)
     setDataFim(undefined)
   }
 
+  async function abrirModal(o: OrcamentoTabela) {
+    setLoadingModal(true)
+    const det = await detalheOrcamento(o.id)
+    setOrcamentoSel(det)
+    setLoadingModal(false)
+  }
+
+  /* agrupar materiais por tipo */
+  const materiaisGroup = useMemo(() => {
+    if (!orcamentoSel) return {}
+    return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>(
+      (acc, m) => {
+        (acc[m.tipo] ??= []).push(m)
+        return acc
+      }, {},
+    )
+  }, [orcamentoSel])
+
+  const fmt = (n: number) => `R$ ${n.toFixed(2)}`
+  const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy")
+
+  /* ────────────────────────── JSX ────────────────────────── */
   return (
     <PageLayout>
       <TooltipProvider>
-        <div className="space-y-8">
-          {/* BOTÃO PRINCIPAL */}
-          <Link href="/gerar-orcamento" className="block">
+        {/* ……………………………………… BOTÃO “Gerar orçamento” ……………………………………… */}
+        <Link href="/gerar-orcamento" className="block mb-8">
+          <Button className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
+                             bg-white text-marromEscuro border-3 border-marromClaro
+                             shadow-md hover:shadow-lg hover:bg-bege">
+            <PlusCircle className="h-12 w-12 opacity-60" />
+            Gerar orçamento
+          </Button>
+        </Link>
+
+        {/* ……………………………………… CARD FILTROS ……………………………………… */}
+        <Card>
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl">Filtros</CardTitle>
+              <CardDescription>Preencha os campos para refinar a lista de orçamentos.</CardDescription>
+            </div>
             <Button
-              className="
-                w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
-                bg-white text-marromEscuro border-3 border-marromClaro
-                shadow-md hover:shadow-lg hover:bg-bege
-              "
-            >
-              <PlusCircle className="h-12 w-12 opacity-60" />
-              Gerar orçamento
+              variant="secondary"
+              onClick={limparFiltros}
+              className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4" />
+              Limpar filtros
             </Button>
-          </Link>
+          </CardHeader>
 
-          {/* CARD FILTROS */}
-          <Card>
-            <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-2xl">Filtros</CardTitle>
-                <CardDescription>
-                  Preencha os campos para refinar a lista de orçamentos.
-                </CardDescription>
+          <CardContent className="p-4 sm:p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Nome */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-marromEscuro">Nome</label>
+                <Input value={nome} placeholder="Nome"
+                       onChange={e => setNome(e.target.value)} />
               </div>
-              <Button
-                variant="secondary"
-                onClick={limpar}
-                className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-4 w-4" />
-                Limpar filtros
-              </Button>
-            </CardHeader>
 
-            <CardContent className="p-4 sm:p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Nome */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-marromEscuro">Nome</label>
-                  <Input value={nome} placeholder="Nome" onChange={e => setNome(e.target.value)} />
+              {/* Bairro */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-marromEscuro">Bairro</label>
+                <Select value={bairro} onValueChange={setBairro}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Bairro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...new Set(listaBairros)].map(b => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Datas */}
+              {[{ d: dataIni, set: setDataIni, label: "Data Inicial" },
+                { d: dataFim, set: setDataFim, label: "Data Final" }].map(({ d,set,label }) => (
+                <div key={label} className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-marromEscuro">{label}</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="secondary" className="justify-start text-left font-normal">
+                        {d ? format(d, "dd/MM/yyyy") : <span>{label}</span>}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="p-0">
+                      <Calendar mode="single" selected={d} onSelect={set} initialFocus />
+                    </PopoverContent>
+                  </Popover>
                 </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
-                {/* Bairro */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-marromEscuro">Bairro</label>
-                  <Select value={bairro} onValueChange={setBairro}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Bairro" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["Centro", "Jardim", "Vila Nova"].map(b => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        {/* ……………………………………… TABELA ……………………………………… */}
+        <Card className="mt-8">
+          <CardHeader>
+            <div className="space-y-1">
+              <CardTitle className="text-2xl">Orçamentos</CardTitle>
+              <CardDescription>Tabela com os orçamentos dos clientes.</CardDescription>
+            </div>
+          </CardHeader>
 
-                {/* Datas */}
-                {[{ d: dataIni, set: setDataIni, label: "Data Inicial" },
-                { d: dataFim, set: setDataFim, label: "Data Final" }].map(({ d, set, label }) => (
-                  <div key={label} className="flex flex-col gap-1">
-                    <label className="text-sm font-medium text-marromEscuro">{label}</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="secondary" className="justify-start text-left font-normal">
-                          {d ? format(d, "dd/MM/yyyy") : <span>{label}</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="p-0">
-                        <Calendar mode="single" selected={d} onSelect={set} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+          <CardContent className="p-4 sm:p-6">
+            {loadingTabela ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_,i)=>(
+                  <Skeleton key={i} className="h-6 w-full" />
                 ))}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* CARD ORÇAMENTOS */}
-          <Card>
-            <CardHeader>
-              <div className="space-y-1">
-                <CardTitle className="text-2xl">Orçamentos</CardTitle>
-                <CardDescription>Tabela com os orçamentos dos clientes.</CardDescription>
+            ) : orcamentos.length === 0 ? (
+              <p className="text-center text-marromEscuro/70 py-10">Nenhum orçamento encontrado.</p>
+            ) : (
+              <div className="rounded-lg overflow-hidden">
+                <Table className="min-w-[640px]">
+                  <TableHeader className="bg-bege font-semibold">
+                    <TableRow>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Bairro</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead className="text-center">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {orcamentos.map(o=>(
+                      <TableRow key={o.id}
+                                onClick={()=>abrirModal(o)}
+                                className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40">
+                        <TableCell>{o.cliente}</TableCell>
+                        <TableCell>{o.bairro}</TableCell>
+                        <TableCell>{strDate(o.dataISO)}</TableCell>
+                        <TableCell>{o.valorFormatado}</TableCell>
+                        <TableCell className="text-center">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="icon" variant="ghost"
+                                      className="text-marromEscuro hover:bg-marromClaro/20">
+                                <EyeIcon className="h-5 w-5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Visualizar</TooltipContent>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-            </CardHeader>
+            )}
+          </CardContent>
+        </Card>
 
-            <CardContent className="p-4 sm:p-6">
-              {loading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-6 w-full" />
-                  ))}
-                </div>
-              ) : dadosFiltrados.length === 0 ? (
-                <p className="text-center text-marromEscuro/70 py-10">
-                  Nenhum orçamento encontrado.
-                </p>
-              ) : (
-                <div className="rounded-lg overflow-hidden">
-                  <Table className="min-w-[640px]">
-                    <TableHeader className="bg-bege font-semibold">
-                      <TableRow>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Bairro</TableHead>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Valor</TableHead>
-                        <TableHead className="text-center">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dadosFiltrados.map(orc => (
-                        <TableRow
-                          key={orc.id}
-                          onClick={() => setOrcSel(orc)}
-                          className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40"
-                        >
-                          <TableCell>{orc.cliente}</TableCell>
-                          <TableCell>{orc.bairro}</TableCell>
-                          <TableCell>{format(parseISO(orc.data), "dd/MM/yyyy")}</TableCell>
-                          <TableCell>{orc.valor}</TableCell>
-                          <TableCell className="text-center">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="text-marromEscuro hover:bg-marromClaro/20">
-                                  <EyeIcon className="h-5 w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Visualizar</TooltipContent>
-                            </Tooltip>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* MODAL DETALHES COM CARDS */}
-        <Dialog open={!!orcSel} onOpenChange={() => setOrcSel(null)}>
-
+        {/* ……………………………………… MODAL DETALHE ……………………………………… */}
+        <Dialog open={!!orcamentoSel} onOpenChange={()=>setOrcamentoSel(null)}>
           <DialogContent className="w-[96vw] sm:max-w-[94vw] lg:max-w-[80vw] max-h-[80vh] overflow-auto">
-            {/* título */}
-            <Card className="border-0 shadow-none">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-3xl">
-                  Orçamento&nbsp;de&nbsp;{orcSel?.cliente} – {orcSel?.bairro}
-                </CardTitle>
-              </CardHeader>
-            </Card>
+            {loadingModal || !orcamentoSel ? (
+              <div className="space-y-2">
+                {Array.from({ length: 8 }).map((_,i)=>(
+                  <Skeleton key={i} className="h-6 w-full" />
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* título */}
+                <Card className="border-0 shadow-none">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-3xl">
+                      Orçamento&nbsp;de&nbsp;{orcamentoSel.cliente.nome} – {orcamentoSel.cliente.bairro}
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
 
-            {/* ------ dados pessoais ------ */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Dados do Cliente</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p><b>Nome:</b> {orcSel?.cliente}</p>
-                <p><b>Telefone:</b> (11) 98765-4321</p>
-                <p><b>Cidade:</b> São Paulo</p>
-                <p><b>Bairro:</b> {orcSel?.bairro}</p>
-                <p><b>Endereço:</b> Rua das Flores 123</p>
-              </CardContent>
-            </Card>
+                {/* cliente */}
+                <Card>
+                  <CardHeader><CardTitle>Dados do Cliente</CardTitle></CardHeader>
+                  <CardContent className="space-y-1 text-sm">
+                    <p><b>Nome:</b> {orcamentoSel.cliente.nome}</p>
+                    <p><b>Telefone:</b> {orcamentoSel.cliente.telefone ?? "—"}</p>
+                    <p><b>Cidade:</b> {orcamentoSel.cliente.cidade ?? "—"}</p>
+                    <p><b>Bairro:</b> {orcamentoSel.cliente.bairro ?? "—"}</p>
+                  </CardContent>
+                </Card>
 
-            {/* ------ tabelas de materiais ------ */}
-            {[
-              {
-                titulo: "Madeiras",
-                linhas: [
-                  { nome: "Ripa 5 m", qtdLabel: "Metros", qtd: 6, preco: 22, total: 132 },
-                ],
-              },
-              {
-                titulo: "Materiais Gerais",
-                linhas: [
-                  { nome: "Cimento 50 kg", qtdLabel: "Qtd", qtd: 3, preco: 30, total: 90 },
-                ],
-              },
-              {
-                titulo: "Telhas",
-                linhas: [
-                  { nome: "Telha Colonial", qtdLabel: "Qtd", qtd: 40, preco: 8, total: 320 },
-                ],
-              },
-            ].map(({ titulo, linhas }) => (
-              <Card key={titulo}>
-                <CardHeader>
-                  <CardTitle>{titulo}</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="rounded-lg overflow-hidden">
-                    <Table >
-                      <TableHeader className="bg-bege">
-                        <TableRow className="bg-bege hover:bg-bege">
-                          <TableHead>Nome</TableHead>
-                          <TableHead>{linhas[0].qtdLabel}</TableHead>
-                          <TableHead>Preço</TableHead>
-                          <TableHead>Total</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {linhas.map((l, i) => (
-                          <TableRow key={i} className="odd:bg-muted/40">
-                            <TableCell>{l.nome}</TableCell>
-                            <TableCell>{l.qtd}</TableCell>
-                            <TableCell>R$ {l.preco.toFixed(2)}</TableCell>
-                            <TableCell>R$ {l.total.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                {/* materiais */}
+                {["madeira","geral","telha"].map(tipo=>{
+                  const linhas = materiaisGroup[tipo] ?? []
+                  if (!linhas.length) return null
+                  const titulo = tipo==="madeira"?"Madeiras":tipo==="geral"?"Materiais Gerais":"Telhas"
+                  return (
+                    <Card key={tipo}>
+                      <CardHeader><CardTitle>{titulo}</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        <div className="rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader className="bg-bege">
+                              <TableRow className="bg-bege hover:bg-bege">
+                                <TableHead>Nome</TableHead>
+                                <TableHead>Qtd</TableHead>
+                                <TableHead>Preço</TableHead>
+                                <TableHead>Total</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {linhas.map((l,i)=>(
+                                <TableRow key={i} className="odd:bg-muted/40">
+                                  <TableCell>{l.nome}</TableCell>
+                                  <TableCell>{l.quantidade}</TableCell>
+                                  <TableCell>{fmt(l.precoUnit)}</TableCell>
+                                  <TableCell>{fmt(l.precoUnit*l.quantidade)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
 
-            {/* ------ cards de totais + telhas ------ */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {/* Totais por categoria */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Totais por Categoria</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <Table>
-                    <TableBody>
-                      {[
-                        ["Madeiras", 132],
-                        ["Materiais", 90],
-                        ["Mão de Obra", 900],
-                        ["Empresa PS", 1500],
-                        ["Empresa GD", 1500],
-                      ].map(([label, v]) => (
-                        <TableRow key={label as string}>
-                          <TableCell>{label}</TableCell>
-                          <TableCell>R$ {(v as number).toFixed(2)}</TableCell>
-                        </TableRow>
-                      ))}
-
-                      <TableRow className="font-semibold border-t-2">
-                        <TableCell>Total Geral</TableCell>
-                        <TableCell>R$ 3900.00</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-
-              {/* Valores fixos – Telhas */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Valores fixos – Telhas</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-bege">
-                        <TableRow className="bg-bege hover:bg-bege">
-                          <TableHead>Tipo</TableHead>
-                          <TableHead>Pix</TableHead>
-                          <TableHead>10×</TableHead>
-                          <TableHead>18×</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                {/* totais */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader><CardTitle>Totais por Categoria</CardTitle></CardHeader>
+                    <CardContent className="p-4">
+                      <Table><TableBody>
                         {[
-                          ["Romana", 9200, 1015, 591],
-                          ["Colonial", 8400, 927, 539],
-                          ["Americana", 9100, 1004, 584],
-                        ].map(([tipo, pix, dez, dezoito]) => (
-                          <TableRow key={tipo as string}>
-                            <TableCell>{tipo}</TableCell>
-                            <TableCell>R$ {(pix as number).toFixed(2)}</TableCell>
-                            <TableCell>R$ {(dez as number).toFixed(2)}</TableCell>
-                            <TableCell>R$ {(dezoito as number).toFixed(2)}</TableCell>
+                          ["Madeiras",   orcamentoSel.totais.madeiras],
+                          ["Materiais",  orcamentoSel.totais.materiais],
+                          ["Mão de Obra",orcamentoSel.totais.maoDeObra],
+                          ["Empresa PS", orcamentoSel.totais.empresaPS],
+                          ["Empresa GD", orcamentoSel.totais.empresaGD],
+                        ].map(([lab,v])=>(
+                          <TableRow key={lab as string}>
+                            <TableCell>{lab}</TableCell>
+                            <TableCell>{fmt(v as number)}</TableCell>
                           </TableRow>
                         ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                        <TableRow className="font-semibold border-t-2">
+                          <TableCell>Total Geral</TableCell>
+                          <TableCell>{fmt(orcamentoSel.totais.totalGeral)}</TableCell>
+                        </TableRow>
+                      </TableBody></Table>
+                    </CardContent>
+                  </Card>
 
-            {/* footer */}
-            <DialogFooter className="pt-6">
-              <DialogClose asChild>
-                <Button variant="outline">Fechar</Button>
-              </DialogClose>
-              <Button asChild>
-                <Link
-                  href={`/editar-orcamento/${orcSel?.id ?? ""}`}
-                  onClick={() => setOrcSel(null)}
-                >
-                  Editar
-                </Link>
-              </Button>
-            </DialogFooter>
+                  {/* valores fixos (mock) */}
+                  <Card>
+                    <CardHeader><CardTitle>Valores fixos – Telhas</CardTitle></CardHeader>
+                    <CardContent className="p-4">
+                      <div className="rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-bege">
+                            <TableRow className="bg-bege hover:bg-bege">
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Pix</TableHead>
+                              <TableHead>10×</TableHead>
+                              <TableHead>18×</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {[
+                              ["Romana",   9200, 1015, 591],
+                              ["Colonial", 8400,  927, 539],
+                              ["Americana",9100, 1004, 584],
+                            ].map(([t,pix,d10,d18])=>(
+                              <TableRow key={t as string}>
+                                <TableCell>{t}</TableCell>
+                                <TableCell>{fmt(pix as number)}</TableCell>
+                                <TableCell>{fmt(d10 as number)}</TableCell>
+                                <TableCell>{fmt(d18 as number)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <DialogFooter className="pt-6">
+                  <DialogClose asChild>
+                    <Button variant="outline">Fechar</Button>
+                  </DialogClose>
+                  <Button asChild>
+                    <Link href={`/editar-orcamento/${orcamentoSel.id}`}
+                          onClick={()=>setOrcamentoSel(null)}>
+                      Editar
+                    </Link>
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
-
         </Dialog>
       </TooltipProvider>
     </PageLayout>

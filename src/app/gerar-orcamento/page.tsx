@@ -785,7 +785,7 @@ export default function GerarOrcamentoPage() {
             }
             className="h-9 md:h-10"
           >
-            Gerar Orçamento
+            Gerar Proposta
           </Button>
         </div>
       </div>
