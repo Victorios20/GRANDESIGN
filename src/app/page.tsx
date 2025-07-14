@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { format, parseISO } from "date-fns"
 import Link from "next/link"
 
@@ -11,30 +11,46 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  Select, SelectTrigger, SelectValue,
-  SelectContent, SelectItem,
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
 } from "@/components/ui/select"
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import {
-  Table, TableHeader, TableRow,
-  TableHead, TableBody, TableCell,
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
 } from "@/components/ui/table"
 import {
-  Dialog, DialogContent,
-  DialogFooter, DialogClose,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import {
-  Card, CardHeader, CardTitle,
-  CardDescription, CardContent,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
 } from "@/components/ui/card"
+import { PlusCircle, Trash2, EyeIcon, CalendarIcon } from "lucide-react"
 import {
-  PlusCircle, Trash2, EyeIcon, CalendarIcon,
-} from "lucide-react"
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination"
+
 /* actions (supabase) */
 import {
   listarBairros,
@@ -45,13 +61,12 @@ import {
 } from "@/actions/historico-orcamento-db/historico-orcamento-db"
 /* ────────────────────────────────────────────── */
 
-/* ────────────────────────────────────────────── */
 export default function HomePage() {
   /* filtros */
-  const [nome, setNome]         = useState("")
-  const [bairro, setBairro]     = useState<string>("")       // string vazia = sem filtro
-  const [dataIni, setDataIni]   = useState<Date | undefined>()
-  const [dataFim, setDataFim]   = useState<Date | undefined>()
+  const [nome, setNome] = useState("")
+  const [bairro, setBairro] = useState<string>("")
+  const [dataIni, setDataIni] = useState<Date | undefined>()
+  const [dataFim, setDataFim] = useState<Date | undefined>()
 
   /* dropdown */
   const [listaBairros, setListaBairros] = useState<string[]>([])
@@ -59,6 +74,11 @@ export default function HomePage() {
   /* tabela */
   const [orcamentos, setOrcamentos] = useState<OrcamentoTabela[]>([])
   const [loadingTabela, setLoadingTabela] = useState(true)
+  const [total, setTotal] = useState(0)
+
+  /* paginação */
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(10) // 5 | 10 | 20
 
   /* modal */
   const [orcamentoSel, setOrcamentoSel] = useState<OrcamentoDetalhe | null>(null)
@@ -67,30 +87,30 @@ export default function HomePage() {
   /* ─── carregamento inicial ─── */
   useEffect(() => {
     listarBairros().then(setListaBairros)
-    consultar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /* ─── refetch quando filtros mudam ─── */
+  /* ─── refetch quando filtros ou paginação mudam ─── */
   useEffect(() => {
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, bairro, dataIni, dataFim])
+  }, [nome, bairro, dataIni, dataFim, page, perPage])
 
   async function consultar() {
     setLoadingTabela(true)
     const dIniISO = dataIni?.toISOString().slice(0, 10)
     const dFimISO = dataFim?.toISOString().slice(0, 10)
-    const dados   = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO)
+    const { dados, total } = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO, page, perPage)
     setOrcamentos(dados)
+    setTotal(total)
     setLoadingTabela(false)
   }
 
   function limparFiltros() {
     setNome("")
-    setBairro("")        /* agora realmente limpa o Select */
+    setBairro("")
     setDataIni(undefined)
     setDataFim(undefined)
+    setPage(1)
   }
 
   async function abrirModal(o: OrcamentoTabela) {
@@ -103,32 +123,34 @@ export default function HomePage() {
   /* agrupar materiais por tipo */
   const materiaisGroup = useMemo(() => {
     if (!orcamentoSel) return {}
-    return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>(
-      (acc, m) => {
-        (acc[m.tipo] ??= []).push(m)
-        return acc
-      }, {},
-    )
+    return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>((acc, m) => {
+      ;(acc[m.tipo] ??= []).push(m)
+      return acc
+    }, {})
   }, [orcamentoSel])
 
   const fmt = (n: number) => `R$ ${n.toFixed(2)}`
   const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy")
 
+  const totalPaginas = Math.max(1, Math.ceil(total / perPage))
+
   /* ────────────────────────── JSX ────────────────────────── */
   return (
     <PageLayout>
       <TooltipProvider>
-        {/* ……………………………………… BOTÃO “Gerar orçamento” ……………………………………… */}
+        {/* BOTÃO “Gerar orçamento” */}
         <Link href="/gerar-orcamento" className="block mb-8">
-          <Button className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
+          <Button
+            className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
                              bg-white text-marromEscuro border-3 border-marromClaro
-                             shadow-md hover:shadow-lg hover:bg-bege">
+                             shadow-md hover:shadow-lg hover:bg-bege"
+          >
             <PlusCircle className="h-12 w-12 opacity-60" />
             Gerar orçamento
           </Button>
         </Link>
 
-        {/* ……………………………………… CARD FILTROS ……………………………………… */}
+        {/* CARD FILTROS */}
         <Card>
           <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
@@ -138,39 +160,43 @@ export default function HomePage() {
             <Button
               variant="secondary"
               onClick={limparFiltros}
-              className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10">
+              className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="h-4 w-4" />
               Limpar filtros
             </Button>
           </CardHeader>
 
           <CardContent className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
               {/* Nome */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Nome</label>
-                <Input value={nome} placeholder="Nome"
-                       onChange={e => setNome(e.target.value)} />
+                <Input value={nome} placeholder="Nome" onChange={e => setNome(e.target.value)} />
               </div>
 
               {/* Bairro */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Bairro</label>
-                <Select value={bairro} onValueChange={setBairro}>
+                <Select value={bairro} onValueChange={value => setBairro(value)}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Bairro" />
                   </SelectTrigger>
                   <SelectContent>
                     {[...new Set(listaBairros)].map(b => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Datas */}
-              {[{ d: dataIni, set: setDataIni, label: "Data Inicial" },
-                { d: dataFim, set: setDataFim, label: "Data Final" }].map(({ d,set,label }) => (
+              {/* Data Inicial / Data Final */}
+              {[
+                { d: dataIni, set: setDataIni, label: "Data Inicial" },
+                { d: dataFim, set: setDataFim, label: "Data Final" },
+              ].map(({ d, set, label }) => (
                 <div key={label} className="flex flex-col gap-1">
                   <label className="text-sm font-medium text-marromEscuro">{label}</label>
                   <Popover>
@@ -186,11 +212,34 @@ export default function HomePage() {
                   </Popover>
                 </div>
               ))}
+
+              {/* Linhas por página */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-marromEscuro">Linhas / pág</label>
+                <Select
+                  value={String(perPage)}
+                  onValueChange={v => {
+                    setPerPage(Number(v))
+                    setPage(1)
+                  }}
+                >
+                  <SelectTrigger className="w-full max-w-[96px]">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[5, 10, 20].map(n => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* ……………………………………… TABELA ……………………………………… */}
+        {/* TABELA */}
         <Card className="mt-8">
           <CardHeader>
             <div className="space-y-1">
@@ -202,49 +251,77 @@ export default function HomePage() {
           <CardContent className="p-4 sm:p-6">
             {loadingTabela ? (
               <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_,i)=>(
+                {Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-6 w-full" />
                 ))}
               </div>
             ) : orcamentos.length === 0 ? (
               <p className="text-center text-marromEscuro/70 py-10">Nenhum orçamento encontrado.</p>
             ) : (
-              <div className="rounded-lg overflow-hidden">
-                <Table className="min-w-[640px]">
-                  <TableHeader className="bg-bege font-semibold">
-                    <TableRow>
-                      <TableHead>Cliente</TableHead>
-                      <TableHead>Bairro</TableHead>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Valor</TableHead>
-                      <TableHead className="text-center">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {orcamentos.map(o=>(
-                      <TableRow key={o.id}
-                                onClick={()=>abrirModal(o)}
-                                className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40">
-                        <TableCell>{o.cliente}</TableCell>
-                        <TableCell>{o.bairro}</TableCell>
-                        <TableCell>{strDate(o.dataISO)}</TableCell>
-                        <TableCell>{o.valorFormatado}</TableCell>
-                        <TableCell className="text-center">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="icon" variant="ghost"
-                                      className="text-marromEscuro hover:bg-marromClaro/20">
-                                <EyeIcon className="h-5 w-5" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Visualizar</TooltipContent>
-                          </Tooltip>
-                        </TableCell>
+              <>
+                <div className="rounded-lg overflow-hidden">
+                  <Table className="min-w-[640px]">
+                    <TableHeader className="bg-bege font-semibold">
+                      <TableRow>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Bairro</TableHead>
+                        <TableHead>Data</TableHead>
+                        <TableHead>Valor</TableHead>
+                        <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {orcamentos.map(o => (
+                        <TableRow
+                          key={o.id}
+                          onClick={() => abrirModal(o)}
+                          className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40"
+                        >
+                          <TableCell>{o.cliente}</TableCell>
+                          <TableCell>{o.bairro}</TableCell>
+                          <TableCell>{strDate(o.dataISO)}</TableCell>
+                          <TableCell>{o.valorFormatado}</TableCell>
+                          <TableCell className="text-center">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="text-marromEscuro hover:bg-marromClaro/20">
+                                  <EyeIcon className="h-5 w-5" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Visualizar</TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginação */}
+                <div className="mt-4 flex justify-center">
+                  <Pagination>
+                    <PaginationContent className="gap-2">
+                      <PaginationItem>
+                        <PaginationPrevious
+                          aria-label="Anterior"
+                          onClick={() => page > 1 && setPage(p => p - 1)}
+                          className={page === 1 ? "opacity-50 pointer-events-none" : ""}
+                        />
+                      </PaginationItem>
+                      <span className="flex items-center text-sm">
+                        Página {page} de {totalPaginas}
+                      </span>
+                      <PaginationItem>
+                        <PaginationNext
+                          aria-label="Próxima"
+                          onClick={() => page < totalPaginas && setPage(p => p + 1)}
+                          className={page === totalPaginas ? "opacity-50 pointer-events-none" : ""}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

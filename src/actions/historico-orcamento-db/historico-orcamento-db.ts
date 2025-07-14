@@ -1,12 +1,21 @@
 /* ────────────────────────────────────────────────────────────
-   File: src/app/actions/historico-orcamentos-db.ts
-   Apenas leitura (GET / SEARCH) para a Home – Histórico
+   File: src/app/actions/historico-orcamento-db.ts
+   Utilidades (somente leitura) usadas pela Home – Histórico
+   • listarBairros ...... drop-down do filtro
+   • buscarOrcamentos ... tabela paginada (mais recentes primeiro)
+   • detalheOrcamento ... modal de detalhes
 ──────────────────────────────────────────────────────────── */
 "use client"
 
 import { supabase } from "@/supabase/client"
+import type { OrcamentoRow, ClienteRow } from "@/lib/database.types"
 
-/* ---------- tipos ---------- */
+/* ---------- Tipos expostos ao front ---------- */
+
+type OrcamentoComCliente = OrcamentoRow & {
+  cliente: Pick<ClienteRow, "nome" | "bairro">
+}
+
 export type OrcamentoTabela = {
   id: number
   cliente: string
@@ -42,7 +51,9 @@ export type OrcamentoDetalhe = {
   materiais: MaterialItem[]
 }
 
-/* ---------- 1. bairros ---------- */
+/* ------------------------------------------------------------------
+   1. listarBairros()
+------------------------------------------------------------------- */
 export async function listarBairros(): Promise<string[]> {
   const { data, error } = await supabase
     .from("frete")
@@ -53,68 +64,80 @@ export async function listarBairros(): Promise<string[]> {
     console.error("Erro ao buscar bairros:", error)
     return []
   }
-
   return (data ?? []).map(r => r.bairro)
 }
-/* ---------- 2. busca resumida ---------- */
+
+/* ------------------------------------------------------------------
+   2. buscarOrcamentos()  –  paginação
+------------------------------------------------------------------- */
 export async function buscarOrcamentos(
   nome = "",
   bairro = "",
   dataIniISO?: string,
-  dataFimISO?: string
-): Promise<OrcamentoTabela[]> {
-  const { data, error } = await supabase
+  dataFimISO?: string,
+  page = 1,
+  perPage = 10
+): Promise<{ dados: OrcamentoTabela[], total: number }> {
+  const from = (page - 1) * perPage
+  const to = from + perPage - 1
+
+    const query = supabase
     .from("orcamento")
     .select(`
       id,
       data_criacao,
-      cliente:cliente!inner(nome,bairro),
+      cliente:cliente!inner ( nome, bairro ),
       totais_madeiras_preco,
       totais_materiais_preco,
       totais_mao_de_obra_preco,
       totais_empresa_ps_preco,
       totais_empresa_gd_preco
-    `)
+    `, { count: "exact" })
     .ilike("cliente.nome", `%${nome}%`)
     .ilike("cliente.bairro", bairro ? `%${bairro}%` : "%")
     .gte("data_criacao", dataIniISO ?? "1900-01-01")
-    .lte("data_criacao", dataFimISO ?? "9999-12-31")
-    .order("data_criacao", { ascending: false })
+    .lte("data_criacao", dataFimISO ?? "2100-12-31")
+    .order("data_criacao", { ascending: false })   // 👈 acrescentar esta linha
+    .range(from, to)
 
-  if (error) {
+
+  const { data, count, error } = await query
+
+  if (error || !data) {
     console.error("Erro ao buscar orçamentos:", error)
-    return []
+    return { dados: [], total: 0 }
   }
 
-  return (data ?? []).map(o => {
-    const cli = Array.isArray(o.cliente) ? o.cliente[0] : o.cliente
-
-    const total =
-      Number(o.totais_madeiras_preco) +
-      Number(o.totais_materiais_preco) +
-      Number(o.totais_mao_de_obra_preco) +
-      Number(o.totais_empresa_ps_preco) +
-      Number(o.totais_empresa_gd_preco)
-
+  const dados = data.map((o: any): OrcamentoTabela => {
+    const cliente = Array.isArray(o.cliente) ? o.cliente[0] : o.cliente
     return {
       id: o.id,
-      cliente: cli?.nome ?? "—",
-      bairro: cli?.bairro ?? "—",
+      cliente: cliente?.nome ?? "—",
+      bairro: cliente?.bairro ?? "",
       dataISO: o.data_criacao,
-      valorFormatado: `R$ ${total.toFixed(2)}`,
+      valorFormatado: `R$ ${(
+        (o.totais_madeiras_preco ?? 0) +
+        (o.totais_materiais_preco ?? 0) +
+        (o.totais_mao_de_obra_preco ?? 0) +
+        (o.totais_empresa_ps_preco ?? 0) +
+        (o.totais_empresa_gd_preco ?? 0)
+      ).toFixed(2)}`
     }
   })
+
+  return { dados, total: count ?? 0 }
 }
 
-
-/* ---------- 3. detalhe ---------- */
+/* ------------------------------------------------------------------
+   3. detalheOrcamento()
+------------------------------------------------------------------- */
 export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | null> {
   const { data, error } = await supabase
     .from("orcamento")
     .select(`
       id,
       data_criacao,
-      cliente:cliente ( nome, telefone, bairro, cidade ),
+      cliente:cliente!inner ( nome, telefone, bairro, cidade ),
       totais_madeiras_preco,
       totais_materiais_preco,
       totais_mao_de_obra_preco,
@@ -123,20 +146,20 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
       itens:orcamento_material (
         quantidade,
         preco_unitario,
-        material:materiais ( descricao, tipo )
+        material:materiais!inner ( descricao, tipo )
       )
     `)
     .eq("id", id)
     .single()
 
-  if (error) {
+  if (error || !data) {
     console.error("Erro ao buscar detalhe do orçamento:", error)
     return null
   }
 
-  const cli = Array.isArray(data.cliente) ? data.cliente[0] : data.cliente
+  const cli = data.cliente as any
 
-  const totaisParciais = {
+  const tots = {
     madeiras: Number(data.totais_madeiras_preco),
     materiais: Number(data.totais_materiais_preco),
     maoDeObra: Number(data.totais_mao_de_obra_preco),
@@ -144,27 +167,29 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
     empresaGD: Number(data.totais_empresa_gd_preco),
   }
 
+  const materiais: MaterialItem[] = (data.itens ?? []).map((it: any) => {
+    const mat = it.material
+    return {
+      nome: mat.descricao,
+      tipo: mat.tipo,
+      quantidade: Number(it.quantidade),
+      precoUnit: Number(it.preco_unitario),
+    }
+  })
+
   return {
     id: data.id,
     dataISO: data.data_criacao,
     cliente: {
-      nome: cli?.nome ?? "—",
-      telefone: cli?.telefone ?? null,
-      bairro: cli?.bairro ?? null,
-      cidade: cli?.cidade ?? null,
+      nome: cli.nome,
+      telefone: cli.telefone,
+      bairro: cli.bairro,
+      cidade: cli.cidade,
     },
     totais: {
-      ...totaisParciais,
-      totalGeral: Object.values(totaisParciais).reduce((s, v) => s + v, 0),
+      ...tots,
+      totalGeral: Object.values(tots).reduce((s, v) => s + v, 0),
     },
-    materiais: (data.itens ?? []).map(it => {
-      const mat = Array.isArray(it.material) ? it.material[0] : it.material
-      return {
-        nome: mat?.descricao ?? "—",
-        tipo: (mat?.tipo as "madeira" | "geral" | "telha") ?? "geral",
-        quantidade: Number(it.quantidade),
-        precoUnit: Number(it.preco_unitario),
-      }
-    }),
+    materiais,
   }
 }
