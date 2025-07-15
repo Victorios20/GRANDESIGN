@@ -192,7 +192,7 @@ export function CustomSidebar({ isOpen }: { isOpen: boolean }) {
                             "hover:bg-black/5 transition-all duration-200"
                           )}
                         >
-                          <ClockIcon className={iconClass(isActive("/"))} />
+                          <ClockIcon className={iconClass(isActive("/gerar-orcamento"))} />
                           {isOpen && (
                             <motion.span
                               initial={{ opacity: 0 }}
