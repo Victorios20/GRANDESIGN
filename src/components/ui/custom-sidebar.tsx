@@ -184,7 +184,7 @@ export function CustomSidebar({ isOpen }: { isOpen: boolean }) {
                 <SidebarMenuItem>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link href="/historico">
+                      <Link href="/">
                         <SidebarMenuButton
                           isActive={false}
                           className={cn(
@@ -192,7 +192,7 @@ export function CustomSidebar({ isOpen }: { isOpen: boolean }) {
                             "hover:bg-black/5 transition-all duration-200"
                           )}
                         >
-                          <ClockIcon className={iconClass(isActive("/gerar-orcamento"))} />
+                          <ClockIcon className={iconClass(isActive("/"))} />
                           {isOpen && (
                             <motion.span
                               initial={{ opacity: 0 }}
