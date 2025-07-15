@@ -1,7 +1,7 @@
 "use client"
 
 import { supabase } from "@/supabase/client"
-import type { OrcamentoRow, ClienteRow } from "@/lib/database.types"
+
 
 /* ------------------------------------------------------------------
    Tipos utilitários (evitam qualquer uso de `any`)
