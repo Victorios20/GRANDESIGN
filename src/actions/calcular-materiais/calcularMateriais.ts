@@ -100,8 +100,8 @@ function calcularMadeira(
         { descricao: `${base} (Colunas Traseiras)`, quantidade: 4 },
         {
           descricao: `${base} (Colunas Frontais)`,
-          quantity: comprimento > 6 ? 8 : 4,
-        } as any,
+          quantidade: comprimento > 6 ? 8 : 4,
+        },
         { descricao: `${base} (Travessa)`, quantidade: 2 },
         {
           descricao: `${base} (Pérgola)`,
