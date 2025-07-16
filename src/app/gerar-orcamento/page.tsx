@@ -9,7 +9,7 @@
 
 import { useState, useEffect, ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Trash, X, Edit, Save, Calculator } from "lucide-react"
+import { Trash, Edit, Save, Calculator } from "lucide-react"
 
 import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriais"
 import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMateriais"
