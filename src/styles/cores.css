@@ -70,6 +70,10 @@
    ------------------------- */
 
 
+.bg-cinza {
+  background-color: #F9F9F9;
+}
+
 
 /* Texto madeira-700 (para contrastar sobre madeira-100, se necessário) */
 .text-madeira-700 {

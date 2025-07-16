@@ -4,7 +4,7 @@ import { supabase } from "@/supabase/client"
 
 
 /* ------------------------------------------------------------------
-   Tipos utilitários (evitam qualquer uso de `any`)
+   Tipos utilitários
 ------------------------------------------------------------------- */
 
 /** Possível shape que a lista de orçamentos retorna */
