@@ -158,10 +158,13 @@ export async function calcularMateriais(
   let precos: MaterialRow[]
   try {
     precos = await getMateriaisByDescricoes(descricoesBusca)
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Falha ao buscar preços dos materiais."
     // Encapsula para manter mensagem amigável na UI
-    throw new Error(err?.message ?? "Falha ao buscar preços dos materiais.")
+    throw new Error(message)
   }
+
 
   const mapaPrecos = new Map<string, number>(
     precos.map(row => [row.descricao, Number(row.preco_unitario) || 0]),
