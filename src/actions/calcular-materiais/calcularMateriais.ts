@@ -1,5 +1,5 @@
 /* ------------------------------------------------------------------
-   GRANDESIGN – calcularMateriais.ts (versão 100% descrições do banco)
+   GRANDESIGN – calcularMateriais.ts (inclui tratamento de erros)
    ------------------------------------------------------------------ */
 import { getMateriaisByDescricoes, type MaterialRow } from "./calcularMateriais-db"
 
@@ -16,17 +16,32 @@ const ROUND_HALF = (v: number) => ceil(v / HALF) * HALF
 const ROUND_INT = (v: number) => ceil(v)
 const toStr = (v: number) => v.toFixed(1).replace(".", ",")
 
-interface BaseRow { descricao: string; quantidade: number; tamanho?: string }
-interface MadeiraRow extends BaseRow { tamanho: string }
+interface BaseRow {
+  descricao: string
+  quantidade: number
+  tamanho?: string
+}
+interface MadeiraRow extends BaseRow {
+  tamanho: string
+}
 
+/**
+ * Calcula a lista de materiais (madeira, materiais gerais, telhas) com quantidades
+ * e preços unitários provenientes do banco de dados.
+ * Lança erros semânticos para que a UI trate via Snackbar.
+ */
 export async function calcularMateriais(
   tipoObra: string,
   largura: number,
   comprimento: number,
 ) {
+  // ---------- Validação dos parâmetros ----------
   if (!tipoObra || !largura || !comprimento)
     throw new Error("Parâmetros obrigatórios: tipoObra, largura, comprimento")
 
+  /* ------------------------------------------------------------------
+   *                      BLOCO DE CÁLCULO (SEM ALTERAÇÕES)
+   *  ------------------------------------------------------------------ */
   const madeiraRaw: MadeiraRow[] = []
   const area = largura * comprimento
   const largArred = ROUND_HALF(largura)
@@ -85,14 +100,13 @@ export async function calcularMateriais(
   add("Linha 30cm (Pranchão)", comprimento >= 6 ? 3 : 2, largArred)
   add(`Beiral Trab. ${esp}`, 1, largArred)
 
-  // Materiais gerais
+  /* ---------- Materiais gerais ---------- */
   const materiaisRaw: BaseRow[] = []
   materiaisRaw.push({ descricao: "Rufo", quantidade: 1 })
 
   const qtdColunas = madeiraRaw
     .filter(m => m.descricao.includes("Coluna"))
     .reduce((s, x) => s + x.quantidade, 0)
-
   if (qtdColunas) {
     materiaisRaw.push({ descricao: "Parafusos Franceses", quantidade: qtdColunas * 3 + 3 })
     const sacos = ROUND_INT(qtdColunas / 2)
@@ -102,7 +116,6 @@ export async function calcularMateriais(
   const qtdPontal = madeiraRaw
     .filter(m => m.descricao.includes("Pontalete"))
     .reduce((s, x) => s + x.quantidade, 0)
-
   if (qtdPontal) {
     materiaisRaw.push({ descricao: "Parafuso Sextavado", quantidade: qtdPontal * 3 + 2 })
   }
@@ -111,37 +124,47 @@ export async function calcularMateriais(
     materiaisRaw.push({ descricao: "Parafuso Sextavado", quantidade: ROUND_INT(largura) })
   }
 
-  // Telhas
+  /* ---------- Telhas ---------- */
   const telhasRaw: BaseRow[] = []
   if (!/^Pergolado|^Caramanch/.test(tipoObra)) {
     const qtdTelhas = ROUND_INT(area * 17 + 40)
     telhasRaw.push({ descricao: "Romana", quantidade: qtdTelhas })
   }
 
-  // Agrupar
-  const agrupar = <T extends BaseRow>(rows: T[]) => {
+  /* ---------- Agrupamento ---------- */
+  const agrupar = <T extends BaseRow>(rows: T[]): T[] => {
     const map = new Map<string, T>()
     rows.forEach(r => {
       const key = r.tamanho ? `${r.descricao}|${r.tamanho}` : r.descricao
       const atual = map.get(key)
-      if (atual) atual.quantidade += r.quantidade
-      else map.set(key, { ...r })
+      if (atual) {
+        atual.quantidade += r.quantidade
+      } else {
+        map.set(key, { ...r })
+      }
     })
-    return [...map.values()]
+    return Array.from(map.values())
   }
 
   const madeiraAgrup = agrupar(madeiraRaw) as MadeiraRow[]
   const materiaisAgrup = agrupar(materiaisRaw)
   const telhasAgrup = agrupar(telhasRaw)
 
-  // Preços
+  /* ---------- Preços ---------- */
   const descricoesBusca = [...madeiraAgrup, ...materiaisAgrup, ...telhasAgrup]
     .map(r => r.descricao)
     .filter((v, i, a) => a.indexOf(v) === i)
 
-  const precos = await getMateriaisByDescricoes(descricoesBusca)
+  let precos: MaterialRow[]
+  try {
+    precos = await getMateriaisByDescricoes(descricoesBusca)
+  } catch (err: any) {
+    // Encapsula para manter mensagem amigável na UI
+    throw new Error(err?.message ?? "Falha ao buscar preços dos materiais.")
+  }
+
   const mapaPrecos = new Map<string, number>(
-    precos.map((row: MaterialRow) => [row.descricao, Number(row.preco_unitario) || 0]),
+    precos.map(row => [row.descricao, Number(row.preco_unitario) || 0]),
   )
 
   const toCalc = (r: BaseRow): MaterialCalculado => ({
