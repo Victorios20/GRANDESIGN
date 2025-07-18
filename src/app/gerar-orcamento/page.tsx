@@ -12,7 +12,7 @@
 
 import { useState, useEffect, ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Trash, Edit, Save, Calculator, Loader2 } from "lucide-react"
+import { Trash, Edit, Save, Calculator, Loader2, RotateCcw } from "lucide-react"
 import { Toaster, toast } from "sonner"
 
 
@@ -202,42 +202,42 @@ export default function GerarOrcamentoPage() {
   }
 
 
-const calcular = async (): Promise<void> => {
-  // bloqueia cliques indevidos
-  if (!tipoObra || loadingCalc) return
-  setLoadingCalc(true)
+  const calcular = async (): Promise<void> => {
+    // bloqueia cliques indevidos
+    if (!tipoObra || loadingCalc) return
+    setLoadingCalc(true)
 
-  try {
-    const { madeira, materiais: mats, telhas } = await calcularMateriais(
-      tipoObra,
-      dim.largura,
-      dim.comprimento,
-    )
+    try {
+      const { madeira, materiais: mats, telhas } = await calcularMateriais(
+        tipoObra,
+        dim.largura,
+        dim.comprimento,
+      )
 
-    const mapRow = (r: MaterialCalculado, i: number): Material => ({
-      id: Date.now() + i + Math.random(),
-      nome: r.descricao,
-      quantidade: r.quantidade,
-      preco: r.preco_unitario,
-      tamanho: r.tamanho,
-    })
+      const mapRow = (r: MaterialCalculado, i: number): Material => ({
+        id: Date.now() + i + Math.random(),
+        nome: r.descricao,
+        quantidade: r.quantidade,
+        preco: r.preco_unitario,
+        tamanho: r.tamanho,
+      })
 
-    setMateriais({
-      madeiras: madeira.map(mapRow),
-      materiaisGerais: mats.map(mapRow),
-      telhas: telhas.map(mapRow),
-    })
+      setMateriais({
+        madeiras: madeira.map(mapRow),
+        materiaisGerais: mats.map(mapRow),
+        telhas: telhas.map(mapRow),
+      })
 
-    toast.success("Cálculo concluído com sucesso!")
-  } catch (err: unknown) {
-    const message =
-      err instanceof Error ? err.message : "Erro inesperado no cálculo."
-    toast.error(message)
-    console.error(err)
-  } finally {
-    setLoadingCalc(false)
+      toast.success("Cálculo concluído com sucesso!")
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Erro inesperado no cálculo."
+      toast.error(message)
+      console.error(err)
+    } finally {
+      setLoadingCalc(false)
+    }
   }
-}
 
 
 
@@ -283,29 +283,47 @@ const calcular = async (): Promise<void> => {
 
   /* ---------- Totais ---------- */
   const subtotalMadeiras = (arr: Material[]) =>
-    arr.reduce(
-      (s, m) => s + toNum(m.tamanho) * m.quantidade * m.preco,
-      0,
-    )
+    arr.reduce((s, m) => s + toNum(m.tamanho) * m.quantidade * m.preco, 0)
 
   const subtotalGeral = (arr: Material[]) =>
     arr.reduce((s, m) => s + m.quantidade * m.preco, 0)
 
   const totMadeiras = subtotalMadeiras(materiais.madeiras)
-  const totMateriais = subtotalGeral(materiais.materiaisGerais)
-  const totTelhas = subtotalGeral(materiais.telhas)
+  const totMateriais = subtotalGeral(materiais.materiaisGerais)   // ← só Materiais Gerais
 
+  const totCalc = { madeiras: totMadeiras, materiais: totMateriais }
 
-  const [totEdit, setTotEdit] = useState({
-    madeiras: totMadeiras,
-    materiais: totMateriais + totTelhas,
-    maoDeObra: 900,
-    empresaPS: 1500,
-    empresaGD: 1500,
-  })
+  const [totEdit, setTotEdit] = useState(() => ({
+    ...totCalc,
+    maoDeObra: 0,
+    empresaPS: 0,
+    empresaGD: 0,
+  }))
 
   const [editingTot, setEditingTot] = useState<keyof typeof totEdit | null>(null)
+
+  /* mantém madeiras/materiais sincronizados se o usuário NÃO alterou */
+  useEffect(() => {
+    setTotEdit(p => ({
+      ...p,
+      madeiras: p.madeiras === totMadeiras ? totMadeiras : p.madeiras,
+      materiais: p.materiais === totMateriais ? totMateriais : p.materiais,
+    }))
+  }, [totMadeiras, totMateriais])
+
+  const resetTotais = () =>
+    setTotEdit({ ...totCalc, maoDeObra: 0, empresaPS: 0, empresaGD: 0 })
+
   const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
+
+  /* rótulos bonitos */
+  const displayLabel: Record<keyof typeof totEdit, string> = {
+    madeiras: "Madeiras",
+    materiais: "Materiais Gerais",
+    maoDeObra: "Mão de Obra",
+    empresaPS: "Empresa PS",
+    empresaGD: "Empresa GD",
+  }
 
   /* ------------------------------ JSX ------------------------------ */
   return (
@@ -633,31 +651,47 @@ const calcular = async (): Promise<void> => {
           {/* Totais editáveis */}
           <Card className="shadow-sm">
             <CardHeader className="p-3">
-              <CardTitle className="text-sm">Totais por Categoria</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-sm">Totais por Categoria</CardTitle>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 bg-bege text-marromEscuro hover:bg-bege/70"
+                  onClick={resetTotais}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Resetar Valores
+                </Button>
+              </div>
             </CardHeader>
+
             <CardContent className="p-3">
               <Table>
                 <TableBody>
                   {(Object.entries(totEdit) as [keyof typeof totEdit, number][]).map(
                     ([k, v]) => (
                       <TableRow key={k}>
-                        <TableCell className="capitalize">
-                          {k.replace(/([A-Z])/g, " $1")}
+                        <TableCell>{displayLabel[k]}</TableCell>
+
+                        {/* valor ou input – agora encostado no ícone */}
+                        <TableCell className="pr-0">
+                          <div className="flex justify-end items-center">
+                            {editingTot === k ? (
+                              <Input
+                                type="number"
+                                value={v}
+                                onChange={e =>
+                                  setTotEdit(p => ({ ...p, [k]: +e.target.value }))
+                                }
+                                className="w-24 h-8 text-right"
+                              />
+                            ) : (
+                              formatBR(v)
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-right">
-                          {editingTot === k ? (
-                            <Input
-                              type="number"
-                              value={v}
-                              onChange={e =>
-                                setTotEdit(p => ({ ...p, [k]: +e.target.value }))
-                              }
-                              className="w-24 h-8"
-                            />
-                          ) : (
-                            formatBR(v)
-                          )}
-                        </TableCell>
+
                         <TableCell className="text-right w-12">
                           <Button
                             size="icon"
@@ -666,23 +700,20 @@ const calcular = async (): Promise<void> => {
                               setEditingTot(editingTot === k ? null : k)
                             }
                           >
-                            {editingTot === k ? (
-                              <Save className="h-4 w-4" />
-                            ) : (
-                              <Edit className="h-4 w-4" />
-                            )}
+                            {editingTot === k ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
                           </Button>
                         </TableCell>
                       </TableRow>
                     ),
                   )}
+
                   <TableRow className="font-semibold border-t">
                     <TableCell>Total Geral</TableCell>
-                    <TableCell className="text-right">
-                      {formatBR(somaTotal)}
-                    </TableCell>
+                    <TableCell className="text-right">{formatBR(somaTotal)}</TableCell>
                   </TableRow>
                 </TableBody>
+
+
               </Table>
             </CardContent>
           </Card>
@@ -704,9 +735,9 @@ const calcular = async (): Promise<void> => {
                 </TableHeader>
                 <TableBody>
                   {[
-                    ["Romana", 9200, 1015, 591],
-                    ["Colonial", 8400, 927, 539],
-                    ["Americana", 9100, 1004, 584],
+                    ["Romana", 0, 0, 0],
+                    ["Colonial", 0, 0, 0],
+                    ["Americana", 0, 0, 0],
                   ].map(([t, a, b, c]) => (
                     <TableRow key={t as string}>
                       <TableCell>{t}</TableCell>
