@@ -3,22 +3,41 @@
    ------------------------------------------------------------------
    Página única: 1) Dados pessoais • 2) Materiais • 3) Resumo
 
-   + Coluna “Componente” em Madeiras
-   + Carrega opções de componentes do Supabase
+   Ajustes solicitados em 22-jul-2025:
+     • Linha “Mão de Obra” → removida
+     • Linha “Comissão” ............ sempre 0
+     • Linha “Empresa PS (Mão de Obra)” ← resultado de calcularTotais()
+     • Linha “Empresa GD” ........... resultado de calcularTotais()
 -------------------------------------------------------------------*/
 
 "use client"
 
 import { useState, useEffect, ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
-import { Trash, Edit, Save, Calculator, Loader2, RotateCcw } from "lucide-react"
+import {
+  Trash,
+  Edit,
+  Save,
+  Calculator,
+  Loader2,
+  RotateCcw,
+} from "lucide-react"
 import { Toaster, toast } from "sonner"
 
 import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriais"
 import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMateriais"
+
+import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"       /* 👈 NOVO */
+
 import { listarMateriaisPorTipo } from "@/actions/materiais-db/materiais-db"
-import { listarComponentes, type Componente } from "@/actions/componentes-db/componentes-db"
-import { listarTiposObra, type TipoObra } from "@/actions/tipo-obra-db/tipo-obra-db"
+import {
+  listarComponentes,
+  type Componente,
+} from "@/actions/componentes-db/componentes-db"
+import {
+  listarTiposObra,
+  type TipoObra,
+} from "@/actions/tipo-obra-db/tipo-obra-db"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
@@ -53,14 +72,12 @@ import {
 type Material = {
   id: number
   nome: string
-  componente: string      // NOVO
+  componente: string
   quantidade: number
   preco: number
   tamanho?: string
 }
-
 type Categoria = "madeiras" | "materiaisGerais" | "telhas"
-
 type MateriaisPorCategoria = {
   madeiras: Material[]
   materiaisGerais: Material[]
@@ -75,10 +92,10 @@ const formatPhone = (raw: string) => {
   const d = raw.replace(/\D/g, "").slice(0, 11)
   if (d.length <= 2) return `(${d}`
   if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  if (d.length <= 10)
+    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
-
 const formatBR = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
@@ -96,8 +113,8 @@ export default function GerarOrcamentoPage() {
     materiaisGerais: { nome: string; preco: number }[]
     telhas: { nome: string; preco: number }[]
   }>({ madeiras: [], materiaisGerais: [], telhas: [] })
-
   const [componentes, setComponentes] = useState<Componente[]>([])
+  const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
 
   useEffect(() => {
     ; (async () => {
@@ -108,22 +125,32 @@ export default function GerarOrcamentoPage() {
         listarComponentes(),
         listarTiposObra(),
       ])
-
       setCatalogo({
-        madeiras: mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-        materiaisGerais: ges.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-        telhas: tls.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+        madeiras: mads.map(m => ({
+          nome: m.descricao,
+          preco: m.preco_unitario,
+        })),
+        materiaisGerais: ges.map(m => ({
+          nome: m.descricao,
+          preco: m.preco_unitario,
+        })),
+        telhas: tls.map(m => ({
+          nome: m.descricao,
+          preco: m.preco_unitario,
+        })),
       })
-
       setComponentes(comps)
       setTiposObra(tipos)
     })()
   }, [])
 
-
-  const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
   /* ---------- Estados principais ---------- */
-  const [form, setForm] = useState({ nome: "", telefone: "", cidade: "", bairro: "" })
+  const [form, setForm] = useState({
+    nome: "",
+    telefone: "",
+    cidade: "",
+    bairro: "",
+  })
   const [tipoObra, setTipoObra] = useState<string | null>(null)
   const [dim, setDim] = useState({ largura: 1, comprimento: 1 })
   const [materiais, setMateriais] = useState<MateriaisPorCategoria>({
@@ -147,7 +174,6 @@ export default function GerarOrcamentoPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
   useEffect(() => {
     if (typeof window === "undefined") return
     const draft = { form, tipoObra, dim, materiais }
@@ -155,9 +181,12 @@ export default function GerarOrcamentoPage() {
   }, [form, tipoObra, dim, materiais])
 
   /* ---------- Progresso ---------- */
-  const progEtapa1 = (Object.values(form).filter(v => v.trim()).length / 4) * 33
+  const progEtapa1 =
+    (Object.values(form).filter(v => v.trim()).length / 4) * 33
   const progEtapa2 = materiais.madeiras.length ? 34 : 0
-  const progresso = Math.round(progEtapa1 + (tipoObra ? 33 : 0) + progEtapa2)
+  const progresso = Math.round(
+    progEtapa1 + (tipoObra ? 33 : 0) + progEtapa2,
+  )
 
   /* ---------- Handlers ---------- */
   const onFormChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -174,14 +203,15 @@ export default function GerarOrcamentoPage() {
     setDim({ largura: 1, comprimento: 1 })
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
     localStorage.removeItem(STORAGE_KEY)
+    resetTotais()
   }
-
-  const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
-
+  const clearEtapa1 = () =>
+    setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
   const clearEtapa2 = () => {
     setTipoObra(null)
     setDim({ largura: 1, comprimento: 1 })
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
+    resetTotais()
   }
 
   /* ---------- Cálculo ---------- */
@@ -195,14 +225,18 @@ export default function GerarOrcamentoPage() {
   const calcular = async (): Promise<void> => {
     if (!tipoObra || loadingCalc) return
     setLoadingCalc(true)
-
     try {
-      const { madeira, materiais: mats, telhas } = await calcularMateriais(
+      const {
+        madeira,
+        materiais: mats,
+        telhas,
+      } = await calcularMateriais(
         tipoObra,
         dim.largura,
         dim.comprimento,
       )
 
+      // ---- mapeia para o formato local ----
       const mapRow = (r: MaterialCalculado, i: number): Material => ({
         id: Date.now() + i + Math.random(),
         nome: r.descricao,
@@ -211,11 +245,27 @@ export default function GerarOrcamentoPage() {
         preco: r.preco_unitario,
         tamanho: r.tamanho,
       })
-
+      const madeirasNew = madeira.map(mapRow)
+      const materGNew = mats.map(mapRow)
+      const telhasNew = telhas.map(mapRow)
       setMateriais({
-        madeiras: madeira.map(mapRow),
-        materiaisGerais: mats.map(mapRow),
-        telhas: telhas.map(mapRow),
+        madeiras: madeirasNew,
+        materiaisGerais: materGNew,
+        telhas: telhasNew,
+      })
+
+      /* -------- Totais por Categoria -------- */
+      const madeirasSubtotal = subtotalMadeiras(madeirasNew)
+      const materiaisSubtotal = subtotalGeral(materGNew)
+
+      const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
+
+      setTotEdit({
+        madeiras: madeirasSubtotal,
+        materiais: materiaisSubtotal,
+        comissao: 0,
+        empresaPS: maoDeObra,
+        empresaGD: empresaGD,
       })
 
       toast.success("Cálculo concluído com sucesso!")
@@ -230,7 +280,10 @@ export default function GerarOrcamentoPage() {
   }
 
   /* ---------- Edição inline ---------- */
-  const [edit, setEdit] = useState<{ cat: Categoria; id: number } | null>(null)
+  const [edit, setEdit] = useState<{
+    cat: Categoria
+    id: number
+  } | null>(null)
   const [editData, setEditData] = useState<Omit<Material, "id">>({
     nome: "",
     componente: "",
@@ -238,23 +291,25 @@ export default function GerarOrcamentoPage() {
     preco: 0,
     tamanho: "",
   })
-
   const startEdit = (c: Categoria, m: Material) => {
     setEdit({ cat: c, id: m.id })
     setEditData({ ...m })
   }
-
   const saveEdit = () => {
     if (!edit) return
     setMateriais(prev => ({
       ...prev,
-      [edit.cat]: prev[edit.cat].map(m => (m.id === edit.id ? { ...m, ...editData } : m)),
+      [edit.cat]: prev[edit.cat].map(m =>
+        m.id === edit.id ? { ...m, ...editData } : m,
+      ),
     }))
     setEdit(null)
   }
-
   const removeItem = (c: Categoria, id: number) =>
-    setMateriais(prev => ({ ...prev, [c]: prev[c].filter(m => m.id !== id) }))
+    setMateriais(prev => ({
+      ...prev,
+      [c]: prev[c].filter(m => m.id !== id),
+    }))
 
   /* ---------- Adicionar ---------- */
   const addMaterial = (c: Categoria, nomeSel: string) => {
@@ -279,43 +334,73 @@ export default function GerarOrcamentoPage() {
 
   /* ---------- Totais ---------- */
   const subtotalMadeiras = (arr: Material[]) =>
-    arr.reduce((s, m) => s + toNum(m.tamanho) * m.quantidade * m.preco, 0)
-
+    arr.reduce(
+      (s, m) => s + toNum(m.tamanho) * m.quantidade * m.preco,
+      0,
+    )
   const subtotalGeral = (arr: Material[]) =>
     arr.reduce((s, m) => s + m.quantidade * m.preco, 0)
 
   const totMadeiras = subtotalMadeiras(materiais.madeiras)
   const totMateriais = subtotalGeral(materiais.materiaisGerais)
-
   const totCalc = { madeiras: totMadeiras, materiais: totMateriais }
 
   const [totEdit, setTotEdit] = useState(() => ({
     ...totCalc,
-    maoDeObra: 0,
+    comissao: 0,
     empresaPS: 0,
     empresaGD: 0,
   }))
+  const [editingTot, setEditingTot] =
+    useState<keyof typeof totEdit | null>(null)
 
-  const [editingTot, setEditingTot] = useState<keyof typeof totEdit | null>(null)
-
+  /* Atualiza valores reativos sempre que madeiras / materiais mudam */
   useEffect(() => {
     setTotEdit(p => ({
       ...p,
-      madeiras: p.madeiras === totMadeiras ? totMadeiras : p.madeiras,
-      materiais: p.materiais === totMateriais ? totMateriais : p.materiais,
+      madeiras:
+        p.madeiras === totMadeiras ? totMadeiras : p.madeiras,
+      materiais:
+        p.materiais === totMateriais ? totMateriais : p.materiais,
     }))
   }, [totMadeiras, totMateriais])
 
-  const resetTotais = () =>
-    setTotEdit({ ...totCalc, maoDeObra: 0, empresaPS: 0, empresaGD: 0 })
+  const resetTotais = () => {
+    try {
+      /* 1. Recalcula subtotais atuais */
+      const madeirasSubtotal = subtotalMadeiras(materiais.madeiras)
+      const materiaisSubtotal = subtotalGeral(materiais.materiaisGerais)
+
+      /* 2. Recalcula mão-de-obra + Empresa GD (se já houver tipo de obra) */
+      const { maoDeObra, empresaGD } = tipoObra
+        ? calcularTotais({ tipoObra })
+        : { maoDeObra: 0, empresaGD: 0 }
+
+      /* 3. Atualiza state */
+      setTotEdit({
+        madeiras: madeirasSubtotal,
+        materiais: materiaisSubtotal,
+        comissao: 0,
+        empresaPS: maoDeObra,
+        empresaGD: empresaGD,
+      })
+
+      toast.success("Valores resetados com sucesso!")
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Erro ao resetar valores."
+      toast.error(msg)
+      console.error(err)
+    }
+  }
 
   const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
 
   const displayLabel: Record<keyof typeof totEdit, string> = {
     madeiras: "Madeiras",
     materiais: "Materiais Gerais",
-    maoDeObra: "Mão de Obra",
-    empresaPS: "Empresa PS",
+    comissao: "Comissão",
+    empresaPS: "Empresa PS (Mão de Obra)",
     empresaGD: "Empresa GD",
   }
 
@@ -329,12 +414,14 @@ export default function GerarOrcamentoPage() {
     >
       <Toaster position="bottom-right" richColors />
 
-      {/* Cabeçalho geral */}
+      {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
         <CardHeader className="p-4">
           <div className="flex justify-between items-start flex-col sm:flex-row">
             <div>
-              <CardTitle className="text-xl font-bold">Gerar Orçamento</CardTitle>
+              <CardTitle className="text-xl font-bold">
+                Gerar Orçamento
+              </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
                 Preencha as três etapas abaixo.
               </CardDescription>
@@ -352,7 +439,6 @@ export default function GerarOrcamentoPage() {
         </CardHeader>
       </Card>
 
-      {/* ====================== ETAPA 1 ====================== */}
       {/* ====================== ETAPA 1 ====================== */}
       <Card>
         <CardHeader className="p-4">
@@ -423,6 +509,7 @@ export default function GerarOrcamentoPage() {
 
 
       {/* ====================== ETAPA 2 ====================== */}
+      {/* ====================== ETAPA 2 ====================== */}
       <Card className="mt-4">
         <CardHeader className="p-4">
           <div className="flex justify-between items-start sm:items-center">
@@ -432,22 +519,28 @@ export default function GerarOrcamentoPage() {
               </Badge>
               <CardTitle className="text-lg">Materiais</CardTitle>
             </div>
+
             <Button
               variant="ghost"
               size="sm"
               onClick={clearEtapa2}
               className="text-red-500 hover:text-red-700"
             >
-              <Trash className="h-4 w-4 mr-1" /> Limpar
+              <Trash className="h-4 w-4 mr-1" />
+              Limpar
             </Button>
           </div>
         </CardHeader>
+
         <CardContent className="p-4 space-y-6">
-          {/* seleção */}
+          {/* -------- filtros / parâmetros -------- */}
           <div className="flex flex-col sm:flex-row sm:items-end gap-4">
             <div className="flex flex-col gap-1">
               <Label>Tipo de Obra</Label>
-              <Select value={tipoObra ?? undefined} onValueChange={v => setTipoObra(v)}>
+              <Select
+                value={tipoObra ?? undefined}
+                onValueChange={v => setTipoObra(v)}
+              >
                 <SelectTrigger className="w-56">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
@@ -460,6 +553,7 @@ export default function GerarOrcamentoPage() {
                 </SelectContent>
               </Select>
             </div>
+
             {(["largura", "comprimento"] as const).map(k => (
               <div key={k} className="flex flex-col gap-1">
                 <Label className="capitalize">{k} (m)</Label>
@@ -467,11 +561,14 @@ export default function GerarOrcamentoPage() {
                   type="number"
                   step={0.1}
                   value={dim[k]}
-                  onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 1 }))}
+                  onChange={e =>
+                    setDim(p => ({ ...p, [k]: +e.target.value || 1 }))
+                  }
                   className="w-32"
                 />
               </div>
             ))}
+
             <Button
               onClick={calcular}
               disabled={loadingCalc || !tipoObra}
@@ -479,17 +576,19 @@ export default function GerarOrcamentoPage() {
             >
               {loadingCalc ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Calculando…
                 </>
               ) : (
                 <>
-                  <Calculator className="h-4 w-4 mr-1" /> Calcular
+                  <Calculator className="h-4 w-4 mr-1" />
+                  Calcular
                 </>
               )}
             </Button>
           </div>
 
-          {/* Tabelas por categoria */}
+          {/* -------- tabelas por categoria -------- */}
           {(
             [
               ["madeiras", "Madeiras"],
@@ -498,14 +597,17 @@ export default function GerarOrcamentoPage() {
             ] as [Categoria, string][]
           ).map(([cat, titulo]) => (
             <div key={cat} className="border rounded-lg shadow-sm">
+              {/* cabeçalho da tabela */}
               <div className="flex justify-between items-center px-3 py-2 bg-bege rounded-t-lg">
                 <span className="font-medium text-sm">{titulo}</span>
+
+                {/* seletor “+ Adicionar” */}
                 <Select onValueChange={v => addMaterial(cat, v)}>
-                  <SelectTrigger className="h-7 w-48 text-xs bg-cinza border-marromEscuro">
-                    <SelectValue placeholder="Adicionar material" />
+                  <SelectTrigger className="w-52 h-8 text-xs bg-white">
+                    <SelectValue placeholder="+ Adicionar" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="vazio">Novo material</SelectItem>
+                    <SelectItem value="vazio">(linha vazia)</SelectItem>
                     {catalogo[cat].map(o => (
                       <SelectItem key={o.nome} value={o.nome}>
                         {o.nome}
@@ -514,28 +616,41 @@ export default function GerarOrcamentoPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* corpo da tabela */}
               <div className="overflow-x-auto">
                 <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow className="bg-cinza">
                       <TableHead>Descrição</TableHead>
+
+                      {/* madeiras têm duas colunas extras */}
                       {cat === "madeiras" && (
                         <>
                           <TableHead>Componente</TableHead>
                           <TableHead className="w-28 text-right">Tamanho</TableHead>
                         </>
                       )}
-                      {cat !== "madeiras" && <TableHead />}
+
                       <TableHead className="w-28 text-right">Quantidade</TableHead>
-                      <TableHead className="w-28 text-right">Preço (m²)</TableHead>
+
+                      {/* ▼ aqui muda o rótulo do preço conforme a categoria */}
+                      <TableHead className="w-28 text-right">
+                        {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
+                      </TableHead>
+
                       <TableHead className="w-28 text-right">Total</TableHead>
                       <TableHead className="w-20 text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
+
+
                   <TableBody>
                     {materiais[cat].map(m => {
                       const ed = edit?.cat === cat && edit.id === m.id
-                      const total = toNum(m.tamanho) * m.quantidade * m.preco
+                      const total =
+                        toNum(m.tamanho) * m.quantidade * m.preco
+
                       return (
                         <TableRow key={m.id}>
                           {/* Descrição */}
@@ -544,7 +659,10 @@ export default function GerarOrcamentoPage() {
                               <Input
                                 value={editData.nome}
                                 onChange={e =>
-                                  setEditData(d => ({ ...d, nome: e.target.value }))
+                                  setEditData(d => ({
+                                    ...d,
+                                    nome: e.target.value,
+                                  }))
                                 }
                               />
                             ) : (
@@ -552,47 +670,58 @@ export default function GerarOrcamentoPage() {
                             )}
                           </TableCell>
 
-                          {/* Componente – só para madeiras */}
+                          {/* Componente & Tamanho – só para madeiras */}
                           {cat === "madeiras" && (
-                            <TableCell>
-                              {ed ? (
-                                <Select
-                                  value={editData.componente}
-                                  onValueChange={v =>
-                                    setEditData(d => ({ ...d, componente: v }))
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 w-40">
-                                    <SelectValue placeholder="Componente" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {componentes.map(c => (
-                                      <SelectItem key={c.id} value={c.nome}>
-                                        {c.nome}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                m.componente
-                              )}
-                            </TableCell>
-                          )}
+                            <>
+                              <TableCell>
+                                {ed ? (
+                                  <Select
+                                    value={editData.componente || ""}
+                                    onValueChange={v =>
+                                      setEditData(d => ({
+                                        ...d,
+                                        componente: v,
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {componentes.map(c => (
+                                        <SelectItem
+                                          key={c.id}
+                                          value={c.nome}
+                                        >
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  m.componente
+                                )}
+                              </TableCell>
 
-                          {/* Tamanho (somente madeiras) */}
-                          {cat === "madeiras" && (
-                            <TableCell className="text-right">
-                              {ed ? (
-                                <Input
-                                  value={editData.tamanho}
-                                  onChange={e =>
-                                    setEditData(d => ({ ...d, tamanho: e.target.value }))
-                                  }
-                                />
-                              ) : (
-                                m.tamanho
-                              )}
-                            </TableCell>
+                              <TableCell className="text-right">
+                                {ed ? (
+                                  <Input
+                                    type="number"
+                                    step={0.1}
+                                    value={editData.tamanho ?? ""}
+                                    onChange={e =>
+                                      setEditData(d => ({
+                                        ...d,
+                                        tamanho: e.target.value,
+                                      }))
+                                    }
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  m.tamanho ?? "-"
+                                )}
+                              </TableCell>
+                            </>
                           )}
 
                           {/* Quantidade */}
@@ -600,26 +729,35 @@ export default function GerarOrcamentoPage() {
                             {ed ? (
                               <Input
                                 type="number"
+                                step={0.1}
                                 value={editData.quantidade}
                                 onChange={e =>
-                                  setEditData(d => ({ ...d, quantidade: +e.target.value }))
+                                  setEditData(d => ({
+                                    ...d,
+                                    quantidade: +e.target.value || 0,
+                                  }))
                                 }
+                                className="h-8 text-right"
                               />
                             ) : (
                               m.quantidade
                             )}
                           </TableCell>
 
-                          {/* Preço unitário */}
+                          {/* Preço */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
                                 type="number"
-                                step="0.01"
+                                step={0.01}
                                 value={editData.preco}
                                 onChange={e =>
-                                  setEditData(d => ({ ...d, preco: +e.target.value }))
+                                  setEditData(d => ({
+                                    ...d,
+                                    preco: +e.target.value || 0,
+                                  }))
                                 }
+                                className="h-8 text-right"
                               />
                             ) : (
                               formatBR(m.preco)
@@ -627,30 +765,38 @@ export default function GerarOrcamentoPage() {
                           </TableCell>
 
                           {/* Total */}
-                          <TableCell className="text-right">{formatBR(total)}</TableCell>
+                          <TableCell className="text-right">
+                            {formatBR(total)}
+                          </TableCell>
 
                           {/* Ações */}
                           <TableCell className="text-center">
                             {ed ? (
-                              <Button size="icon" variant="ghost" onClick={saveEdit}>
-                                <Save className="h-4 w-4" />
-                              </Button>
-                            ) : (
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                onClick={() => startEdit(cat, m)}
+                                onClick={saveEdit}
                               >
-                                <Edit className="h-4 w-4" />
+                                <Save className="h-4 w-4" />
                               </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => startEdit(cat, m)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => removeItem(cat, m.id)}
+                                >
+                                  <Trash className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </>
                             )}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => removeItem(cat, m.id)}
-                            >
-                              <Trash className="h-4 w-4 text-red-500" />
-                            </Button>
                           </TableCell>
                         </TableRow>
                       )
@@ -663,7 +809,8 @@ export default function GerarOrcamentoPage() {
         </CardContent>
       </Card>
 
-      {/* ====================== ETAPA 3 ====================== */}
+
+      {/* --------------- ETAPA 3 --------------- */}
       <Card className="mt-4">
         <CardHeader className="p-4">
           <div className="flex items-center gap-2">
@@ -673,13 +820,15 @@ export default function GerarOrcamentoPage() {
             <CardTitle className="text-lg">Resumo do Pedido</CardTitle>
           </div>
         </CardHeader>
+
         <CardContent className="p-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-          {/* Totais editáveis */}
+          {/* -------- Totais por Categoria (editável) -------- */}
           <Card className="shadow-sm">
             <CardHeader className="p-3">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-sm">Totais por Categoria</CardTitle>
-
+                <CardTitle className="text-sm">
+                  Totais por Categoria
+                </CardTitle>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -695,42 +844,50 @@ export default function GerarOrcamentoPage() {
             <CardContent className="p-3">
               <Table>
                 <TableBody>
-                  {(Object.entries(totEdit) as [keyof typeof totEdit, number][]).map(
-                    ([k, v]) => (
-                      <TableRow key={k}>
-                        <TableCell>{displayLabel[k]}</TableCell>
-                        <TableCell className="pr-0">
-                          <div className="flex justify-end items-center">
-                            {editingTot === k ? (
-                              <Input
-                                type="number"
-                                value={v}
-                                onChange={e =>
-                                  setTotEdit(p => ({ ...p, [k]: +e.target.value }))
-                                }
-                                className="w-24 h-8 text-right"
-                              />
-                            ) : (
-                              formatBR(v)
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right w-12">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setEditingTot(editingTot === k ? null : k)}
-                          >
-                            {editingTot === k ? (
-                              <Save className="h-4 w-4" />
-                            ) : (
-                              <Edit className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ),
-                  )}
+                  {(
+                    Object.entries(totEdit) as [
+                      keyof typeof totEdit,
+                      number,
+                    ][]
+                  ).map(([k, v]) => (
+                    <TableRow key={k}>
+                      <TableCell>{displayLabel[k]}</TableCell>
+                      <TableCell className="pr-0">
+                        <div className="flex justify-end items-center">
+                          {editingTot === k ? (
+                            <Input
+                              type="number"
+                              value={v}
+                              onChange={e =>
+                                setTotEdit(p => ({
+                                  ...p,
+                                  [k]: +e.target.value,
+                                }))
+                              }
+                              className="w-24 h-8 text-right"
+                            />
+                          ) : (
+                            formatBR(v)
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right w-12">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() =>
+                            setEditingTot(editingTot === k ? null : k)
+                          }
+                        >
+                          {editingTot === k ? (
+                            <Save className="h-4 w-4" />
+                          ) : (
+                            <Edit className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
 
                   <TableRow className="font-semibold border-t">
                     <TableCell>Total Geral</TableCell>
@@ -748,6 +905,7 @@ export default function GerarOrcamentoPage() {
             <CardHeader className="p-3">
               <CardTitle className="text-sm">Telhas – valores fixos</CardTitle>
             </CardHeader>
+
             <CardContent className="p-3">
               <Table>
                 <TableHeader>
@@ -758,6 +916,7 @@ export default function GerarOrcamentoPage() {
                     <TableHead className="text-right">18×</TableHead>
                   </TableRow>
                 </TableHeader>
+
                 <TableBody>
                   {[
                     ["Romana", 0, 0, 0],
@@ -775,6 +934,7 @@ export default function GerarOrcamentoPage() {
               </Table>
             </CardContent>
           </Card>
+
         </CardContent>
       </Card>
 
@@ -784,10 +944,15 @@ export default function GerarOrcamentoPage() {
           Voltar
         </Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => console.log("Salvar rascunho")}>
+          <Button
+            variant="outline"
+            onClick={() => console.log("Salvar rascunho")}
+          >
             Salvar
           </Button>
-          <Button onClick={() => console.log("Gerar PDF")}>Gerar Proposta</Button>
+          <Button onClick={() => console.log("Gerar PDF")}>
+            Gerar Proposta
+          </Button>
         </div>
       </div>
     </PageLayout>
