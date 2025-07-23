@@ -99,6 +99,12 @@ const formatPhone = (raw: string) => {
 const formatBR = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 
+
+const roundUp100 = (v: number) => Math.ceil(v / 100) * 100
+
+// taxas-placeholder (edite depois)
+const TAXA_CARTAO_10 = 0   // valor fixo por parcela ou % -> ajuste
+const TAXA_CARTAO_18 = 0
 /* ------------------------------------------------------------------
  *                           COMPONENTE
  * ------------------------------------------------------------------ */
@@ -354,6 +360,44 @@ export default function GerarOrcamentoPage() {
   const [editingTot, setEditingTot] =
     useState<keyof typeof totEdit | null>(null)
 
+  /* ---------- Telhas (pix / 10× / 18×) ---------- */
+  type Pagto = { pix: number; x10: number; x18: number }
+  const [telhaValores, setTelhaValores] = useState<Record<
+    "Romana" | "Colonial" | "Americana",
+    Pagto
+  >>({
+    Romana: { pix: 0, x10: 0, x18: 0 },
+    Colonial: { pix: 0, x10: 0, x18: 0 },
+    Americana: { pix: 0, x10: 0, x18: 0 },
+  })
+
+  /* helper que soma telhas e aplica arredondamento + taxa */
+  const calcTelhaValores = (
+    telhasArr: Material[],
+    totalGeral: number,
+  ): typeof telhaValores => {
+    const somaTipo = (slug: string) =>
+      telhasArr
+        .filter(t => t.nome.toLowerCase().includes(slug))
+        .reduce((s, t) => s + t.quantidade * t.preco, 0)
+
+    const make = (extra: number) => {
+      const base = totalGeral + extra
+      return {
+        pix: roundUp100(base),
+        x10: base / 10 + TAXA_CARTAO_10,
+        x18: base / 18 + TAXA_CARTAO_18,
+      }
+    }
+
+    return {
+      Romana: make(somaTipo("romana")),
+      Colonial: make(somaTipo("colonial")),
+      Americana: make(somaTipo("americana")),
+    }
+  }
+
+
   /* Atualiza valores reativos sempre que madeiras / materiais mudam */
   useEffect(() => {
     setTotEdit(p => ({
@@ -395,6 +439,10 @@ export default function GerarOrcamentoPage() {
   }
 
   const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
+
+  useEffect(() => {
+    setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
+  }, [materiais.telhas, somaTotal])
 
   const displayLabel: Record<keyof typeof totEdit, string> = {
     madeiras: "Madeiras",
@@ -918,19 +966,16 @@ export default function GerarOrcamentoPage() {
                 </TableHeader>
 
                 <TableBody>
-                  {[
-                    ["Romana", 0, 0, 0],
-                    ["Colonial", 0, 0, 0],
-                    ["Americana", 0, 0, 0],
-                  ].map(([t, a, b, c]) => (
-                    <TableRow key={t as string}>
-                      <TableCell>{t}</TableCell>
-                      <TableCell className="text-right">{formatBR(+a)}</TableCell>
-                      <TableCell className="text-right">{formatBR(+b)}</TableCell>
-                      <TableCell className="text-right">{formatBR(+c)}</TableCell>
+                  {Object.entries(telhaValores).map(([tipo, v]) => (
+                    <TableRow key={tipo}>
+                      <TableCell>{tipo}</TableCell>
+                      <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
+                      <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
+                      <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
+
               </Table>
             </CardContent>
           </Card>

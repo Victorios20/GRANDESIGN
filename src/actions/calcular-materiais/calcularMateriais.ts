@@ -1,18 +1,18 @@
 /* ------------------------------------------------------------------
-   GRANDESIGN – calcularMateriais.ts (refatorado para campo componente)
+   GRANDESIGN – calcularMateriais.ts (refatorado para 3 tipos de telha)
    ------------------------------------------------------------------ */
 import { getMateriaisByDescricoes, type MaterialRow } from "./calcularMateriais-db"
 
 export interface MaterialCalculado {
-  descricao: string         // “Linha 15cm”
-  componente: string        // “Colunas Traseiras”
+  descricao: string
+  componente: string
   quantidade: number
   preco_unitario: number
   tamanho?: string
 }
 
-const ceil = Math.ceil
-const HALF = 0.5
+const ceil       = Math.ceil
+const HALF       = 0.5
 const ROUND_HALF = (v: number) => ceil(v / HALF) * HALF
 const ROUND_INT  = (v: number) => ceil(v)
 const toStr      = (v: number) => v.toFixed(1).replace(".", ",")
@@ -81,22 +81,7 @@ export async function calcularMateriais(
     case /^Linha na Parede/.test(tipoObra): {
       add(`Linha ${esp}`, "Parede", 1, largArred)
       const pranchao = comprimento >= 6 ? 3 : 2
-      add(`Linha ${esp}`, "Pontalete", Math.max(pranchao - 1, 0) * 2, 2.5)
-      break
-    }
-    case /^Pergolado/.test(tipoObra): {
-      add(`Linha ${esp}`, "Travessa", 2, largArred)
-      const qtdPerg = ROUND_INT(largura / 0.35) + 1
-      add(`Linha ${esp}`, "Pérgola", qtdPerg, compArred)
-      add("Caibro", "Caibros", 2, compArred)
-      break
-    }
-    case /^Caramanch/.test(tipoObra): {
-      add(`Linha ${esp}`, "Colunas Traseiras", 4, 4.5)
-      add(`Linha ${esp}`, "Colunas Frontais", comprimento > 6 ? 8 : 4, 3.5)
-      add(`Linha ${esp}`, "Travessa", 2, compArred)
-      const qtdPerg = ROUND_INT(comprimento / 0.35) + 1
-      add(`Linha ${esp}`, "Pérgola", qtdPerg, largArred)
+      add("Linha 30cm", "Pranchão", pranchao, largArred)
       break
     }
     default:
@@ -152,11 +137,16 @@ export async function calcularMateriais(
   /* ---------- Telhas ---------- */
   const telhasRaw: BaseRow[] = []
   if (!/^Pergolado|^Caramanch/.test(tipoObra)) {
-    const qtdTelhas = ROUND_INT(area * 17 + 40)
-    telhasRaw.push({
-      descricao: "Romana",
-      componente: "",
-      quantidade: qtdTelhas,
+    const formulas = {
+      Romana:   { factor: 17, offset: 40 },
+      Americana:{ factor: 12, offset: 40 },
+      Colonial: { factor: 33, offset: 50 },
+    } as const
+
+    (Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
+      const { factor, offset } = formulas[nome]
+      const qtd = ROUND_INT(area * factor + offset)
+      telhasRaw.push({ descricao: nome, componente: "", quantidade: qtd })
     })
   }
 
