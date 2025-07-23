@@ -102,9 +102,10 @@ const formatBR = (v: number) =>
 
 const roundUp100 = (v: number) => Math.ceil(v / 100) * 100
 
-// taxas-placeholder (edite depois)
-const TAXA_CARTAO_10 = 0   // valor fixo por parcela ou % -> ajuste
-const TAXA_CARTAO_18 = 0
+// fatores de acréscimo do cartão
+const FATOR_10X = 1.1457   // 14,57 % sobre o total
+const FATOR_18X = 1.2385   // 23,85 % sobre o total
+
 /* ------------------------------------------------------------------
  *                           COMPONENTE
  * ------------------------------------------------------------------ */
@@ -130,12 +131,16 @@ const calcTelhaValores = (
 
   const make = (extra: number) => {
     const base = totalGeral + extra
+    const pix = roundUp100(base)
+
     return {
-      pix: roundUp100(base),
-      x10: base / 10 + TAXA_CARTAO_10,
-      x18: base / 18 + TAXA_CARTAO_18,
+      pix,
+      x10: (pix * FATOR_10X) / 10,
+      x18: (pix * FATOR_18X) / 18,
     }
   }
+
+
 
   return {
     Romana: make(somaTipo("romana")),
