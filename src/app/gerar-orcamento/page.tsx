@@ -108,6 +108,42 @@ const TAXA_CARTAO_18 = 0
 /* ------------------------------------------------------------------
  *                           COMPONENTE
  * ------------------------------------------------------------------ */
+
+/* ---------- cálculo dos valores das telhas (fora do componente) ---------- */
+type Pagto = { pix: number; x10: number; x18: number }
+
+const calcTelhaValores = (
+  telhasArr: {
+    id: number
+    nome: string
+    componente: string
+    quantidade: number
+    preco: number
+    tamanho?: string
+  }[],
+  totalGeral: number,
+): Record<"Romana" | "Colonial" | "Americana", Pagto> => {
+  const somaTipo = (slug: string) =>
+    telhasArr
+      .filter(t => t.nome.toLowerCase().includes(slug))
+      .reduce((s, t) => s + t.quantidade * t.preco, 0)
+
+  const make = (extra: number) => {
+    const base = totalGeral + extra
+    return {
+      pix: roundUp100(base),
+      x10: base / 10 + TAXA_CARTAO_10,
+      x18: base / 18 + TAXA_CARTAO_18,
+    }
+  }
+
+  return {
+    Romana: make(somaTipo("romana")),
+    Colonial: make(somaTipo("colonial")),
+    Americana: make(somaTipo("americana")),
+  }
+}
+
 export default function GerarOrcamentoPage() {
   const router = useRouter()
 
@@ -360,8 +396,8 @@ export default function GerarOrcamentoPage() {
   const [editingTot, setEditingTot] =
     useState<keyof typeof totEdit | null>(null)
 
+
   /* ---------- Telhas (pix / 10× / 18×) ---------- */
-  type Pagto = { pix: number; x10: number; x18: number }
   const [telhaValores, setTelhaValores] = useState<Record<
     "Romana" | "Colonial" | "Americana",
     Pagto
@@ -371,31 +407,6 @@ export default function GerarOrcamentoPage() {
     Americana: { pix: 0, x10: 0, x18: 0 },
   })
 
-  /* helper que soma telhas e aplica arredondamento + taxa */
-  const calcTelhaValores = (
-    telhasArr: Material[],
-    totalGeral: number,
-  ): typeof telhaValores => {
-    const somaTipo = (slug: string) =>
-      telhasArr
-        .filter(t => t.nome.toLowerCase().includes(slug))
-        .reduce((s, t) => s + t.quantidade * t.preco, 0)
-
-    const make = (extra: number) => {
-      const base = totalGeral + extra
-      return {
-        pix: roundUp100(base),
-        x10: base / 10 + TAXA_CARTAO_10,
-        x18: base / 18 + TAXA_CARTAO_18,
-      }
-    }
-
-    return {
-      Romana: make(somaTipo("romana")),
-      Colonial: make(somaTipo("colonial")),
-      Americana: make(somaTipo("americana")),
-    }
-  }
 
 
   /* Atualiza valores reativos sempre que madeiras / materiais mudam */

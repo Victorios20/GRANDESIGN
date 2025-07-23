@@ -43,7 +43,7 @@ export async function calcularMateriais(
   const madeiraRaw: MadeiraRow[] = []
   const area       = largura * comprimento
   const largArred  = ROUND_HALF(largura)
-  const compArred  = ROUND_HALF(comprimento)
+  //const compArred  = ROUND_HALF(comprimento)
   const esp        = /11,5/.test(tipoObra) ? "11,5cm" : "15cm"
 
   const add = (
