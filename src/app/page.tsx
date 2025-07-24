@@ -402,7 +402,7 @@ export default function HomePage() {
                         {[
                           ["Madeiras",   orcamentoSel.totais.madeiras],
                           ["Materiais",  orcamentoSel.totais.materiais],
-                          ["Mão de Obra",orcamentoSel.totais.maoDeObra],
+                          ["Mão de Obra", orcamentoSel.totais.empresaPS],
                           ["Empresa PS", orcamentoSel.totais.empresaPS],
                           ["Empresa GD", orcamentoSel.totais.empresaGD],
                         ].map(([lab,v])=>(
