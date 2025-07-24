@@ -1,13 +1,21 @@
+/* ------------------------------------------------------------------
+   GRANDESIGN · actions/historico-orcamento-db/historico-orcamento-db.ts
+   ------------------------------------------------------------------
+   Funções de acesso ao histórico de orçamentos
+     1. listarBairros()
+     2. buscarOrcamentos()   – paginação + filtros
+     3. detalheOrcamento()   – detalhe completo
+-------------------------------------------------------------------*/
+
 "use client"
 
 import { supabase } from "@/supabase/client"
 
-
 /* ------------------------------------------------------------------
-   Tipos utilitários
-------------------------------------------------------------------- */
+ *                          Tipos utilitários
+ * ------------------------------------------------------------------ */
 
-/** Possível shape que a lista de orçamentos retorna */
+/** Shape que a lista de orçamentos (query) devolve */
 interface OrcamentoQueryRow {
   id: number
   data_criacao: string
@@ -16,12 +24,12 @@ interface OrcamentoQueryRow {
     | { nome: string | null; bairro: string | null }[]
   totais_madeiras_preco: number | null
   totais_materiais_preco: number | null
-  totais_mao_de_obra_preco: number | null
+  totais_comissao_preco: number | null
   totais_empresa_ps_preco: number | null
   totais_empresa_gd_preco: number | null
 }
 
-/** Estrutura para o detalhe — aninhada */
+/** Shape do detalhe (com itens aninhados) */
 interface OrcamentoDetalheQueryRow {
   id: number
   data_criacao: string
@@ -33,7 +41,7 @@ interface OrcamentoDetalheQueryRow {
   }
   totais_madeiras_preco: number | null
   totais_materiais_preco: number | null
-  totais_mao_de_obra_preco: number | null
+  totais_comissao_preco: number | null
   totais_empresa_ps_preco: number | null
   totais_empresa_gd_preco: number | null
   itens: {
@@ -47,8 +55,8 @@ interface OrcamentoDetalheQueryRow {
 }
 
 /* ------------------------------------------------------------------
-   Tipos expostos ao front
-------------------------------------------------------------------- */
+ *                Tipos exportados para a camada de UI
+ * ------------------------------------------------------------------ */
 
 export type OrcamentoTabela = {
   id: number
@@ -77,7 +85,7 @@ export type OrcamentoDetalhe = {
   totais: {
     madeiras: number
     materiais: number
-    maoDeObra: number
+    comissao: number
     empresaPS: number
     empresaGD: number
     totalGeral: number
@@ -85,9 +93,9 @@ export type OrcamentoDetalhe = {
   materiais: MaterialItem[]
 }
 
-/* ------------------------------------------------------------------
-   1. listarBairros()
-------------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/* 1. listarBairros()                                                 */
+/* ------------------------------------------------------------------ */
 export async function listarBairros(): Promise<string[]> {
   const { data, error } = await supabase.from("frete").select("bairro").order("bairro")
   if (error) {
@@ -97,9 +105,9 @@ export async function listarBairros(): Promise<string[]> {
   return (data ?? []).map(r => r.bairro)
 }
 
-/* ------------------------------------------------------------------
-   2. buscarOrcamentos() – paginação + mais recentes primeiro
-------------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/* 2. buscarOrcamentos() – paginação + filtros                        */
+/* ------------------------------------------------------------------ */
 export async function buscarOrcamentos(
   nome = "",
   bairro = "",
@@ -120,7 +128,7 @@ export async function buscarOrcamentos(
       cliente:cliente!inner ( nome, bairro ),
       totais_madeiras_preco,
       totais_materiais_preco,
-      totais_mao_de_obra_preco,
+      totais_comissao_preco,
       totais_empresa_ps_preco,
       totais_empresa_gd_preco
     `,
@@ -141,10 +149,11 @@ export async function buscarOrcamentos(
 
   const dados: OrcamentoTabela[] = (data as unknown as OrcamentoQueryRow[]).map(o => {
     const clienteObj = Array.isArray(o.cliente) ? o.cliente[0] : o.cliente
+
     const total =
       (o.totais_madeiras_preco ?? 0) +
       (o.totais_materiais_preco ?? 0) +
-      (o.totais_mao_de_obra_preco ?? 0) +
+      (o.totais_comissao_preco ?? 0) +
       (o.totais_empresa_ps_preco ?? 0) +
       (o.totais_empresa_gd_preco ?? 0)
 
@@ -160,9 +169,9 @@ export async function buscarOrcamentos(
   return { dados, total: count ?? 0 }
 }
 
-/* ------------------------------------------------------------------
-   3. detalheOrcamento()
-------------------------------------------------------------------- */
+/* ------------------------------------------------------------------ */
+/* 3. detalheOrcamento()                                              */
+/* ------------------------------------------------------------------ */
 export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | null> {
   const { data, error } = await supabase
     .from("orcamento")
@@ -173,7 +182,7 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
       cliente:cliente!inner ( nome, telefone, bairro, cidade ),
       totais_madeiras_preco,
       totais_materiais_preco,
-      totais_mao_de_obra_preco,
+      totais_comissao_preco,
       totais_empresa_ps_preco,
       totais_empresa_gd_preco,
       itens:orcamento_material (
@@ -196,7 +205,7 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
   const tots = {
     madeiras: Number(row.totais_madeiras_preco),
     materiais: Number(row.totais_materiais_preco),
-    maoDeObra: Number(row.totais_mao_de_obra_preco),
+    comissao: Number(row.totais_comissao_preco),
     empresaPS: Number(row.totais_empresa_ps_preco),
     empresaGD: Number(row.totais_empresa_gd_preco),
   }
