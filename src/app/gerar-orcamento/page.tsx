@@ -326,24 +326,37 @@ export default function GerarOrcamentoPage() {
   }
 
   const saveEdit = () => {
-    if (!edit) return
-    setMateriais(prev => ({
-      ...prev,
-      [edit.cat]: prev[edit.cat].map(m =>
-        m.id === edit.id
-          ? {
+  if (!edit) return
+
+  const tamanho = toNum(editData.tamanho)
+  const quantidade = toNum(editData.quantidade)
+  const preco = toNum(editData.preco)
+
+  setMateriais(prev => ({
+    ...prev,
+    [edit.cat]: prev[edit.cat].map(m =>
+      m.id === edit.id
+        ? {
             ...m,
             ...editData,
-            tamanho:
-              editData.tamanho === "" || editData.tamanho === undefined
-                ? undefined
-                : +editData.tamanho,
+            tamanho,
+            quantidade,
+            preco,
           }
-          : m,
-      ),
-    }))
-    setEdit(null)
-  }
+        : m,
+    ),
+  }))
+
+  toast.success(`Edição na tabela ${{
+    madeiras: "Madeiras",
+    materiaisGerais: "Materiais Gerais",
+    telhas: "Telhas",
+  }[edit.cat]} salva com sucesso!`)
+
+  setEdit(null)
+}
+
+ 
 
   const removeItem = (c: Categoria, id: number) =>
     setMateriais(prev => ({ ...prev, [c]: prev[c].filter(m => m.id !== id) }))
@@ -689,14 +702,15 @@ export default function GerarOrcamentoPage() {
                               <TableCell className="text-right">
                                 {ed ? (
                                   <Input
-                                    type="number"
-                                    step={0.5}
-                                    value={editData.tamanho ?? ""}
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={String(editData.tamanho ?? "").replace(".", ",")}
                                     onChange={e =>
-                                      setEditData(d => ({ ...d, tamanho: e.target.value }))
+                                      setEditData(d => ({ ...d, tamanho: e.target.value.replace(",", ".") }))
                                     }
                                     className="h-8 text-right"
                                   />
+
                                 ) : (
                                   m.tamanho ?? "-"
                                 )}
