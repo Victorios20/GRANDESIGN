@@ -1,12 +1,3 @@
-/* ------------------------------------------------------------------
-   GRANDESIGN · app/(orcamento)/gerar-orcamento/page.tsx  (v2 – 24‑jul‑2025)
-   ------------------------------------------------------------------
-   Alterações principais:
-     • Descrição e Componente viram <Select> durante edição.
-     • Tamanho agora mostra valor correto e incrementa de 0,5 em 0,5.
-     • Quantidade incrementa de 1 em 1.
-     • Subtotais de Madeiras / Materiais gerados no cálculo e zerados no limpar
--------------------------------------------------------------------*/
 
 "use client"
 
@@ -159,7 +150,7 @@ export default function GerarOrcamentoPage() {
   const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
 
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       const [mads, ges, tls, comps, tipos] = await Promise.all([
         listarMateriaisPorTipo("madeira"),
         listarMateriaisPorTipo("geral"),
@@ -203,7 +194,7 @@ export default function GerarOrcamentoPage() {
         setTipoObra(d.tipoObra ?? null)
         setDim(d.dim ?? dim)
         setMateriais(d.materiais ?? materiais)
-      } catch {}
+      } catch { }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -228,26 +219,26 @@ export default function GerarOrcamentoPage() {
   }
 
   /** Zera absolutamente tudo (Etapas 1-3) */
-const clearAll = () => {
-  // Etapa 1 – dados pessoais
-  setForm({ nome: "", telefone: "", cidade: "", bairro: "" });
+  const clearAll = () => {
+    // Etapa 1 – dados pessoais
+    setForm({ nome: "", telefone: "", cidade: "", bairro: "" });
 
-  // Etapa 2 – parâmetros + materiais
-  setTipoObra(null);
-  setDim({ largura: 1, comprimento: 1 });
-  setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
+    // Etapa 2 – parâmetros + materiais
+    setTipoObra(null);
+    setDim({ largura: 1, comprimento: 1 });
+    setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
 
-  // Etapa 3 – totais + telhas
-  setTotEdit({ madeiras: 0, materiais: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
-  setTelhaValores({
-    Romana:   { pix: 0, x10: 0, x18: 0 },
-    Colonial: { pix: 0, x10: 0, x18: 0 },
-    Americana:{ pix: 0, x10: 0, x18: 0 },
-  });
+    // Etapa 3 – totais + telhas
+    setTotEdit({ madeiras: 0, materiais: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
+    setTelhaValores({
+      Romana: { pix: 0, x10: 0, x18: 0 },
+      Colonial: { pix: 0, x10: 0, x18: 0 },
+      Americana: { pix: 0, x10: 0, x18: 0 },
+    });
 
-  // limpa rascunho local
-  localStorage.removeItem(STORAGE_KEY);
-};
+    // limpa rascunho local
+    localStorage.removeItem(STORAGE_KEY);
+  };
 
   const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
   const clearEtapa2 = () => {
@@ -341,13 +332,13 @@ const clearAll = () => {
       [edit.cat]: prev[edit.cat].map(m =>
         m.id === edit.id
           ? {
-              ...m,
-              ...editData,
-              tamanho:
-                editData.tamanho === "" || editData.tamanho === undefined
-                  ? undefined
-                  : +editData.tamanho,
-            }
+            ...m,
+            ...editData,
+            tamanho:
+              editData.tamanho === "" || editData.tamanho === undefined
+                ? undefined
+                : +editData.tamanho,
+          }
           : m,
       ),
     }))
@@ -607,13 +598,21 @@ const clearAll = () => {
                 <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow className="bg-cinza">
-                      <TableHead>Descrição</TableHead>
-                      {cat === "madeiras" && (
+                      {cat === "madeiras" ? (
                         <>
+                          {/* agora 1ª coluna */}
                           <TableHead>Componente</TableHead>
+
+                          {/* agora 2ª coluna; renomeada */}
+                          <TableHead>Madeira</TableHead>
+
                           <TableHead className="w-28 text-right">Tamanho</TableHead>
                         </>
+                      ) : (
+                        /* mantidas nas outras categorias */
+                        <TableHead>Descrição</TableHead>
                       )}
+
                       <TableHead className="w-28 text-right">Quantidade</TableHead>
                       <TableHead className="w-28 text-right">
                         {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
@@ -623,6 +622,7 @@ const clearAll = () => {
                     </TableRow>
                   </TableHeader>
 
+
                   <TableBody>
                     {materiais[cat].map(m => {
                       const ed = edit?.cat === cat && edit.id === m.id
@@ -630,46 +630,14 @@ const clearAll = () => {
 
                       return (
                         <TableRow key={m.id}>
-                          {/* Descrição */}
-                          <TableCell>
-                            {ed ? (
-                              <Select
-                                value={editData.nome || ""}
-                                onValueChange={v => {
-                                  const ref = catalogo[cat].find(o => o.nome === v)
-                                  setEditData(d => ({
-                                    ...d,
-                                    nome: v,
-                                    preco: ref ? ref.preco : d.preco,
-                                  }))
-                                }}
-                              >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {catalogo[cat].map(o => (
-                                    <SelectItem key={o.nome} value={o.nome}>
-                                      {o.nome}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              m.nome
-                            )}
-                          </TableCell>
-
-                          {/* Componente & Tamanho – apenas para madeiras */}
-                          {cat === "madeiras" && (
+                          {cat === "madeiras" ? (
                             <>
+                              {/* -------- 1ª célula – Componente -------- */}
                               <TableCell>
                                 {ed ? (
                                   <Select
                                     value={editData.componente || ""}
-                                    onValueChange={v =>
-                                      setEditData(d => ({ ...d, componente: v }))
-                                    }
+                                    onValueChange={v => setEditData(d => ({ ...d, componente: v }))}
                                   >
                                     <SelectTrigger className="h-8">
                                       <SelectValue placeholder="Selecione" />
@@ -687,6 +655,37 @@ const clearAll = () => {
                                 )}
                               </TableCell>
 
+                              {/* -------- 2ª célula – Madeira (descrição) -------- */}
+                              <TableCell>
+                                {ed ? (
+                                  <Select
+                                    value={editData.nome || ""}
+                                    onValueChange={v => {
+                                      const ref = catalogo[cat].find(o => o.nome === v)
+                                      setEditData(d => ({
+                                        ...d,
+                                        nome: v,
+                                        preco: ref ? ref.preco : d.preco,
+                                      }))
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-8">
+                                      <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {catalogo[cat].map(o => (
+                                        <SelectItem key={o.nome} value={o.nome}>
+                                          {o.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  m.nome
+                                )}
+                              </TableCell>
+
+                              {/* -------- 3ª célula – Tamanho -------- */}
                               <TableCell className="text-right">
                                 {ed ? (
                                   <Input
@@ -694,10 +693,7 @@ const clearAll = () => {
                                     step={0.5}
                                     value={editData.tamanho ?? ""}
                                     onChange={e =>
-                                      setEditData(d => ({
-                                        ...d,
-                                        tamanho: e.target.value,
-                                      }))
+                                      setEditData(d => ({ ...d, tamanho: e.target.value }))
                                     }
                                     className="h-8 text-right"
                                   />
@@ -706,9 +702,12 @@ const clearAll = () => {
                                 )}
                               </TableCell>
                             </>
+                          ) : (
+                            /* Demais categorias: permanecem mostrando apenas Descrição */
+                            <TableCell>{m.nome}</TableCell>
                           )}
 
-                          {/* Quantidade */}
+                          {/* -------- Quantidade -------- */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
@@ -716,10 +715,7 @@ const clearAll = () => {
                                 step={1}
                                 value={editData.quantidade}
                                 onChange={e =>
-                                  setEditData(d => ({
-                                    ...d,
-                                    quantidade: +e.target.value || 0,
-                                  }))
+                                  setEditData(d => ({ ...d, quantidade: +e.target.value || 0 }))
                                 }
                                 className="h-8 text-right"
                               />
@@ -728,7 +724,7 @@ const clearAll = () => {
                             )}
                           </TableCell>
 
-                          {/* Preço */}
+                          {/* -------- Preço -------- */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
@@ -736,10 +732,7 @@ const clearAll = () => {
                                 step={0.01}
                                 value={editData.preco}
                                 onChange={e =>
-                                  setEditData(d => ({
-                                    ...d,
-                                    preco: +e.target.value || 0,
-                                  }))
+                                  setEditData(d => ({ ...d, preco: +e.target.value || 0 }))
                                 }
                                 className="h-8 text-right"
                               />
@@ -748,10 +741,10 @@ const clearAll = () => {
                             )}
                           </TableCell>
 
-                          {/* Total */}
+                          {/* -------- Total -------- */}
                           <TableCell className="text-right">{formatBR(total)}</TableCell>
 
-                          {/* Ações */}
+                          {/* -------- Ações -------- */}
                           <TableCell className="text-center">
                             {ed ? (
                               <Button size="icon" variant="ghost" onClick={saveEdit}>
@@ -769,6 +762,7 @@ const clearAll = () => {
                             )}
                           </TableCell>
                         </TableRow>
+
                       )
                     })}
                   </TableBody>
