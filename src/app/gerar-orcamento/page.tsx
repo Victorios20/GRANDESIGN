@@ -17,6 +17,7 @@ import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriai
 import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMateriais"
 
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
+import { gerarPDF } from "@/api/useGerarPDF"
 
 import { listarMateriaisPorTipo } from "@/actions/materiais-db/materiais-db"
 import {
@@ -249,6 +250,32 @@ export default function GerarOrcamentoPage() {
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
     resetTotais()
   }
+
+  /* ---------- Enviar para Gerar PDF ---------- */
+/* ---------- Enviar para Gerar PDF ---------- */
+const handleGerarProposta = async () => {
+  if (!tipoObra) {
+    toast.error("Selecione o tipo de obra.")
+    return
+  }
+
+  try {
+    await gerarPDF({
+      cliente: form,
+      parametros: { tipoObra, ...dim },
+      materiais,
+      totais: totEdit,
+      telhaValores,
+    })
+
+    toast.success("PDF gerado com sucesso!")
+  } catch (err) {
+    console.error(err)
+    toast.error("Falha ao gerar PDF.")
+  }
+}
+
+
 
   /* ---------- Cálculo ---------- */
   const toNum = (s?: string | number): number => {
@@ -913,7 +940,7 @@ const toNonNeg = (s?: string | number): number => {
         <Button variant="secondary" onClick={() => router.push("/")}>Voltar</Button>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => console.log("Salvar rascunho")}>Salvar</Button>
-          <Button onClick={() => console.log("Gerar PDF")}>Gerar Proposta</Button>
+          <Button onClick={handleGerarProposta}>Gerar Proposta</Button>
         </div>
       </div>
     </PageLayout>
