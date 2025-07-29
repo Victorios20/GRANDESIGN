@@ -65,7 +65,9 @@ export type Material = {
   quantidade: number
   preco: number
   tamanho?: string | number
+  frete?: number // ← NOVO
 }
+
 
 type Categoria = "madeiras" | "materiaisGerais" | "telhas"
 
@@ -256,6 +258,15 @@ export default function GerarOrcamentoPage() {
     return isNaN(n) || n <= 0 ? 1 : n
   }
 
+  // ≥ 0  – zero é permitido
+const toNonNeg = (s?: string | number): number => {
+  if (typeof s === "number") return s >= 0 ? s : 0
+  if (s === "" || s === undefined || s === null) return 0
+  const n = parseFloat(String(s).replace(",", "."))
+  return isNaN(n) || n < 0 ? 0 : n
+}
+
+
   const calcular = async (): Promise<void> => {
     if (!tipoObra || loadingCalc) return
     setLoadingCalc(true)
@@ -322,15 +333,21 @@ export default function GerarOrcamentoPage() {
     setEditData({
       ...m,
       tamanho: m.tamanho !== undefined && m.tamanho !== null ? String(m.tamanho) : "",
+      frete: m.frete ?? 0,
     })
+
   }
 
   const saveEdit = () => {
   if (!edit) return
 
+  // ➜ mínimo 1
   const tamanho = toNum(editData.tamanho)
   const quantidade = toNum(editData.quantidade)
-  const preco = toNum(editData.preco)
+
+  // ➜ zero permitido
+  const preco = toNonNeg(editData.preco)
+  const frete = toNonNeg(editData.frete)
 
   setMateriais(prev => ({
     ...prev,
@@ -342,21 +359,23 @@ export default function GerarOrcamentoPage() {
             tamanho,
             quantidade,
             preco,
+            frete: edit.cat === "telhas" ? frete : undefined,
           }
         : m,
     ),
   }))
 
-  toast.success(`Edição na tabela ${{
-    madeiras: "Madeiras",
-    materiaisGerais: "Materiais Gerais",
-    telhas: "Telhas",
-  }[edit.cat]} salva com sucesso!`)
+  toast.success(
+    `Edição na tabela ${
+      { madeiras: "Madeiras", materiaisGerais: "Materiais Gerais", telhas: "Telhas" }[edit.cat]
+    } salva com sucesso!`,
+  )
 
   setEdit(null)
 }
 
- 
+
+
 
   const removeItem = (c: Categoria, id: number) =>
     setMateriais(prev => ({ ...prev, [c]: prev[c].filter(m => m.id !== id) }))
@@ -370,7 +389,10 @@ export default function GerarOrcamentoPage() {
       quantidade: 1,
       preco: 0,
       tamanho: "",
+      frete: c === "telhas" ? 0 : undefined, // ← use “c”, não “cat”
     }
+
+
     if (nomeSel !== "vazio") {
       const ref = catalogo[c].find(m => m.nome === nomeSel)
       if (ref) {
@@ -608,21 +630,16 @@ export default function GerarOrcamentoPage() {
 
               {/* corpo da tabela */}
               <div className="overflow-x-auto">
-                <Table className="min-w-[600px]">
+                <Table className="min-w-[700px]">
                   <TableHeader>
                     <TableRow className="bg-cinza">
                       {cat === "madeiras" ? (
                         <>
-                          {/* agora 1ª coluna */}
                           <TableHead>Componente</TableHead>
-
-                          {/* agora 2ª coluna; renomeada */}
                           <TableHead>Madeira</TableHead>
-
                           <TableHead className="w-28 text-right">Tamanho</TableHead>
                         </>
                       ) : (
-                        /* mantidas nas outras categorias */
                         <TableHead>Descrição</TableHead>
                       )}
 
@@ -630,22 +647,25 @@ export default function GerarOrcamentoPage() {
                       <TableHead className="w-28 text-right">
                         {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
                       </TableHead>
+
+                      {cat === "telhas" && (
+                        <TableHead className="w-28 text-right">Frete</TableHead>
+                      )}
+
                       <TableHead className="w-28 text-right">Total</TableHead>
                       <TableHead className="w-20 text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
 
-
                   <TableBody>
                     {materiais[cat].map(m => {
                       const ed = edit?.cat === cat && edit.id === m.id
-                      const total = toNum(m.tamanho) * m.quantidade * m.preco
+                      const total = toNum(m.tamanho) * m.quantidade * m.preco + (cat === "telhas" ? m.frete ?? 0 : 0)
 
                       return (
                         <TableRow key={m.id}>
                           {cat === "madeiras" ? (
                             <>
-                              {/* -------- 1ª célula – Componente -------- */}
                               <TableCell>
                                 {ed ? (
                                   <Select
@@ -667,8 +687,6 @@ export default function GerarOrcamentoPage() {
                                   m.componente
                                 )}
                               </TableCell>
-
-                              {/* -------- 2ª célula – Madeira (descrição) -------- */}
                               <TableCell>
                                 {ed ? (
                                   <Select
@@ -697,8 +715,6 @@ export default function GerarOrcamentoPage() {
                                   m.nome
                                 )}
                               </TableCell>
-
-                              {/* -------- 3ª célula – Tamanho -------- */}
                               <TableCell className="text-right">
                                 {ed ? (
                                   <Input
@@ -710,18 +726,15 @@ export default function GerarOrcamentoPage() {
                                     }
                                     className="h-8 text-right"
                                   />
-
                                 ) : (
                                   m.tamanho ?? "-"
                                 )}
                               </TableCell>
                             </>
                           ) : (
-                            /* Demais categorias: permanecem mostrando apenas Descrição */
                             <TableCell>{m.nome}</TableCell>
                           )}
 
-                          {/* -------- Quantidade -------- */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
@@ -738,7 +751,6 @@ export default function GerarOrcamentoPage() {
                             )}
                           </TableCell>
 
-                          {/* -------- Preço -------- */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
@@ -755,10 +767,26 @@ export default function GerarOrcamentoPage() {
                             )}
                           </TableCell>
 
-                          {/* -------- Total -------- */}
+                          {cat === "telhas" && (
+                            <TableCell className="text-right">
+                              {ed ? (
+                                <Input
+                                  type="number"
+                                  step={0.01}
+                                  value={editData.frete ?? 0}
+                                  onChange={e =>
+                                    setEditData(d => ({ ...d, frete: +e.target.value || 0 }))
+                                  }
+                                  className="h-8 text-right"
+                                />
+                              ) : (
+                                formatBR(m.frete ?? 0)
+                              )}
+                            </TableCell>
+                          )}
+
                           <TableCell className="text-right">{formatBR(total)}</TableCell>
 
-                          {/* -------- Ações -------- */}
                           <TableCell className="text-center">
                             {ed ? (
                               <Button size="icon" variant="ghost" onClick={saveEdit}>
@@ -776,7 +804,6 @@ export default function GerarOrcamentoPage() {
                             )}
                           </TableCell>
                         </TableRow>
-
                       )
                     })}
                   </TableBody>
