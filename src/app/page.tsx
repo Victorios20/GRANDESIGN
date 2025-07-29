@@ -124,7 +124,7 @@ export default function HomePage() {
   const materiaisGroup = useMemo(() => {
     if (!orcamentoSel) return {}
     return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>((acc, m) => {
-      ;(acc[m.tipo] ??= []).push(m)
+      ; (acc[m.tipo] ??= []).push(m)
       return acc
     }, {})
   }, [orcamentoSel])
@@ -327,11 +327,17 @@ export default function HomePage() {
         </Card>
 
         {/* ……………………………………… MODAL DETALHE ……………………………………… */}
-        <Dialog open={!!orcamentoSel} onOpenChange={()=>setOrcamentoSel(null)}>
+        <Dialog
+          open={!!orcamentoSel}
+          onOpenChange={(open) => {
+            if (!open) setOrcamentoSel(null);   // limpa só ao fechar
+          }}
+        >
+
           <DialogContent className="w-[96vw] sm:max-w-[94vw] lg:max-w-[80vw] max-h-[80vh] overflow-auto">
             {loadingModal || !orcamentoSel ? (
               <div className="space-y-2">
-                {Array.from({ length: 8 }).map((_,i)=>(
+                {Array.from({ length: 8 }).map((_, i) => (
                   <Skeleton key={i} className="h-6 w-full" />
                 ))}
               </div>
@@ -358,10 +364,10 @@ export default function HomePage() {
                 </Card>
 
                 {/* materiais */}
-                {["madeira","geral","telha"].map(tipo=>{
+                {["madeira", "geral", "telha"].map(tipo => {
                   const linhas = materiaisGroup[tipo] ?? []
                   if (!linhas.length) return null
-                  const titulo = tipo==="madeira"?"Madeiras":tipo==="geral"?"Materiais Gerais":"Telhas"
+                  const titulo = tipo === "madeira" ? "Madeiras" : tipo === "geral" ? "Materiais Gerais" : "Telhas"
                   return (
                     <Card key={tipo}>
                       <CardHeader><CardTitle>{titulo}</CardTitle></CardHeader>
@@ -377,12 +383,12 @@ export default function HomePage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {linhas.map((l,i)=>(
+                              {linhas.map((l, i) => (
                                 <TableRow key={i} className="odd:bg-muted/40">
                                   <TableCell>{l.nome}</TableCell>
                                   <TableCell>{l.quantidade}</TableCell>
                                   <TableCell>{fmt(l.precoUnit)}</TableCell>
-                                  <TableCell>{fmt(l.precoUnit*l.quantidade)}</TableCell>
+                                  <TableCell>{fmt(l.precoUnit * l.quantidade)}</TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
@@ -400,12 +406,12 @@ export default function HomePage() {
                     <CardContent className="p-4">
                       <Table><TableBody>
                         {[
-                          ["Madeiras",   orcamentoSel.totais.madeiras],
-                          ["Materiais",  orcamentoSel.totais.materiais],
+                          ["Madeiras", orcamentoSel.totais.madeiras],
+                          ["Materiais", orcamentoSel.totais.materiais],
                           ["Mão de Obra", orcamentoSel.totais.empresaPS],
                           ["Empresa PS", orcamentoSel.totais.empresaPS],
                           ["Empresa GD", orcamentoSel.totais.empresaGD],
-                        ].map(([lab,v])=>(
+                        ].map(([lab, v]) => (
                           <TableRow key={lab as string}>
                             <TableCell>{lab}</TableCell>
                             <TableCell>{fmt(v as number)}</TableCell>
@@ -435,10 +441,10 @@ export default function HomePage() {
                           </TableHeader>
                           <TableBody>
                             {[
-                              ["Romana",   9200, 1015, 591],
-                              ["Colonial", 8400,  927, 539],
-                              ["Americana",9100, 1004, 584],
-                            ].map(([t,pix,d10,d18])=>(
+                              ["Romana", 9200, 1015, 591],
+                              ["Colonial", 8400, 927, 539],
+                              ["Americana", 9100, 1004, 584],
+                            ].map(([t, pix, d10, d18]) => (
                               <TableRow key={t as string}>
                                 <TableCell>{t}</TableCell>
                                 <TableCell>{fmt(pix as number)}</TableCell>
@@ -459,7 +465,7 @@ export default function HomePage() {
                   </DialogClose>
                   <Button asChild>
                     <Link href={`/editar-orcamento/${orcamentoSel.id}`}
-                          onClick={()=>setOrcamentoSel(null)}>
+                      onClick={() => setOrcamentoSel(null)}>
                       Editar
                     </Link>
                   </Button>

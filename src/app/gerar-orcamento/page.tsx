@@ -251,7 +251,7 @@ export default function GerarOrcamentoPage() {
     resetTotais()
   }
 
-  /* ---------- Enviar para Gerar PDF ---------- */
+
 /* ---------- Enviar para Gerar PDF ---------- */
 const handleGerarProposta = async () => {
   if (!tipoObra) {
