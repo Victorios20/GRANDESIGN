@@ -9,6 +9,7 @@ export interface MaterialCalculado {
   quantidade: number
   preco_unitario: number
   tamanho?: string
+  frete?: number     
 }
 
 const ceil       = Math.ceil

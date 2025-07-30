@@ -14,7 +14,7 @@ export async function listarTiposObra(): Promise<TipoObra[]> {
   const { data, error } = await supabase
     .from("tipo_obra")                 // tabela já existente
     .select("*")
-    .order("id", { ascending: true })
+    .order("tipo_obra", { ascending: true }) 
   if (error) throw error
   return data as TipoObra[]
 }

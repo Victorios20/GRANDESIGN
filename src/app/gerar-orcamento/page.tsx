@@ -10,6 +10,7 @@ import {
   Calculator,
   Loader2,
   RotateCcw,
+  Eye, EyeOff,
 } from "lucide-react"
 import { Toaster, toast } from "sonner"
 
@@ -18,6 +19,8 @@ import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMat
 
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF } from "@/api/useGerarPDF"
+import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
+
 
 import { listarMateriaisPorTipo } from "@/actions/materiais-db/materiais-db"
 import {
@@ -78,8 +81,6 @@ type MateriaisPorCategoria = {
   telhas: Material[]
 }
 
-/* ---------- Constantes ---------- */
-const STORAGE_KEY = "gd_orcamento_draft"
 
 /* ---------- Helpers ---------- */
 const formatPhone = (raw: string) => {
@@ -92,6 +93,8 @@ const formatPhone = (raw: string) => {
 }
 const formatBR = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+
+const roundUpReal = (v: number) => Math.ceil(v)
 
 const roundUp100 = (v: number) => Math.ceil(v / 100) * 100
 
@@ -123,12 +126,12 @@ const calcTelhaValores = (
 
   const make = (extra: number) => {
     const base = totalGeral + extra
-    const pix = roundUp100(base)
+    const pix = roundUp100(base)               // continua arredondando à centena
 
     return {
-      pix,
-      x10: (pix * FATOR_10X) / 10,
-      x18: (pix * FATOR_18X) / 18,
+      pix,                                     // PIX permanece igual
+      x10: roundUpReal((pix * FATOR_10X) / 10), // 10× arredondado ao real
+      x18: roundUpReal((pix * FATOR_18X) / 18), // 18× idem
     }
   }
 
@@ -151,16 +154,31 @@ export default function GerarOrcamentoPage() {
   }>({ madeiras: [], materiaisGerais: [], telhas: [] })
   const [componentes, setComponentes] = useState<Componente[]>([])
   const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
+  const [cidades, setCidades] = useState<Cidade[]>([])
 
+  const [hideTotals, setHideTotals] = useState(false)
+  const [loadingPDF, setLoadingPDF] = useState(false)
+
+
+  /* ---------- Catálogos ---------- */
   useEffect(() => {
     ; (async () => {
-      const [mads, ges, tls, comps, tipos] = await Promise.all([
+      const [
+        mads,          // madeiras
+        ges,           // materiais gerais
+        tls,           // telhas
+        comps,         // componentes
+        tipos,         // tipos de obra
+        cids,          // cidades  ← NOVO
+      ] = await Promise.all([
         listarMateriaisPorTipo("madeira"),
         listarMateriaisPorTipo("geral"),
         listarMateriaisPorTipo("telha"),
         listarComponentes(),
         listarTiposObra(),
+        getCidades(),                // ← NOVO
       ])
+
       setCatalogo({
         madeiras: mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
         materiaisGerais: ges.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
@@ -168,8 +186,10 @@ export default function GerarOrcamentoPage() {
       })
       setComponentes(comps)
       setTiposObra(tipos)
+      setCidades(cids)               // ← NOVO
     })()
   }, [])
+
 
   /* ---------- Estados principais ---------- */
   const [form, setForm] = useState({
@@ -179,33 +199,14 @@ export default function GerarOrcamentoPage() {
     bairro: "",
   })
   const [tipoObra, setTipoObra] = useState<string | null>(null)
-  const [dim, setDim] = useState({ largura: 1, comprimento: 1 })
+  const [dim, setDim] = useState({ largura: 0, comprimento: 0 })
   const [materiais, setMateriais] = useState<MateriaisPorCategoria>({
     madeiras: [],
     materiaisGerais: [],
     telhas: [],
   })
 
-  /* ---------- Draft localStorage ---------- */
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      try {
-        const d = JSON.parse(raw)
-        setForm(d.form ?? form)
-        setTipoObra(d.tipoObra ?? null)
-        setDim(d.dim ?? dim)
-        setMateriais(d.materiais ?? materiais)
-      } catch { }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    const draft = { form, tipoObra, dim, materiais }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
-  }, [form, tipoObra, dim, materiais])
+
 
   /* ---------- Progresso ---------- */
   const progEtapa1 = (Object.values(form).filter(v => v.trim()).length / 4) * 33
@@ -232,7 +233,7 @@ export default function GerarOrcamentoPage() {
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
 
     // Etapa 3 – totais + telhas
-    setTotEdit({ madeiras: 0, materiais: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
+    setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
     setTelhaValores({
       Romana: { pix: 0, x10: 0, x18: 0 },
       Colonial: { pix: 0, x10: 0, x18: 0 },
@@ -252,46 +253,46 @@ export default function GerarOrcamentoPage() {
   }
 
 
-/* ---------- Enviar para Gerar PDF ---------- */
-const handleGerarProposta = async () => {
-  if (!tipoObra) {
-    toast.error("Selecione o tipo de obra.")
-    return
+  /* ---------- Enviar para Gerar PDF ---------- */
+  const handleGerarProposta = async () => {
+    if (!tipoObra || loadingPDF) return
+
+    setLoadingPDF(true)
+    try {
+      await gerarPDF({
+        cliente: form,
+        parametros: { tipoObra, ...dim },
+        materiais,
+        totais: totEdit,
+        telhaValores,
+      })
+      toast.success("PDF gerado com sucesso!")
+    } catch (err) {
+      console.error(err)
+      toast.error("Falha ao gerar PDF.")
+    } finally {
+      setLoadingPDF(false)
+    }
   }
 
-  try {
-    await gerarPDF({
-      cliente: form,
-      parametros: { tipoObra, ...dim },
-      materiais,
-      totais: totEdit,
-      telhaValores,
-    })
-
-    toast.success("PDF gerado com sucesso!")
-  } catch (err) {
-    console.error(err)
-    toast.error("Falha ao gerar PDF.")
-  }
-}
 
 
 
   /* ---------- Cálculo ---------- */
   const toNum = (s?: string | number): number => {
-    if (typeof s === "number") return s > 0 ? s : 1
-    if (!s) return 1
+    if (typeof s === "number") return s >= 0 ? s : 0
+    if (s === "" || s === undefined || s === null) return 0
     const n = parseFloat(String(s).replace(",", "."))
-    return isNaN(n) || n <= 0 ? 1 : n
+    return isNaN(n) || n < 0 ? 0 : n
   }
 
   // ≥ 0  – zero é permitido
-const toNonNeg = (s?: string | number): number => {
-  if (typeof s === "number") return s >= 0 ? s : 0
-  if (s === "" || s === undefined || s === null) return 0
-  const n = parseFloat(String(s).replace(",", "."))
-  return isNaN(n) || n < 0 ? 0 : n
-}
+  const toNonNeg = (s?: string | number): number => {
+    if (typeof s === "number") return s >= 0 ? s : 0
+    if (s === "" || s === undefined || s === null) return 0
+    const n = parseFloat(String(s).replace(",", "."))
+    return isNaN(n) || n < 0 ? 0 : n
+  }
 
 
   const calcular = async (): Promise<void> => {
@@ -311,10 +312,12 @@ const toNonNeg = (s?: string | number): number => {
         quantidade: r.quantidade,
         preco: r.preco_unitario,
         tamanho: r.tamanho,
+        frete: r.frete ?? 0,                       // ← inclui frete
       })
+
       const madeirasNew = madeira.map(mapRow)
       const materGNew = mats.map(mapRow)
-      const telhasNew = telhas.map(mapRow)
+      const telhasNew = telhas.map(mapRow)        // frete agora presente
       setMateriais({
         madeiras: madeirasNew,
         materiaisGerais: materGNew,
@@ -331,6 +334,7 @@ const toNonNeg = (s?: string | number): number => {
         madeiras: madeirasSubtotal,
         materiais: materiaisSubtotal,
         comissao: 0,
+        frete: 0,
         empresaPS: maoDeObra,
         empresaGD: empresaGD,
       })
@@ -366,21 +370,19 @@ const toNonNeg = (s?: string | number): number => {
   }
 
   const saveEdit = () => {
-  if (!edit) return
+    if (!edit) return
 
-  // ➜ mínimo 1
-  const tamanho = toNum(editData.tamanho)
-  const quantidade = toNum(editData.quantidade)
+    const tamanho = toNum(editData.tamanho)        // agora ≥ 0
+    const quantidade = toNum(editData.quantidade)  // agora ≥ 0
 
-  // ➜ zero permitido
-  const preco = toNonNeg(editData.preco)
-  const frete = toNonNeg(editData.frete)
+    const preco = toNonNeg(editData.preco)
+    const frete = toNonNeg(editData.frete)
 
-  setMateriais(prev => ({
-    ...prev,
-    [edit.cat]: prev[edit.cat].map(m =>
-      m.id === edit.id
-        ? {
+    setMateriais(prev => ({
+      ...prev,
+      [edit.cat]: prev[edit.cat].map(m =>
+        m.id === edit.id
+          ? {
             ...m,
             ...editData,
             tamanho,
@@ -388,18 +390,17 @@ const toNonNeg = (s?: string | number): number => {
             preco,
             frete: edit.cat === "telhas" ? frete : undefined,
           }
-        : m,
-    ),
-  }))
+          : m,
+      ),
+    }))
 
-  toast.success(
-    `Edição na tabela ${
-      { madeiras: "Madeiras", materiaisGerais: "Materiais Gerais", telhas: "Telhas" }[edit.cat]
-    } salva com sucesso!`,
-  )
+    toast.success(
+      `Edição na tabela ${{ madeiras: "Madeiras", materiaisGerais: "Materiais Gerais", telhas: "Telhas" }[edit.cat]
+      } salva com sucesso!`,
+    )
 
-  setEdit(null)
-}
+    setEdit(null)
+  }
 
 
 
@@ -443,6 +444,7 @@ const toNonNeg = (s?: string | number): number => {
   const [totEdit, setTotEdit] = useState(() => ({
     ...totCalc,
     comissao: 0,
+    frete: 0,
     empresaPS: 0,
     empresaGD: 0,
   }))
@@ -473,6 +475,7 @@ const toNonNeg = (s?: string | number): number => {
         madeiras: madeirasSubtotal,
         materiais: materiaisSubtotal,
         comissao: 0,
+        frete: 0,                       // ← nova linha
         empresaPS: maoDeObra,
         empresaGD: empresaGD,
       })
@@ -490,13 +493,53 @@ const toNonNeg = (s?: string | number): number => {
     setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
   }, [materiais.telhas, somaTotal])
 
+  useEffect(() => {
+    setTotEdit(p => ({
+      ...p,
+      madeiras: totMadeiras,
+      materiais: totMateriais,
+    }))
+  }, [totMadeiras, totMateriais])
+
   const displayLabel: Record<keyof typeof totEdit, string> = {
     madeiras: "Madeiras",
     materiais: "Materiais Gerais",
     comissao: "Comissão",
+    frete: "Frete",
     empresaPS: "Empresa PS (Mão de Obra)",
     empresaGD: "Empresa GD",
   }
+
+
+  /* ---------- Draft localStorage ---------- */
+  const STORAGE_KEY = "orcamento-draft"
+
+  /* Carregar rascunho */
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return
+
+    try {
+      const d = JSON.parse(raw)
+      setForm(d.form ?? form)
+      setTipoObra(d.tipoObra ?? null)
+      setDim(d.dim ?? dim)
+      setMateriais(d.materiais ?? materiais)
+      setTotEdit(d.totEdit ?? totEdit)           // ← Etapa 3
+      setTelhaValores(d.telhaValores ?? telhaValores)
+    } catch {
+      /* se JSON quebrado, ignora e continua */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /* Salvar rascunho sempre que algo mudar */
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
+  }, [form, tipoObra, dim, materiais, totEdit, telhaValores])
 
   /* ------------------------------ JSX ------------------------------ */
   return (
@@ -556,8 +599,24 @@ const toNonNeg = (s?: string | number): number => {
           {/* Cidade */}
           <div className="flex flex-col gap-1">
             <Label>Cidade</Label>
-            <Input name="cidade" placeholder="Ex.: Fortaleza" value={form.cidade} onChange={onFormChange} />
+
+            <Select
+              value={form.cidade || undefined}
+              onValueChange={v => setForm(prev => ({ ...prev, cidade: v }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                {cidades.map(c => (
+                  <SelectItem key={c.id} value={c.nome}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
 
           {/* Bairro */}
           <div className="flex flex-col gap-1">
@@ -609,7 +668,7 @@ const toNonNeg = (s?: string | number): number => {
                   type="number"
                   step={0.5}
                   value={dim[k]}
-                  onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 1 }))}
+                  onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 0 }))}
                   className="w-32"
                 />
               </div>
@@ -664,13 +723,16 @@ const toNonNeg = (s?: string | number): number => {
                         <>
                           <TableHead>Componente</TableHead>
                           <TableHead>Madeira</TableHead>
+                          <TableHead className="w-28 text-right">Quantidade</TableHead>
                           <TableHead className="w-28 text-right">Tamanho</TableHead>
                         </>
                       ) : (
-                        <TableHead>Descrição</TableHead>
+                        <>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead className="w-28 text-right">Quantidade</TableHead>
+                        </>
                       )}
 
-                      <TableHead className="w-28 text-right">Quantidade</TableHead>
                       <TableHead className="w-28 text-right">
                         {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
                       </TableHead>
@@ -687,17 +749,27 @@ const toNonNeg = (s?: string | number): number => {
                   <TableBody>
                     {materiais[cat].map(m => {
                       const ed = edit?.cat === cat && edit.id === m.id
-                      const total = toNum(m.tamanho) * m.quantidade * m.preco + (cat === "telhas" ? m.frete ?? 0 : 0)
+                      let total = 0
+                      if (cat === "madeiras") {
+                        total = toNum(m.tamanho) * m.quantidade * m.preco
+                      } else if (cat === "telhas") {
+                        total = m.quantidade * m.preco + (m.frete ?? 0)
+                      } else {
+                        total = m.quantidade * m.preco            // Materiais Gerais
+                      }
 
                       return (
                         <TableRow key={m.id}>
                           {cat === "madeiras" ? (
                             <>
+                              {/* Componente */}
                               <TableCell>
                                 {ed ? (
                                   <Select
                                     value={editData.componente || ""}
-                                    onValueChange={v => setEditData(d => ({ ...d, componente: v }))}
+                                    onValueChange={v =>
+                                      setEditData(d => ({ ...d, componente: v }))
+                                    }
                                   >
                                     <SelectTrigger className="h-8">
                                       <SelectValue placeholder="Selecione" />
@@ -714,6 +786,8 @@ const toNonNeg = (s?: string | number): number => {
                                   m.componente
                                 )}
                               </TableCell>
+
+                              {/* Madeira */}
                               <TableCell>
                                 {ed ? (
                                   <Select
@@ -742,42 +816,85 @@ const toNonNeg = (s?: string | number): number => {
                                   m.nome
                                 )}
                               </TableCell>
+
+                              {/* Quantidade */}
                               <TableCell className="text-right">
                                 {ed ? (
                                   <Input
-                                    type="text"
-                                    inputMode="decimal"
-                                    value={String(editData.tamanho ?? "").replace(".", ",")}
+                                    type="number"
+                                    step={1}
+                                    value={editData.quantidade}
                                     onChange={e =>
-                                      setEditData(d => ({ ...d, tamanho: e.target.value.replace(",", ".") }))
+                                      setEditData(d => ({
+                                        ...d,
+                                        quantidade: +e.target.value || 0,
+                                      }))
                                     }
                                     className="h-8 text-right"
                                   />
                                 ) : (
+                                  m.quantidade
+                                )}
+                              </TableCell>
+
+                              {/* Tamanho */}
+                              <TableCell className="text-right">
+                                {ed ? (
+                                  <Input
+                                    type="number"
+                                    lang="pt-BR"          /* spinner com vírgula */
+                                    step={0.5}
+                                    value={editData.tamanho ?? ""}
+                                    onChange={e =>
+                                      setEditData(d => ({
+                                        ...d,
+                                        tamanho: e.target.value,       // mantém “4,5” enquanto digita
+                                      }))
+                                    }
+                                    onBlur={e =>                  /* ao sair, garante ponto interno */
+                                      setEditData(d => ({
+                                        ...d,
+                                        tamanho: e.target.value.replace(",", "."),
+                                      }))
+                                    }
+                                    className="h-8 text-right"
+                                  />
+                                ) : typeof m.tamanho === "number" ? (
+                                  String(m.tamanho).replace(".", ",")
+                                ) : (
                                   m.tamanho ?? "-"
                                 )}
                               </TableCell>
+
                             </>
                           ) : (
-                            <TableCell>{m.nome}</TableCell>
+                            <>
+                              {/* Descrição (outras categorias) */}
+                              <TableCell>{m.nome}</TableCell>
+
+                              {/* Quantidade (outras categorias) */}
+                              <TableCell className="text-right">
+                                {ed ? (
+                                  <Input
+                                    type="number"
+                                    step={1}
+                                    value={editData.quantidade}
+                                    onChange={e =>
+                                      setEditData(d => ({
+                                        ...d,
+                                        quantidade: +e.target.value || 0,
+                                      }))
+                                    }
+                                    className="h-8 text-right"
+                                  />
+                                ) : (
+                                  m.quantidade
+                                )}
+                              </TableCell>
+                            </>
                           )}
 
-                          <TableCell className="text-right">
-                            {ed ? (
-                              <Input
-                                type="number"
-                                step={1}
-                                value={editData.quantidade}
-                                onChange={e =>
-                                  setEditData(d => ({ ...d, quantidade: +e.target.value || 0 }))
-                                }
-                                className="h-8 text-right"
-                              />
-                            ) : (
-                              m.quantidade
-                            )}
-                          </TableCell>
-
+                          {/* Preço */}
                           <TableCell className="text-right">
                             {ed ? (
                               <Input
@@ -794,6 +911,7 @@ const toNonNeg = (s?: string | number): number => {
                             )}
                           </TableCell>
 
+                          {/* Frete (telhas) */}
                           {cat === "telhas" && (
                             <TableCell className="text-right">
                               {ed ? (
@@ -812,8 +930,10 @@ const toNonNeg = (s?: string | number): number => {
                             </TableCell>
                           )}
 
+                          {/* Total */}
                           <TableCell className="text-right">{formatBR(total)}</TableCell>
 
+                          {/* Ações */}
                           <TableCell className="text-center">
                             {ed ? (
                               <Button size="icon" variant="ghost" onClick={saveEdit}>
@@ -821,10 +941,18 @@ const toNonNeg = (s?: string | number): number => {
                               </Button>
                             ) : (
                               <>
-                                <Button size="icon" variant="ghost" onClick={() => startEdit(cat, m)}>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => startEdit(cat, m)}
+                                >
                                   <Edit className="h-4 w-4" />
                                 </Button>
-                                <Button size="icon" variant="ghost" onClick={() => removeItem(cat, m.id)}>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => removeItem(cat, m.id)}
+                                >
                                   <Trash className="h-4 w-4 text-red-500" />
                                 </Button>
                               </>
@@ -836,6 +964,7 @@ const toNonNeg = (s?: string | number): number => {
                   </TableBody>
                 </Table>
               </div>
+
             </div>
           ))}
         </CardContent>
@@ -856,53 +985,88 @@ const toNonNeg = (s?: string | number): number => {
             <CardHeader className="p-3">
               <div className="flex justify-between items-center">
                 <CardTitle className="text-sm">Totais por Categoria</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1 bg-bege text-marromEscuro hover:bg-bege/70"
-                  onClick={resetTotais}
-                >
-                  <RotateCcw className="h-4 w-4" /> Resetar Valores
-                </Button>
+
+                <div className="flex gap-1">
+                  {/* Olhinho */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-marromEscuro"
+                    onClick={() => setHideTotals(p => !p)}
+                  >
+                    {hideTotals ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+
+                  {/* Resetar */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center gap-1 bg-bege text-marromEscuro hover:bg-bege/70"
+                    onClick={resetTotais}
+                  >
+                    <RotateCcw className="h-4 w-4" /> Resetar Valores
+                  </Button>
+                </div>
               </div>
             </CardHeader>
 
             <CardContent className="p-3">
               <Table>
                 <TableBody>
-                  {(Object.entries(totEdit) as [keyof typeof totEdit, number][]).map(([k, v]) => (
-                    <TableRow key={k}>
-                      <TableCell>{displayLabel[k]}</TableCell>
-                      <TableCell className="pr-0">
-                        <div className="flex justify-end items-center">
-                          {editingTot === k ? (
-                            <Input
-                              type="number"
-                              value={v}
-                              onChange={e => setTotEdit(p => ({ ...p, [k]: +e.target.value }))}
-                              className="w-24 h-8 text-right"
-                            />
-                          ) : (
-                            formatBR(v)
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right w-12">
-                        <Button size="icon" variant="ghost" onClick={() => setEditingTot(editingTot === k ? null : k)}>
-                          {editingTot === k ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(Object.entries(totEdit) as [keyof typeof totEdit, number][]).map(
+                    ([k, v]) => (
+                      <TableRow key={k}>
+                        <TableCell>{displayLabel[k]}</TableCell>
+
+                        <TableCell className="pr-0">
+                          <div className="flex justify-end items-center">
+                            {editingTot === k ? (
+                              <Input
+                                type="number"
+                                value={v}
+                                onChange={e =>
+                                  setTotEdit(p => ({ ...p, [k]: +e.target.value }))
+                                }
+                                className="w-24 h-8 text-right"
+                              />
+                            ) : hideTotals ? (
+                              "••••••"
+                            ) : (
+                              formatBR(v)
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="text-right w-12">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() =>
+                              setEditingTot(editingTot === k ? null : k)
+                            }
+                          >
+                            {editingTot === k ? (
+                              <Save className="h-4 w-4" />
+                            ) : (
+                              <Edit className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  )}
 
                   <TableRow className="font-semibold border-t">
                     <TableCell>Total Geral</TableCell>
-                    <TableCell className="text-right">{formatBR(somaTotal)}</TableCell>
+                    <TableCell className="text-right">
+                      {hideTotals ? "••••••" : formatBR(somaTotal)}
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
+
 
           {/* Telhas valores */}
           <Card className="shadow-sm">
@@ -939,9 +1103,25 @@ const toNonNeg = (s?: string | number): number => {
       <div className="flex justify-between mt-4">
         <Button variant="secondary" onClick={() => router.push("/")}>Voltar</Button>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => console.log("Salvar rascunho")}>Salvar</Button>
-          <Button onClick={handleGerarProposta}>Gerar Proposta</Button>
+          <Button
+            variant="outline"
+            disabled={loadingPDF}
+            onClick={() => console.log("Salvar rascunho")}
+          >
+            Salvar
+          </Button>
+
+          <Button onClick={handleGerarProposta} disabled={loadingPDF}>
+            {loadingPDF ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Gerando…
+              </>
+            ) : (
+              "Gerar Proposta"
+            )}
+          </Button>
         </div>
+
       </div>
     </PageLayout>
   )
