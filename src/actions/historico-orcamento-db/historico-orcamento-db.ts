@@ -16,19 +16,6 @@ import { supabase } from "@/supabase/client"
  * ------------------------------------------------------------------ */
 
 /** Shape que a lista de orçamentos (query) devolve */
-interface OrcamentoQueryRow {
-  id: number
-  data_criacao: string
-  cliente:
-    | { nome: string | null; bairro: string | null }
-    | { nome: string | null; bairro: string | null }[]
-  totais_madeiras_preco: number | null
-  totais_materiais_preco: number | null
-  totais_comissao_preco: number | null
-  totais_empresa_ps_preco: number | null
-  totais_empresa_gd_preco: number | null
-}
-
 
 
 /** Shape do detalhe (com itens aninhados) */

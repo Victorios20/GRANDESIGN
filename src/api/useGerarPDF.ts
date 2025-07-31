@@ -120,7 +120,7 @@ export async function gerarPDF(params: GerarPDFParams) {
   const { data } = await axios.post(
     ENDPOINT_GERAR_PDF,
     payload,
-    { headers: { "Content-Type": "application/json" }, timeout: 15000 },
+    { headers: { "Content-Type": "application/json" }, timeout: 60000 },
   )
 
   console.log("[DEBUG] Resposta n8n:", data)
