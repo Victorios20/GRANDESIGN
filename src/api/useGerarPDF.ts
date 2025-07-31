@@ -49,6 +49,10 @@ export class GerarPDFError extends Error {
     super(title)
   }
 }
+type BackendError = { message?: string }
+
+const isBackendError = (d: unknown): d is BackendError =>
+  typeof d === "object" && d !== null && "message" in d
 
 const statusTitle = (s?: number) => ({
   400: "Requisição inválida",
@@ -155,7 +159,8 @@ export async function gerarPDF(params: GerarPDFParams) {
         throw new GerarPDFError(undefined, "Tempo de execução excedido")
       }
       const st = err.response?.status  // (sem "?? null")
-      const det  = (err.response?.data as any)?.message ?? err.message
+      const data = err.response?.data
+      const det  = isBackendError(data) ? data.message : err.message
       throw new GerarPDFError(st, statusTitle(st), det)
     }
     /* erro inesperado */
