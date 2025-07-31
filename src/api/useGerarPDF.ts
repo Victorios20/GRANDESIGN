@@ -111,7 +111,7 @@ export async function gerarPDF(params: GerarPDFParams) {
 
   // POST para o webhook n8n
   const { data } = await axios.post(
-    "https://n8n.revstack.com.br/webhook/gd",
+    "https://n8n.grandesignce.com.br/webhook/gerar-proposta",
     payload,
     { headers: { "Content-Type": "application/json" }, timeout: 15000 },
   )
