@@ -21,8 +21,12 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useSidebar } from "@/components/ui/sidebar"
 
-export function CustomSidebar({ isOpen }: { isOpen: boolean }) {
+
+export function CustomSidebar() {
+  const { open: isOpen } = useSidebar()
+
   const pathname = usePathname()
   const [editarAberto, setEditarAberto] = useState(true)
 

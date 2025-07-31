@@ -71,6 +71,14 @@ function SidebarProvider({
 
   const [_open, _setOpen] = React.useState(defaultOpen)
   const open = openProp ?? _open
+
+  React.useEffect(() => {
+  const savedState = localStorage.getItem("sidebar_state")
+  if (savedState !== null) {
+    _setOpen(savedState === "true")
+  }
+}, [])
+
   const setOpen = React.useCallback(
     (value: boolean | ((value: boolean) => boolean)) => {
       const openState = typeof value === "function" ? value(open) : value
@@ -80,7 +88,8 @@ function SidebarProvider({
         _setOpen(openState)
       }
 
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+      localStorage.setItem("sidebar_state", String(openState))
+
     },
     [setOpenProp, open]
   )
