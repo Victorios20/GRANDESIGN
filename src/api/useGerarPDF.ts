@@ -1,4 +1,3 @@
-// src/hooks/useGerarPDF.ts
 import axios from "axios"
 import type { Material } from "@/app/gerar-orcamento/page"
 
@@ -109,9 +108,17 @@ export async function gerarPDF(params: GerarPDFParams) {
   // log de depuração
   console.log("[DEBUG] Payload enviado:", payload)
 
+  /* ---------- Endpoint via variável de ambiente ---------- */
+  const ENDPOINT_GERAR_PDF = process.env
+    .NEXT_PUBLIC_ENDPOINT_GERAR_PDF as string | undefined
+
+  if (!ENDPOINT_GERAR_PDF) {
+    throw new Error("Env var NEXT_PUBLIC_ENDPOINT_GERAR_PDF não definida")
+  }
+
   // POST para o webhook n8n
   const { data } = await axios.post(
-    "https://n8n.revstack.com.br/webhook/gd",
+    ENDPOINT_GERAR_PDF,
     payload,
     { headers: { "Content-Type": "application/json" }, timeout: 15000 },
   )
