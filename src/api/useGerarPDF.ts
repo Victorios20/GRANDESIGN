@@ -1,4 +1,5 @@
-import axios from "axios"
+// src/api/useGerarPDF.ts
+import axios, { isAxiosError } from "axios"
 import type { Material } from "@/app/gerar-orcamento/page"
 
 /* ---------- Tipos auxiliares ---------- */
@@ -38,6 +39,30 @@ export interface GerarPDFParams {
   telhaValores: TelhaPixValores
 }
 
+/* ------------------- Erro customizado ------------------- */
+export class GerarPDFError extends Error {
+  constructor(
+    public status: number | undefined,   // ← em vez de number | null
+    public title: string,
+    public detail?: string,
+  ) {
+    super(title)
+  }
+}
+
+const statusTitle = (s?: number) => ({
+  400: "Requisição inválida",
+  401: "Não autorizado",
+  403: "Proibido",
+  404: "Não encontrado",
+  408: "Tempo esgotado",
+  429: "Muitas requisições",
+  500: "Erro interno do servidor",
+  502: "Bad Gateway",
+  503: "Serviço indisponível",
+  504: "Gateway Timeout",
+}[s as number] ?? "Erro desconhecido")
+
 /* ---------- Helpers ---------- */
 /** Converte string/number para number não-negativo */
 const toNum = (s?: string | number): number => {
@@ -52,6 +77,8 @@ const fmt = (n: number) =>
   (Math.ceil(n * 100) / 100).toFixed(2).replace(".", ",")
 
 /* ---------- Função principal ---------- */
+const REQUEST_TIMEOUT_MS = 60_000 // 60 s
+
 export async function gerarPDF(params: GerarPDFParams) {
   const { cliente, parametros, materiais, totais, telhaValores } = params
 
@@ -105,24 +132,33 @@ export async function gerarPDF(params: GerarPDFParams) {
     },
   }
 
-  // log de depuração
   console.log("[DEBUG] Payload enviado:", payload)
 
-  /* ---------- Endpoint via variável de ambiente ---------- */
   const ENDPOINT_GERAR_PDF = process.env
     .NEXT_PUBLIC_ENDPOINT_GERAR_PDF as string | undefined
 
   if (!ENDPOINT_GERAR_PDF) {
-    throw new Error("Env var NEXT_PUBLIC_ENDPOINT_GERAR_PDF não definida")
+    throw new GerarPDFError(undefined, "Variável de ambiente ausente")
   }
 
-  // POST para o webhook n8n
-  const { data } = await axios.post(
-    ENDPOINT_GERAR_PDF,
-    payload,
-    { headers: { "Content-Type": "application/json" }, timeout: 60000 },
-  )
-
-  console.log("[DEBUG] Resposta n8n:", data)
-  return data // (link_pdf, mensagem, etc.)
+  try {
+    const { data } = await axios.post(
+      ENDPOINT_GERAR_PDF,
+      payload,
+      { headers: { "Content-Type": "application/json" }, timeout: REQUEST_TIMEOUT_MS },
+    )
+    console.log("[DEBUG] Resposta n8n:", data)
+    return data
+  } catch (err: unknown) {
+    if (isAxiosError(err)) {
+      if (err.code === "ECONNABORTED") {
+        throw new GerarPDFError(undefined, "Tempo de execução excedido")
+      }
+      const st = err.response?.status  // (sem "?? null")
+      const det  = (err.response?.data as any)?.message ?? err.message
+      throw new GerarPDFError(st, statusTitle(st), det)
+    }
+    /* erro inesperado */
+    throw err
+  }
 }

@@ -18,7 +18,7 @@ import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriai
 import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMateriais"
 
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
-import { gerarPDF } from "@/api/useGerarPDF"
+import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
 
 
@@ -267,12 +267,22 @@ export default function GerarOrcamentoPage() {
         telhaValores,
       })
       toast.success("PDF gerado com sucesso!")
-    } catch (err) {
-      console.error(err)
-      toast.error("Falha ao gerar PDF.")
-    } finally {
-      setLoadingPDF(false)
-    }
+    } catch (err: unknown) {
+  if (err instanceof GerarPDFError) {
+    const code = err.status ? `(${err.status}) ` : ""
+    toast.error(`${code}${err.title}`)
+    console.error(err.detail ?? err)
+  } else if (err instanceof Error) {
+    toast.error(err.message)
+    console.error(err)
+  } else {
+    toast.error("Erro desconhecido.")
+    console.error(err)
+  }
+} finally {
+  setLoadingPDF(false)
+}
+
   }
 
 
