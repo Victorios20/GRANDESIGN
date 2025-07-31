@@ -29,6 +29,8 @@ interface OrcamentoQueryRow {
   totais_empresa_gd_preco: number | null
 }
 
+
+
 /** Shape do detalhe (com itens aninhados) */
 interface OrcamentoDetalheQueryRow {
   id: number
@@ -58,13 +60,6 @@ interface OrcamentoDetalheQueryRow {
  *                Tipos exportados para a camada de UI
  * ------------------------------------------------------------------ */
 
-export type OrcamentoTabela = {
-  id: number
-  cliente: string
-  bairro: string
-  dataISO: string
-  valorFormatado: string
-}
 
 export type MaterialItem = {
   nome: string
@@ -105,69 +100,87 @@ export async function listarBairros(): Promise<string[]> {
   return (data ?? []).map(r => r.bairro)
 }
 
-/* ------------------------------------------------------------------ */
-/* 2. buscarOrcamentos() – paginação + filtros                        */
+
+/* ------------------------------------------------------------------
+   Tipos auxiliares
+------------------------------------------------------------------ */
+
+
+export interface OrcamentoTabela {
+  id: number
+  cliente: string
+  bairro: string
+  dataISO: string
+  valorFormatado: string
+}
+
+/* ----- Tipagem da view ----- */
+interface OrcamentoViewRow {
+  id: number
+  nome_cliente: string
+  nome_cliente_unaccent: string
+  bairro: string
+  bairro_unaccent: string
+  data_criacao: string
+  valor_total: number | null
+}
+
 /* ------------------------------------------------------------------ */
 export async function buscarOrcamentos(
-  nome = "",
-  bairro = "",
-  dataIniISO?: string,
-  dataFimISO?: string,
-  page = 1,
-  perPage = 10,
-): Promise<{ dados: OrcamentoTabela[]; total: number }> {
-  const from = (page - 1) * perPage
-  const to = from + perPage - 1
-
-  const query = supabase
-    .from("orcamento")
-    .select(
-      `
-      id,
-      data_criacao,
-      cliente:cliente!inner ( nome, bairro ),
-      totais_madeiras_preco,
-      totais_materiais_preco,
-      totais_comissao_preco,
-      totais_empresa_ps_preco,
-      totais_empresa_gd_preco
-    `,
+  nome: string,
+  bairro: string,
+  dataIni: string | undefined,
+  dataFim: string | undefined,
+  page: number,
+  perPage: number,
+) {
+  let query = supabase
+    .from("orcamento_completo_view")
+    /* 1º genérico = string   |  2º genérico = tipo da linha */
+    .select<string, OrcamentoViewRow>(
+      "id, nome_cliente, nome_cliente_unaccent, bairro, bairro_unaccent, data_criacao, valor_total",
       { count: "exact" },
     )
-    .ilike("cliente.nome", `%${nome}%`)
-    .ilike("cliente.bairro", bairro ? `%${bairro}%` : "%")
-    .gte("data_criacao", dataIniISO ?? "1900-01-01")
-    .lte("data_criacao", dataFimISO ?? "2100-12-31")
-    .order("data_criacao", { ascending: false })
-    .range(from, to)
 
-  const { data, count, error } = await query
+  if (nome) {
+    query = query.ilike("nome_cliente_unaccent", `%${removeAcentos(nome)}%`)
+  }
+  if (bairro) {
+    query = query.ilike("bairro_unaccent", `%${removeAcentos(bairro)}%`)
+  }
+  if (dataIni) query = query.gte("data_criacao", dataIni)
+  if (dataFim) query = query.lte("data_criacao", dataFim)
+
+  const { data, count, error } = await query.range(
+    (page - 1) * perPage,
+    page * perPage - 1,
+  )
+
   if (error || !data) {
     console.error("Erro ao buscar orçamentos:", error)
-    return { dados: [], total: 0 }
+    return { dados: [] as OrcamentoTabela[], total: 0 }
   }
 
-  const dados: OrcamentoTabela[] = (data as unknown as OrcamentoQueryRow[]).map(o => {
-    const clienteObj = Array.isArray(o.cliente) ? o.cliente[0] : o.cliente
-
-    const total =
-      (o.totais_madeiras_preco ?? 0) +
-      (o.totais_materiais_preco ?? 0) +
-      (o.totais_comissao_preco ?? 0) +
-      (o.totais_empresa_ps_preco ?? 0) +
-      (o.totais_empresa_gd_preco ?? 0)
-
-    return {
-      id: o.id,
-      cliente: clienteObj?.nome ?? "—",
-      bairro: clienteObj?.bairro ?? "",
-      dataISO: o.data_criacao,
-      valorFormatado: `R$ ${total.toFixed(2)}`,
-    }
-  })
+  const dados: OrcamentoTabela[] = data.map((o) => ({
+    id: o.id,
+    cliente: o.nome_cliente,
+    bairro: o.bairro,
+    dataISO: o.data_criacao,
+    valorFormatado: formatarBRL(Number(o.valor_total ?? 0)),
+  }))
 
   return { dados, total: count ?? 0 }
 }
+
+/* ----- utils ----- */
+function removeAcentos(s: string) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+}
+function formatarBRL(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+}
+
+
 
 /* ------------------------------------------------------------------ */
 /* 3. detalheOrcamento()                                              */
