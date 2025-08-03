@@ -20,6 +20,8 @@ import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMat
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
+import { salvarOrcamento } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
+
 
 
 import { listarMateriaisPorTipo } from "@/actions/materiais-db/materiais-db"
@@ -259,31 +261,49 @@ export default function GerarOrcamentoPage() {
 
     setLoadingPDF(true)
     try {
-      await gerarPDF({
+      const links = await gerarPDF({
         cliente: form,
         parametros: { tipoObra, ...dim },
         materiais,
         totais: totEdit,
         telhaValores,
       })
-      toast.success("PDF gerado com sucesso!")
-    } catch (err: unknown) {
-  if (err instanceof GerarPDFError) {
-    const code = err.status ? `(${err.status}) ` : ""
-    toast.error(`${code}${err.title}`)
-    console.error(err.detail ?? err)
-  } else if (err instanceof Error) {
-    toast.error(err.message)
-    console.error(err)
-  } else {
-    toast.error("Erro desconhecido.")
-    console.error(err)
-  }
-} finally {
-  setLoadingPDF(false)
-}
 
+      toast.success("PDF gerado com sucesso!")
+      console.log("[DEBUG] Enviando para salvarOrcamento:", {
+        materiais,
+        totais: totEdit,
+      })
+
+
+      await salvarOrcamento({
+        cliente: form,
+        parametros: { tipoObra, ...dim },
+        materiais,
+        totais: totEdit,
+        telhaValores,
+        links: links[0], // ← array com 1 elemento
+      })
+
+      toast.success("Orçamento salvo com sucesso!")
+
+    } catch (err: unknown) {
+      if (err instanceof GerarPDFError) {
+        const code = err.status ? `(${err.status}) ` : ""
+        toast.error(`${code}${err.title}`)
+        console.error(err.detail ?? err)
+      } else if (err instanceof Error) {
+        toast.error(err.message)
+        console.error(err)
+      } else {
+        toast.error("Erro desconhecido.")
+        console.error(err)
+      }
+    } finally {
+      setLoadingPDF(false)
+    }
   }
+
 
 
 

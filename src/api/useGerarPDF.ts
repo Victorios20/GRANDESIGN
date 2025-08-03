@@ -22,6 +22,13 @@ export type TelhaPixValores = Record<
   { pix: number; x10: number; x18: number }
 >
 
+/* ---------- Novos tipos de retorno ---------- */
+export interface PdfLinks {
+  slideUrl: string
+  pdfUrl: string
+}
+export type GerarPDFResponse = PdfLinks[] // array com 1 elemento
+
 export interface GerarPDFParams {
   cliente: {
     nome: string
@@ -42,7 +49,7 @@ export interface GerarPDFParams {
 /* ------------------- Erro customizado ------------------- */
 export class GerarPDFError extends Error {
   constructor(
-    public status: number | undefined,   // ← em vez de number | null
+    public status: number | undefined,
     public title: string,
     public detail?: string,
   ) {
@@ -65,7 +72,7 @@ const statusTitle = (s?: number) => ({
   502: "Bad Gateway",
   503: "Serviço indisponível",
   504: "Gateway Timeout",
-}[s as number] ?? "Erro desconhecido")
+}[(s as number)] ?? "Erro desconhecido")
 
 /* ---------- Helpers ---------- */
 /** Converte string/number para number não-negativo */
@@ -83,39 +90,41 @@ const fmt = (n: number) =>
 /* ---------- Função principal ---------- */
 const REQUEST_TIMEOUT_MS = 60_000 // 60 s
 
-export async function gerarPDF(params: GerarPDFParams) {
+export async function gerarPDF(
+  params: GerarPDFParams,
+): Promise<GerarPDFResponse> {
   const { cliente, parametros, materiais, totais, telhaValores } = params
 
   const payload = {
     cliente,
     parametros,
     madeiras: materiais.madeiras.map(m => ({
-      componente : m.componente,
-      madeira    : m.nome,
-      tamanho    : fmt(toNum(m.tamanho)),
-      quantidade : fmt(m.quantidade),
-      preco_m2   : fmt(m.preco),
-      total      : fmt(toNum(m.tamanho) * m.quantidade * m.preco),
+      componente: m.componente,
+      madeira: m.nome,
+      tamanho: fmt(toNum(m.tamanho)),
+      quantidade: fmt(m.quantidade),
+      preco_m2: fmt(m.preco),
+      total: fmt(toNum(m.tamanho) * m.quantidade * m.preco),
     })),
     materiaisGerais: materiais.materiaisGerais.map(m => ({
-      descricao      : m.nome,
-      quantidade     : fmt(m.quantidade),
-      preco_unitario : fmt(m.preco),
-      total          : fmt(m.quantidade * m.preco),
+      descricao: m.nome,
+      quantidade: fmt(m.quantidade),
+      preco_unitario: fmt(m.preco),
+      total: fmt(m.quantidade * m.preco),
     })),
     telhas: materiais.telhas.map(m => ({
-      descricao      : m.nome,
-      quantidade     : fmt(m.quantidade),
-      preco_unitario : fmt(m.preco),
-      frete          : fmt(m.frete ?? 0),
-      total          : fmt(m.quantidade * m.preco + (m.frete ?? 0)),
+      descricao: m.nome,
+      quantidade: fmt(m.quantidade),
+      preco_unitario: fmt(m.preco),
+      frete: fmt(m.frete ?? 0),
+      total: fmt(m.quantidade * m.preco + (m.frete ?? 0)),
     })),
     totais: {
-      madeiras       : fmt(totais.madeiras),
+      madeiras: fmt(totais.madeiras),
       materiaisGerais: fmt(totais.materiais),
-      comissao       : fmt(totais.comissao),
-      empresaPS      : fmt(totais.empresaPS),
-      empresaGD      : fmt(totais.empresaGD),
+      comissao: fmt(totais.comissao),
+      empresaPS: fmt(totais.empresaPS),
+      empresaGD: fmt(totais.empresaGD),
     },
     telhasValoresFixos: {
       Romana: {
@@ -146,24 +155,27 @@ export async function gerarPDF(params: GerarPDFParams) {
   }
 
   try {
-    const { data } = await axios.post(
+    const { data } = await axios.post<GerarPDFResponse>(
       ENDPOINT_GERAR_PDF,
       payload,
-      { headers: { "Content-Type": "application/json" }, timeout: REQUEST_TIMEOUT_MS },
+      {
+        headers: { "Content-Type": "application/json" },
+        timeout: REQUEST_TIMEOUT_MS,
+      },
     )
-    console.log("[DEBUG] Resposta n8n:", data)
+
+    console.log("[DEBUG] Links capturados:", data) // ← slideUrl & pdfUrl
     return data
   } catch (err: unknown) {
     if (isAxiosError(err)) {
       if (err.code === "ECONNABORTED") {
         throw new GerarPDFError(undefined, "Tempo de execução excedido")
       }
-      const st = err.response?.status  // (sem "?? null")
+      const st = err.response?.status
       const data = err.response?.data
-      const det  = isBackendError(data) ? data.message : err.message
+      const det = isBackendError(data) ? data.message : err.message
       throw new GerarPDFError(st, statusTitle(st), det)
     }
-    /* erro inesperado */
     throw err
   }
 }
