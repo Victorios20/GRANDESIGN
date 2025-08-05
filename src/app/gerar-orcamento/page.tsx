@@ -20,7 +20,7 @@ import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMat
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
-import { salvarOrcamento } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
+import { salvarOrcamento, salvarRascunhoOrcamento } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 
 
 
@@ -160,6 +160,8 @@ export default function GerarOrcamentoPage() {
 
   const [hideTotals, setHideTotals] = useState(false)
   const [loadingPDF, setLoadingPDF] = useState(false)
+  const [loadingSave, setLoadingSave] = useState(false)   // spinner “Salvar”
+
 
 
 
@@ -327,10 +329,13 @@ export default function GerarOrcamentoPage() {
   }
 
   const abrirModalSalvar = () => {
+    // gera título automático se estado global estiver vazio
+    const inicial = titulo.trim() || gerarTituloAutomatico()
     setModalMode("salvar")
-    setTituloTemporario(titulo || "")
+    setTituloTemporario(inicial)          // já vem preenchido (ou vazio se não der)
     setShowModal(true)
   }
+
 
   const abrirModalGerar = () => {
     const preenchido = Object.values(form).every(v => v.trim() !== "")
@@ -622,47 +627,47 @@ export default function GerarOrcamentoPage() {
 
       {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
-       <CardHeader className="p-4">
-  {/* Linha 1 – Título e botão Limpar no extremo direito */}
-  <div className="flex items-center justify-between">
-    <CardTitle className="text-xl font-bold whitespace-nowrap">
-      Gerar Orçamento
-    </CardTitle>
+        <CardHeader className="p-4">
+          {/* Linha 1 – Título e botão Limpar no extremo direito */}
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl font-bold whitespace-nowrap">
+              Gerar Orçamento
+            </CardTitle>
 
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={clearAll}
-      className="text-red-500 hover:text-red-700 whitespace-nowrap"
-    >
-      <Trash className="h-4 w-4 mr-1" />
-      Limpar
-    </Button>
-  </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearAll}
+              className="text-red-500 hover:text-red-700 whitespace-nowrap"
+            >
+              <Trash className="h-4 w-4 mr-1" />
+              Limpar
+            </Button>
+          </div>
 
-  {/* Linha 2 – Subtítulo */}
-  <CardDescription className="text-sm text-muted-foreground mt-1">
-    Preencha as três etapas abaixo.
-  </CardDescription>
+          {/* Linha 2 – Subtítulo */}
+          <CardDescription className="text-sm text-muted-foreground mt-1">
+            Preencha as três etapas abaixo.
+          </CardDescription>
 
-  {/* Linha 3 – Input Título (novo local) */}
-  <div className="flex flex-col gap-1 mt-2">
-    <Label htmlFor="titulo" className="text-sm font-medium">
-      Título
-    </Label>
-    <Input
-      id="titulo"
-      type="text"
-      placeholder="ex.: cobertura_madeira_123"
-      value={titulo}
-      onChange={e => setTitulo(e.target.value.replace(/\s+/g, "_"))}
-      className="h-8 w-56 sm:w-64"
-    />
-  </div>
+          {/* Linha 3 – Input Título (novo local) */}
+          <div className="flex flex-col gap-1 mt-2">
+            <Label htmlFor="titulo" className="text-sm font-medium">
+              Título
+            </Label>
+            <Input
+              id="titulo"
+              type="text"
+              placeholder="ex.: cobertura_madeira_123"
+              value={titulo}
+              onChange={e => setTitulo(e.target.value.replace(/\s+/g, "_"))}
+              className="h-8 w-56 sm:w-64"
+            />
+          </div>
 
-  {/* Linha 4 – Barra de progresso */}
-  <Progress value={progresso} className="mt-3" />
-</CardHeader>
+          {/* Linha 4 – Barra de progresso */}
+          <Progress value={progresso} className="mt-3" />
+        </CardHeader>
 
       </Card>
 
@@ -1202,20 +1207,33 @@ export default function GerarOrcamentoPage() {
       <div className="flex justify-between mt-4">
         <Button variant="secondary" onClick={() => router.push("/")}>Voltar</Button>
         <div className="flex gap-2">
+          {/* -------- Botão Salvar (sempre habilitado) -------- */}
           <Button
             variant="outline"
+            disabled={loadingSave || loadingPDF}
             onClick={abrirModalSalvar}
+            className="min-w-[110px]"
           >
-            Salvar
+            {loadingSave ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvando…
+              </>
+            ) : (
+              "Salvar"
+            )}
           </Button>
 
+          {/* -------- Botão Gerar Proposta -------- */}
           <Button
-            onClick={abrirModalGerar}
             disabled={
+              loadingSave ||
+              loadingPDF ||
               !tipoObra ||
               Object.values(form).some(v => !v.trim()) ||
               materiais.madeiras.length === 0
             }
+            onClick={abrirModalGerar}
+            className="min-w-[140px]"
           >
             {loadingPDF ? (
               <>
@@ -1226,10 +1244,11 @@ export default function GerarOrcamentoPage() {
             )}
           </Button>
 
+
         </div>
 
       </div>
-            {/* ====================== RENDERIZAÇÃO DO MODAL ====================== */}
+      {/* ====================== RENDERIZAÇÃO DO MODAL ====================== */}
       {showModal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
           <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md space-y-4">
@@ -1247,7 +1266,7 @@ export default function GerarOrcamentoPage() {
 
             <div className="flex justify-end gap-2 pt-4">
               <Button
-                variant="ghost"
+                variant="secondary"
                 onClick={() => {
                   setShowModal(false)
                   setModalMode(null)
@@ -1259,33 +1278,43 @@ export default function GerarOrcamentoPage() {
 
               <Button
                 onClick={async () => {
-                  if (!tituloTemporario.trim()) return
+                  if (!tituloTemporario.trim()) return   // não deixa sem título
+
                   setTitulo(tituloTemporario)
-
                   setShowModal(false)
-                  setModalMode(null)
 
+                  // ----- modo SALVAR (rascunho) -----
                   if (modalMode === "salvar") {
-                    await salvarOrcamento({
-                      cliente: form,
-                      parametros: { tipoObra: tipoObra ?? "", ...dim },
-                      materiais,
-                      totais: totEdit,
-                      telhaValores,
-                      links: {
-                        slideUrl: "",
-                        pdfUrl: "",
-                      },
-                      titulo: tituloTemporario,
-                    })
-                    toast.success("Rascunho salvo com sucesso!")
+                    try {
+                      setLoadingSave(true)
+                      await salvarRascunhoOrcamento({
+                        cliente: form,
+                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        materiais,
+                        totais: totEdit,
+                        telhaValores,
+                        titulo: tituloTemporario,
+                      })
+                      toast.success("Rascunho salvo com sucesso!")
+                    } catch (err: unknown) {
+                      const msg =
+                        err instanceof Error ? err.message : "Erro ao salvar rascunho"
+                      toast.error(msg)
+                    } finally {
+                      setLoadingSave(false)
+                    }
+
+                    return
                   }
 
+                  // ----- modo GERAR (proposta final) -----
                   if (modalMode === "gerar") {
-                    await handleGerarProposta()
+                    await handleGerarProposta()   // já controla loadingPDF + toasts
                   }
                 }}
-                disabled={!tituloTemporario.trim()}
+
+                disabled={!tituloTemporario.trim() || loadingSave || loadingPDF}
+
               >
                 Confirmar
               </Button>
