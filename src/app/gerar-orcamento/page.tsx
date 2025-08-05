@@ -162,6 +162,8 @@ export default function GerarOrcamentoPage() {
   const [loadingPDF, setLoadingPDF] = useState(false)
 
 
+
+
   /* ---------- Catálogos ---------- */
   useEffect(() => {
     ; (async () => {
@@ -194,6 +196,10 @@ export default function GerarOrcamentoPage() {
 
 
   /* ---------- Estados principais ---------- */
+  const [titulo, setTitulo] = useState("")
+  
+
+
   const [form, setForm] = useState({
     nome: "",
     telefone: "",
@@ -267,7 +273,9 @@ export default function GerarOrcamentoPage() {
         materiais,
         totais: totEdit,
         telhaValores,
+        titulo, // ✅ ADICIONAR AQUI
       })
+
 
       toast.success("PDF gerado com sucesso!")
       console.log("[DEBUG] Enviando para salvarOrcamento:", {
@@ -282,8 +290,10 @@ export default function GerarOrcamentoPage() {
         materiais,
         totais: totEdit,
         telhaValores,
-        links: links[0], // ← array com 1 elemento
+        links: links[0],
+        titulo, // ✅ ADICIONAR AQUI
       })
+
 
       toast.success("Orçamento salvo com sucesso!")
 
@@ -558,6 +568,7 @@ export default function GerarOrcamentoPage() {
       setMateriais(d.materiais ?? materiais)
       setTotEdit(d.totEdit ?? totEdit)           // ← Etapa 3
       setTelhaValores(d.telhaValores ?? telhaValores)
+      setTitulo(d.titulo ?? "") // ✅ ADICIONE AQUI
     } catch {
       /* se JSON quebrado, ignora e continua */
     }
@@ -567,9 +578,10 @@ export default function GerarOrcamentoPage() {
   /* Salvar rascunho sempre que algo mudar */
   useEffect(() => {
     if (typeof window === "undefined") return
-    const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores }
+    const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores, titulo }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
-  }, [form, tipoObra, dim, materiais, totEdit, telhaValores])
+  }, [form, tipoObra, dim, materiais, totEdit, telhaValores, titulo])
+
 
   /* ------------------------------ JSX ------------------------------ */
   return (
@@ -584,15 +596,27 @@ export default function GerarOrcamentoPage() {
       {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
         <CardHeader className="p-4">
-          <div className="flex justify-between items-start flex-col sm:flex-row">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
             <div>
               <CardTitle className="text-xl font-bold">Gerar Orçamento</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">Preencha as três etapas abaixo.</CardDescription>
+              <CardDescription className="text-sm text-muted-foreground">
+                Preencha as três etapas abaixo.
+              </CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={clearAll} className="text-red-500 hover:text-red-700 mt-2 sm:mt-0">
-              <Trash className="h-4 w-4 mr-1" /> Limpar
-            </Button>
+
+            <div className="flex flex-col gap-1 w-full sm:w-auto">
+              <Label htmlFor="titulo" className="text-sm font-medium">Título</Label>
+              <Input
+                id="titulo"
+                type="text"
+                placeholder="Ex.: cobertura_madeira_123"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value.replace(/\s+/g, "_"))}
+                className="w-full sm:w-[280px]"
+              />
+            </div>
           </div>
+
           <Progress value={progresso} className="mt-3" />
         </CardHeader>
       </Card>

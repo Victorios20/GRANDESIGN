@@ -44,6 +44,7 @@ export interface GerarPDFParams {
   materiais: MateriaisPorCategoria
   totais: Totais
   telhaValores: TelhaPixValores
+  titulo: string // ✅ novo campo
 }
 
 /* ------------------- Erro customizado ------------------- */
@@ -93,9 +94,10 @@ const REQUEST_TIMEOUT_MS = 60_000 // 60 s
 export async function gerarPDF(
   params: GerarPDFParams,
 ): Promise<GerarPDFResponse> {
-  const { cliente, parametros, materiais, totais, telhaValores } = params
+  const { cliente, parametros, materiais, totais, telhaValores, titulo } = params
 
   const payload = {
+    titulo, // ✅ incluído aqui
     cliente,
     parametros,
     madeiras: materiais.madeiras.map(m => ({
