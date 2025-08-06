@@ -62,6 +62,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
+
 
 /* ---------- Tipos ---------- */
 export type Material = {
@@ -108,6 +110,16 @@ const FATOR_18X = 1.2385 // 23,85 % sobre o total
  *                           COMPONENTE
  * ------------------------------------------------------------------ */
 
+type Dim = {
+  largura: number
+  comprimento: number
+  larguraMaior: number
+  larguraMenor: number
+  comprimentoMaior: number
+  comprimentoMenor: number
+}
+
+
 type Pagto = { pix: number; x10: number; x18: number }
 
 const calcTelhaValores = (
@@ -147,6 +159,9 @@ const calcTelhaValores = (
 export default function GerarOrcamentoPage() {
   const router = useRouter()
   const [loadingCalc, setLoadingCalc] = useState(false)
+  const [modalSucessoAberto, setModalSucessoAberto] = useState(false)
+  const [slideUrlProposta, setSlideUrlProposta] = useState<string | undefined>()
+
 
   /* ---------- Catálogos ---------- */
   const [catalogo, setCatalogo] = useState<{
@@ -212,7 +227,25 @@ export default function GerarOrcamentoPage() {
     bairro: "",
   })
   const [tipoObra, setTipoObra] = useState<string | null>(null)
-  const [dim, setDim] = useState({ largura: 0, comprimento: 0 })
+
+
+
+  /* helper – identifica “Coberta em L” ignorando diferenças de espaço/maiúsculas */
+  const isCobertaL =
+    (tipoObra ?? "")
+      .replace(/\u00A0/g, " ")   // converte NBSP → espaço normal
+      .replace(/\s+/g, " ")      // colapsa espaços múltiplos
+      .trim()
+      .toLowerCase() === "coberta em l"
+
+  const [dim, setDim] = useState<Dim>({
+    largura: 0,
+    comprimento: 0,
+    larguraMaior: 0,
+    larguraMenor: 0,
+    comprimentoMaior: 0,
+    comprimentoMenor: 0,
+  })
   const [materiais, setMateriais] = useState<MateriaisPorCategoria>({
     madeiras: [],
     materiaisGerais: [],
@@ -251,7 +284,15 @@ export default function GerarOrcamentoPage() {
 
     // Etapa 2 – parâmetros + materiais
     setTipoObra(null);
-    setDim({ largura: 1, comprimento: 1 });
+    setDim({
+      largura: 1,
+      comprimento: 1,
+      larguraMaior: 0,
+      larguraMenor: 0,
+      comprimentoMaior: 0,
+      comprimentoMenor: 0,
+    })
+
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
 
     // Etapa 3 – totais + telhas
@@ -269,7 +310,15 @@ export default function GerarOrcamentoPage() {
   const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
   const clearEtapa2 = () => {
     setTipoObra(null)
-    setDim({ largura: 1, comprimento: 1 })
+    setDim({
+      largura: 1,
+      comprimento: 1,
+      larguraMaior: 0,
+      larguraMenor: 0,
+      comprimentoMaior: 0,
+      comprimentoMenor: 0,
+    })
+
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
     resetTotais()
   }
@@ -310,6 +359,8 @@ export default function GerarOrcamentoPage() {
 
 
       toast.success("Orçamento salvo com sucesso!")
+      setSlideUrlProposta(links?.[0]?.slideUrl)   // guarda a URL que veio da hook
+      setModalSucessoAberto(true)                 // exibe o modal de sucesso
 
     } catch (err: unknown) {
       if (err instanceof GerarPDFError) {
@@ -765,18 +816,44 @@ export default function GerarOrcamentoPage() {
               </Select>
             </div>
 
-            {(["largura", "comprimento"] as const).map(k => (
-              <div key={k} className="flex flex-col gap-1">
-                <Label className="capitalize">{k} (m)</Label>
-                <Input
-                  type="number"
-                  step={0.5}
-                  value={dim[k]}
-                  onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 0 }))}
-                  className="w-32"
-                />
-              </div>
-            ))}
+            {/* ----- dimensões ----- */}
+            {isCobertaL ? (
+              ([
+                ["larguraMaior", "Largura maior"],
+                ["larguraMenor", "Largura menor"],
+                ["comprimentoMaior", "Comprimento maior"],
+                ["comprimentoMenor", "Comprimento menor"],
+              ] as const).map(([k, label]) => (
+                <div key={k} className="flex flex-col gap-1">
+                  <Label>{label} (m)</Label>
+                  <Input
+                    type="number"
+                    step={0.5}
+                    value={dim[k]}
+                    onChange={e =>
+                      setDim(p => ({ ...p, [k]: +e.target.value || 0 }))
+                    }
+                    className="w-32"
+                  />
+                </div>
+              ))
+            ) : (
+              (["largura", "comprimento"] as const).map(k => (
+                <div key={k} className="flex flex-col gap-1">
+                  <Label className="capitalize">{k} (m)</Label>
+                  <Input
+                    type="number"
+                    step={0.5}
+                    value={dim[k]}
+                    onChange={e =>
+                      setDim(p => ({ ...p, [k]: +e.target.value || 0 }))
+                    }
+                    className="w-32"
+                  />
+                </div>
+              ))
+            )}
+
 
             <Button onClick={calcular} disabled={loadingCalc || !tipoObra} className="min-w-[132px]">
               {loadingCalc ? (
@@ -1322,6 +1399,13 @@ export default function GerarOrcamentoPage() {
           </div>
         </div>
       )}
+
+      <ModalSucessoProposta
+        open={modalSucessoAberto}
+        onClose={() => setModalSucessoAberto(false)}
+        slideUrl={slideUrlProposta}
+      />
+
 
     </PageLayout>
   )

@@ -44,6 +44,15 @@ export async function salvarOrcamento(params: {
   titulo: string
 }) {
   const { cliente, parametros, materiais, totais, telhaValores, links, titulo } = params
+  // 1. Verifica se título já existe
+const { data: existentes, error: erroBusca } = await supabase
+  .from("orcamento")
+  .select("id")
+  .eq("titulo", titulo)
+
+if (erroBusca) throw new Error("Erro ao verificar título existente.")
+if (existentes && existentes.length > 0) throw new Error("Já existe um orçamento com esse título.")
+
 
   const cidade = await supabase.from("cidades").select("id").eq("nome", cliente.cidade).single()
   if (!cidade.data) throw new Error("Cidade não encontrada")
@@ -145,16 +154,16 @@ export async function salvarOrcamento(params: {
 
 export async function salvarRascunhoOrcamento(params: {
   cliente: {
-    nome: string
-    telefone: string
-    bairro: string
-    cidade: string
-  }
-  parametros: {
-    tipoObra: string
-    largura: number
-    comprimento: number
-  }
+  nome: string
+  telefone: string
+  bairro: string
+  cidade?: string   // ← agora opcional
+}
+parametros: {
+  tipoObra?: string // ← agora opcional
+  largura: number
+  comprimento: number
+}
   materiais: {
     madeiras: Material[]
     materiaisGerais: Material[]
@@ -174,38 +183,49 @@ export async function salvarRascunhoOrcamento(params: {
   const { cliente, parametros, materiais, totais, telhaValores, titulo } = params
 
   /* ---------- chaves estrangeiras obrigatórias ---------- */
+  let cidadeId: number | null = null
+if (cliente.cidade) {
   const cidade = await supabase
     .from("cidades")
     .select("id")
     .eq("nome", cliente.cidade)
     .single()
   if (!cidade.data) throw new Error("Cidade não encontrada")
+  cidadeId = cidade.data.id
+}
+
 
   const novoCliente = await supabase
-    .from("cliente")
-    .insert({
-      nome: cliente.nome,
-      telefone: cliente.telefone,
-      bairro: cliente.bairro,
-      cidade_id: cidade.data.id,
-    })
+  .from("cliente")
+  .insert({
+    nome: cliente.nome,
+    telefone: cliente.telefone,
+    bairro: cliente.bairro,
+    cidade_id: cidadeId, // ← agora pode ser null
+  })
+
     .select("id")
     .single()
   if (!novoCliente.data) throw new Error("Erro ao salvar cliente")
 
+  let tipoObraId: number | null = null
+if (parametros.tipoObra) {
   const tipoObra = await supabase
     .from("tipo_obra")
     .select("id")
     .eq("tipo_obra", parametros.tipoObra)
     .single()
   if (!tipoObra.data) throw new Error("Tipo de obra não encontrado")
+  tipoObraId = tipoObra.data.id
+}
+
 
   /* ---------- registro principal ---------- */
   const orc = await supabase
     .from("orcamento")
     .insert({
       cliente_id: novoCliente.data.id,
-      tipo_obra_id: tipoObra.data.id,
+      tipo_obra_id: tipoObraId,
       largura: parametros.largura,
       comprimento: parametros.comprimento,
       totais_madeiras_preco: totais.madeiras,
