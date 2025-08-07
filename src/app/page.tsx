@@ -59,6 +59,13 @@ import {
   OrcamentoTabela,
   OrcamentoDetalhe,
 } from "@/actions/historico-orcamento-db/historico-orcamento-db"
+
+
+import { DateRangePicker } from "@/components/ui/DateRangePicker"
+import { type DateRange } from "react-day-picker"
+
+
+
 /* ────────────────────────────────────────────── */
 
 export default function HomePage() {
@@ -198,25 +205,17 @@ export default function HomePage() {
               </div>
 
               {/* Data Inicial / Data Final */}
-              {[
-                { d: dataIni, set: setDataIni, label: "Data Inicial" },
-                { d: dataFim, set: setDataFim, label: "Data Final" },
-              ].map(({ d, set, label }) => (
-                <div key={label} className="flex flex-col gap-1">
-                  <label className="text-sm font-medium text-marromEscuro">{label}</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="secondary" className="justify-start text-left font-normal">
-                        {d ? format(d, "dd/MM/yyyy") : <span>{label}</span>}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0">
-                      <Calendar mode="single" selected={d} onSelect={set} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              ))}
+              <div className="flex flex-col gap-1 lg:col-span-2">
+  <label className="text-sm font-medium text-marromEscuro">Período</label>
+  <DateRangePicker
+    range={{ from: dataIni, to: dataFim }}
+    onChange={(range: DateRange | undefined) => {
+      setDataIni(range?.from)
+      setDataFim(range?.to)
+    }}
+  />
+</div>
+
 
               {/* Linhas por página */}
               <div className="flex flex-col gap-1">
