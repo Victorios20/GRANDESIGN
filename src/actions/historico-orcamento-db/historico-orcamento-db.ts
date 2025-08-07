@@ -59,7 +59,7 @@ interface OrcamentoDetalheQueryRow {
     bairro: string | null
     cidade: { nome: string | null } | null
   }
-  tipo_obra: { tipo_obra: string | null } | null
+  tipo_obra: TipoObraRow | TipoObraRow[] | null
   itens: {
     quantidade: number
     preco_unitario: number
@@ -76,6 +76,48 @@ interface OrcamentoDetalheQueryRow {
     valor: number
   }[]
 }
+
+type CidadeRow = { nome: string | null }
+type ClienteRow =
+  | {
+    nome: string | null
+    telefone: string | null
+    bairro: string | null
+    cidade: CidadeRow | CidadeRow[] | null
+  }
+  | null
+
+
+
+// linhas novas
+interface BairroRow { bairro: string | null }
+
+interface MatRow {
+  id: number
+  tipo: "madeira" | "geral" | "telha"
+  descricao: string | null
+  componente: string | null
+  quantidade: number | null
+  tamanho: number | null
+  preco_unitario: number | null
+  frete: number | null
+  total: number | null
+}
+
+interface PagRow {
+  tipo_telhas: string
+  metodo_pagamento: string
+  valor: number
+}
+
+type TipoObraRow = { tipo_obra: string | null }
+
+
+function normalizeSingle<T>(val: T | T[] | null | undefined): T | null {
+  if (val == null) return null
+  return Array.isArray(val) ? (val[0] ?? null) : val
+}
+
 
 /* ------------------------------------------------------------------
  *                Tipos exportados para a camada de UI
@@ -130,7 +172,7 @@ export type OrcamentoDetalhe = {
 export async function listarBairros(): Promise<string[]> {
   const { data, error } = await supabase
     .from("orcamento_completo_view")
-    .select("bairro")
+    .select<string, BairroRow>("bairro")
     .not("bairro", "is", null)
     .neq("bairro", "")
     .order("bairro", { ascending: true })
@@ -140,9 +182,10 @@ export async function listarBairros(): Promise<string[]> {
     return []
   }
 
-  // distinct no cliente
-  return Array.from(new Set((data ?? []).map((r: any) => r.bairro)))
+  const arr = (data ?? []).map(r => r.bairro!).filter(Boolean)
+  return Array.from(new Set(arr))
 }
+
 
 
 /* ------------------------------------------------------------------ */
@@ -166,11 +209,11 @@ export async function buscarOrcamentos(
     )
 
   if (nome) {
-  const termo = removeAcentos(nome).trim()
-  query = query.or(
-    `nome_cliente_unaccent.ilike.*${termo}*,titulo_unaccent.ilike.*${termo}*`
-  )
-}
+    const termo = removeAcentos(nome).trim()
+    query = query.or(
+      `nome_cliente_unaccent.ilike.*${termo}*,titulo_unaccent.ilike.*${termo}*`
+    )
+  }
 
 
   if (bairro) {
@@ -185,14 +228,11 @@ export async function buscarOrcamentos(
   )
 
   if (error || !data) {
-    console.error("Erro ao buscar orçamentos:", {
-      code: (error as any)?.code,
-      message: (error as any)?.message,
-      details: (error as any)?.details,
-      hint: (error as any)?.hint,
-    })
+    const errObj = error as unknown as { code?: string; message?: string; details?: string; hint?: string }
+    console.error("Erro ao buscar orçamentos:", errObj ?? "sem data")
     return { dados: [] as OrcamentoTabela[], total: 0 }
   }
+
 
   const dados: OrcamentoTabela[] = data.map((o) => ({
     id: o.id,
@@ -253,28 +293,29 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
   if (!cabec) return null
 
   /* 🔽 NORMALIZA: Supabase às vezes devolve arrays de 1 item */
-  const cliRow: any =
-    Array.isArray((cabec as any).cliente) ? (cabec as any).cliente[0] : (cabec as any).cliente
-  const cidRow: any =
-    cliRow?.cidade && Array.isArray(cliRow.cidade)
-      ? cliRow.cidade[0]
-      : cliRow?.cidade
+  const cliRow = normalizeSingle<ClienteRow>(cabec.cliente)
+  const cidRow = normalizeSingle<CidadeRow>(cliRow?.cidade ?? null)
+
+  const tipoObraRow = normalizeSingle<TipoObraRow>(cabec.tipo_obra)
+
 
   /* ------------------------ materiais ------------------------- */
   const { data: mats, error: errMat } = await supabase
     .from("orcamento_material")
-    .select(
+    .select<string, MatRow>(
       `id, tipo, descricao, componente, quantidade, tamanho, preco_unitario, frete, total`,
     )
     .eq("orcamento_id", id)
+
 
   if (errMat) console.error("detalheOrcamento – materiais:", errMat)
 
   /* ----------------------- pagamentos ------------------------ */
   const { data: pags, error: errPag } = await supabase
     .from("orcamento_pagamento")
-    .select(`tipo_telhas, metodo_pagamento, valor`)
+    .select<string, PagRow>(`tipo_telhas, metodo_pagamento, valor`)
     .eq("orcamento_id", id)
+
 
   if (errPag) console.error("detalheOrcamento – pagamentos:", errPag)
 
@@ -300,7 +341,7 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
     id: cabec.id,
     titulo: cabec.titulo ?? null,
     dataISO: cabec.data_criacao,
-    tipoObra: (cabec.tipo_obra as any)?.tipo_obra ?? null,
+    tipoObra: tipoObraRow?.tipo_obra ?? null,
     dimensoes: { largura: Number(cabec.largura ?? 0), comprimento: Number(cabec.comprimento ?? 0) },
 
     cliente: {
@@ -313,21 +354,23 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
     totais: { ...tots, totalGeral: valorTotal },
     valorTotal,
 
-    materiais: (mats ?? []).map(m => ({
+    materiais: (mats ?? []).map((m: MatRow) => ({
       nome: m.descricao ?? "—",
-      tipo: m.tipo as "madeira" | "geral" | "telha",
+      tipo: m.tipo,
       quantidade: Number(m.quantidade ?? 0),
       precoUnit: Number(m.preco_unitario ?? 0),
       componente: m.componente ?? null,
-      tamanho: m.tamanho === null || m.tamanho === undefined ? null : Number(m.tamanho),
-      frete: m.frete === null || m.frete === undefined ? null : Number(m.frete),
-      total: m.total === null || m.total === undefined ? null : Number(m.total),
+      tamanho: m.tamanho == null ? null : Number(m.tamanho),
+      frete: m.frete == null ? null : Number(m.frete),
+      total: m.total == null ? null : Number(m.total),
     })),
 
-    pagamentos: (pags ?? []).map(p => ({
+
+    pagamentos: (pags ?? []).map((p: PagRow) => ({
       tipoTelhas: p.tipo_telhas,
       metodo: p.metodo_pagamento,
       valor: Number(p.valor),
     })),
+
   }
 }

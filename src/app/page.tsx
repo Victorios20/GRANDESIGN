@@ -32,11 +32,14 @@ import {
   detalheOrcamento,
   OrcamentoTabela,
   OrcamentoDetalhe,
+  MaterialItem,
+
 } from "@/actions/historico-orcamento-db/historico-orcamento-db"
 
 import { toast, Toaster } from "sonner"
 import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { type DateRange } from "react-day-picker"
+
 
 /* ────────────────────────────────────────────── */
 
@@ -106,14 +109,20 @@ export default function HomePage() {
     }
   }
 
+
+
+  type MateriaisGroup = Record<"madeira" | "geral" | "telha", MaterialItem[]>
+
   /* agrupar materiais por tipo */
   const materiaisGroup = useMemo(() => {
-    if (!orcamentoSel) return {}
-    return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>((acc, m) => {
-      ;(acc[m.tipo] ??= []).push(m)
+    if (!orcamentoSel) return {} as MateriaisGroup
+    return orcamentoSel.materiais.reduce<MateriaisGroup>((acc, m) => {
+      ; (acc[m.tipo] ??= []).push(m)
       return acc
-    }, {})
+    }, { madeira: [], geral: [], telha: [] })
   }, [orcamentoSel])
+
+
 
   /* helpers */
   const fmtBRL = (n: number) =>
@@ -281,7 +290,11 @@ export default function HomePage() {
                     </TableHeader>
                     <TableBody>
                       {orcamentos.map(o => (
-                        <TableRow key={o.id} className="odd:bg-muted/40 hover:bg-bege/40">
+                        <TableRow
+                          key={o.id}
+                          className="odd:bg-muted/40 hover:bg-bege/40 cursor-pointer"
+                          onClick={() => abrirModal(o)}
+                        >
                           <TableCell>{safeCell(o.titulo)}</TableCell>
                           <TableCell>{safeCell(o.cliente)}</TableCell>
                           <TableCell>{safeCell(o.bairro)}</TableCell>
@@ -292,14 +305,16 @@ export default function HomePage() {
                               size="icon"
                               variant="ghost"
                               className="text-marromEscuro hover:bg-marromClaro/20"
-                              onClick={() => abrirModal(o)}
+                              disabled
                             >
                               <EyeIcon className="h-5 w-5" />
                             </Button>
                           </TableCell>
+
                         </TableRow>
                       ))}
                     </TableBody>
+
                   </Table>
                 </div>
 
@@ -370,11 +385,14 @@ export default function HomePage() {
                 </Card>
 
                 {/* materiais */}
-                {(["madeira", "geral", "telha"] as const).map(tipo => {
-                  const linhas = (materiaisGroup as any)[tipo] ?? []
+                {(["madeira", "geral", "telha"] as const).map((tipo) => {
+                  const linhas = materiaisGroup[tipo]
                   if (!linhas.length) return null
 
-                  const titulo = tipo === "madeira" ? "Madeiras" : tipo === "geral" ? "Materiais Gerais" : "Telhas"
+                  const titulo =
+                    tipo === "madeira" ? "Madeiras" :
+                      tipo === "geral" ? "Materiais Gerais" :
+                        "Telhas"
 
                   return (
                     <Card key={tipo}>
@@ -413,25 +431,23 @@ export default function HomePage() {
                             </TableHeader>
 
                             <TableBody>
-                              {linhas.map((l: any, i: number) => {
+                              {linhas.map((l: MaterialItem, i) => {
                                 const qtd = Number(l.quantidade ?? 0)
                                 const preco = Number(l.precoUnit ?? 0)
                                 const tam = Number(l.tamanho ?? 0)
                                 const frete = Number(l.frete ?? 0)
 
                                 const total =
-                                  tipo === "madeira"
-                                    ? tam * qtd * preco
-                                    : tipo === "telha"
-                                    ? qtd * preco + frete
-                                    : qtd * preco
+                                  tipo === "madeira" ? tam * qtd * preco :
+                                    tipo === "telha" ? qtd * preco + frete :
+                                      qtd * preco
 
                                 return (
                                   <TableRow key={i} className="odd:bg-muted/40">
                                     {tipo === "madeira" ? (
                                       <>
-                                        <TableCell>{safeCell(l.componente)}</TableCell>
-                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell>{l.componente ?? "-"}</TableCell>
+                                        <TableCell>{l.nome}</TableCell>
                                         <TableCell className="text-right">{qtd || "-"}</TableCell>
                                         <TableCell className="text-right">{tam || "-"}</TableCell>
                                         <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
@@ -439,14 +455,14 @@ export default function HomePage() {
                                       </>
                                     ) : tipo === "geral" ? (
                                       <>
-                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell>{l.nome}</TableCell>
                                         <TableCell className="text-right">{qtd || "-"}</TableCell>
                                         <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
                                         <TableCell className="text-right">{fmtBRL(total)}</TableCell>
                                       </>
                                     ) : (
                                       <>
-                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell>{l.nome}</TableCell>
                                         <TableCell className="text-right">{qtd || "-"}</TableCell>
                                         <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
                                         <TableCell className="text-right">{fmtBRL(frete)}</TableCell>
@@ -463,6 +479,7 @@ export default function HomePage() {
                     </Card>
                   )
                 })}
+
 
                 {/* totais */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
