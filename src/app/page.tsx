@@ -130,7 +130,11 @@ export default function HomePage() {
   }, [orcamentoSel])
 
   const fmt = (n: number) => `R$ ${n.toFixed(2)}`
-  const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy")
+  const safeCell = (v: string | number | null | undefined) =>
+    v === null || v === undefined || v === "" ? "⋯ " : v
+
+  const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy HH:mm")
+
 
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
 
@@ -171,8 +175,9 @@ export default function HomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
               {/* Nome */}
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Nome</label>
-                <Input value={nome} placeholder="Nome" onChange={e => setNome(e.target.value)} />
+                <label className="text-sm font-medium text-marromEscuro">Nome ou Título</label>
+                <Input value={nome} placeholder="Ex: João ou João_Cobertura_Messejana" onChange={e => setNome(e.target.value)} />
+
               </div>
 
               {/* Bairro */}
@@ -263,8 +268,10 @@ export default function HomePage() {
                   <Table className="min-w-[640px]">
                     <TableHeader className="bg-bege font-semibold">
                       <TableRow>
+                        <TableHead>Título</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Bairro</TableHead>
+
                         <TableHead>Data</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead className="text-center">Ações</TableHead>
@@ -277,10 +284,12 @@ export default function HomePage() {
                           onClick={() => abrirModal(o)}
                           className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40"
                         >
-                          <TableCell>{o.cliente}</TableCell>
-                          <TableCell>{o.bairro}</TableCell>
-                          <TableCell>{strDate(o.dataISO)}</TableCell>
-                          <TableCell>{o.valorFormatado}</TableCell>
+                          <TableCell>{safeCell(o.titulo)}</TableCell>
+                          <TableCell>{safeCell(o.cliente)}</TableCell>
+                          <TableCell>{safeCell(o.bairro)}</TableCell>
+                          <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
+                          <TableCell>{safeCell(o.valorFormatado)}</TableCell>
+
                           <TableCell className="text-center">
                             <Tooltip>
                               <TooltipTrigger asChild>

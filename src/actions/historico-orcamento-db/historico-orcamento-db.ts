@@ -95,22 +95,27 @@ export async function listarBairros(): Promise<string[]> {
 
 export interface OrcamentoTabela {
   id: number
+  titulo: string | null
   cliente: string
   bairro: string
   dataISO: string
   valorFormatado: string
 }
 
+
 /* ----- Tipagem da view ----- */
 interface OrcamentoViewRow {
   id: number
   nome_cliente: string
   nome_cliente_unaccent: string
+  titulo: string | null
+  titulo_unaccent: string | null
   bairro: string
   bairro_unaccent: string
   data_criacao: string
   valor_total: number | null
 }
+
 
 /* ------------------------------------------------------------------ */
 export async function buscarOrcamentos(
@@ -125,13 +130,16 @@ export async function buscarOrcamentos(
     .from("orcamento_completo_view")
     /* 1º genérico = string   |  2º genérico = tipo da linha */
     .select<string, OrcamentoViewRow>(
-      "id, nome_cliente, nome_cliente_unaccent, bairro, bairro_unaccent, data_criacao, valor_total",
-      { count: "exact" },
-    )
+  "id, nome_cliente, nome_cliente_unaccent, titulo, titulo_unaccent, bairro, bairro_unaccent, data_criacao, valor_total",
+  { count: "exact" },
+)
+
 
   if (nome) {
-    query = query.ilike("nome_cliente_unaccent", `%${removeAcentos(nome)}%`)
-  }
+  const termo = `%${removeAcentos(nome)}%`
+  query = query.or(`nome_cliente_unaccent.ilike.${termo},titulo_unaccent.ilike.${termo}`)
+}
+
   if (bairro) {
     query = query.ilike("bairro_unaccent", `%${removeAcentos(bairro)}%`)
   }
@@ -149,12 +157,14 @@ export async function buscarOrcamentos(
   }
 
   const dados: OrcamentoTabela[] = data.map((o) => ({
-    id: o.id,
-    cliente: o.nome_cliente,
-    bairro: o.bairro,
-    dataISO: o.data_criacao,
-    valorFormatado: formatarBRL(Number(o.valor_total ?? 0)),
-  }))
+  id: o.id,
+  titulo: o.titulo,
+  cliente: o.nome_cliente,
+  bairro: o.bairro,
+  dataISO: o.data_criacao,
+  valorFormatado: formatarBRL(Number(o.valor_total ?? 0)),
+}))
+
 
   return { dados, total: count ?? 0 }
 }
