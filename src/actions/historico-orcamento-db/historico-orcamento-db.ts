@@ -73,7 +73,9 @@ export type OrcamentoDetalhe = {
     totalGeral: number
   }
   materiais: MaterialItem[]
+  linkSlide: string | null // ✅ novo campo
 }
+
 
 /* ------------------------------------------------------------------ */
 /* 1. listarBairros()                                                 */
@@ -174,59 +176,66 @@ function formatarBRL(v: number) {
 /* ------------------------------------------------------------------ */
 export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | null> {
   const { data, error } = await supabase
-    .from("orcamento")
-    .select(
-      `
+    .from("orcamento_completo_view")
+    .select(`
       id,
       data_criacao,
-      cliente:cliente!inner ( nome, telefone, bairro, cidade ),
+      nome_cliente,
+      telefone_cliente,
+      bairro,
+      cidade,
       totais_madeiras_preco,
       totais_materiais_preco,
       totais_comissao_preco,
       totais_empresa_ps_preco,
       totais_empresa_gd_preco,
-      itens:orcamento_material (
-        quantidade,
-        preco_unitario,
-        material:materiais!inner ( descricao, tipo )
-      )
-    `,
-    )
+      link_slide
+    `)
     .eq("id", id)
     .single()
 
-  if (error || !data) {
-    console.error("Erro ao buscar detalhe do orçamento:", error)
+  if (!data) {
+    console.error(`Orçamento com ID ${id} não encontrado.`)
     return null
   }
 
-  const row = data as unknown as OrcamentoDetalheQueryRow
-
-  const tots = {
-    madeiras: Number(row.totais_madeiras_preco),
-    materiais: Number(row.totais_materiais_preco),
-    comissao: Number(row.totais_comissao_preco),
-    empresaPS: Number(row.totais_empresa_ps_preco),
-    empresaGD: Number(row.totais_empresa_gd_preco),
+  const row = data as {
+    id: number
+    data_criacao: string
+    nome_cliente: string | null
+    telefone_cliente: string | null
+    bairro: string | null
+    cidade: string | null
+    totais_madeiras_preco: number | null
+    totais_materiais_preco: number | null
+    totais_comissao_preco: number | null
+    totais_empresa_ps_preco: number | null
+    totais_empresa_gd_preco: number | null
+    link_slide: string | null
   }
 
-  const materiais: MaterialItem[] = row.itens.map(item => ({
-    nome: item.material.descricao,
-    tipo: item.material.tipo,
-    quantidade: Number(item.quantidade),
-    precoUnit: Number(item.preco_unitario),
-  }))
+  const totais = {
+    madeiras: Number(row.totais_madeiras_preco ?? 0),
+    materiais: Number(row.totais_materiais_preco ?? 0),
+    comissao: Number(row.totais_comissao_preco ?? 0),
+    empresaPS: Number(row.totais_empresa_ps_preco ?? 0),
+    empresaGD: Number(row.totais_empresa_gd_preco ?? 0),
+  }
 
   return {
     id: row.id,
     dataISO: row.data_criacao,
     cliente: {
-      nome: row.cliente.nome ?? "—",
-      telefone: row.cliente.telefone,
-      bairro: row.cliente.bairro,
-      cidade: row.cliente.cidade,
+      nome: row.nome_cliente ?? "—",
+      telefone: row.telefone_cliente ?? "—",
+      bairro: row.bairro ?? "—",
+      cidade: row.cidade ?? "—",
     },
-    totais: { ...tots, totalGeral: Object.values(tots).reduce((s, v) => s + v, 0) },
-    materiais,
+    totais: {
+      ...totais,
+      totalGeral: Object.values(totais).reduce((acc, val) => acc + val, 0),
+    },
+    materiais: [],
+    linkSlide: row.link_slide ?? null, // ✅ adiciona o link do slide
   }
 }

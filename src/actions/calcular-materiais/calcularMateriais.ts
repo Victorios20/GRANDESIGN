@@ -1,7 +1,7 @@
 /* ----------------------------------------------
-   GRANDESIGN – calcularMateriais.ts (atualizado)
+   GRANDESIGN – calcularMateriais.ts (refatorado)
    ---------------------------------------------- */
-import { getMateriaisByDescricoes, type MaterialRow } from "./calcularMateriais-db"
+import { getMateriaisByDescricoes, getReceitasFixas, getMateriaisByIds, type MaterialRow } from "./calcularMateriais-db"
 
 export interface MaterialCalculado {
   descricao: string
@@ -120,11 +120,23 @@ export async function calcularMateriais(
   }
 
   if (!/^Pergolado|^Caramanchão/.test(tipoObra)) {
-    add(`Linha ${espessura}`, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
-    add("Caibro", "Caibros", ROUND_INT(comprimento / 0.32) + 1, largArred)
     const qtdPranchao = comprimento >= 6 ? 3 : 2
     add("Linha 30cm", "Pranchão", qtdPranchao, largArred)
-    add(`Beiral Trab. ${espessura}`, "Beiral Trab.", 1, largArred)
+
+    let tipoTerca: string
+    if (qtdPranchao === 2 && comprimento <= 4) {
+      tipoTerca = "Linha 11,5cm"
+    } else if (qtdPranchao === 2 && comprimento > 4 && comprimento <= 6) {
+      tipoTerca = "Linha 15cm"
+    } else if (qtdPranchao === 3 && comprimento > 6) {
+      tipoTerca = "Linha 11,5cm"
+    } else {
+      tipoTerca = `Linha ${espessura}`
+    }
+
+    add(tipoTerca, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
+    add("Caibro", "Caibros", ROUND_INT(comprimento / 0.32) + 1, largArred)
+    add("Beiral Trab. 15cm", "Beiral", 1, largArred)
   }
 
   addMaterial("Rufo", 1)
@@ -144,17 +156,39 @@ export async function calcularMateriais(
   if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
 
   if (!/^Pergolado|^Caramanchão/.test(tipoObra)) {
-    const formulas = {
-      Romana:    { factor: 17, offset: 40 },
-      Americana: { factor: 12, offset: 40 },
-      Colonial:  { factor: 33, offset: 50 },
-    } as const
+  const formulas = {
+    Romana:    { factor: 17, offset: 10 },
+    Americana: { factor: 12, offset: 10 },
+    Colonial:  { factor: 33, offset: 10 },
+    Maxxi:     { factor: 8, offset: 10 },
+  } as const
+
 
     (Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
       const { factor, offset } = formulas[nome]
       const qtd = ROUND_INT(area * factor + offset)
       telhasRaw.push({ descricao: nome, componente: "", quantidade: qtd })
     })
+  }
+
+  // Adiciona materiais fixos da receita_fixa
+  try {
+    const receitasFixas = await getReceitasFixas(tipoObra)
+    const ids = receitasFixas.map(r => r.material_id)
+    const materiaisFixos = await getMateriaisByIds(ids)
+
+    receitasFixas.forEach(({ material_id, quantidade }) => {
+      const material = materiaisFixos.find(m => m.id === material_id)
+      if (material) {
+        materiaisRaw.push({
+          descricao: material.descricao,
+          componente: "",
+          quantidade: ROUND_INT(quantidade),
+        })
+      }
+    })
+  } catch (err) {
+    console.error("Erro ao carregar receitas fixas:", err)
   }
 
   const agrupar = <T extends BaseRow>(rows: T[]): T[] => {
@@ -172,15 +206,17 @@ export async function calcularMateriais(
   }
 
   const ordemMadeira = [
-    "Colunas Traseiras", "Colunas Frontais", "Coluna",
-    "Linha na Parede", "Pranchão", "Pontalete",
+    "Linha na Parede", "Colunas Traseiras", "Colunas Frontais",
+    "Coluna","Pranchão", "Pontalete",
     "Travessa", "Pérgola", "Terças",
-    "Caibros", "Beiral Trab."
-  ]
+    "Caibros", "Beiral"
+  ] as const
+
+  type ComponenteOrdem = typeof ordemMadeira[number]
 
   const ordenarMadeiras = (a: MadeiraRow, b: MadeiraRow) => {
-    const iA = ordemMadeira.indexOf(a.componente)
-    const iB = ordemMadeira.indexOf(b.componente)
+    const iA = ordemMadeira.indexOf(a.componente as ComponenteOrdem)
+    const iB = ordemMadeira.indexOf(b.componente as ComponenteOrdem)
     return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB)
   }
 
