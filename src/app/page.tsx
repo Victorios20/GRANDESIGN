@@ -135,8 +135,7 @@ export default function HomePage() {
   const telhasFixos = useMemo(() => {
     if (!orcamentoSel?.pagamentos?.length) return null
 
-    const norm = (s: string) =>
-      s.toLowerCase().replace(/\s+/g, "").replace("x", "×") // exibe 10×/18×
+
 
     // Estrutura: { [tipoTelha]: { pix?: number, "10×"?: number, "18×"?: number } }
     const map: Record<string, { pix?: number; "10×"?: number; "18×"?: number }> = {}
