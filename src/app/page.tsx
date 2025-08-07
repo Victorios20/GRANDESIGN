@@ -17,39 +17,13 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card"
-import { PlusCircle, Trash2, EyeIcon, CalendarIcon } from "lucide-react"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationPrevious,
-  PaginationNext,
-} from "@/components/ui/pagination"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { PlusCircle, Trash2, EyeIcon } from "lucide-react"
+import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 
 /* actions (supabase) */
 import {
@@ -60,11 +34,9 @@ import {
   OrcamentoDetalhe,
 } from "@/actions/historico-orcamento-db/historico-orcamento-db"
 
-
+import { toast, Toaster } from "sonner"
 import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { type DateRange } from "react-day-picker"
-
-
 
 /* ────────────────────────────────────────────── */
 
@@ -122,26 +94,59 @@ export default function HomePage() {
 
   async function abrirModal(o: OrcamentoTabela) {
     setLoadingModal(true)
-    const det = await detalheOrcamento(o.id)
-    setOrcamentoSel(det)
-    setLoadingModal(false)
+    try {
+      const det = await detalheOrcamento(o.id)
+      if (!det) throw new Error("Orçamento não encontrado")
+      setOrcamentoSel(det) // abre o modal
+    } catch (err) {
+      toast.error("Não foi possível carregar o orçamento.")
+      console.error(err)
+    } finally {
+      setLoadingModal(false)
+    }
   }
 
   /* agrupar materiais por tipo */
   const materiaisGroup = useMemo(() => {
     if (!orcamentoSel) return {}
     return orcamentoSel.materiais.reduce<Record<string, typeof orcamentoSel.materiais>>((acc, m) => {
-      ; (acc[m.tipo] ??= []).push(m)
+      ;(acc[m.tipo] ??= []).push(m)
       return acc
     }, {})
   }, [orcamentoSel])
 
-  const fmt = (n: number) => `R$ ${n.toFixed(2)}`
+  /* helpers */
+  const fmtBRL = (n: number) =>
+    n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
   const safeCell = (v: string | number | null | undefined) =>
-    v === null || v === undefined || v === "" ? "⋯ " : v
-
+    v === null || v === undefined || v === "" ? "-" : v
   const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy HH:mm")
 
+  /* pagamentos → tabela Telhas (Pix/10x/18x) */
+  const telhasFixos = useMemo(() => {
+    if (!orcamentoSel?.pagamentos?.length) return null
+
+    const norm = (s: string) =>
+      s.toLowerCase().replace(/\s+/g, "").replace("x", "×") // exibe 10×/18×
+
+    // Estrutura: { [tipoTelha]: { pix?: number, "10×"?: number, "18×"?: number } }
+    const map: Record<string, { pix?: number; "10×"?: number; "18×"?: number }> = {}
+
+    orcamentoSel.pagamentos.forEach(p => {
+      const tipo = p.tipoTelhas
+      const metodo = p.metodo.toLowerCase()
+
+      if (!map[tipo]) map[tipo] = {}
+      if (metodo.includes("pix")) map[tipo].pix = p.valor
+      else if (metodo.includes("10")) map[tipo]["10×"] = p.valor
+      else if (metodo.includes("18")) map[tipo]["18×"] = p.valor
+    })
+
+    // ordenar tipos (Romana, Colonial, Americana) se existirem
+    const order = ["Romana", "Colonial", "Americana"]
+    const tipos = Object.keys(map).sort((a, b) => order.indexOf(a) - order.indexOf(b))
+    return { map, tipos }
+  }, [orcamentoSel?.pagamentos])
 
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
 
@@ -149,12 +154,13 @@ export default function HomePage() {
   return (
     <PageLayout>
       <TooltipProvider>
+        <Toaster richColors closeButton />
         {/* BOTÃO “Gerar orçamento” */}
         <Link href="/gerar-orcamento" className="block mb-8">
           <Button
             className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
-                             bg-white text-marromEscuro border-3 border-marromClaro
-                             shadow-md hover:shadow-lg hover:bg-bege"
+                       bg-white text-marromEscuro border-3 border-marromClaro
+                       shadow-md hover:shadow-lg hover:bg-bege"
           >
             <PlusCircle className="h-12 w-12 opacity-60" />
             Gerar orçamento
@@ -184,7 +190,6 @@ export default function HomePage() {
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Nome ou Título</label>
                 <Input value={nome} placeholder="Ex: João ou João_Cobertura_Messejana" onChange={e => setNome(e.target.value)} />
-
               </div>
 
               {/* Bairro */}
@@ -204,18 +209,17 @@ export default function HomePage() {
                 </Select>
               </div>
 
-              {/* Data Inicial / Data Final */}
+              {/* Período */}
               <div className="flex flex-col gap-1 lg:col-span-2">
-  <label className="text-sm font-medium text-marromEscuro">Período</label>
-  <DateRangePicker
-    range={{ from: dataIni, to: dataFim }}
-    onChange={(range: DateRange | undefined) => {
-      setDataIni(range?.from)
-      setDataFim(range?.to)
-    }}
-  />
-</div>
-
+                <label className="text-sm font-medium text-marromEscuro">Período</label>
+                <DateRangePicker
+                  range={{ from: dataIni, to: dataFim }}
+                  onChange={(range: DateRange | undefined) => {
+                    setDataIni(range?.from)
+                    setDataFim(range?.to)
+                  }}
+                />
+              </div>
 
               {/* Linhas por página */}
               <div className="flex flex-col gap-1">
@@ -270,7 +274,6 @@ export default function HomePage() {
                         <TableHead>Título</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Bairro</TableHead>
-
                         <TableHead>Data</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead className="text-center">Ações</TableHead>
@@ -278,26 +281,21 @@ export default function HomePage() {
                     </TableHeader>
                     <TableBody>
                       {orcamentos.map(o => (
-                        <TableRow
-                          key={o.id}
-                          onClick={() => abrirModal(o)}
-                          className="cursor-pointer odd:bg-muted/40 hover:bg-bege/40"
-                        >
+                        <TableRow key={o.id} className="odd:bg-muted/40 hover:bg-bege/40">
                           <TableCell>{safeCell(o.titulo)}</TableCell>
                           <TableCell>{safeCell(o.cliente)}</TableCell>
                           <TableCell>{safeCell(o.bairro)}</TableCell>
                           <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
-
                           <TableCell className="text-center">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="text-marromEscuro hover:bg-marromClaro/20">
-                                  <EyeIcon className="h-5 w-5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Visualizar</TooltipContent>
-                            </Tooltip>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="text-marromEscuro hover:bg-marromClaro/20"
+                              onClick={() => abrirModal(o)}
+                            >
+                              <EyeIcon className="h-5 w-5" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -316,9 +314,7 @@ export default function HomePage() {
                           className={page === 1 ? "opacity-50 pointer-events-none" : ""}
                         />
                       </PaginationItem>
-                      <span className="flex items-center text-sm">
-                        Página {page} de {totalPaginas}
-                      </span>
+                      <span className="flex items-center text-sm">Página {page} de {totalPaginas}</span>
                       <PaginationItem>
                         <PaginationNext
                           aria-label="Próxima"
@@ -338,10 +334,9 @@ export default function HomePage() {
         <Dialog
           open={!!orcamentoSel}
           onOpenChange={(open) => {
-            if (!open) setOrcamentoSel(null);   // limpa só ao fechar
+            if (!open) setOrcamentoSel(null) // limpa só ao fechar
           }}
         >
-
           <DialogContent className="w-[96vw] sm:max-w-[94vw] lg:max-w-[80vw] max-h-[80vh] overflow-auto">
             {loadingModal || !orcamentoSel ? (
               <div className="space-y-2">
@@ -351,12 +346,15 @@ export default function HomePage() {
               </div>
             ) : (
               <>
-                {/* título */}
+                {/* título + subtítulo */}
                 <Card className="border-0 shadow-none">
-                  <CardHeader className="pb-4">
+                  <CardHeader className="pb-1">
                     <CardTitle className="text-3xl">
-                      Orçamento&nbsp;de&nbsp;{orcamentoSel.cliente.nome} – {orcamentoSel.cliente.bairro}
+                      Orçamento&nbsp;de&nbsp;{safeCell(orcamentoSel.cliente.nome)} – {safeCell(orcamentoSel.cliente.bairro)}
                     </CardTitle>
+                    <CardDescription className="mt-1">
+                      <span className="font-medium">Título:</span> {safeCell(orcamentoSel.titulo)}
+                    </CardDescription>
                   </CardHeader>
                 </Card>
 
@@ -364,18 +362,20 @@ export default function HomePage() {
                 <Card>
                   <CardHeader><CardTitle>Dados do Cliente</CardTitle></CardHeader>
                   <CardContent className="space-y-1 text-sm">
-                    <p><b>Nome:</b> {orcamentoSel.cliente.nome}</p>
-                    <p><b>Telefone:</b> {orcamentoSel.cliente.telefone ?? "—"}</p>
-                    <p><b>Cidade:</b> {orcamentoSel.cliente.cidade ?? "—"}</p>
-                    <p><b>Bairro:</b> {orcamentoSel.cliente.bairro ?? "—"}</p>
+                    <p><b>Nome:</b> {safeCell(orcamentoSel.cliente.nome)}</p>
+                    <p><b>Telefone:</b> {safeCell(orcamentoSel.cliente.telefone)}</p>
+                    <p><b>Cidade:</b> {safeCell(orcamentoSel.cliente.cidade)}</p>
+                    <p><b>Bairro:</b> {safeCell(orcamentoSel.cliente.bairro)}</p>
                   </CardContent>
                 </Card>
 
                 {/* materiais */}
-                {["madeira", "geral", "telha"].map(tipo => {
-                  const linhas = materiaisGroup[tipo] ?? []
+                {(["madeira", "geral", "telha"] as const).map(tipo => {
+                  const linhas = (materiaisGroup as any)[tipo] ?? []
                   if (!linhas.length) return null
+
                   const titulo = tipo === "madeira" ? "Madeiras" : tipo === "geral" ? "Materiais Gerais" : "Telhas"
+
                   return (
                     <Card key={tipo}>
                       <CardHeader><CardTitle>{titulo}</CardTitle></CardHeader>
@@ -384,21 +384,78 @@ export default function HomePage() {
                           <Table>
                             <TableHeader className="bg-bege">
                               <TableRow className="bg-bege hover:bg-bege">
-                                <TableHead>Nome</TableHead>
-                                <TableHead>Qtd</TableHead>
-                                <TableHead>Preço</TableHead>
-                                <TableHead>Total</TableHead>
+                                {tipo === "madeira" ? (
+                                  <>
+                                    <TableHead>Componente</TableHead>
+                                    <TableHead>Madeira</TableHead>
+                                    <TableHead className="text-right">Quantidade</TableHead>
+                                    <TableHead className="text-right">Tamanho</TableHead>
+                                    <TableHead className="text-right">Preço (m²)</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                  </>
+                                ) : tipo === "geral" ? (
+                                  <>
+                                    <TableHead>Descrição</TableHead>
+                                    <TableHead className="text-right">Quantidade</TableHead>
+                                    <TableHead className="text-right">Preço (un)</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TableHead>Descrição</TableHead>
+                                    <TableHead className="text-right">Quantidade</TableHead>
+                                    <TableHead className="text-right">Preço (un)</TableHead>
+                                    <TableHead className="text-right">Frete</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                  </>
+                                )}
                               </TableRow>
                             </TableHeader>
+
                             <TableBody>
-                              {linhas.map((l, i) => (
-                                <TableRow key={i} className="odd:bg-muted/40">
-                                  <TableCell>{l.nome}</TableCell>
-                                  <TableCell>{l.quantidade}</TableCell>
-                                  <TableCell>{fmt(l.precoUnit)}</TableCell>
-                                  <TableCell>{fmt(l.precoUnit * l.quantidade)}</TableCell>
-                                </TableRow>
-                              ))}
+                              {linhas.map((l: any, i: number) => {
+                                const qtd = Number(l.quantidade ?? 0)
+                                const preco = Number(l.precoUnit ?? 0)
+                                const tam = Number(l.tamanho ?? 0)
+                                const frete = Number(l.frete ?? 0)
+
+                                const total =
+                                  tipo === "madeira"
+                                    ? tam * qtd * preco
+                                    : tipo === "telha"
+                                    ? qtd * preco + frete
+                                    : qtd * preco
+
+                                return (
+                                  <TableRow key={i} className="odd:bg-muted/40">
+                                    {tipo === "madeira" ? (
+                                      <>
+                                        <TableCell>{safeCell(l.componente)}</TableCell>
+                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell className="text-right">{qtd || "-"}</TableCell>
+                                        <TableCell className="text-right">{tam || "-"}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(total)}</TableCell>
+                                      </>
+                                    ) : tipo === "geral" ? (
+                                      <>
+                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell className="text-right">{qtd || "-"}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(total)}</TableCell>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <TableCell>{safeCell(l.nome)}</TableCell>
+                                        <TableCell className="text-right">{qtd || "-"}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(preco)}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(frete)}</TableCell>
+                                        <TableCell className="text-right">{fmtBRL(total)}</TableCell>
+                                      </>
+                                    )}
+                                  </TableRow>
+                                )
+                              })}
                             </TableBody>
                           </Table>
                         </div>
@@ -412,59 +469,69 @@ export default function HomePage() {
                   <Card>
                     <CardHeader><CardTitle>Totais por Categoria</CardTitle></CardHeader>
                     <CardContent className="p-4">
-                      <Table><TableBody>
-                        {[
-                          ["Madeiras", orcamentoSel.totais.madeiras],
-                          ["Materiais", orcamentoSel.totais.materiais],
-                          ["Mão de Obra", orcamentoSel.totais.empresaPS],
-                          ["Empresa PS", orcamentoSel.totais.empresaPS],
-                          ["Empresa GD", orcamentoSel.totais.empresaGD],
-                        ].map(([lab, v]) => (
-                          <TableRow key={lab as string}>
-                            <TableCell>{lab}</TableCell>
-                            <TableCell>{fmt(v as number)}</TableCell>
+                      <Table>
+                        <TableBody>
+                          {[
+                            ["Madeiras", orcamentoSel.totais.madeiras],
+                            ["Materiais", orcamentoSel.totais.materiais],
+                            ["Comissão", orcamentoSel.totais.comissao],
+                            ["Empresa PS", orcamentoSel.totais.empresaPS],
+                            ["Empresa GD", orcamentoSel.totais.empresaGD],
+                            ["Frete", orcamentoSel.totais.frete],
+                          ].map(([lab, v]) => (
+                            <TableRow key={lab as string}>
+                              <TableCell>{lab}</TableCell>
+                              <TableCell className="text-right">{fmtBRL(v as number)}</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="font-semibold border-t-2">
+                            <TableCell>Total Geral</TableCell>
+                            <TableCell className="text-right">{fmtBRL(orcamentoSel.totais.totalGeral)}</TableCell>
                           </TableRow>
-                        ))}
-                        <TableRow className="font-semibold border-t-2">
-                          <TableCell>Total Geral</TableCell>
-                          <TableCell>{fmt(orcamentoSel.totais.totalGeral)}</TableCell>
-                        </TableRow>
-                      </TableBody></Table>
+                        </TableBody>
+                      </Table>
                     </CardContent>
                   </Card>
 
-                  {/* valores fixos (mock) */}
-                  <Card>
-                    <CardHeader><CardTitle>Valores fixos – Telhas</CardTitle></CardHeader>
-                    <CardContent className="p-4">
-                      <div className="rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader className="bg-bege">
-                            <TableRow className="bg-bege hover:bg-bege">
-                              <TableHead>Tipo</TableHead>
-                              <TableHead>Pix</TableHead>
-                              <TableHead>10×</TableHead>
-                              <TableHead>18×</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {[
-                              ["Romana", 9200, 1015, 591],
-                              ["Colonial", 8400, 927, 539],
-                              ["Americana", 9100, 1004, 584],
-                            ].map(([t, pix, d10, d18]) => (
-                              <TableRow key={t as string}>
-                                <TableCell>{t}</TableCell>
-                                <TableCell>{fmt(pix as number)}</TableCell>
-                                <TableCell>{fmt(d10 as number)}</TableCell>
-                                <TableCell>{fmt(d18 as number)}</TableCell>
+                  {/* valores fixos – Telhas (do banco) */}
+                  {telhasFixos && telhasFixos.tipos.length > 0 && (
+                    <Card>
+                      <CardHeader><CardTitle>Valores fixos – Telhas</CardTitle></CardHeader>
+                      <CardContent className="p-4">
+                        <div className="rounded-lg overflow-hidden">
+                          <Table>
+                            <TableHeader className="bg-bege">
+                              <TableRow className="bg-bege hover:bg-bege">
+                                <TableHead>Tipo</TableHead>
+                                <TableHead className="text-right">Pix</TableHead>
+                                <TableHead className="text-right">10×</TableHead>
+                                <TableHead className="text-right">18×</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                            </TableHeader>
+                            <TableBody>
+                              {telhasFixos.tipos.map(tipo => {
+                                const row = telhasFixos.map[tipo]
+                                return (
+                                  <TableRow key={tipo}>
+                                    <TableCell>{tipo}</TableCell>
+                                    <TableCell className="text-right">
+                                      {row.pix !== undefined ? fmtBRL(row.pix) : "-"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {row["10×"] !== undefined ? fmtBRL(row["10×"]!) : "-"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      {row["18×"] !== undefined ? fmtBRL(row["18×"]!) : "-"}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
 
                 <DialogFooter className="pt-6">
@@ -472,8 +539,7 @@ export default function HomePage() {
                     <Button variant="outline">Fechar</Button>
                   </DialogClose>
                   <Button asChild>
-                    <Link href={`/editar-orcamento/${orcamentoSel.id}`}
-                      onClick={() => setOrcamentoSel(null)}>
+                    <Link href={`/editar-orcamento/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
                       Editar
                     </Link>
                   </Button>

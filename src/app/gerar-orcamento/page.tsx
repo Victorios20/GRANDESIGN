@@ -674,7 +674,7 @@ export default function GerarOrcamentoPage() {
         { label: "Gerar Orçamento", href: "/gerar-orcamento" },
       ]}
     >
-      <Toaster position="bottom-right" richColors />
+      <Toaster position="bottom-right" richColors closeButton/>
 
       {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
