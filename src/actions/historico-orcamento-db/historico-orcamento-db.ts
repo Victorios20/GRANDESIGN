@@ -164,6 +164,7 @@ export type OrcamentoDetalhe = {
     metodo: string
     valor: number
   }[]
+  link_slide?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -199,6 +200,7 @@ export async function buscarOrcamentos(
   dataFim: string | undefined,
   page: number,
   perPage: number,
+  ordenarData: 'asc' | 'desc',
 ) {
   let query = supabase
     .from("orcamento_completo_view")
@@ -221,6 +223,9 @@ export async function buscarOrcamentos(
   }
   if (dataIni) query = query.gte("data_criacao", dataIni)
   if (dataFim) query = query.lte("data_criacao", dataFim)
+
+      // Aqui estamos aplicando a ordenação por data, com base no parâmetro 'ordenarData'
+  query = query.order("data_criacao", { ascending: ordenarData === 'asc' })
 
   const { data, count, error } = await query.range(
     (page - 1) * perPage,
@@ -365,12 +370,14 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
       total: m.total == null ? null : Number(m.total),
     })),
 
-
     pagamentos: (pags ?? []).map((p: PagRow) => ({
       tipoTelhas: p.tipo_telhas,
       metodo: p.metodo_pagamento,
       valor: Number(p.valor),
     })),
 
+    // ✅ ADICIONE ESTA LINHA:
+    link_slide: cabec.link_slide ?? null,
   }
+
 }

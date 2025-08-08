@@ -58,6 +58,10 @@ export default function HomePage() {
   const [loadingTabela, setLoadingTabela] = useState(true)
   const [total, setTotal] = useState(0)
 
+  const [ordenarData, setOrdenarData] = useState<'asc' | 'desc'>('desc') // Estado para ordenação por data
+
+
+
   /* paginação */
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(10) // 5 | 10 | 20
@@ -75,17 +79,20 @@ export default function HomePage() {
   useEffect(() => {
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, bairro, dataIni, dataFim, page, perPage])
+  }, [nome, bairro, dataIni, dataFim, page, perPage, ordenarData]) // Passando o estado ordenarData ao consultar
 
   async function consultar() {
     setLoadingTabela(true)
     const dIniISO = dataIni?.toISOString().slice(0, 10)
     const dFimISO = dataFim?.toISOString().slice(0, 10)
-    const { dados, total } = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO, page, perPage)
+
+    // Passando o parâmetro 'ordenarData' para a função de busca
+    const { dados, total } = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO, page, perPage, ordenarData)
     setOrcamentos(dados)
     setTotal(total)
     setLoadingTabela(false)
   }
+
 
   function limparFiltros() {
     setNome("")
@@ -108,6 +115,12 @@ export default function HomePage() {
       setLoadingModal(false)
     }
   }
+
+  const handleOrdenarData = () => {
+    setOrdenarData((prev) => (prev === 'asc' ? 'desc' : 'asc')); // Alterna entre 'asc' e 'desc'
+  };
+
+
 
 
 
@@ -251,9 +264,29 @@ export default function HomePage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Ordenação por Data */}
+              <div className="flex flex-col gap-1">
+  <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
+  <Select
+    value={ordenarData}
+    onValueChange={(value) => setOrdenarData(value as 'asc' | 'desc')}
+  >
+    <SelectTrigger className="w-full max-w-[160px]"> {/* Aqui aplicamos o className */}
+      <SelectValue placeholder="Data" />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="asc">Mais Antigo</SelectItem>
+      <SelectItem value="desc">Mais Recente</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
+
             </div>
           </CardContent>
         </Card>
+
+
 
         {/* TABELA */}
         <Card className="mt-8">
