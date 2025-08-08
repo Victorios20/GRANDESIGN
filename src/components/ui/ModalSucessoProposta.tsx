@@ -1,5 +1,3 @@
-"use client"
-
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -16,12 +14,14 @@ interface ModalSucessoPropostaProps {
     open: boolean
     onClose: () => void
     slideUrl?: string
+    clearAll: () => void  // Função para limpar todos os dados
 }
 
 export default function ModalSucessoProposta({
     open,
     onClose,
     slideUrl,
+    clearAll,
 }: ModalSucessoPropostaProps) {
     const router = useRouter()
 
@@ -36,9 +36,8 @@ export default function ModalSucessoProposta({
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent
                 className="rounded-2xl p-6"
-                style={{ width: "100%", maxWidth: "500px" }}
+                style={{ width: "100%", maxWidth: "600px" }}
             >
-
                 <div className="flex justify-center">
                     <div className="rounded-full border-[6px] border-green-500 p-4">
                         <Check className="h-12 w-12 text-green-500" strokeWidth={2.5} />
@@ -56,8 +55,7 @@ export default function ModalSucessoProposta({
                 </p>
 
                 <DialogFooter className="mt-8 px-2">
-                    <div className="flex justify-between w-full">
-                        
+                    <div className="flex justify-between w-full gap-4">
                         <Button
                             onClick={() => router.push("/")}
                             className="px-6 bg-marromEscuro text-white hover:bg-marromEscuro/90"
@@ -74,9 +72,19 @@ export default function ModalSucessoProposta({
                                 Slide da proposta
                             </Button>
                         )}
+
+                        {/* Novo Orçamento Button */}
+                        <Button
+                            onClick={() => {
+                                clearAll()
+                                onClose() // Fecha o modal após resetar os dados
+                            }}
+                            className="px-6 bg-marromEscuro text-white"
+                        >
+                            Novo Orçamento
+                        </Button>
                     </div>
                 </DialogFooter>
-
             </DialogContent>
         </Dialog>
     )

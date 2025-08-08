@@ -279,33 +279,39 @@ export default function GerarOrcamentoPage() {
 
   /** Zera absolutamente tudo (Etapas 1-3) */
   const clearAll = () => {
-    // Etapa 1 – dados pessoais
+    // Resetando dados pessoais
     setForm({ nome: "", telefone: "", cidade: "", bairro: "" });
 
-    // Etapa 2 – parâmetros + materiais
-    setTipoObra(null);
+    // Resetando tipo de obra e dimensões
+    setTipoObra(null);  // Resetando o seletor de tipo de obra
     setDim({
-      largura: 1,
-      comprimento: 1,
-      larguraMaior: 0,
-      larguraMenor: 0,
-      comprimentoMaior: 0,
-      comprimentoMenor: 0,
-    })
-
-    setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
-
-    // Etapa 3 – totais + telhas
-    setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
-    setTelhaValores({
-      Romana: { pix: 0, x10: 0, x18: 0 },
-      Colonial: { pix: 0, x10: 0, x18: 0 },
-      Americana: { pix: 0, x10: 0, x18: 0 },
+        largura: 1,
+        comprimento: 1,
+        larguraMaior: 0,
+        larguraMenor: 0,
+        comprimentoMaior: 0,
+        comprimentoMenor: 0,
     });
 
-    // limpa rascunho local
+    // Resetando materiais
+    setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
+
+    // Resetando totais + valores de telha
+    setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
+    setTelhaValores({
+        Romana: { pix: 0, x10: 0, x18: 0 },
+        Colonial: { pix: 0, x10: 0, x18: 0 },
+        Americana: { pix: 0, x10: 0, x18: 0 },
+    });
+
+    // Resetando o título e título temporário
+    setTitulo("");
+    setTituloTemporario("");
+
+    // Limpa rascunho local
     localStorage.removeItem(STORAGE_KEY);
-  };
+};
+
 
   const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
   const clearEtapa2 = () => {
@@ -674,7 +680,7 @@ export default function GerarOrcamentoPage() {
         { label: "Gerar Orçamento", href: "/gerar-orcamento" },
       ]}
     >
-      <Toaster position="bottom-right" richColors closeButton/>
+      <Toaster position="bottom-right" richColors closeButton />
 
       {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
@@ -1404,6 +1410,7 @@ export default function GerarOrcamentoPage() {
         open={modalSucessoAberto}
         onClose={() => setModalSucessoAberto(false)}
         slideUrl={slideUrlProposta}
+        clearAll={clearAll}  // Passando a função clearAll para o modal
       />
 
 

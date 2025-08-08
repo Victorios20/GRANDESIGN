@@ -265,22 +265,24 @@ export default function HomePage() {
                 </Select>
               </div>
 
+
               {/* Ordenação por Data */}
               <div className="flex flex-col gap-1">
-  <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
-  <Select
-    value={ordenarData}
-    onValueChange={(value) => setOrdenarData(value as 'asc' | 'desc')}
-  >
-    <SelectTrigger className="w-full max-w-[160px]"> {/* Aqui aplicamos o className */}
-      <SelectValue placeholder="Data" />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="asc">Mais Antigo</SelectItem>
-      <SelectItem value="desc">Mais Recente</SelectItem>
-    </SelectContent>
-  </Select>
-</div>
+                <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
+                <Select
+                  value={ordenarData}
+                  onValueChange={handleOrdenarData}
+                >
+                  <SelectTrigger className="w-full max-w-[160px]">
+                    <SelectValue placeholder="Data" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Mais Antigo</SelectItem>
+                    <SelectItem value="desc">Mais Recente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
 
             </div>
           </CardContent>
