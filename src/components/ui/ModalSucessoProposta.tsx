@@ -63,15 +63,19 @@ export default function ModalSucessoProposta({
                             Ir para a Home
                         </Button>
 
-                        {slideUrl && (
-                            <Button
-                                onClick={() => window.open(slideUrl, "_blank")}
-                                variant="outline"
-                                className="px-6"
-                            >
-                                Slide da proposta
-                            </Button>
-                        )}
+                        <Button
+                            variant="outline"
+                            className="px-6"
+                            disabled={!slideUrl}
+                            title={!slideUrl ? "Sem slide disponível" : ""}
+                            onClick={() => {
+                                if (!slideUrl) return
+                                window.open(slideUrl, "_blank", "noopener,noreferrer")
+                            }}
+                        >
+                            Slide da proposta
+                        </Button>
+
 
                         {/* Novo Orçamento Button */}
                         <Button
