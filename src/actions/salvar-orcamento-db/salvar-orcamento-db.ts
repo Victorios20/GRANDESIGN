@@ -44,11 +44,14 @@ export async function salvarOrcamento(params: {
   titulo: string
 }) {
   const { cliente, parametros, materiais, totais, telhaValores, links, titulo } = params
+
+
+  const tituloLimpo = titulo.trim()
   // 1. Verifica se título já existe
 const { data: existentes, error: erroBusca } = await supabase
-  .from("orcamento")
-  .select("id")
-  .eq("titulo", titulo)
+    .from("orcamento")
+    .select("id")
+    .eq("titulo", tituloLimpo)
 
 if (erroBusca) throw new Error("Erro ao verificar título existente.")
 if (existentes && existentes.length > 0) throw new Error("Já existe um orçamento com esse título.")
@@ -91,7 +94,7 @@ if (existentes && existentes.length > 0) throw new Error("Já existe um orçamen
       comprimento: parametros.comprimento,
       link_slide: links.slideUrl,
       link_pdf: links.pdfUrl,
-      titulo,
+      titulo: tituloLimpo,
     })
     .select("id")
     .single()
@@ -182,6 +185,8 @@ parametros: {
 }) {
   const { cliente, parametros, materiais, totais, telhaValores, titulo } = params
 
+  const tituloLimpo = titulo.trim()
+
   /* ---------- chaves estrangeiras obrigatórias ---------- */
   let cidadeId: number | null = null
 if (cliente.cidade) {
@@ -236,7 +241,7 @@ if (parametros.tipoObra) {
       totais_frete_preco: totais.frete,
       link_slide: null,      // rascunho não tem links
       link_pdf: null,
-      titulo,
+      titulo: tituloLimpo,
     })
     .select("id")
     .single()

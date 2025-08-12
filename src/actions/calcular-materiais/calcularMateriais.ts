@@ -1,7 +1,7 @@
 /* ----------------------------------------------
-   GRANDESIGN – calcularMateriais.ts (atualizado)
+   GRANDESIGN – calcularMateriais.ts (refatorado)
    ---------------------------------------------- */
-import { getMateriaisByDescricoes, type MaterialRow } from "./calcularMateriais-db"
+import { getMateriaisByDescricoes, getReceitasFixas, getMateriaisByIds, type MaterialRow } from "./calcularMateriais-db"
 
 export interface MaterialCalculado {
   descricao: string
@@ -51,24 +51,22 @@ export async function calcularMateriais(
     madeiraRaw.push({
       descricao,
       componente,
-      quantidade: ROUND_INT(qtd),
+      quantidade: qtd,
       tamanho: toStr(tam),
     })
   }
 
   const addMaterial = (descricao: string, qtd: number) => {
     if (qtd <= 0) return
-    materiaisRaw.push({ descricao, componente: "", quantidade: ROUND_INT(qtd) })
+    materiaisRaw.push({ descricao, componente: "", quantidade: qtd })
   }
 
-  let qtdColunasAtual = 0
-
+  /* ------------------ Lógica principal ------------------ */
   switch (true) {
     case /^Coluna /.test(tipoObra): {
       add(`Linha ${espessura}`, "Colunas Traseiras", 4, 4.5)
       const qtdFrontais = comprimento >= 6 ? 8 : 4
       add(`Linha ${espessura}`, "Colunas Frontais", qtdFrontais, 3.5)
-      qtdColunasAtual = qtdFrontais + 4
       break
     }
 
@@ -82,7 +80,6 @@ export async function calcularMateriais(
       add("Linha 10cm", "Linha na Parede", 1, largArred)
       const qtdCol = comprimento >= 6 ? 8 : 4
       add(`Linha ${espessura}`, "Coluna", qtdCol, 3.5)
-      qtdColunasAtual = qtdCol
       break
     }
 
@@ -108,7 +105,6 @@ export async function calcularMateriais(
       add(madeiraVar, "Colunas Traseiras", 4, 4.5)
       const qtdFrontais = comprimento > 6 ? 8 : 4
       add(madeiraVar, "Colunas Frontais", qtdFrontais, 3.5)
-      qtdColunasAtual = qtdFrontais + 4
       add(madeiraVar, "Travessa", 2, largArred)
       add(madeiraVar, "Pérgola", ROUND_INT(comprimento / 0.35) + 1, compArred)
       add("Caibro", "Caibros", 2, largArred)
@@ -119,22 +115,42 @@ export async function calcularMateriais(
       throw new Error(`Tipo de obra não reconhecido: ${tipoObra}`)
   }
 
+  /* ------------------ Madeira comum ------------------ */
   if (!/^Pergolado|^Caramanchão/.test(tipoObra)) {
-    add(`Linha ${espessura}`, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
-    add("Caibro", "Caibros", ROUND_INT(comprimento / 0.32) + 1, largArred)
     const qtdPranchao = comprimento >= 6 ? 3 : 2
     add("Linha 30cm", "Pranchão", qtdPranchao, largArred)
-    add(`Beiral Trab. ${espessura}`, "Beiral Trab.", 1, largArred)
+
+    let tipoTerca: string
+    if (qtdPranchao === 2 && comprimento <= 4) {
+      tipoTerca = "Linha 11,5cm"
+    } else if (qtdPranchao === 2 && comprimento > 4 && comprimento <= 6) {
+      tipoTerca = "Linha 15cm"
+    } else if (qtdPranchao === 3 && comprimento > 6) {
+      tipoTerca = "Linha 11,5cm"
+    } else {
+      tipoTerca = `Linha ${espessura}`
+    }
+
+    add(tipoTerca, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
+    add("Caibro", "Caibros", ROUND_INT(comprimento / 0.32) + 1, largArred)
+    add("Beiral Trab. 15cm", "Beiral", 1, largArred)
   }
 
-  addMaterial("Rufo", 1)
+  /* ------------------ Cálculo automático de colunas ------------------ */
+  const componentesColuna = ["Colunas Traseiras", "Colunas Frontais", "Coluna"]
+  const totalLinhasColuna = madeiraRaw
+    .filter(m => componentesColuna.includes(m.componente))
+    .reduce((s, x) => s + x.quantidade, 0)
 
-  if (qtdColunasAtual) {
-    addMaterial("Parafusos Franceses", qtdColunasAtual * 3 + 3)
-    addMaterial("Cimento, Areia e Brita", qtdColunasAtual / 2)
+  const qtdColunasLinhas = totalLinhasColuna / 2
+
+  if (qtdColunasLinhas > 0) {
+    addMaterial("Parafusos Franceses", qtdColunasLinhas * 3 + 3)
+    addMaterial("Cimento, Areia e Brita", qtdColunasLinhas / 2)
     addMaterial("Impermeabilizante", 1)
   }
 
+  /* ------------------ Parafuso sextavado ------------------ */
   const qtdPontal = madeiraRaw.filter(m => m.componente === "Pontalete").reduce((s, x) => s + x.quantidade, 0)
   const temLinhaParede = madeiraRaw.some(m => m.componente === "Linha na Parede")
 
@@ -143,11 +159,13 @@ export async function calcularMateriais(
   if (temLinhaParede) qtdSextavado += ROUND_INT(largura)
   if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
 
+  /* ------------------ Telhas ------------------ */
   if (!/^Pergolado|^Caramanchão/.test(tipoObra)) {
     const formulas = {
-      Romana:    { factor: 17, offset: 40 },
-      Americana: { factor: 12, offset: 40 },
-      Colonial:  { factor: 33, offset: 50 },
+      Romana:    { factor: 17, offset: 10 },
+      Americana: { factor: 12, offset: 10 },
+      Colonial:  { factor: 33, offset: 10 },
+      Maxxi:     { factor: 8, offset: 10 },
     } as const
 
     (Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
@@ -157,6 +175,32 @@ export async function calcularMateriais(
     })
   }
 
+ /* ------------------ Receitas fixas ------------------ */
+try {
+  const receitasFixas = await getReceitasFixas(tipoObra)
+  const ids = receitasFixas.map(r => r.material_id)
+  const materiaisFixos = await getMateriaisByIds(ids)
+
+  receitasFixas.forEach(({ material_id, quantidade }) => {
+    const material = materiaisFixos.find(m => m.id === material_id)
+    if (material) {
+      // evita duplicar se já existe em materiaisRaw
+      const jaExiste = materiaisRaw.some(m => m.descricao === material.descricao)
+      if (!jaExiste) {
+        materiaisRaw.push({
+          descricao: material.descricao,
+          componente: "",
+          quantidade: quantidade,
+        })
+      }
+    }
+  })
+} catch (err) {
+  console.error("Erro ao carregar receitas fixas:", err)
+}
+
+
+  /* ------------------ Agrupar e ordenar ------------------ */
   const agrupar = <T extends BaseRow>(rows: T[]): T[] => {
     const map = new Map<string, T>()
     rows.forEach(r => {
@@ -172,22 +216,25 @@ export async function calcularMateriais(
   }
 
   const ordemMadeira = [
-    "Colunas Traseiras", "Colunas Frontais", "Coluna",
-    "Linha na Parede", "Pranchão", "Pontalete",
+    "Linha na Parede", "Colunas Traseiras", "Colunas Frontais",
+    "Coluna","Pranchão", "Pontalete",
     "Travessa", "Pérgola", "Terças",
-    "Caibros", "Beiral Trab."
-  ]
+    "Caibros", "Beiral"
+  ] as const
+
+  type ComponenteOrdem = typeof ordemMadeira[number]
 
   const ordenarMadeiras = (a: MadeiraRow, b: MadeiraRow) => {
-    const iA = ordemMadeira.indexOf(a.componente)
-    const iB = ordemMadeira.indexOf(b.componente)
-    return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB)
+    const iA = ordemMadeira.indexOf(a.componente as ComponenteOrdem)
+    const iB = ordemMadeira.indexOf(b.componente as ComponenteOrdem)
+    return (iA === -1 ? 999 : iB) - (iB === -1 ? 999 : iB)
   }
 
   const madeiraAgrup   = agrupar(madeiraRaw).sort(ordenarMadeiras) as MadeiraRow[]
   const materiaisAgrup = agrupar(materiaisRaw)
   const telhasAgrup    = agrupar(telhasRaw)
 
+  /* ------------------ Buscar preços ------------------ */
   const descricoesBusca = [...madeiraAgrup, ...materiaisAgrup, ...telhasAgrup]
     .map(r => r.descricao)
     .filter((v, i, a) => a.indexOf(v) === i)
@@ -209,7 +256,7 @@ export async function calcularMateriais(
     componente: r.componente,
     quantidade: r.quantidade,
     preco_unitario: r.descricao === "Impermeabilizante"
-      ? (mapaPrecos.get(r.descricao) ?? 0) * qtdColunasAtual
+      ? (mapaPrecos.get(r.descricao) ?? 0) * qtdColunasLinhas
       : mapaPrecos.get(r.descricao) ?? 0,
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })

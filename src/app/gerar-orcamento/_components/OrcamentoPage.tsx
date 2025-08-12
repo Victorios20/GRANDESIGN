@@ -144,7 +144,7 @@ const calcTelhaValores = (
         tamanho?: string | number
     }[],
     totalGeral: number,
-): Record<"Romana" | "Colonial" | "Americana", Pagto> => {
+): Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto> => {
     const somaTipo = (slug: string) =>
         telhasArr
             .filter(t => t.nome.toLowerCase().includes(slug))
@@ -153,6 +153,7 @@ const calcTelhaValores = (
     const make = (extra: number) => {
         const base = totalGeral + extra
         const pix = roundUp100(base)
+
         return {
             pix,
             x10: roundUpReal((pix * FATOR_10X) / 10),
@@ -164,6 +165,7 @@ const calcTelhaValores = (
         Romana: make(somaTipo("romana")),
         Colonial: make(somaTipo("colonial")),
         Americana: make(somaTipo("americana")),
+        Maxxi: make(somaTipo("maxxi")), // ✅ novo tipo incluído aqui
     }
 }
 
@@ -239,7 +241,8 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     const [tituloSnap, setTituloSnap] = useState("")        // título confirmado (normalizado) no momento da confirmação
     const [autoTituloSnap, setAutoTituloSnap] = useState("") // autoTítulo confirmado (normalizado) no momento da confirmação
 
-    const normalize = (s: string) => s.trim().replace(/\s+/g, "_").toLowerCase()
+    const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase()
+
 
 
     // habilitação do botão "Gerar agora" (Etapa 4)
@@ -292,11 +295,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
     const gerarTituloAutomatico = () => {
         const sanitize = (text: string) =>
-            text.trim().toLowerCase().replace(/\s+/g, "_").replace(/,/g, "")
+            text.trim().toLowerCase().replace(/\s+/g, " ").replace(/,/g, "")
 
         if (!form.nome && !form.bairro && !tipoObra) return ""
-        return `${sanitize(form.nome)}_${sanitize(form.bairro)}_${sanitize(tipoObra ?? "")}`
+        return `${sanitize(form.nome)} ${sanitize(form.bairro)} ${sanitize(tipoObra ?? "")}`.trim()
     }
+
 
     const clearAll = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
@@ -315,7 +319,8 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             Romana: { pix: 0, x10: 0, x18: 0 },
             Colonial: { pix: 0, x10: 0, x18: 0 },
             Americana: { pix: 0, x10: 0, x18: 0 },
-        })
+            Maxxi: { pix: 0, x10: 0, x18: 0 },
+        });
         setTitulo("")
         setTituloTemporario("")
         // —— resets novos ——
@@ -512,12 +517,11 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
     const [editingTot, setEditingTot] = useState<keyof typeof totEdit | null>(null)
 
-    const [telhaValores, setTelhaValores] = useState<
-        Record<"Romana" | "Colonial" | "Americana", Pagto>
-    >({
+    const [telhaValores, setTelhaValores] = useState<Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto>>({
         Romana: { pix: 0, x10: 0, x18: 0 },
         Colonial: { pix: 0, x10: 0, x18: 0 },
         Americana: { pix: 0, x10: 0, x18: 0 },
+        Maxxi: { pix: 0, x10: 0, x18: 0 },
     })
 
     useEffect(() => {
@@ -668,22 +672,22 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
 
     const onClickGerarAgora = () => {
-  if (!isStep4Enabled || loadingPDF) return
+        if (!isStep4Enabled || loadingPDF) return
 
-  const jaConfirmado =
-    tituloConfirmado &&
-    normalize(titulo) === tituloSnap &&
-    normalize(gerarTituloAutomatico()) === autoTituloSnap
+        const jaConfirmado =
+            tituloConfirmado &&
+            normalize(titulo) === tituloSnap &&
+            normalize(gerarTituloAutomatico()) === autoTituloSnap
 
-  if (jaConfirmado) {
-    void handleGerarProposta()
-    return
-  }
+        if (jaConfirmado) {
+            void handleGerarProposta()
+            return
+        }
 
-  setModalMode("gerar")
-  setTituloTemporario(titulo.trim() || gerarTituloAutomatico())
-  setShowModal(true)
-}
+        setModalMode("gerar")
+        setTituloTemporario(titulo.trim() || gerarTituloAutomatico())
+        setShowModal(true)
+    }
 
 
 
@@ -749,11 +753,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                         <Input
                             id="titulo"
                             type="text"
-                            placeholder="ex.: cobertura_madeira_123"
+                            placeholder="ex.: Cobertura madeira 123"
                             value={titulo}
-                            onChange={e => setTitulo(e.target.value.replace(/\s+/g, "_"))}
+                            onChange={e => setTitulo(e.target.value)}
                             className="h-8 w-56 sm:w-64"
                         />
+
                     </div>
 
                     <Progress value={progresso} className="mt-3" />
@@ -1304,12 +1309,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                         <div className="grid gap-2">
                             <Label className="text-sm">Link do Slide</Label>
                             <div className="flex gap-2">
-                                <Input
-                                    value={links.slide ?? ""}
-                                    disabled
-                                    readOnly
-                                    placeholder="Gere para exibir o link do slide"
-                                />
+
                                 <Button
                                     type="button"
                                     size="icon"
@@ -1321,6 +1321,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                 >
                                     <ArrowUpRight className="h-4 w-4" />
                                 </Button>
+
+                                <Input
+                                    value={links.slide ?? ""}
+                                    disabled
+                                    readOnly
+                                    placeholder="Gere para exibir o link do slide"
+                                />
                             </div>
                         </div>
 
@@ -1328,12 +1335,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                         <div className="grid gap-2">
                             <Label className="text-sm">Link do PDF</Label>
                             <div className="flex gap-2">
-                                <Input
-                                    value={links.pdf ?? ""}
-                                    disabled
-                                    readOnly
-                                    placeholder="Gere para exibir o link do PDF"
-                                />
+
                                 <Button
                                     type="button"
                                     size="icon"
@@ -1345,6 +1347,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                 >
                                     <ArrowUpRight className="h-4 w-4" />
                                 </Button>
+
+                                <Input
+                                    value={links.pdf ?? ""}
+                                    disabled
+                                    readOnly
+                                    placeholder="Gere para exibir o link do PDF"
+                                />
                             </div>
                         </div>
                     </div>
@@ -1385,8 +1394,9 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             <Label>Título</Label>
                             <Input
                                 value={tituloTemporario}
-                                onChange={e => setTituloTemporario(e.target.value.replace(/\s+/g, "_"))}
+                                onChange={e => setTituloTemporario(e.target.value)}
                             />
+
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4">
