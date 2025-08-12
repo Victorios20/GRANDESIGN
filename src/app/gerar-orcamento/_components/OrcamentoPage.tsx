@@ -428,6 +428,14 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         tamanho: "",
     })
 
+    // 🔧 reseta o <Select> de inclusão após cada escolha
+    const [addResetKey, setAddResetKey] = useState<Record<Categoria, number>>({
+        madeiras: 0,
+        materiaisGerais: 0,
+        telhas: 0,
+    });
+
+
     const startEdit = (c: Categoria, m: Material) => {
         setEdit({ cat: c, id: m.id })
         setEditData({
@@ -438,12 +446,22 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     }
 
     const saveEdit = () => {
-        if (!edit) return
+        if (!edit) return;
 
-        const tamanho = toNum(editData.tamanho)
-        const quantidade = toNum(editData.quantidade)
-        const preco = toNonNeg(editData.preco)
-        const frete = toNonNeg(editData.frete)
+        // 🔧 validações (obrigatórios)
+        if (!editData.nome?.trim()) {
+            toast.error("Preencha a descrição/madeira antes de salvar.");
+            return;
+        }
+        if (edit.cat === "madeiras" && !editData.componente?.trim()) {
+            toast.error("Preencha o Componente antes de salvar.");
+            return;
+        }
+
+        const tamanho = toNum(editData.tamanho);
+        const quantidade = toNum(editData.quantidade);
+        const preco = toNonNeg(editData.preco);
+        const frete = toNonNeg(editData.frete);
 
         setMateriais(prev => ({
             ...prev,
@@ -459,15 +477,16 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     }
                     : m,
             ),
-        }))
+        }));
 
         toast.success(
             `Edição na tabela ${{ madeiras: "Madeiras", materiaisGerais: "Materiais Gerais", telhas: "Telhas" }[edit.cat]
             } salva com sucesso!`,
-        )
+        );
 
-        setEdit(null)
-    }
+        setEdit(null);
+    };
+
 
     const removeItem = (c: Categoria, id: number) =>
         setMateriais(prev => ({ ...prev, [c]: prev[c].filter(m => m.id !== id) }))
@@ -821,18 +840,21 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             </Card>
 
             {/* ---------------------------------------------------------------
-       *                          ETAPA 2
-       * --------------------------------------------------------------- */}
+ *                          ETAPA 2
+ * --------------------------------------------------------------- */}
             <Card className="mt-4">
                 <CardHeader className="p-4">
                     <div className="flex justify-between items-start sm:items-center">
                         <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                                Etapa 2
-                            </Badge>
+                            <Badge variant="outline" className="text-xs">Etapa 2</Badge>
                             <CardTitle className="text-lg">Materiais</CardTitle>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={clearEtapa2} className="text-red-500 hover:text-red-700">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearEtapa2}
+                            className="text-red-500 hover:text-red-700"
+                        >
                             <Trash className="h-4 w-4 mr-1" /> Limpar
                         </Button>
                     </div>
@@ -869,9 +891,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                     <Label>{label} (m)</Label>
                                     <Input
                                         type="number"
+                                        min={0}                 // 🔧 não-negativo
                                         step={0.5}
                                         value={dim[k]}
-                                        onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 0 }))}
+                                        onChange={(e) => {
+                                            const v = Math.max(0, Number(e.target.value));
+                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }));
+                                        }}
                                         className="w-32"
                                     />
                                 </div>
@@ -882,9 +908,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                     <Label className="capitalize">{k} (m)</Label>
                                     <Input
                                         type="number"
+                                        min={0}                 // 🔧 não-negativo
                                         step={0.5}
                                         value={dim[k]}
-                                        onChange={e => setDim(p => ({ ...p, [k]: +e.target.value || 0 }))}
+                                        onChange={(e) => {
+                                            const v = Math.max(0, Number(e.target.value));
+                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }));
+                                        }}
                                         className="w-32"
                                     />
                                 </div>
@@ -915,8 +945,14 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             <div className="flex justify-between items-center px-3 py-2 bg-bege rounded-t-lg">
                                 <span className="font-medium text-sm">{titulo}</span>
 
-                                {/* seletor “+ Adicionar” */}
-                                <Select onValueChange={v => addMaterial(cat, v)}>
+                                {/* seletor “+ Adicionar” – reseta após cada inclusão */}
+                                <Select
+                                    key={addResetKey[cat]} // 🔧 força o reset do componente
+                                    onValueChange={(v) => {
+                                        addMaterial(cat, v);
+                                        setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 })); // 🔧 permite repetir o mesmo item
+                                    }}
+                                >
                                     <SelectTrigger className="w-52 h-8 text-xs bg-white">
                                         <SelectValue placeholder="+ Adicionar" />
                                     </SelectTrigger>
@@ -949,15 +985,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                     <TableHead className="w-28 text-right">Quantidade</TableHead>
                                                 </>
                                             )}
-
                                             <TableHead className="w-28 text-right">
                                                 {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
                                             </TableHead>
-
                                             {cat === "telhas" && (
                                                 <TableHead className="w-28 text-right">Frete</TableHead>
                                             )}
-
                                             <TableHead className="w-28 text-right">Total</TableHead>
                                             <TableHead className="w-20 text-center">Ações</TableHead>
                                         </TableRow>
@@ -965,14 +998,14 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
                                     <TableBody>
                                         {materiais[cat].map(m => {
-                                            const ed = edit?.cat === cat && edit.id === m.id
-                                            let total = 0
+                                            const ed = edit?.cat === cat && edit.id === m.id;
+                                            let total = 0;
                                             if (cat === "madeiras") {
-                                                total = toNum(m.tamanho) * m.quantidade * m.preco
+                                                total = (Number(m.tamanho) || 0) * (m.quantidade || 0) * (m.preco || 0);
                                             } else if (cat === "telhas") {
-                                                total = m.quantidade * m.preco + (m.frete ?? 0)
+                                                total = (m.quantidade || 0) * (m.preco || 0) + (m.frete ?? 0);
                                             } else {
-                                                total = m.quantidade * m.preco
+                                                total = (m.quantidade || 0) * (m.preco || 0);
                                             }
 
                                             return (
@@ -1008,12 +1041,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                     <Select
                                                                         value={editData.nome || ""}
                                                                         onValueChange={v => {
-                                                                            const ref = catalogo[cat].find(o => o.nome === v)
+                                                                            const ref = catalogo[cat].find(o => o.nome === v);
                                                                             setEditData(d => ({
                                                                                 ...d,
                                                                                 nome: v,
                                                                                 preco: ref ? ref.preco : d.preco,
-                                                                            }))
+                                                                            }));
                                                                         }}
                                                                     >
                                                                         <SelectTrigger className="h-8">
@@ -1037,9 +1070,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Input
                                                                         type="number"
+                                                                        min={0} // 🔧 não-negativo
                                                                         step={1}
                                                                         value={editData.quantidade}
-                                                                        onChange={e => setEditData(d => ({ ...d, quantidade: +e.target.value || 0 }))}
+                                                                        onChange={(e) => {
+                                                                            const v = Math.max(0, Number(e.target.value));
+                                                                            setEditData(d => ({ ...d, quantidade: Number.isFinite(v) ? v : 0 }));
+                                                                        }}
                                                                         className="h-8 text-right"
                                                                     />
                                                                 ) : (
@@ -1053,10 +1090,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                     <Input
                                                                         type="number"
                                                                         lang="pt-BR"
+                                                                        min={0}   // 🔧 não-negativo
                                                                         step={0.5}
                                                                         value={editData.tamanho ?? ""}
                                                                         onChange={e => setEditData(d => ({ ...d, tamanho: e.target.value }))}
-                                                                        onBlur={e => setEditData(d => ({ ...d, tamanho: e.target.value.replace(",", ".") }))}
+                                                                        onBlur={e => {
+                                                                            const raw = e.target.value.replace(",", ".");
+                                                                            const v = Math.max(0, parseFloat(raw) || 0);
+                                                                            setEditData(d => ({ ...d, tamanho: String(v) }));
+                                                                        }}
                                                                         className="h-8 text-right"
                                                                     />
                                                                 ) : typeof m.tamanho === "number" ? (
@@ -1074,9 +1116,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Input
                                                                         type="number"
+                                                                        min={0} // 🔧 não-negativo
                                                                         step={1}
                                                                         value={editData.quantidade}
-                                                                        onChange={e => setEditData(d => ({ ...d, quantidade: +e.target.value || 0 }))}
+                                                                        onChange={(e) => {
+                                                                            const v = Math.max(0, Number(e.target.value));
+                                                                            setEditData(d => ({ ...d, quantidade: Number.isFinite(v) ? v : 0 }));
+                                                                        }}
                                                                         className="h-8 text-right"
                                                                     />
                                                                 ) : (
@@ -1091,9 +1137,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                         {ed ? (
                                                             <Input
                                                                 type="number"
+                                                                min={0} // 🔧 não-negativo
                                                                 step={0.01}
                                                                 value={editData.preco}
-                                                                onChange={e => setEditData(d => ({ ...d, preco: +e.target.value || 0 }))}
+                                                                onChange={(e) => {
+                                                                    const v = Math.max(0, Number(e.target.value));
+                                                                    setEditData(d => ({ ...d, preco: Number.isFinite(v) ? v : 0 }));
+                                                                }}
                                                                 className="h-8 text-right"
                                                             />
                                                         ) : (
@@ -1107,9 +1157,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                             {ed ? (
                                                                 <Input
                                                                     type="number"
+                                                                    min={0} // 🔧 não-negativo
                                                                     step={0.01}
                                                                     value={editData.frete ?? 0}
-                                                                    onChange={e => setEditData(d => ({ ...d, frete: +e.target.value || 0 }))}
+                                                                    onChange={(e) => {
+                                                                        const v = Math.max(0, Number(e.target.value));
+                                                                        setEditData(d => ({ ...d, frete: Number.isFinite(v) ? v : 0 }));
+                                                                    }}
                                                                     className="h-8 text-right"
                                                                 />
                                                             ) : (
@@ -1139,7 +1193,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                         )}
                                                     </TableCell>
                                                 </TableRow>
-                                            )
+                                            );
                                         })}
                                     </TableBody>
                                 </Table>
@@ -1148,6 +1202,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     ))}
                 </CardContent>
             </Card>
+
 
             {/* ---------------------------------------------------------------
        *                          ETAPA 3

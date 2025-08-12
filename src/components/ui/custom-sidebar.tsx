@@ -23,6 +23,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 
+const APP_VERSION = "1.0.1"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()
@@ -383,6 +384,7 @@ export function CustomSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2 hover:bg-transparent">
+        {/* Botão Sair (mantido) */}
         <SidebarMenu>
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -414,6 +416,13 @@ export function CustomSidebar() {
             </Tooltip>
           </TooltipProvider>
         </SidebarMenu>
+
+        {/* Versão (abaixo de tudo, centralizada) */}
+        <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
+          <span className="text-marromEscuro text-xs font-medium select-none">
+            Versão {APP_VERSION}
+          </span>
+        </div>
       </SidebarFooter>
     </motion.aside>
   )
