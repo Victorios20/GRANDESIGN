@@ -132,7 +132,7 @@ const calcTelhaValores = (
     tamanho?: string | number
   }[],
   totalGeral: number,
-): Record<"Romana" | "Colonial" | "Americana", Pagto> => {
+): Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto> => {
   const somaTipo = (slug: string) =>
     telhasArr
       .filter(t => t.nome.toLowerCase().includes(slug))
@@ -140,12 +140,12 @@ const calcTelhaValores = (
 
   const make = (extra: number) => {
     const base = totalGeral + extra
-    const pix = roundUp100(base)               // continua arredondando à centena
+    const pix = roundUp100(base)
 
     return {
-      pix,                                     // PIX permanece igual
-      x10: roundUpReal((pix * FATOR_10X) / 10), // 10× arredondado ao real
-      x18: roundUpReal((pix * FATOR_18X) / 18), // 18× idem
+      pix,
+      x10: roundUpReal((pix * FATOR_10X) / 10),
+      x18: roundUpReal((pix * FATOR_18X) / 18),
     }
   }
 
@@ -153,8 +153,10 @@ const calcTelhaValores = (
     Romana: make(somaTipo("romana")),
     Colonial: make(somaTipo("colonial")),
     Americana: make(somaTipo("americana")),
+    Maxxi: make(somaTipo("maxxi")), // ✅ novo tipo incluído aqui
   }
 }
+
 
 export default function GerarOrcamentoPage() {
   const router = useRouter()
@@ -173,7 +175,7 @@ export default function GerarOrcamentoPage() {
   const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
   const [cidades, setCidades] = useState<Cidade[]>([])
 
-  const [hideTotals, setHideTotals] = useState(false)
+  const [hideTotals, setHideTotals] = useState(true)
   const [loadingPDF, setLoadingPDF] = useState(false)
   const [loadingSave, setLoadingSave] = useState(false)   // spinner “Salvar”
 
@@ -279,39 +281,34 @@ export default function GerarOrcamentoPage() {
 
   /** Zera absolutamente tudo (Etapas 1-3) */
   const clearAll = () => {
-    // Resetando dados pessoais
+    // Etapa 1 – dados pessoais
     setForm({ nome: "", telefone: "", cidade: "", bairro: "" });
 
-    // Resetando tipo de obra e dimensões
-    setTipoObra(null);  // Resetando o seletor de tipo de obra
+    // Etapa 2 – parâmetros + materiais
+    setTipoObra(null);
     setDim({
-        largura: 1,
-        comprimento: 1,
-        larguraMaior: 0,
-        larguraMenor: 0,
-        comprimentoMaior: 0,
-        comprimentoMenor: 0,
-    });
+      largura: 1,
+      comprimento: 1,
+      larguraMaior: 0,
+      larguraMenor: 0,
+      comprimentoMaior: 0,
+      comprimentoMenor: 0,
+    })
 
-    // Resetando materiais
     setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] });
 
-    // Resetando totais + valores de telha
+    // Etapa 3 – totais + telhas
     setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 });
     setTelhaValores({
-        Romana: { pix: 0, x10: 0, x18: 0 },
-        Colonial: { pix: 0, x10: 0, x18: 0 },
-        Americana: { pix: 0, x10: 0, x18: 0 },
+      Romana: { pix: 0, x10: 0, x18: 0 },
+      Colonial: { pix: 0, x10: 0, x18: 0 },
+      Americana: { pix: 0, x10: 0, x18: 0 },
+      Maxxi: { pix: 0, x10: 0, x18: 0 },
     });
 
-    // Resetando o título e título temporário
-    setTitulo("");
-    setTituloTemporario("");
-
-    // Limpa rascunho local
+    // limpa rascunho local
     localStorage.removeItem(STORAGE_KEY);
-};
-
+  };
 
   const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
   const clearEtapa2 = () => {
@@ -580,11 +577,13 @@ export default function GerarOrcamentoPage() {
   const [editingTot, setEditingTot] = useState<keyof typeof totEdit | null>(null)
 
   /* ---------- Telhas ---------- */
-  const [telhaValores, setTelhaValores] = useState<Record<"Romana" | "Colonial" | "Americana", Pagto>>({
-    Romana: { pix: 0, x10: 0, x18: 0 },
-    Colonial: { pix: 0, x10: 0, x18: 0 },
-    Americana: { pix: 0, x10: 0, x18: 0 },
-  })
+  const [telhaValores, setTelhaValores] = useState<Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto>>({
+  Romana: { pix: 0, x10: 0, x18: 0 },
+  Colonial: { pix: 0, x10: 0, x18: 0 },
+  Americana: { pix: 0, x10: 0, x18: 0 },
+  Maxxi: { pix: 0, x10: 0, x18: 0 },
+})
+
 
   /* Totais reativos */
   useEffect(() => {
@@ -680,7 +679,7 @@ export default function GerarOrcamentoPage() {
         { label: "Gerar Orçamento", href: "/gerar-orcamento" },
       ]}
     >
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster position="bottom-right" richColors />
 
       {/* Cabeçalho */}
       <Card className="mb-4 shadow-md rounded-2xl">
