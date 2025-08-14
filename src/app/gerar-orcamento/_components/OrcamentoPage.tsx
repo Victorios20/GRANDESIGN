@@ -219,6 +219,14 @@ const calcTelhaValores = (
 export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     const router = useRouter()
 
+
+    // ADICIONAR
+    const [cityResetKey, setCityResetKey] = useState(0)
+    // ADICIONAR
+const [obraResetKey, setObraResetKey] = useState(0)
+
+
+
     /* ---------------------- Flags/Loaders/Modal ---------------------- */
     const [loadingCalc, setLoadingCalc] = useState(false)
     const [loadingPDF, setLoadingPDF] = useState(false)
@@ -347,6 +355,8 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
     const clearAll = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
+        setCityResetKey(k => k + 1) 
+        setObraResetKey(k => k + 1)  
         setTipoObra(null)
         setDim({
             largura: 1,
@@ -375,6 +385,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
     const clearEtapa1 = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
+        setCityResetKey(k => k + 1) 
     }
 
 
@@ -384,6 +395,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
      * =================================================================== */
     const clearEtapa2 = () => {
         setTipoObra(null)
+        setObraResetKey(k => k + 1)  
         setDim({
             largura: 1,
             comprimento: 1,
@@ -838,6 +850,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     <div className="flex flex-col gap-1">
                         <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
                         <Select
+                            key={cityResetKey}
                             value={form.cidade || undefined}  // ← limpa a label quando ""
                             onValueChange={(v: string) => setForm(prev => ({ ...prev, cidade: v }))}
                         >
@@ -888,7 +901,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                         <div className="flex flex-col gap-1">
                             <Label htmlFor={FIELD_IDS.tipoObra}>Tipo de Obra</Label>
-                            <Select value={tipoObra ?? undefined} onValueChange={v => setTipoObra(v)}>
+                            <Select key={obraResetKey} value={tipoObra ?? undefined} onValueChange={v => setTipoObra(v)}>
                                 <SelectTrigger id={FIELD_IDS.tipoObra} className="w-56">
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
