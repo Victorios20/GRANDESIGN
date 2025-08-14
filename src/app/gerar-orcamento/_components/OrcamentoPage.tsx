@@ -1,8 +1,6 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-
-
 import { useState, useEffect, ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
@@ -67,11 +65,6 @@ import {
 } from "@/components/ui/table"
 import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
 
-import { toastByReason } from "@/lib/toast-catalog"
-import { guardStep4 } from "@/lib/guards"
-import type { ToastReason } from "@/lib/toast-catalog"
-
-
 /* ===================================================================
  *                                Tipos
  * =================================================================== */
@@ -105,42 +98,82 @@ type Dim = {
 type Pagto = { pix: number; x10: number; x18: number }
 
 type OrcamentoPageProps = {
-    /** reservado para o futuro (edit) — hoje mantemos create 1:1 */
     mode?: "create"
 }
 
 /* ===================================================================
- *                              Helpers
+ *                              Helpers (NOVOS)
  * =================================================================== */
 
+// IDs canônicos pros campos (pra scroll/focus rápido)
+const FIELD_IDS = {
+    nome: "inp-nome",
+    telefone: "inp-telefone",
+    cidade: "inp-cidade",
+    bairro: "inp-bairro",              // NOTE: bairro agora entra na validação pré-modal
+    tipoObra: "inp-tipo-obra",
+    madeiras: "tbl-madeiras",
+} as const
+type FieldKey = keyof typeof FIELD_IDS
 
-function getBlockReasonStep4(params: {
-    form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null }
-    tipoObra: string | null
-    materiais: { madeiras: any[]; materiaisGerais: any[]; telhas: any[] }
-    titulo?: string
-}): ToastReason | null {
-    const { form, tipoObra, materiais } = params
-    if (!tipoObra?.trim()) return "missing_city_or_tipoObra"
-    if (!form.nome?.trim() || !form.telefone?.trim() || !form.cidade?.trim()) return "missing_client_fields"
-    if (!materiais.madeiras?.length) return "materials_required"
-    return null
+const scrollToField = (id: string) => {
+    const el = document.getElementById(id)
+    if (!el) return
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+        ; (el as HTMLInputElement).focus?.()
+    // realce leve (opcional)
+    el.classList.add("ring", "ring-amber-400", "ring-offset-2")
+    setTimeout(() => el.classList.remove("ring", "ring-amber-400", "ring-offset-2"), 1600)
 }
+
+type ValidateResult = { ok: true } | { ok: false; missing: FieldKey; msg: string }
+
+// NOTE: Calcular só exige tipoObra (sua regra)
+const validateCalcular = (
+    _form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
+    tipoObra: string | null
+): ValidateResult => {
+    if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra para calcular." }
+    return { ok: true }
+}
+
+// NOTE: Pré-modal de Gerar → exige dados pessoais + etapa 2; título NÃO é exigido aqui
+const validatePreGerar = (
+    form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
+    tipoObra: string | null,
+    materiais: { madeiras: any[] }
+): ValidateResult => {
+    if (!form.nome?.trim()) return { ok: false, missing: "nome", msg: "Preencha o nome do cliente." }
+    if (!form.telefone?.trim()) return { ok: false, missing: "telefone", msg: "Informe o telefone do cliente." }
+    if (!form.cidade?.trim()) return { ok: false, missing: "cidade", msg: "Selecione a cidade do cliente." }
+    if (!form.bairro?.trim()) return { ok: false, missing: "bairro", msg: "Informe o bairro do cliente." }
+    if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra." }
+    if (!materiais.madeiras?.length)
+        return { ok: false, missing: "madeiras", msg: "Adicione ao menos uma madeira." }
+    return { ok: true }
+}
+
+// Normalização de strings
+const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase()
+
+// Formatações
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+const formatBR = (v: number) => BRL.format(v)
 
 const formatPhone = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 11)
     if (d.length <= 2) return `(${d}`
     if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
-    if (d.length <= 10)
-        return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+    if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
     return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
 
-const formatBR = (v: number) =>
-    v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-
-const roundUpReal = (v: number) => Math.ceil(v)
-const roundUp100 = (v: number) => Math.ceil(v / 100) * 100
+const toPos = (s?: string | number): number => {
+    if (typeof s === "number") return Math.max(0, s)
+    if (s == null || s === "") return 0
+    const n = parseFloat(String(s).replace(",", "."))
+    return Number.isFinite(n) ? Math.max(0, n) : 0
+}
 
 // fatores de acréscimo do cartão
 const FATOR_10X = 1.1457 // 14,57 %
@@ -164,12 +197,11 @@ const calcTelhaValores = (
 
     const make = (extra: number) => {
         const base = totalGeral + extra
-        const pix = roundUp100(base)
-
+        const pix = Math.ceil(base / 100) * 100
         return {
             pix,
-            x10: roundUpReal((pix * FATOR_10X) / 10),
-            x18: roundUpReal((pix * FATOR_18X) / 18),
+            x10: Math.ceil((pix * FATOR_10X) / 10),
+            x18: Math.ceil((pix * FATOR_18X) / 18),
         }
     }
 
@@ -177,7 +209,7 @@ const calcTelhaValores = (
         Romana: make(somaTipo("romana")),
         Colonial: make(somaTipo("colonial")),
         Americana: make(somaTipo("americana")),
-        Maxxi: make(somaTipo("maxxi")), // ✅ novo tipo incluído aqui
+        Maxxi: make(somaTipo("maxxi")),
     }
 }
 
@@ -193,9 +225,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     const [loadingSave, setLoadingSave] = useState(false)
     const [hideTotals, setHideTotals] = useState(false)
     const [modalSucessoAberto, setModalSucessoAberto] = useState(false)
-    const [slideUrlProposta, setSlideUrlProposta] = useState<string | undefined>()
-
-
 
     /* --------------------------- Catálogos --------------------------- */
     const [catalogo, setCatalogo] = useState<{
@@ -217,9 +246,10 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     const [form, setForm] = useState({
         nome: "",
         telefone: "",
-        cidade: "",
+        cidade: "", // ← string
         bairro: "",
     })
+
 
     const [tipoObra, setTipoObra] = useState<string | null>(null)
 
@@ -245,24 +275,11 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         telhas: [],
     })
 
-
-
     // —— Etapa 4 / Geração —— //
     const [links, setLinks] = useState<{ slide?: string; pdf?: string }>({})
     const [tituloConfirmado, setTituloConfirmado] = useState(false)
-    const [tituloSnap, setTituloSnap] = useState("")        // título confirmado (normalizado) no momento da confirmação
+    const [tituloSnap, setTituloSnap] = useState("")         // título confirmado (normalizado) no momento da confirmação
     const [autoTituloSnap, setAutoTituloSnap] = useState("") // autoTítulo confirmado (normalizado) no momento da confirmação
-
-    const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase()
-
-
-
-    // habilitação do botão "Gerar agora" (Etapa 4)
-    const isStep4Enabled =
-        Boolean(tipoObra) &&
-        Object.values(form).every(v => v.trim() !== "") &&
-        materiais.madeiras.length > 0
-
 
     /* ----------------------------- Progresso ----------------------------- */
     const progEtapa1 = (Object.values(form).filter(v => v.trim()).length / 4) * 33
@@ -297,6 +314,19 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     /* ===================================================================
      *                         Handlers (Etapa 1)
      * =================================================================== */
+
+
+    const resetTotais = () => {
+        setTotEdit({
+            madeiras: 0,
+            materiais: 0,
+            frete: 0,
+            comissao: 0,
+            empresaPS: 0,
+            empresaGD: 0,
+        })
+    }
+
     const onFormChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target
         setForm(prev => ({
@@ -313,6 +343,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         return `${sanitize(form.nome)} ${sanitize(form.bairro)} ${sanitize(tipoObra ?? "")}`.trim()
     }
 
+    const STORAGE_KEY = "orcamento-draft"
 
     const clearAll = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
@@ -332,10 +363,9 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             Colonial: { pix: 0, x10: 0, x18: 0 },
             Americana: { pix: 0, x10: 0, x18: 0 },
             Maxxi: { pix: 0, x10: 0, x18: 0 },
-        });
+        })
         setTitulo("")
         setTituloTemporario("")
-        // —— resets novos ——
         setTituloConfirmado(false)
         setTituloSnap("")
         setAutoTituloSnap("")
@@ -343,8 +373,11 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         localStorage.removeItem(STORAGE_KEY)
     }
 
+    const clearEtapa1 = () => {
+        setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
+    }
 
-    const clearEtapa1 = () => setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
+
 
     /* ===================================================================
      *                         Cálculo (Etapa 2)
@@ -361,20 +394,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         })
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         resetTotais()
-    }
-
-    const toNum = (s?: string | number): number => {
-        if (typeof s === "number") return s >= 0 ? s : 0
-        if (s === "" || s === undefined || s === null) return 0
-        const n = parseFloat(String(s).replace(",", "."))
-        return isNaN(n) || n < 0 ? 0 : n
-    }
-
-    const toNonNeg = (s?: string | number): number => {
-        if (typeof s === "number") return s >= 0 ? s : 0
-        if (s === "" || s === undefined || s === null) return 0
-        const n = parseFloat(String(s).replace(",", "."))
-        return isNaN(n) || n < 0 ? 0 : n
     }
 
     const calcular = async (): Promise<void> => {
@@ -411,7 +430,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             const materiaisSubtotal = subtotalGeral(materGNew)
             const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
 
-
             setTotEdit({
                 madeiras: madeirasSubtotal,
                 materiais: materiaisSubtotal,
@@ -446,8 +464,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         madeiras: 0,
         materiaisGerais: 0,
         telhas: 0,
-    });
-
+    })
 
     const startEdit = (c: Categoria, m: Material) => {
         setEdit({ cat: c, id: m.id })
@@ -459,22 +476,22 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     }
 
     const saveEdit = () => {
-        if (!edit) return;
+        if (!edit) return
 
         // 🔧 validações (obrigatórios)
         if (!editData.nome?.trim()) {
-            toast.error("Preencha a descrição/madeira antes de salvar.");
-            return;
+            toast.error("Preencha a descrição/madeira antes de salvar.")
+            return
         }
         if (edit.cat === "madeiras" && !editData.componente?.trim()) {
-            toast.error("Preencha o Componente antes de salvar.");
-            return;
+            toast.error("Preencha o Componente antes de salvar.")
+            return
         }
 
-        const tamanho = toNum(editData.tamanho);
-        const quantidade = toNum(editData.quantidade);
-        const preco = toNonNeg(editData.preco);
-        const frete = toNonNeg(editData.frete);
+        const tamanho = toPos(editData.tamanho)
+        const quantidade = toPos(editData.quantidade)
+        const preco = toPos(editData.preco)
+        const frete = toPos(editData.frete)
 
         setMateriais(prev => ({
             ...prev,
@@ -490,16 +507,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     }
                     : m,
             ),
-        }));
+        }))
 
         toast.success(
             `Edição na tabela ${{ madeiras: "Madeiras", materiaisGerais: "Materiais Gerais", telhas: "Telhas" }[edit.cat]
             } salva com sucesso!`,
-        );
+        )
 
-        setEdit(null);
-    };
-
+        setEdit(null)
+    }
 
     const removeItem = (c: Categoria, id: number) =>
         setMateriais(prev => ({ ...prev, [c]: prev[c].filter(m => m.id !== id) }))
@@ -529,20 +545,18 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     /* ===================================================================
      *                         Totais (Etapa 3)
      * =================================================================== */
-    // onde declara os subtotais
     const subtotalMadeiras = (arr: Material[]) =>
-        arr.reduce((s, m) => s + toNum(m.tamanho) * toNonNeg(m.quantidade) * toNonNeg(m.preco), 0)
-
+        arr.reduce((s, m) => s + toPos(m.tamanho) * toPos(m.quantidade) * toPos(m.preco), 0)
 
     const subtotalGeral = (arr: Material[]) =>
-        arr.reduce((s, m) => s + m.quantidade * m.preco, 0)
+        arr.reduce((s, m) => s + toPos(m.quantidade) * toPos(m.preco), 0)
 
     const totMadeiras = subtotalMadeiras(materiais.madeiras)
     const totMateriais = subtotalGeral(materiais.materiaisGerais)
-    const totCalc = { madeiras: totMadeiras, materiais: totMateriais }
 
     const [totEdit, setTotEdit] = useState(() => ({
-        ...totCalc,
+        madeiras: totMadeiras,
+        materiais: totMateriais,
         comissao: 0,
         frete: 0,
         empresaPS: 0,
@@ -558,41 +572,13 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         Maxxi: { pix: 0, x10: 0, x18: 0 },
     })
 
-    useEffect(() => {
-        setTotEdit(p => ({
-            ...p,
-            madeiras: p.madeiras === totMadeiras ? totMadeiras : p.madeiras,
-            materiais: p.materiais === totMateriais ? totMateriais : p.materiais,
-        }))
-    }, [totMadeiras, totMateriais])
-
-    const resetTotais = () => {
-        try {
-            const madeirasSubtotal = subtotalMadeiras(materiais.madeiras)
-            const materiaisSubtotal = subtotalGeral(materiais.materiaisGerais)
-            const { maoDeObra, empresaGD } = tipoObra ? calcularTotais({ tipoObra }) : { maoDeObra: 0, empresaGD: 0 }
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
-            toast.success("Valores resetados com sucesso!")
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Erro ao resetar valores."
-            toast.error(msg)
-            console.error(err)
-        }
-    }
-
     const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
 
     useEffect(() => {
         setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
     }, [materiais.telhas, somaTotal])
 
+    // NOTE: manter UM único efeito para refletir subtotais em totEdit
     useEffect(() => {
         setTotEdit(p => ({
             ...p,
@@ -600,7 +586,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             materiais: totMateriais,
         }))
     }, [totMadeiras, totMateriais])
-
 
     // Se o usuário editar o TÍTULO depois de confirmar, volta a exigir confirmação
     useEffect(() => {
@@ -616,7 +601,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [form.nome, form.bairro, tipoObra, tituloConfirmado, autoTituloSnap])
 
-
     const displayLabel: Record<keyof typeof totEdit, string> = {
         madeiras: "Madeiras",
         materiais: "Materiais Gerais",
@@ -629,8 +613,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     /* ===================================================================
      *                        Draft (localStorage)
      * =================================================================== */
-    const STORAGE_KEY = "orcamento-draft"
-
     useEffect(() => {
         if (typeof window === "undefined") return
         const raw = localStorage.getItem(STORAGE_KEY)
@@ -657,95 +639,95 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     }, [form, tipoObra, dim, materiais, totEdit, telhaValores, titulo])
 
     /* ===================================================================
-     *                         Ações finais / Modal
+     *                         Handlers (FLUXO NOVO)
      * =================================================================== */
+    const handleCalcular = () => {
+        const res = validateCalcular(form, tipoObra)
+        if (!res.ok) {
+            toast.warning(res.msg)
+            scrollToField(FIELD_IDS[res.missing])
+            return
+        }
+        calcular()
+    }
 
     const handleGerarProposta = async () => {
-        if (loadingPDF) return; // bloqueio real durante loading
+        if (loadingPDF) return
 
-        // ⛔ Narrow em runtime: garante string (evita TS "string | null")
-        if (!tipoObra) {
-            toastByReason("missing_city_or_tipoObra");
-            return;
-        }
-
-        // validações (dados pessoais, tipo de obra, materiais, título)
-        const check = guardStep4({ form, tipoObra, materiais, titulo });
-        if (!check.ok) {
-            toastByReason(check.reason, { fields: (check as any).fields });
-            return;
-        }
-
-        setLoadingPDF(true);
+        // Já validado antes do modal; aqui apenas gerar
+        setLoadingPDF(true)
         try {
             const result = await gerarPDF({
                 cliente: form,
-                parametros: { tipoObra, ...dim }, // aqui tipoObra já é string (narrow feito acima)
+                parametros: { tipoObra: (tipoObra ?? "").trim(), ...dim },
                 materiais,
                 totais: totEdit,
                 telhaValores,
                 titulo,
-            });
+            })
 
-            // util para aceitar várias convenções de chave
+            // Aceita várias convenções de chave (array/obj, camel/snake)
             const pick = (obj: any, keys: string[]) => {
                 for (const k of keys) {
-                    const v = obj?.[k];
-                    if (typeof v === "string" && v.trim()) return v as string;
+                    const v = obj?.[k]
+                    if (typeof v === "string" && v.trim()) return v as string
                 }
-                return "";
-            };
+                return ""
+            }
 
-            // aceita retorno como array ou objeto; usa `any` local p/ evitar erro de TS no `.data`
-            const srcAny: any = Array.isArray(result) ? result?.[0] : result;
-
+            const srcAny: any = Array.isArray(result) ? result?.[0] : result
             const slide =
                 pick(srcAny, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"]) ||
-                pick(srcAny?.data, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"]);
-
+                pick(srcAny?.data, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"])
             const pdf =
                 pick(srcAny, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"]) ||
-                pick(srcAny?.data, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"]);
+                pick(srcAny?.data, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"])
 
-            setLinks({ slide: slide || undefined, pdf: pdf || undefined });
+            setLinks({ slide: slide || undefined, pdf: pdf || undefined })
 
             if (slide && pdf) {
-                toast.success("Proposta gerada! Links prontos abaixo.");
+                toast.success("Proposta gerada! Links prontos abaixo.")
             } else if (slide || pdf) {
-                const ok = slide ? "slide" : "PDF";
-                const missing = slide ? "PDF" : "slide";
+                const ok = slide ? "slide" : "PDF"
+                const missing = slide ? "PDF" : "slide"
                 toast.warning(`Proposta gerada parcialmente: ${ok} encontrado, ${missing} ausente.`, {
                     description: "Tente gerar novamente ou verifique sua conexão.",
-                });
+                })
             } else {
                 toast.warning("Proposta gerada, mas sem links detectados.", {
                     description: "Verifique o retorno do servidor e tente novamente.",
-                });
-                console.debug("[handleGerarProposta] retorno sem links reconhecidos:", result);
+                })
+                console.debug("[handleGerarProposta] retorno sem links reconhecidos:", result)
             }
         } catch (err: unknown) {
             if (err instanceof GerarPDFError) {
-                const code = err.status ? `(${err.status}) ` : "";
-                toast.error(`${code}${err.title}`, { description: (err as any).detail });
-                console.error((err as any).detail ?? err);
+                const code = err.status ? `(${err.status}) ` : ""
+                toast.error(`${code}${err.title}`, { description: (err as any).detail })
+                console.error((err as any).detail ?? err)
             } else if (err instanceof Error) {
-                toast.error(err.message);
-                console.error(err);
+                toast.error(err.message)
+                console.error(err)
             } else {
-                toast.error("Erro desconhecido.");
-                console.error(err);
+                toast.error("Erro desconhecido.")
+                console.error(err)
             }
         } finally {
-            setLoadingPDF(false);
+            setLoadingPDF(false)
         }
-    };
+    }
 
-
-
-
+    // Clique no botão "Gerar Proposta" → valida antes do modal
     const onClickGerarAgora = () => {
-        if (!isStep4Enabled || loadingPDF) return
+        if (loadingPDF) return
 
+        const res = validatePreGerar(form, tipoObra, materiais)
+        if (!res.ok) {
+            toast.warning(res.msg)
+            scrollToField(FIELD_IDS[res.missing])
+            return
+        }
+
+        // Se já confirmado e nada mudou, gera direto
         const jaConfirmado =
             tituloConfirmado &&
             normalize(titulo) === tituloSnap &&
@@ -761,22 +743,10 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
         setShowModal(true)
     }
 
-
-
     const abrirModalSalvar = () => {
         const inicial = titulo.trim() || gerarTituloAutomatico()
         setModalMode("salvar")
         setTituloTemporario(inicial)
-        setShowModal(true)
-    }
-
-    const abrirModalGerar = () => {
-        const preenchido = Object.values(form).every(v => v.trim() !== "")
-        const temMateriais = materiais.madeiras.length > 0
-        if (!preenchido || !tipoObra || !temMateriais) return
-
-        setModalMode("gerar")
-        setTituloTemporario(titulo || gerarTituloAutomatico())
         setShowModal(true)
     }
 
@@ -791,7 +761,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             ]}
         >
             <Toaster position="top-right" richColors closeButton />
-
 
             {/* ---------------------------------------------------------------
        *                          Cabeçalho
@@ -831,7 +800,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             onChange={e => setTitulo(e.target.value)}
                             className="h-8 w-56 sm:w-64"
                         />
-
                     </div>
 
                     <Progress value={progresso} className="mt-3" />
@@ -858,22 +826,22 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
                 <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
-                        <Label>Nome</Label>
-                        <Input name="nome" placeholder="Ex.: João Luiz" value={form.nome} onChange={onFormChange} />
+                        <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
+                        <Input id={FIELD_IDS.nome} name="nome" placeholder="Ex.: João Luiz" value={form.nome} onChange={onFormChange} />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <Label>Telefone</Label>
-                        <Input name="telefone" placeholder="Ex.: (85) 98765-4321" value={form.telefone} onChange={onFormChange} />
+                        <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
+                        <Input id={FIELD_IDS.telefone} name="telefone" placeholder="Ex.: (85) 98765-4321" value={form.telefone} onChange={onFormChange} />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <Label>Cidade</Label>
+                        <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
                         <Select
-                            value={form.cidade || undefined}
-                            onValueChange={v => setForm(prev => ({ ...prev, cidade: v }))}
+                            value={form.cidade || undefined}  // ← limpa a label quando ""
+                            onValueChange={(v: string) => setForm(prev => ({ ...prev, cidade: v }))}
                         >
-                            <SelectTrigger className="w-full">
+                            <SelectTrigger id={FIELD_IDS.cidade} className="w-full">
                                 <SelectValue placeholder="Selecione" />
                             </SelectTrigger>
                             <SelectContent>
@@ -884,18 +852,19 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                 ))}
                             </SelectContent>
                         </Select>
+
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <Label>Bairro</Label>
-                        <Input name="bairro" placeholder="Ex.: Meireles" value={form.bairro} onChange={onFormChange} />
+                        <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
+                        <Input id={FIELD_IDS.bairro} name="bairro" placeholder="Ex.: Meireles" value={form.bairro} onChange={onFormChange} />
                     </div>
                 </CardContent>
             </Card>
 
             {/* ---------------------------------------------------------------
- *                          ETAPA 2
- * --------------------------------------------------------------- */}
+       *                          ETAPA 2
+       * --------------------------------------------------------------- */}
             <Card className="mt-4">
                 <CardHeader className="p-4">
                     <div className="flex justify-between items-start sm:items-center">
@@ -918,9 +887,9 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                     {/* Filtros / parâmetros */}
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                         <div className="flex flex-col gap-1">
-                            <Label>Tipo de Obra</Label>
+                            <Label htmlFor={FIELD_IDS.tipoObra}>Tipo de Obra</Label>
                             <Select value={tipoObra ?? undefined} onValueChange={v => setTipoObra(v)}>
-                                <SelectTrigger className="w-56">
+                                <SelectTrigger id={FIELD_IDS.tipoObra} className="w-56">
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -945,12 +914,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                     <Label>{label} (m)</Label>
                                     <Input
                                         type="number"
-                                        min={0}                 // 🔧 não-negativo
+                                        min={0}
                                         step={0.5}
                                         value={dim[k]}
                                         onChange={(e) => {
-                                            const v = Math.max(0, Number(e.target.value));
-                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }));
+                                            const v = Math.max(0, Number(e.target.value))
+                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }))
                                         }}
                                         className="w-32"
                                     />
@@ -962,12 +931,12 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                     <Label className="capitalize">{k} (m)</Label>
                                     <Input
                                         type="number"
-                                        min={0}                 // 🔧 não-negativo
+                                        min={0}
                                         step={0.5}
                                         value={dim[k]}
                                         onChange={(e) => {
-                                            const v = Math.max(0, Number(e.target.value));
-                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }));
+                                            const v = Math.max(0, Number(e.target.value))
+                                            setDim(p => ({ ...p, [k]: Number.isFinite(v) ? v : 0 }))
                                         }}
                                         className="w-32"
                                     />
@@ -975,40 +944,21 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             ))
                         )}
 
-                        {(() => {
-                            const calcReason = !tipoObra ? ("missing_city_or_tipoObra" as const) : null
-                            const visuallyDisabled = Boolean(calcReason || loadingCalc)
-
-                            return (
-                                <Button
-                                    onClick={(e) => {
-                                        if (loadingCalc) return // bloqueio real
-                                        if (calcReason) {
-                                            e.preventDefault()
-                                            toastByReason(calcReason, { hint: "Selecione o tipo de obra para calcular." })
-                                            return
-                                        }
-                                        void calcular()
-                                    }}
-                                    // aparência de desabilitado sem bloquear o clique quando for validação
-                                    aria-disabled={visuallyDisabled}
-                                    data-disabled={visuallyDisabled ? "" : undefined}
-                                    className={`min-w-[132px] ${visuallyDisabled ? "opacity-50 cursor-not-allowed pointer-events-auto" : ""}`}
-                                    // usar disabled real apenas no loading
-                                    disabled={loadingCalc}
-                                >
-                                    {loadingCalc ? (
-                                        <>
-                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Calculator className="h-4 w-4 mr-1" /> Calcular
-                                        </>
-                                    )}
-                                </Button>
-                            )
-                        })()}
+                        <Button
+                            onClick={handleCalcular}
+                            disabled={loadingCalc}
+                            className="min-w-[132px]"
+                        >
+                            {loadingCalc ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
+                                </>
+                            ) : (
+                                <>
+                                    <Calculator className="h-4 w-4 mr-1" /> Calcular
+                                </>
+                            )}
+                        </Button>
                     </div>
 
                     {/* Tabelas por categoria */}
@@ -1017,17 +967,17 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                         ["materiaisGerais", "Materiais Gerais"],
                         ["telhas", "Telhas"],
                     ] as [Categoria, string][]).map(([cat, titulo]) => (
-                        <div key={cat} className="border rounded-lg shadow-sm">
+                        <div key={cat} className="border rounded-lg shadow-sm" id={cat === "madeiras" ? FIELD_IDS.madeiras : undefined}>
                             {/* Cabeçalho da tabela */}
                             <div className="flex justify-between items-center px-3 py-2 bg-bege rounded-t-lg">
                                 <span className="font-medium text-sm">{titulo}</span>
 
                                 {/* seletor “+ Adicionar” – reseta após cada inclusão */}
                                 <Select
-                                    key={addResetKey[cat]} // 🔧 força o reset do componente
+                                    key={addResetKey[cat]}
                                     onValueChange={(v) => {
-                                        addMaterial(cat, v);
-                                        setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 })); // 🔧 permite repetir o mesmo item
+                                        addMaterial(cat, v)
+                                        setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 }))
                                     }}
                                 >
                                     <SelectTrigger className="w-52 h-8 text-xs bg-white">
@@ -1044,7 +994,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                 </Select>
                             </div>
 
-                            {/* Corpo da tabela */}
                             {/* Corpo da tabela */}
                             <div className="overflow-x-auto">
                                 <Table className="min-w-[700px]">
@@ -1079,10 +1028,10 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                             const ed = edit?.cat === cat && edit.id === m.id
 
                                             // 👇 usa valores "em edição" quando estiver editando
-                                            const tam = toNum(ed ? editData.tamanho : m.tamanho)
-                                            const qtd = toNonNeg(ed ? editData.quantidade : m.quantidade)
-                                            const preco = toNonNeg(ed ? editData.preco : m.preco)
-                                            const frete = toNonNeg(ed ? (editData.frete ?? 0) : (m.frete ?? 0))
+                                            const tam = toPos(ed ? editData.tamanho : m.tamanho)
+                                            const qtd = toPos(ed ? editData.quantidade : m.quantidade)
+                                            const preco = toPos(ed ? editData.preco : m.preco)
+                                            const frete = toPos(ed ? (editData.frete ?? 0) : (m.frete ?? 0))
 
                                             const total =
                                                 cat === "madeiras"
@@ -1311,7 +1260,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                 </CardContent>
             </Card>
 
-
             {/* ---------------------------------------------------------------
        *                          ETAPA 3
        * --------------------------------------------------------------- */}
@@ -1431,8 +1379,8 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             </Card>
 
             {/* ---------------------------------------------------------------
- *                          ETAPA 4
- * --------------------------------------------------------------- */}
+       *                          ETAPA 4
+       * --------------------------------------------------------------- */}
             <Card className="mt-4">
                 <CardHeader className="p-4">
                     <div className="flex items-center gap-2">
@@ -1446,43 +1394,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
                 <CardContent className="p-4 space-y-5">
                     <div className="flex items-center gap-2">
-                        {(() => {
-                            const reason = getBlockReasonStep4({ form, tipoObra, materiais, titulo })
-                            const visuallyDisabled = Boolean(reason || loadingPDF)
-
-                            return (
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        className={`bg-bege text-marromEscuro hover:bg-marromEscuro/90 min-w-[140px] ${visuallyDisabled ? "opacity-50 cursor-not-allowed pointer-events-auto" : ""
-                                            }`}
-                                        onClick={(e) => {
-                                            if (loadingPDF) return // bloqueio real
-                                            if (reason) {
-                                                e.preventDefault()
-                                                toastByReason(reason, { hint: "Complete os campos para gerar a proposta." })
-                                                return
-                                            }
-                                            void handleGerarProposta() // segue fluxo normal
-                                        }}
-                                        // usar disabled real só quando for loading
-                                        disabled={loadingPDF}
-                                        aria-disabled={visuallyDisabled}
-                                        data-disabled={visuallyDisabled ? "" : undefined}
-                                    >
-                                        {loadingPDF ? "Gerando…" : "Gerar Proposta"}
-                                    </Button>
-
-                                </div>
-                            )
-                        })()}
-
-
-
-                        {!isStep4Enabled && (
-                            <span className="text-xs text-muted-foreground">
-                                Complete as etapas anteriores para habilitar.
-                            </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                className="bg-bege text-marromEscuro hover:bg-marromEscuro/90 min-w-[140px]"
+                                onClick={onClickGerarAgora}
+                                disabled={loadingPDF}
+                            >
+                                {loadingPDF ? "Gerando…" : "Gerar Proposta"}
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="grid gap-5">
@@ -1541,7 +1461,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                 </CardContent>
             </Card>
 
-
             {/* ---------------------------------------------------------------
        *                       Botões finais + Modal
        * --------------------------------------------------------------- */}
@@ -1562,10 +1481,10 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             "Salvar"
                         )}
                     </Button>
-
                 </div>
             </div>
 
+            {/* Modal de título / salvar / gerar */}
             {showModal && (
                 <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
                     <div className="bg-white p-6 rounded-xl shadow-lg w-full max-w-md space-y-4">
@@ -1577,7 +1496,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                 value={tituloTemporario}
                                 onChange={e => setTituloTemporario(e.target.value)}
                             />
-
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4">
@@ -1610,7 +1528,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                 titulo: tituloTemporario,
                                             })
                                             toast.success("Rascunho salvo com sucesso!")
-                                            setModalSucessoAberto(true) // <- abre o modal no salvar
+                                            setModalSucessoAberto(true)
                                         } catch (err: unknown) {
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar rascunho"
                                             toast.error(msg)
@@ -1627,7 +1545,6 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                         setAutoTituloSnap(normalize(gerarTituloAutomatico()))
                                         await handleGerarProposta()
                                     }
-
                                 }}
                                 disabled={!tituloTemporario.trim() || loadingSave || loadingPDF}
                             >
