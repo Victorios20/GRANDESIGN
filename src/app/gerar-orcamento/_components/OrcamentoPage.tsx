@@ -1,13 +1,7 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-/**
- * Componente de página – Modo CREATE
- * - Mantém 1:1 a lógica e o visual da tela atual de "Gerar Orçamento".
- * - Seções bem demarcadas (Helpers, Etapas, Totais, Modal).
- * - Sem alterações na camada de banco (usa as mesmas actions).
- * - Preparado para receber "mode" futuramente (create|edit), mas sem mudar nada por ora.
- */
+
 
 import { useState, useEffect, ChangeEvent } from "react"
 import { useRouter } from "next/navigation"
@@ -73,6 +67,11 @@ import {
 } from "@/components/ui/table"
 import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
 
+import { toastByReason } from "@/lib/toast-catalog"
+import { guardStep4 } from "@/lib/guards"
+import type { ToastReason } from "@/lib/toast-catalog"
+
+
 /* ===================================================================
  *                                Tipos
  * =================================================================== */
@@ -114,6 +113,19 @@ type OrcamentoPageProps = {
  *                              Helpers
  * =================================================================== */
 
+
+function getBlockReasonStep4(params: {
+    form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null }
+    tipoObra: string | null
+    materiais: { madeiras: any[]; materiaisGerais: any[]; telhas: any[] }
+    titulo?: string
+}): ToastReason | null {
+    const { form, tipoObra, materiais } = params
+    if (!tipoObra?.trim()) return "missing_city_or_tipoObra"
+    if (!form.nome?.trim() || !form.telefone?.trim() || !form.cidade?.trim()) return "missing_client_fields"
+    if (!materiais.madeiras?.length) return "materials_required"
+    return null
+}
 
 const formatPhone = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 11)
@@ -399,6 +411,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
             const materiaisSubtotal = subtotalGeral(materGNew)
             const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
 
+
             setTotEdit({
                 madeiras: madeirasSubtotal,
                 materiais: materiaisSubtotal,
@@ -516,8 +529,10 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     /* ===================================================================
      *                         Totais (Etapa 3)
      * =================================================================== */
+    // onde declara os subtotais
     const subtotalMadeiras = (arr: Material[]) =>
-        arr.reduce((s, m) => s + toNum(m.tamanho) * m.quantidade * m.preco, 0)
+        arr.reduce((s, m) => s + toNum(m.tamanho) * toNonNeg(m.quantidade) * toNonNeg(m.preco), 0)
+
 
     const subtotalGeral = (arr: Material[]) =>
         arr.reduce((s, m) => s + m.quantidade * m.preco, 0)
@@ -644,50 +659,88 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
     /* ===================================================================
      *                         Ações finais / Modal
      * =================================================================== */
-    const handleGerarProposta = async () => {
-        if (!tipoObra || loadingPDF) return
 
-        setLoadingPDF(true)
+    const handleGerarProposta = async () => {
+        if (loadingPDF) return; // bloqueio real durante loading
+
+        // ⛔ Narrow em runtime: garante string (evita TS "string | null")
+        if (!tipoObra) {
+            toastByReason("missing_city_or_tipoObra");
+            return;
+        }
+
+        // validações (dados pessoais, tipo de obra, materiais, título)
+        const check = guardStep4({ form, tipoObra, materiais, titulo });
+        if (!check.ok) {
+            toastByReason(check.reason, { fields: (check as any).fields });
+            return;
+        }
+
+        setLoadingPDF(true);
         try {
             const result = await gerarPDF({
                 cliente: form,
-                parametros: { tipoObra, ...dim },
+                parametros: { tipoObra, ...dim }, // aqui tipoObra já é string (narrow feito acima)
                 materiais,
                 totais: totEdit,
                 telhaValores,
                 titulo,
-            })
+            });
 
-            // Aceita alguns formatos de retorno (array ou objeto)
-            let slide = ""
-            let pdf = ""
-            if (Array.isArray(result) && result[0]) {
-                slide = (result[0] as any).slideUrl ?? (result[0] as any).slide ?? ""
-                pdf = (result[0] as any).pdfUrl ?? (result[0] as any).pdf ?? ""
-            } else if (result && typeof result === "object") {
-                slide = (result as any).slideUrl ?? (result as any).slide ?? ""
-                pdf = (result as any).pdfUrl ?? (result as any).pdf ?? ""
+            // util para aceitar várias convenções de chave
+            const pick = (obj: any, keys: string[]) => {
+                for (const k of keys) {
+                    const v = obj?.[k];
+                    if (typeof v === "string" && v.trim()) return v as string;
+                }
+                return "";
+            };
+
+            // aceita retorno como array ou objeto; usa `any` local p/ evitar erro de TS no `.data`
+            const srcAny: any = Array.isArray(result) ? result?.[0] : result;
+
+            const slide =
+                pick(srcAny, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"]) ||
+                pick(srcAny?.data, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"]);
+
+            const pdf =
+                pick(srcAny, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"]) ||
+                pick(srcAny?.data, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"]);
+
+            setLinks({ slide: slide || undefined, pdf: pdf || undefined });
+
+            if (slide && pdf) {
+                toast.success("Proposta gerada! Links prontos abaixo.");
+            } else if (slide || pdf) {
+                const ok = slide ? "slide" : "PDF";
+                const missing = slide ? "PDF" : "slide";
+                toast.warning(`Proposta gerada parcialmente: ${ok} encontrado, ${missing} ausente.`, {
+                    description: "Tente gerar novamente ou verifique sua conexão.",
+                });
+            } else {
+                toast.warning("Proposta gerada, mas sem links detectados.", {
+                    description: "Verifique o retorno do servidor e tente novamente.",
+                });
+                console.debug("[handleGerarProposta] retorno sem links reconhecidos:", result);
             }
-
-            setLinks({ slide: slide || undefined, pdf: pdf || undefined })
-            toast.success("Proposta gerada! Veja os links abaixo.")
-            // Não abre modal e não salva aqui. Salvar é ação separada.
         } catch (err: unknown) {
             if (err instanceof GerarPDFError) {
-                const code = err.status ? `(${err.status}) ` : ""
-                toast.error(`${code}${err.title}`)
-                console.error(err.detail ?? err)
+                const code = err.status ? `(${err.status}) ` : "";
+                toast.error(`${code}${err.title}`, { description: (err as any).detail });
+                console.error((err as any).detail ?? err);
             } else if (err instanceof Error) {
-                toast.error(err.message)
-                console.error(err)
+                toast.error(err.message);
+                console.error(err);
             } else {
-                toast.error("Erro desconhecido.")
-                console.error(err)
+                toast.error("Erro desconhecido.");
+                console.error(err);
             }
         } finally {
-            setLoadingPDF(false)
+            setLoadingPDF(false);
         }
-    }
+    };
+
+
 
 
     const onClickGerarAgora = () => {
@@ -737,7 +790,8 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                 { label: "Gerar Orçamento", href: "/gerar-orcamento" },
             ]}
         >
-            <Toaster position="bottom-right" richColors closeButton />
+            <Toaster position="top-right" richColors closeButton />
+
 
             {/* ---------------------------------------------------------------
        *                          Cabeçalho
@@ -921,17 +975,40 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             ))
                         )}
 
-                        <Button onClick={calcular} disabled={loadingCalc || !tipoObra} className="min-w-[132px]">
-                            {loadingCalc ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
-                                </>
-                            ) : (
-                                <>
-                                    <Calculator className="h-4 w-4 mr-1" /> Calcular
-                                </>
-                            )}
-                        </Button>
+                        {(() => {
+                            const calcReason = !tipoObra ? ("missing_city_or_tipoObra" as const) : null
+                            const visuallyDisabled = Boolean(calcReason || loadingCalc)
+
+                            return (
+                                <Button
+                                    onClick={(e) => {
+                                        if (loadingCalc) return // bloqueio real
+                                        if (calcReason) {
+                                            e.preventDefault()
+                                            toastByReason(calcReason, { hint: "Selecione o tipo de obra para calcular." })
+                                            return
+                                        }
+                                        void calcular()
+                                    }}
+                                    // aparência de desabilitado sem bloquear o clique quando for validação
+                                    aria-disabled={visuallyDisabled}
+                                    data-disabled={visuallyDisabled ? "" : undefined}
+                                    className={`min-w-[132px] ${visuallyDisabled ? "opacity-50 cursor-not-allowed pointer-events-auto" : ""}`}
+                                    // usar disabled real apenas no loading
+                                    disabled={loadingCalc}
+                                >
+                                    {loadingCalc ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Calculator className="h-4 w-4 mr-1" /> Calcular
+                                        </>
+                                    )}
+                                </Button>
+                            )
+                        })()}
                     </div>
 
                     {/* Tabelas por categoria */}
@@ -968,6 +1045,7 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                             </div>
 
                             {/* Corpo da tabela */}
+                            {/* Corpo da tabela */}
                             <div className="overflow-x-auto">
                                 <Table className="min-w-[700px]">
                                     <TableHeader>
@@ -997,16 +1075,21 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                     </TableHeader>
 
                                     <TableBody>
-                                        {materiais[cat].map(m => {
-                                            const ed = edit?.cat === cat && edit.id === m.id;
-                                            let total = 0;
-                                            if (cat === "madeiras") {
-                                                total = (Number(m.tamanho) || 0) * (m.quantidade || 0) * (m.preco || 0);
-                                            } else if (cat === "telhas") {
-                                                total = (m.quantidade || 0) * (m.preco || 0) + (m.frete ?? 0);
-                                            } else {
-                                                total = (m.quantidade || 0) * (m.preco || 0);
-                                            }
+                                        {materiais[cat].map((m) => {
+                                            const ed = edit?.cat === cat && edit.id === m.id
+
+                                            // 👇 usa valores "em edição" quando estiver editando
+                                            const tam = toNum(ed ? editData.tamanho : m.tamanho)
+                                            const qtd = toNonNeg(ed ? editData.quantidade : m.quantidade)
+                                            const preco = toNonNeg(ed ? editData.preco : m.preco)
+                                            const frete = toNonNeg(ed ? (editData.frete ?? 0) : (m.frete ?? 0))
+
+                                            const total =
+                                                cat === "madeiras"
+                                                    ? tam * qtd * preco
+                                                    : cat === "telhas"
+                                                        ? qtd * preco + frete
+                                                        : qtd * preco
 
                                             return (
                                                 <TableRow key={m.id}>
@@ -1017,13 +1100,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Select
                                                                         value={editData.componente || ""}
-                                                                        onValueChange={v => setEditData(d => ({ ...d, componente: v }))}
+                                                                        onValueChange={(v) =>
+                                                                            setEditData((d) => ({ ...d, componente: v }))
+                                                                        }
                                                                     >
                                                                         <SelectTrigger className="h-8">
                                                                             <SelectValue placeholder="Selecione" />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
-                                                                            {componentes.map(c => (
+                                                                            {componentes.map((c) => (
                                                                                 <SelectItem key={c.id} value={c.nome}>
                                                                                     {c.nome}
                                                                                 </SelectItem>
@@ -1040,20 +1125,20 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Select
                                                                         value={editData.nome || ""}
-                                                                        onValueChange={v => {
-                                                                            const ref = catalogo[cat].find(o => o.nome === v);
-                                                                            setEditData(d => ({
+                                                                        onValueChange={(v) => {
+                                                                            const ref = catalogo[cat].find((o) => o.nome === v)
+                                                                            setEditData((d) => ({
                                                                                 ...d,
                                                                                 nome: v,
                                                                                 preco: ref ? ref.preco : d.preco,
-                                                                            }));
+                                                                            }))
                                                                         }}
                                                                     >
                                                                         <SelectTrigger className="h-8">
                                                                             <SelectValue placeholder="Selecione" />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
-                                                                            {catalogo[cat].map(o => (
+                                                                            {catalogo[cat].map((o) => (
                                                                                 <SelectItem key={o.nome} value={o.nome}>
                                                                                     {o.nome}
                                                                                 </SelectItem>
@@ -1070,12 +1155,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Input
                                                                         type="number"
-                                                                        min={0} // 🔧 não-negativo
+                                                                        min={0}
                                                                         step={1}
                                                                         value={editData.quantidade}
                                                                         onChange={(e) => {
-                                                                            const v = Math.max(0, Number(e.target.value));
-                                                                            setEditData(d => ({ ...d, quantidade: Number.isFinite(v) ? v : 0 }));
+                                                                            const v = Math.max(0, Number(e.target.value))
+                                                                            setEditData((d) => ({
+                                                                                ...d,
+                                                                                quantidade: Number.isFinite(v) ? v : 0,
+                                                                            }))
                                                                         }}
                                                                         className="h-8 text-right"
                                                                     />
@@ -1090,14 +1178,16 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                     <Input
                                                                         type="number"
                                                                         lang="pt-BR"
-                                                                        min={0}   // 🔧 não-negativo
+                                                                        min={0}
                                                                         step={0.5}
                                                                         value={editData.tamanho ?? ""}
-                                                                        onChange={e => setEditData(d => ({ ...d, tamanho: e.target.value }))}
-                                                                        onBlur={e => {
-                                                                            const raw = e.target.value.replace(",", ".");
-                                                                            const v = Math.max(0, parseFloat(raw) || 0);
-                                                                            setEditData(d => ({ ...d, tamanho: String(v) }));
+                                                                        onChange={(e) =>
+                                                                            setEditData((d) => ({ ...d, tamanho: e.target.value }))
+                                                                        }
+                                                                        onBlur={(e) => {
+                                                                            const raw = e.target.value.replace(",", ".")
+                                                                            const v = Math.max(0, parseFloat(raw) || 0)
+                                                                            setEditData((d) => ({ ...d, tamanho: String(v) }))
                                                                         }}
                                                                         className="h-8 text-right"
                                                                     />
@@ -1116,12 +1206,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                                 {ed ? (
                                                                     <Input
                                                                         type="number"
-                                                                        min={0} // 🔧 não-negativo
+                                                                        min={0}
                                                                         step={1}
                                                                         value={editData.quantidade}
                                                                         onChange={(e) => {
-                                                                            const v = Math.max(0, Number(e.target.value));
-                                                                            setEditData(d => ({ ...d, quantidade: Number.isFinite(v) ? v : 0 }));
+                                                                            const v = Math.max(0, Number(e.target.value))
+                                                                            setEditData((d) => ({
+                                                                                ...d,
+                                                                                quantidade: Number.isFinite(v) ? v : 0,
+                                                                            }))
                                                                         }}
                                                                         className="h-8 text-right"
                                                                     />
@@ -1137,12 +1230,15 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                         {ed ? (
                                                             <Input
                                                                 type="number"
-                                                                min={0} // 🔧 não-negativo
+                                                                min={0}
                                                                 step={0.01}
                                                                 value={editData.preco}
                                                                 onChange={(e) => {
-                                                                    const v = Math.max(0, Number(e.target.value));
-                                                                    setEditData(d => ({ ...d, preco: Number.isFinite(v) ? v : 0 }));
+                                                                    const v = Math.max(0, Number(e.target.value))
+                                                                    setEditData((d) => ({
+                                                                        ...d,
+                                                                        preco: Number.isFinite(v) ? v : 0,
+                                                                    }))
                                                                 }}
                                                                 className="h-8 text-right"
                                                             />
@@ -1151,18 +1247,21 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                         )}
                                                     </TableCell>
 
-                                                    {/* Frete (telhas) */}
+                                                    {/* Frete (só para telhas) */}
                                                     {cat === "telhas" && (
                                                         <TableCell className="text-right">
                                                             {ed ? (
                                                                 <Input
                                                                     type="number"
-                                                                    min={0} // 🔧 não-negativo
+                                                                    min={0}
                                                                     step={0.01}
                                                                     value={editData.frete ?? 0}
                                                                     onChange={(e) => {
-                                                                        const v = Math.max(0, Number(e.target.value));
-                                                                        setEditData(d => ({ ...d, frete: Number.isFinite(v) ? v : 0 }));
+                                                                        const v = Math.max(0, Number(e.target.value))
+                                                                        setEditData((d) => ({
+                                                                            ...d,
+                                                                            frete: Number.isFinite(v) ? v : 0,
+                                                                        }))
                                                                     }}
                                                                     className="h-8 text-right"
                                                                 />
@@ -1183,21 +1282,30 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
                                                             </Button>
                                                         ) : (
                                                             <>
-                                                                <Button size="icon" variant="ghost" onClick={() => startEdit(cat, m)}>
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="ghost"
+                                                                    onClick={() => startEdit(cat, m)}
+                                                                >
                                                                     <Edit className="h-4 w-4" />
                                                                 </Button>
-                                                                <Button size="icon" variant="ghost" onClick={() => removeItem(cat, m.id)}>
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="ghost"
+                                                                    onClick={() => removeItem(cat, m.id)}
+                                                                >
                                                                     <Trash className="h-4 w-4 text-red-500" />
                                                                 </Button>
                                                             </>
                                                         )}
                                                     </TableCell>
                                                 </TableRow>
-                                            );
+                                            )
                                         })}
                                     </TableBody>
                                 </Table>
                             </div>
+
                         </div>
                     ))}
                 </CardContent>
@@ -1338,19 +1446,37 @@ export default function OrcamentoPage({ mode = "create" }: OrcamentoPageProps) {
 
                 <CardContent className="p-4 space-y-5">
                     <div className="flex items-center gap-2">
-                        <Button
-                            onClick={onClickGerarAgora}
-                            disabled={!isStep4Enabled || loadingPDF}
-                            className="bg-bege text-marromEscuro hover:bg-marromEscuro/90 min-w-[140px]"
-                        >
-                            {loadingPDF ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Gerando…
-                                </>
-                            ) : (
-                                "Gerar Proposta"
-                            )}
-                        </Button>
+                        {(() => {
+                            const reason = getBlockReasonStep4({ form, tipoObra, materiais, titulo })
+                            const visuallyDisabled = Boolean(reason || loadingPDF)
+
+                            return (
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        className={`bg-bege text-marromEscuro hover:bg-marromEscuro/90 min-w-[140px] ${visuallyDisabled ? "opacity-50 cursor-not-allowed pointer-events-auto" : ""
+                                            }`}
+                                        onClick={(e) => {
+                                            if (loadingPDF) return // bloqueio real
+                                            if (reason) {
+                                                e.preventDefault()
+                                                toastByReason(reason, { hint: "Complete os campos para gerar a proposta." })
+                                                return
+                                            }
+                                            void handleGerarProposta() // segue fluxo normal
+                                        }}
+                                        // usar disabled real só quando for loading
+                                        disabled={loadingPDF}
+                                        aria-disabled={visuallyDisabled}
+                                        data-disabled={visuallyDisabled ? "" : undefined}
+                                    >
+                                        {loadingPDF ? "Gerando…" : "Gerar Proposta"}
+                                    </Button>
+
+                                </div>
+                            )
+                        })()}
+
+
 
                         {!isStep4Enabled && (
                             <span className="text-xs text-muted-foreground">
