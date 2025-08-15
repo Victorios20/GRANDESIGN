@@ -177,7 +177,7 @@ export default function HomePage() {
       <TooltipProvider>
         <Toaster richColors closeButton />
         {/* BOTÃO “Gerar orçamento” */}
-        <Link href="/gerar-orcamento" className="block mb-8">
+        <Link href="/gerar-orcamento/new" className="block mb-8">
           <Button
             className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
                        bg-white text-marromEscuro border-3 border-marromClaro
