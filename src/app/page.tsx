@@ -590,7 +590,7 @@ export default function HomePage() {
                     <Button variant="outline">Fechar</Button>
                   </DialogClose>
                   <Button asChild>
-                    <Link href={`/editar-orcamento/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
+                    <Link href={`/gerar-orcamento/edit/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
                       Editar
                     </Link>
                   </Button>
