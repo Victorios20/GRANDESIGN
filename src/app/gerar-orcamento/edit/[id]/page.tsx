@@ -4,7 +4,7 @@ import OrcamentoPage, { type InitialData } from "../../_components/OrcamentoPage
 import { getOrcamentoById } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 import { notFound } from "next/navigation"
 
-type PageProps = { params: { id: string } }
+type PageProps = { params: Promise<{ id: string }> }
 
 export const metadata = {
   title: "Editar Orçamento",
@@ -12,7 +12,8 @@ export const metadata = {
 }
 
 export default async function EditOrcamentoPage({ params }: PageProps) {
-  const id = Number(params.id)
+  const { id: idStr } = await params
+  const id = Number(idStr)
   if (!Number.isFinite(id) || id <= 0) notFound()
 
   const data = await getOrcamentoById(id).catch(() => null)
