@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, Trash2, EyeIcon } from "lucide-react"
+import { PlusCircle, Trash2, EyeIcon, ArrowUpRight, Copy } from "lucide-react"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 
 /* actions (supabase) */
@@ -170,6 +170,22 @@ export default function HomePage() {
   }, [orcamentoSel?.pagamentos])
 
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
+
+
+  const copyLink = async (value: string, label: string) => {
+    if (!value?.trim()) return
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`Link de ${label} copiado!`)
+    } catch (e) {
+      toast.error(`Não foi possível copiar o link de ${label}.`)
+      console.error(e)
+    }
+  }
+
+  const slideUrl = orcamentoSel?.link_slide ?? ""
+  const pdfUrl = orcamentoSel?.link_pdf ?? ""
+
 
   /* ────────────────────────── JSX ────────────────────────── */
   return (
@@ -584,6 +600,95 @@ export default function HomePage() {
                     </Card>
                   )}
                 </div>
+
+                {/* Links da Proposta (estilo Etapa 4, inputs desabilitados) */}
+                <Card>
+                  <CardHeader className="p-4">
+                    <CardTitle className="text-lg">Links da Proposta</CardTitle>
+                    <CardDescription className="text-sm mt-1 text-black">
+                      Abrir e copiar rapidamente os links gerados.
+                    </CardDescription>
+                  </CardHeader>
+
+                  <CardContent className="p-4 space-y-5">
+                    {/* Slide */}
+                    <div className="grid gap-2">
+                      <label className="text-sm">Link do Slide</label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="bg-bege text-marromEscuro hover:bg-bege/80"
+                          disabled={!slideUrl}
+                          title={slideUrl ? "Abrir em nova aba" : "Sem link ainda"}
+                          onClick={() => slideUrl && window.open(slideUrl, "_blank", "noopener,noreferrer")}
+                        >
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Button>
+
+                        <Input
+                          value={slideUrl}
+                          disabled
+                          readOnly
+                          className="flex-1"
+                          placeholder="Sem link do slide"
+                        />
+
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="bg-bege text-marromEscuro hover:bg-bege/80"
+                          disabled={!slideUrl}
+                          title={slideUrl ? "Copiar link" : "Sem link ainda"}
+                          onClick={() => copyLink(slideUrl, "Slide")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* PDF */}
+                    <div className="grid gap-2">
+                      <label className="text-sm">Link do PDF</label>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="bg-bege text-marromEscuro hover:bg-bege/80"
+                          disabled={!pdfUrl}
+                          title={pdfUrl ? "Abrir em nova aba" : "Sem link ainda"}
+                          onClick={() => pdfUrl && window.open(pdfUrl, "_blank", "noopener,noreferrer")}
+                        >
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Button>
+
+                        <Input
+                          value={pdfUrl}
+                          disabled
+                          readOnly
+                          className="flex-1"
+                          placeholder="Sem link do PDF"
+                        />
+
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="bg-bege text-marromEscuro hover:bg-bege/80"
+                          disabled={!pdfUrl}
+                          title={pdfUrl ? "Copiar link" : "Sem link ainda"}
+                          onClick={() => copyLink(pdfUrl, "PDF")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
 
                 <DialogFooter className="pt-6">
                   <DialogClose asChild>

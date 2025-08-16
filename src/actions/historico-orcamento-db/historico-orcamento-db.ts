@@ -165,6 +165,7 @@ export type OrcamentoDetalhe = {
     valor: number
   }[]
   link_slide?: string | null
+  link_pdf?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -378,6 +379,8 @@ export async function detalheOrcamento(id: number): Promise<OrcamentoDetalhe | n
 
     // ✅ ADICIONE ESTA LINHA:
     link_slide: cabec.link_slide ?? null,
+    link_pdf: cabec.link_pdf ?? null,
+
   }
 
 }
