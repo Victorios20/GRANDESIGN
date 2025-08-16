@@ -720,63 +720,92 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         calcular()
     }
 
-    const handleGerarProposta = async () => {
-        if (loadingPDF) return
-        setLoadingPDF(true)
+
+    const handleGerarProposta = async (confirmedTitle?: string) => {
+        const snap = (confirmedTitle ?? tituloSnap)?.trim()
+        const confirmed = confirmedTitle ? true : tituloConfirmado
+        if (!confirmed || !snap) {
+            toast.error("Confirme o título antes de gerar a proposta.")
+            return
+        }
+
+        const valid = validatePreGerar(form, tipoObra, materiais)
+        if (!valid.ok) {
+            toast.error(valid.msg)
+            scrollToField(FIELD_IDS[valid.missing])
+            return
+        }
+
         try {
+            setLoadingPDF(true)
+            const telhaVals = calcTelhaValores(
+                materiais.telhas,
+                totEdit.madeiras + totEdit.materiais + totEdit.frete + totEdit.comissao
+            )
+
             const result = await gerarPDF({
                 cliente: form,
-                parametros: { tipoObra: (tipoObra ?? "").trim(), ...dim },
+                parametros: { tipoObra: tipoObra ?? "", ...dim },
                 materiais,
                 totais: totEdit,
-                telhaValores: toTelhaPixValores(telhaValores),
-                titulo,
+                telhaValores: telhaVals,
+                titulo: snap,
             })
 
-            // aceitar várias convenções de chave (array/obj, camel/snake)
-            const pick = (obj: any, keys: string[]) => {
-                for (const k of keys) {
-                    const v = obj?.[k]
-                    if (typeof v === "string" && v.trim()) return v as string
-                }
-                return ""
-            }
-            const srcAny: any = Array.isArray(result) ? result?.[0] : result
-            const slide =
-                pick(srcAny, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"]) ||
-                pick(srcAny?.data, ["slideUrl", "slide", "slide_url", "link_slide", "slideLink", "url_slide"])
-            const pdf =
-                pick(srcAny, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"]) ||
-                pick(srcAny?.data, ["pdfUrl", "pdf", "pdf_url", "link_pdf", "pdfLink", "url_pdf"])
+            const raw = result as any
+            const r = Array.isArray(raw) ? raw[0] : raw
+            const slide: string | undefined =
+                r?.slide ?? r?.slideUrl ?? r?.link_slide ?? r?.links?.slide ?? r?.links?.slideUrl ?? r?.data?.slide ?? r?.data?.slideUrl
+            const pdf: string | undefined =
+                r?.pdf ?? r?.pdfUrl ?? r?.link_pdf ?? r?.links?.pdf ?? r?.links?.pdfUrl ?? r?.data?.pdf ?? r?.data?.pdfUrl
 
-            setLinks({ slide: slide || undefined, pdf: pdf || undefined })
+            setLinks({ slide, pdf })
 
             if (slide && pdf) {
                 toast.success("Proposta gerada! Links prontos abaixo.")
-            } else if (slide || pdf) {
-                const ok = slide ? "slide" : "PDF"
-                const missing = slide ? "PDF" : "slide"
-                toast.warning(`Proposta gerada parcialmente: ${ok} encontrado, ${missing} ausente.`)
+                try {
+                    setLoadingSave(true)
+
+                    if (isEdit) {
+                        if (!orcamentoId) throw new Error("ID do orçamento ausente.")
+                        const payload: UpdateOrcamentoInput = {
+                            ...buildDbPayload(),
+                            links: { slideUrl: slide, pdfUrl: pdf },
+                        }
+                        await updateOrcamento(orcamentoId, payload)
+                    } else {
+                        await salvarOrcamento({
+                            cliente: form,
+                            parametros: { tipoObra: tipoObra ?? "", ...dim },
+                            materiais,
+                            totais: totEdit,
+                            telhaValores: telhaVals,
+                            links: { slideUrl: slide, pdfUrl: pdf },
+                            titulo: snap,
+                        })
+                    }
+
+                    toast.success("Orçamento salvo automaticamente.")
+                    setModalSucessoAberto(true)
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
+                    toast.error(msg)
+                } finally {
+                    setLoadingSave(false)
+                }
             } else {
-                toast.warning("Proposta gerada, mas sem links detectados.")
-                console.debug("[handleGerarProposta] retorno sem links:", result)
+                toast.error("A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF).")
+                console.debug("[handleGerarProposta] retorno sem links completos:", result)
             }
         } catch (err: unknown) {
-            if (err instanceof GerarPDFError) {
-                const code = err.status ? `(${err.status}) ` : ""
-                toast.error(`${code}${err.title}`, { description: (err as any).detail })
-                console.error((err as any).detail ?? err)
-            } else if (err instanceof Error) {
-                toast.error(err.message)
-                console.error(err)
-            } else {
-                toast.error("Erro desconhecido.")
-                console.error(err)
-            }
+            const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
+            toast.error(msg)
         } finally {
             setLoadingPDF(false)
         }
     }
+
+
 
     // Clique no botão "Gerar Proposta" → valida antes do modal
     const onClickGerarAgora = () => {
@@ -1460,6 +1489,9 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                             >
                                 {loadingPDF ? "Gerando…" : "Gerar Proposta"}
                             </Button>
+
+                            <span className="text-xs text-marromEscuro/70">Salva automaticamente</span>
+
                         </div>
                     </div>
 
@@ -1683,11 +1715,11 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     }
 
                                     if (modalMode === "gerar") {
-                                        // marca como confirmado e guarda snapshots para invalidação futura
+                                        const snap = normalize(tituloTemporario)
                                         setTituloConfirmado(true)
-                                        setTituloSnap(normalize(tituloTemporario))
+                                        setTituloSnap(snap)
                                         setAutoTituloSnap(normalize(gerarTituloAutomatico()))
-                                        await handleGerarProposta()
+                                        await handleGerarProposta(snap)
                                     }
                                 }}
                                 disabled={!tituloTemporario.trim() || loadingSave || loadingPDF}
