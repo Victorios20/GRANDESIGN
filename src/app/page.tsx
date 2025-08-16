@@ -147,9 +147,6 @@ export default function HomePage() {
   /* pagamentos → tabela Telhas (Pix/10x/18x) */
   const telhasFixos = useMemo(() => {
     if (!orcamentoSel?.pagamentos?.length) return null
-
-
-
     // Estrutura: { [tipoTelha]: { pix?: number, "10×"?: number, "18×"?: number } }
     const map: Record<string, { pix?: number; "10×"?: number; "18×"?: number }> = {}
 
@@ -169,6 +166,13 @@ export default function HomePage() {
     return { map, tipos }
   }, [orcamentoSel?.pagamentos])
 
+  function fmtDim(v: number | null | undefined): string {
+  return typeof v === "number" && isFinite(v) && v > 0
+    ? `${v.toLocaleString("pt-BR")} m`
+    : "-"
+}
+
+
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
 
 
@@ -185,6 +189,12 @@ export default function HomePage() {
 
   const slideUrl = orcamentoSel?.link_slide ?? ""
   const pdfUrl = orcamentoSel?.link_pdf ?? ""
+
+  // simples e tipado (OrcamentoDetalhe)
+  const tipoObra = orcamentoSel?.tipoObra ?? null
+  const largura = orcamentoSel?.dimensoes?.largura
+  const comprimento = orcamentoSel?.dimensoes?.comprimento
+
 
 
   /* ────────────────────────── JSX ────────────────────────── */
@@ -431,6 +441,11 @@ export default function HomePage() {
                     <p><b>Telefone:</b> {safeCell(orcamentoSel.cliente.telefone)}</p>
                     <p><b>Cidade:</b> {safeCell(orcamentoSel.cliente.cidade)}</p>
                     <p><b>Bairro:</b> {safeCell(orcamentoSel.cliente.bairro)}</p>
+
+                    <p><b>Tipo de Obra:</b> {safeCell(tipoObra)}</p>
+                    <p><b>Largura:</b> {fmtDim(largura)}</p>
+                    <p><b>Comprimento:</b> {fmtDim(comprimento)}</p>
+
                   </CardContent>
                 </Card>
 
