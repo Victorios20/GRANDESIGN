@@ -22,10 +22,11 @@ export async function listarMateriaisPorTipo(tipo: TipoMaterial): Promise<Materi
     .from("materiais")
     .select("*")
     .eq("tipo", tipo)
-    .order("id", { ascending: true });
-  if (error) throw error;
-  return data;
+    .order("descricao", { ascending: true }) 
+  if (error) throw error
+  return data
 }
+
 
 export async function adicionarMaterial(
   tipo: TipoMaterial,
