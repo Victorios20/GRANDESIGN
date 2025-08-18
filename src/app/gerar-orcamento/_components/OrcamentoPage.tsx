@@ -20,6 +20,9 @@ import { Toaster, toast } from "sonner"
 import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriais"
 import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMateriais"
 
+import CopyLinkButton from "@/components/ui/CopyLinkButton"
+
+
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
@@ -1508,33 +1511,24 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     className="bg-bege text-marromEscuro hover:bg-bege/80"
                                     disabled={!links.slide}
                                     title={links.slide ? "Abrir em nova aba" : "Sem link ainda"}
-                                    onClick={() => links.slide && window.open(links.slide, "_blank", "noopener,noreferrer")}
+                                    onClick={() =>
+                                        links.slide && window.open(links.slide, "_blank", "noopener,noreferrer")
+                                    }
                                 >
                                     <ArrowUpRight className="h-4 w-4" />
                                 </Button>
 
                                 <Input
                                     value={links.slide ?? ""}
-                                    onChange={e => setLinks(prev => ({ ...prev, slide: e.target.value }))}
+                                    onChange={(e) => setLinks((prev) => ({ ...prev, slide: e.target.value }))}
                                     placeholder="Cole ou gere o link do slide"
                                     className="flex-1"
                                 />
 
-                                <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    className="bg-bege text-marromEscuro hover:bg-bege/80"
-                                    disabled={!links.slide?.trim()}
-                                    title={links.slide ? "Copiar link" : "Sem link ainda"}
-                                    onClick={() => copyLink(links.slide ?? "", "Slide")}
-                                >
-                                    <Copy className="h-4 w-4" />
-                                </Button>
+                                {/* aqui usamos o botão reaproveitável */}
+                                <CopyLinkButton value={links.slide ?? ""} label="Copiar link do Slide" />
                             </div>
                         </div>
-
-
 
                         {/* Link do PDF */}
                         <div className="grid gap-2">
@@ -1547,31 +1541,25 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     className="bg-bege text-marromEscuro hover:bg-bege/80"
                                     disabled={!links.pdf}
                                     title={links.pdf ? "Abrir em nova aba" : "Sem link ainda"}
-                                    onClick={() => links.pdf && window.open(links.pdf, "_blank", "noopener,noreferrer")}
+                                    onClick={() =>
+                                        links.pdf && window.open(links.pdf, "_blank", "noopener,noreferrer")
+                                    }
                                 >
                                     <ArrowUpRight className="h-4 w-4" />
                                 </Button>
 
                                 <Input
                                     value={links.pdf ?? ""}
-                                    onChange={e => setLinks(prev => ({ ...prev, pdf: e.target.value }))}
+                                    onChange={(e) => setLinks((prev) => ({ ...prev, pdf: e.target.value }))}
                                     placeholder="Cole ou gere o link do PDF"
                                     className="flex-1"
                                 />
 
-                                <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="ghost"
-                                    className="bg-bege text-marromEscuro hover:bg-bege/80"
-                                    disabled={!links.pdf?.trim()}
-                                    title={links.pdf ? "Copiar link" : "Sem link ainda"}
-                                    onClick={() => copyLink(links.pdf ?? "", "PDF")}
-                                >
-                                    <Copy className="h-4 w-4" />
-                                </Button>
+                                {/* aqui também */}
+                                <CopyLinkButton value={links.pdf ?? ""} label="Copiar link do PDF" />
                             </div>
                         </div>
+
 
                     </div>
                 </CardContent>

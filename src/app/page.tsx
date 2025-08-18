@@ -17,14 +17,15 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
+
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, Trash2, EyeIcon, ArrowUpRight, Copy } from "lucide-react"
+import { PlusCircle, Trash2, EyeIcon, ArrowUpRight } from "lucide-react"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
-
+import CopyLinkButton from "@/components/ui/CopyLinkButton"
 /* actions (supabase) */
 import {
   listarBairros,
@@ -167,10 +168,10 @@ export default function HomePage() {
   }, [orcamentoSel?.pagamentos])
 
   function fmtDim(v: number | null | undefined): string {
-  return typeof v === "number" && isFinite(v) && v > 0
-    ? `${v.toLocaleString("pt-BR")} m`
-    : "-"
-}
+    return typeof v === "number" && isFinite(v) && v > 0
+      ? `${v.toLocaleString("pt-BR")} m`
+      : "-"
+  }
 
 
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
@@ -189,6 +190,13 @@ export default function HomePage() {
 
   const slideUrl = orcamentoSel?.link_slide ?? ""
   const pdfUrl = orcamentoSel?.link_pdf ?? ""
+
+  // URL absoluta para a tela de edição deste orçamento
+  const editUrl =
+    orcamentoSel?.id
+      ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/gerar-orcamento/edit/${orcamentoSel.id}`
+      : ""
+
 
   // simples e tipado (OrcamentoDetalhe)
   const tipoObra = orcamentoSel?.tipoObra ?? null
@@ -424,14 +432,21 @@ export default function HomePage() {
                 {/* título + subtítulo */}
                 <Card className="border-0 shadow-none">
                   <CardHeader className="pb-1">
-                    <CardTitle className="text-3xl">
-                      Orçamento&nbsp;de&nbsp;{safeCell(orcamentoSel.cliente.nome)} – {safeCell(orcamentoSel.cliente.bairro)}
-                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-3xl">
+                        Orçamento&nbsp;de&nbsp;{safeCell(orcamentoSel?.cliente?.nome)} – {safeCell(orcamentoSel?.cliente?.bairro)}
+                      </CardTitle>
+
+                      <CopyLinkButton value={editUrl} label="Copiar link de edição" />
+                    </div>
+
                     <CardDescription className="mt-1">
-                      <span className="font-medium">Título:</span> {safeCell(orcamentoSel.titulo)}
+                      <span className="font-medium">Título:</span> {safeCell(orcamentoSel?.titulo)}
                     </CardDescription>
                   </CardHeader>
                 </Card>
+
+
 
                 {/* cliente */}
                 <Card>
@@ -650,17 +665,8 @@ export default function HomePage() {
                           placeholder="Sem link do slide"
                         />
 
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="bg-bege text-marromEscuro hover:bg-bege/80"
-                          disabled={!slideUrl}
-                          title={slideUrl ? "Copiar link" : "Sem link ainda"}
-                          onClick={() => copyLink(slideUrl, "Slide")}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        {/* botão de copiar reaproveitado */}
+                        <CopyLinkButton value={slideUrl} label="Copiar link do Slide" />
                       </div>
                     </div>
 
@@ -688,20 +694,12 @@ export default function HomePage() {
                           placeholder="Sem link do PDF"
                         />
 
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="bg-bege text-marromEscuro hover:bg-bege/80"
-                          disabled={!pdfUrl}
-                          title={pdfUrl ? "Copiar link" : "Sem link ainda"}
-                          onClick={() => copyLink(pdfUrl, "PDF")}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                        {/* botão de copiar reaproveitado */}
+                        <CopyLinkButton value={pdfUrl} label="Copiar link do PDF" />
                       </div>
                     </div>
                   </CardContent>
+
                 </Card>
 
 
