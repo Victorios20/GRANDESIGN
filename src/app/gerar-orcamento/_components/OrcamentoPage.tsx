@@ -140,11 +140,21 @@ type OrcamentoPageProps = {
 /* ===================================================================
  *                              Helpers
  * =================================================================== */
-const toTelhaPixValores = (src: Record<string, Pagto>): TelhaPixValores => ({
-    Romana: src.Romana ?? { pix: 0, x10: 0, x18: 0 },
-    Colonial: src.Colonial ?? { pix: 0, x10: 0, x18: 0 },
-    Americana: src.Americana ?? { pix: 0, x10: 0, x18: 0 },
-})
+const toTelhaPixValores = (src: Record<string, any>): TelhaPixValores => {
+    const num = (v: any) =>
+        typeof v === "number"
+            ? v
+            : Number(String(v).replace(/\./g, "").replace(",", ".")) || 0
+
+    return {
+        Romana: { pix: num(src?.Romana?.pix), x10: num(src?.Romana?.x10), x18: num(src?.Romana?.x18) },
+        Colonial: { pix: num(src?.Colonial?.pix), x10: num(src?.Colonial?.x10), x18: num(src?.Colonial?.x18) },
+        Americana: { pix: num(src?.Americana?.pix), x10: num(src?.Americana?.x10), x18: num(src?.Americana?.x18) },
+        Maxxi: { pix: num(src?.Maxxi?.pix), x10: num(src?.Maxxi?.x10), x18: num(src?.Maxxi?.x18) },
+    }
+}
+
+
 
 
 
@@ -219,16 +229,24 @@ const FATOR_10X = 1.1457 // 14,57 %
 const FATOR_18X = 1.2385 // 23,85 %
 
 const calcTelhaValores = (
-    telhasArr: { id: number; nome: string; componente: string; quantidade: number; preco: number; tamanho?: string | number }[],
+    telhasArr: { id: number; nome: string; componente: string; quantidade: number; preco: number; tamanho?: string | number; frete?: number }[],
     totalGeral: number,
 ): Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto> => {
     const somaTipo = (slug: string) =>
-        telhasArr.filter(t => t.nome.toLowerCase().includes(slug)).reduce((s, t) => s + t.quantidade * t.preco, 0)
+        telhasArr
+            .filter(t => t.nome.toLowerCase().includes(slug))
+            .reduce((s, t) => s + (t.quantidade * t.preco) + (t.frete ?? 0), 0)
+
     const make = (extra: number) => {
         const base = totalGeral + extra
         const pix = Math.ceil(base / 100) * 100
-        return { pix, x10: Math.ceil((pix * FATOR_10X) / 10), x18: Math.ceil((pix * FATOR_18X) / 18) }
+        return {
+            pix,
+            x10: Math.ceil((pix * FATOR_10X) / 10),
+            x18: Math.ceil((pix * FATOR_18X) / 18),
+        }
     }
+
     return {
         Romana: make(somaTipo("romana")),
         Colonial: make(somaTipo("colonial")),
@@ -236,6 +254,7 @@ const calcTelhaValores = (
         Maxxi: make(somaTipo("maxxi")),
     }
 }
+
 
 /* ===================================================================
  *                            Componente
@@ -247,6 +266,10 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     // reseta Selects quando limpa
     const [cityResetKey, setCityResetKey] = useState(0)
     const [obraResetKey, setObraResetKey] = useState(0)
+
+
+    const [hydrated, setHydrated] = useState(false)
+
 
     /* ---------------------- Flags/Loaders/Modal ---------------------- */
     const [loadingCalc, setLoadingCalc] = useState(false)
@@ -373,6 +396,8 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         setTituloConfirmado(false)
         setTituloSnap("")
         setAutoTituloSnap("")
+
+        setHydrated(true)
     }, [isEdit, initialData])
 
     /* ===================================================================
@@ -649,9 +674,10 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
     // No CREATE, recalc telhaValores dinamicamente; no EDIT, não
     useEffect(() => {
-        if (isEdit) return
+        if (isEdit && !hydrated) return // só trava no primeiro carregamento em edit
         setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
-    }, [materiais.telhas, somaTotal, isEdit])
+    }, [materiais.telhas, somaTotal, isEdit, hydrated])
+
 
     // No CREATE, mantém subtotais refletidos; no EDIT, não sobrescrever BD
     useEffect(() => {
@@ -741,10 +767,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
         try {
             setLoadingPDF(true)
-            const telhaVals = calcTelhaValores(
-                materiais.telhas,
-                totEdit.madeiras + totEdit.materiais + totEdit.frete + totEdit.comissao
-            )
+            const telhaVals: TelhaPixValores = toTelhaPixValores(telhaValores as any)
 
             const result = await gerarPDF({
                 cliente: form,

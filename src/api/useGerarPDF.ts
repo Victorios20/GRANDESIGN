@@ -18,9 +18,10 @@ export type Totais = {
 }
 
 export type TelhaPixValores = Record<
-  "Romana" | "Colonial" | "Americana",
+  "Romana" | "Colonial" | "Americana" | "Maxxi",
   { pix: number; x10: number; x18: number }
 >
+
 
 /* ---------- Novos tipos de retorno ---------- */
 export interface PdfLinks {
@@ -144,7 +145,13 @@ export async function gerarPDF(
         x10: fmt(telhaValores.Americana.x10),
         x18: fmt(telhaValores.Americana.x18),
       },
+      Maxxi: {
+        pix: fmt(telhaValores.Maxxi.pix),
+        x10: fmt(telhaValores.Maxxi.x10),
+        x18: fmt(telhaValores.Maxxi.x18),
+      },
     },
+
   }
 
   console.log("[DEBUG] Payload enviado:", payload)
