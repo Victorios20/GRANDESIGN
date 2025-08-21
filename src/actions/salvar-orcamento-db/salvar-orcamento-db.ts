@@ -23,8 +23,12 @@ export async function salvarOrcamento(params: {
   }
   parametros: {
     tipoObra: string
-    largura: number
-    comprimento: number
+    largura?: number | null
+    comprimento?: number | null
+    larguraMaior?: number | null
+    larguraMenor?: number | null
+    comprimentoMaior?: number | null
+    comprimentoMenor?: number | null
   }
   materiais: {
     madeiras: Material[]
@@ -48,13 +52,13 @@ export async function salvarOrcamento(params: {
 
   const tituloLimpo = titulo.trim()
   // 1. Verifica se título já existe
-const { data: existentes, error: erroBusca } = await supabase
+  const { data: existentes, error: erroBusca } = await supabase
     .from("orcamento")
     .select("id")
     .eq("titulo", tituloLimpo)
 
-if (erroBusca) throw new Error("Erro ao verificar título existente.")
-if (existentes && existentes.length > 0) throw new Error("Já existe um orçamento com esse título.")
+  if (erroBusca) throw new Error("Erro ao verificar título existente.")
+  if (existentes && existentes.length > 0) throw new Error("Já existe um orçamento com esse título.")
 
 
   const cidade = await supabase.from("cidades").select("id").eq("nome", cliente.cidade).single()
@@ -90,8 +94,12 @@ if (existentes && existentes.length > 0) throw new Error("Já existe um orçamen
       totais_empresa_ps_preco: totais.empresaPS,
       totais_empresa_gd_preco: totais.empresaGD,
       totais_frete_preco: totais.frete,
-      largura: parametros.largura,
-      comprimento: parametros.comprimento,
+      largura: parametros.largura ?? null,
+      comprimento: parametros.comprimento ?? null,
+      largura_maior: parametros.larguraMaior ?? null,
+      largura_menor: parametros.larguraMenor ?? null,
+      comprimento_maior: parametros.comprimentoMaior ?? null,
+      comprimento_menor: parametros.comprimentoMenor ?? null,
       link_slide: links.slideUrl,
       link_pdf: links.pdfUrl,
       titulo: tituloLimpo,
@@ -157,16 +165,16 @@ if (existentes && existentes.length > 0) throw new Error("Já existe um orçamen
 
 export async function salvarRascunhoOrcamento(params: {
   cliente: {
-  nome: string
-  telefone: string
-  bairro: string
-  cidade?: string   // ← agora opcional
-}
-parametros: {
-  tipoObra?: string // ← agora opcional
-  largura: number
-  comprimento: number
-}
+    nome: string
+    telefone: string
+    bairro: string
+    cidade?: string   // ← agora opcional
+  }
+  parametros: {
+    tipoObra?: string // ← agora opcional
+    largura: number
+    comprimento: number
+  }
   materiais: {
     madeiras: Material[]
     materiaisGerais: Material[]
@@ -189,40 +197,40 @@ parametros: {
 
   /* ---------- chaves estrangeiras obrigatórias ---------- */
   let cidadeId: number | null = null
-if (cliente.cidade) {
-  const cidade = await supabase
-    .from("cidades")
-    .select("id")
-    .eq("nome", cliente.cidade)
-    .single()
-  if (!cidade.data) throw new Error("Cidade não encontrada")
-  cidadeId = cidade.data.id
-}
+  if (cliente.cidade) {
+    const cidade = await supabase
+      .from("cidades")
+      .select("id")
+      .eq("nome", cliente.cidade)
+      .single()
+    if (!cidade.data) throw new Error("Cidade não encontrada")
+    cidadeId = cidade.data.id
+  }
 
 
   const novoCliente = await supabase
-  .from("cliente")
-  .insert({
-    nome: cliente.nome,
-    telefone: cliente.telefone,
-    bairro: cliente.bairro,
-    cidade_id: cidadeId, // ← agora pode ser null
-  })
+    .from("cliente")
+    .insert({
+      nome: cliente.nome,
+      telefone: cliente.telefone,
+      bairro: cliente.bairro,
+      cidade_id: cidadeId, // ← agora pode ser null
+    })
 
     .select("id")
     .single()
   if (!novoCliente.data) throw new Error("Erro ao salvar cliente")
 
   let tipoObraId: number | null = null
-if (parametros.tipoObra) {
-  const tipoObra = await supabase
-    .from("tipo_obra")
-    .select("id")
-    .eq("tipo_obra", parametros.tipoObra)
-    .single()
-  if (!tipoObra.data) throw new Error("Tipo de obra não encontrado")
-  tipoObraId = tipoObra.data.id
-}
+  if (parametros.tipoObra) {
+    const tipoObra = await supabase
+      .from("tipo_obra")
+      .select("id")
+      .eq("tipo_obra", parametros.tipoObra)
+      .single()
+    if (!tipoObra.data) throw new Error("Tipo de obra não encontrado")
+    tipoObraId = tipoObra.data.id
+  }
 
 
   /* ---------- registro principal ---------- */

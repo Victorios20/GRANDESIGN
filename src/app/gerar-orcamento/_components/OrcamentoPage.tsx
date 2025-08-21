@@ -180,14 +180,27 @@ const scrollToField = (id: string) => {
 
 type ValidateResult = { ok: true } | { ok: false; missing: FieldKey; msg: string }
 
-// validar Calcular (só exige tipoObra)
 const validateCalcular = (
-    _form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
-    tipoObra: string | null,
+  _form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
+  tipoObra: string | null,
+  isCobertaL: boolean,
+  dim: Dim,
 ): ValidateResult => {
-    if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra para calcular." }
-    return { ok: true }
+  if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra para calcular." }
+
+  if (isCobertaL) {
+    if (!dim.larguraMaior || !dim.comprimentoMaior || !dim.larguraMenor || !dim.comprimentoMenor) {
+      return { ok: false, missing: "tipoObra", msg: "Informe Largura/Comprimento MAIOR e MENOR para Coberta em L." }
+    }
+  } else {
+    if (!dim.largura || !dim.comprimento) {
+      return { ok: false, missing: "tipoObra", msg: "Informe largura e comprimento para calcular." }
+    }
+  }
+
+  return { ok: true }
 }
+
 
 // validar pré-modal de Gerar Proposta (Etapa 1 + Etapa 2)
 const validatePreGerar = (
@@ -299,7 +312,13 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     const [tipoObra, setTipoObra] = useState<string | null>(null)
 
     const isCobertaL =
-        (tipoObra ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim().toLowerCase() === "coberta em l"
+    ((tipoObra ?? "")
+        .replace(/\u00A0/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase()
+        .startsWith("coberta em l"))
+
 
     const [dim, setDim] = useState<Dim>({
         largura: 0,
@@ -492,61 +511,79 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         setTipoObra(null)
         setObraResetKey(k => k + 1)
         setDim({
-            largura: 1,
-            comprimento: 1,
+            largura: 0,
+            comprimento: 0,
             larguraMaior: 0,
             larguraMenor: 0,
             comprimentoMaior: 0,
             comprimentoMenor: 0,
-        })
+            })
+
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         resetTotais()
     }
 
     const calcular = async (): Promise<void> => {
-        if (!tipoObra || loadingCalc) return
-        setLoadingCalc(true)
-        try {
-            const { madeira, materiais: mats, telhas } = await calcularMateriais(tipoObra, dim.largura, dim.comprimento)
+  if (!tipoObra || loadingCalc) return
+  setLoadingCalc(true)
+  try {
+    let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
-            const mapRow = (r: MaterialCalculado, i: number): Material => ({
-                id: Date.now() + i + Math.random(),
-                nome: r.descricao,
-                componente: r.componente,
-                quantidade: r.quantidade,
-                preco: r.preco_unitario,
-                tamanho: r.tamanho,
-                frete: r.frete ?? 0,
-            })
-
-            const madeirasNew = madeira.map(mapRow)
-            const materGNew = mats.map(mapRow)
-            const telhasNew = telhas.map(mapRow)
-
-            setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
-
-            const madeirasSubtotal = subtotalMadeiras(madeirasNew)
-            const materiaisSubtotal = subtotalGeral(materGNew)
-            const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
-
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
-
-            toast.success("Cálculo concluído com sucesso!")
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
-            toast.error(message)
-            console.error(err)
-        } finally {
-            setLoadingCalc(false)
-        }
+    if (isCobertaL) {
+      // Aceita "Coberta em L" puro ou "Coberta em L - <base>"
+      // Se vier com sufixo, o dispatcher já detecta; se vier puro, usa "Linha na Parede 15" por default.
+      resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
+        larguraMaior: dim.larguraMaior,
+        comprimentoMaior: dim.comprimentoMaior,
+        larguraMenor: dim.larguraMenor,
+        comprimentoMenor: dim.comprimentoMenor,
+        // tipoBaseL opcional — se quiser expor no UI depois, basta enviar aqui
+      })
+    } else {
+      resultado = await calcularMateriais(tipoObra, dim.largura, dim.comprimento)
     }
+
+    const { madeira, materiais: mats, telhas } = resultado
+
+    const mapRow = (r: MaterialCalculado, i: number): Material => ({
+      id: Date.now() + i + Math.random(),
+      nome: r.descricao,
+      componente: r.componente,
+      quantidade: r.quantidade,
+      preco: r.preco_unitario,
+      tamanho: r.tamanho,
+      frete: r.frete ?? 0,
+    })
+
+    const madeirasNew = madeira.map(mapRow)
+    const materGNew = mats.map(mapRow)
+    const telhasNew = telhas.map(mapRow)
+
+    setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
+
+    const madeirasSubtotal = subtotalMadeiras(madeirasNew)
+    const materiaisSubtotal = subtotalGeral(materGNew)
+    const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
+
+    setTotEdit({
+      madeiras: madeirasSubtotal,
+      materiais: materiaisSubtotal,
+      comissao: 0,
+      frete: 0,
+      empresaPS: maoDeObra,
+      empresaGD: empresaGD,
+    })
+
+    toast.success("Cálculo concluído com sucesso!")
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
+    toast.error(message)
+    console.error(err)
+  } finally {
+    setLoadingCalc(false)
+  }
+}
+
 
     /* --------------------------- Edição inline --------------------------- */
     const [edit, setEdit] = useState<{ cat: Categoria; id: number } | null>(null)
@@ -740,14 +777,15 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
      *                         Handlers (Fluxos)
      * =================================================================== */
     const handleCalcular = () => {
-        const res = validateCalcular(form, tipoObra)
-        if (!res.ok) {
-            toast.warning(res.msg)
-            scrollToField(FIELD_IDS[res.missing])
-            return
-        }
-        calcular()
-    }
+  const res = validateCalcular(form, tipoObra, isCobertaL, dim)
+  if (!res.ok) {
+    toast.warning(res.msg)
+    scrollToField(FIELD_IDS[res.missing])
+    return
+  }
+  calcular()
+}
+
 
 
     const handleGerarProposta = async (confirmedTitle?: string) => {
@@ -873,49 +911,46 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
     // payload comum para DB
     const buildDbPayload = (): UpdateOrcamentoInput => ({
-        titulo,
-        cliente: { ...form },
-        parametros: {
-            tipoObra: tipoObra ?? "",
-            largura: dim.largura,
-            comprimento: dim.comprimento,
-        },
-        materiais: {
-            madeiras: materiais.madeiras.map(m => ({
-                nome: m.nome,
-                componente: m.componente ?? "",
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho:
-                    m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== ""
-                        ? toPos(m.tamanho)
-                        : null,                         // number|null
-                frete: null,                        // não se aplica em madeiras
-            })),
-            materiaisGerais: materiais.materiaisGerais.map(m => ({
-                nome: m.nome,
-                componente: "",                     // ← string vazia (não null)
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho: null,                      // não se aplica
-                frete: null,                        // não se aplica
-            })),
-            telhas: materiais.telhas.map(m => ({
-                nome: m.nome,
-                componente: "",                     // ← string vazia (não null)
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho: null,                      // não se aplica
-                frete: m.frete != null ? toPos(m.frete) : 0,
-            })),
-        },
-        totais: { ...totEdit },
-        telhaValores,                           // update aceita Record<string, {pix,x10,x18}>
-        links: {
-            slideUrl: links.slide ?? null,
-            pdfUrl: links.pdf ?? null,
-        },
-    })
+  titulo,
+  cliente: { ...form },
+  parametros: {
+    tipoObra: tipoObra ?? "",
+    ...dim, // <<— inclui largura/comprimento e também os campos *Maior/Menor*
+  },
+  materiais: {
+    madeiras: materiais.madeiras.map(m => ({
+      nome: m.nome,
+      componente: m.componente ?? "",
+      quantidade: toPos(m.quantidade),
+      preco: toPos(m.preco),
+      tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
+      frete: null,
+    })),
+    materiaisGerais: materiais.materiaisGerais.map(m => ({
+      nome: m.nome,
+      componente: "",
+      quantidade: toPos(m.quantidade),
+      preco: toPos(m.preco),
+      tamanho: null,
+      frete: null,
+    })),
+    telhas: materiais.telhas.map(m => ({
+      nome: m.nome,
+      componente: "",
+      quantidade: toPos(m.quantidade),
+      preco: toPos(m.preco),
+      tamanho: null,
+      frete: m.frete != null ? toPos(m.frete) : 0,
+    })),
+  },
+  totais: { ...totEdit },
+  telhaValores,
+  links: {
+    slideUrl: links.slide ?? null,
+    pdfUrl: links.pdf ?? null,
+  },
+})
+
 
 
     /* ===================================================================
