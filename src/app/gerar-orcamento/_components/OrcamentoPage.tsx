@@ -151,6 +151,36 @@ type OrcamentoPageProps = {
 /* ===================================================================
  *                              Helpers
  * =================================================================== */
+
+
+
+// Cores mais fortes por ID
+const TIPO_OBRA_STYLE_BY_ID: Record<number, { item: string; trigger: string }> = {
+    9: { // Caramanchão de 15 → amarelo suave
+    item:    "bg-yellow-400/30 hover:bg-yellow-400/40 data-[highlighted]:bg-yellow-400/40 data-[state=checked]:bg-yellow-400/50",
+    trigger: "bg-yellow-400/30",
+  },
+    5: { // Linha na parede de 15
+        item: "bg-sky-600/30 hover:bg-sky-600/40 data-[highlighted]:bg-sky-600/40 data-[state=checked]:bg-sky-600/50",
+        trigger: "bg-sky-600/30",
+    },
+    3: { // Pontalete de 15
+        item: "bg-emerald-600/30 hover:bg-emerald-600/40 data-[highlighted]:bg-emerald-600/40 data-[state=checked]:bg-emerald-600/50",
+        trigger: "bg-emerald-600/30",
+    },
+    13: { // Cobertura em L
+        item: "bg-pink-600/30 hover:bg-pink-600/40 data-[highlighted]:bg-pink-600/40 data-[state=checked]:bg-pink-600/50",
+        trigger: "bg-pink-600/30",
+    },
+}
+
+const styleForItemId = (id: number) => TIPO_OBRA_STYLE_BY_ID[id]?.item ?? ""
+const styleForTriggerId = (id?: number | null) =>
+    id ? TIPO_OBRA_STYLE_BY_ID[id]?.trigger ?? "" : ""
+
+
+
+
 const toTelhaPixValores = (src: Record<string, any>): TelhaPixValores => {
     const num = (v: any) =>
         typeof v === "number"
@@ -339,6 +369,9 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
     const [form, setForm] = useState({ nome: "", telefone: "", cidade: "", bairro: "" })
     const [tipoObra, setTipoObra] = useState<string | null>(null)
+
+    const selectedTipoId =
+        tiposObra.find((x) => x.tipo_obra === (tipoObra ?? ""))?.id ?? null
 
     const isCobertaL =
         ((tipoObra ?? "")
@@ -1052,6 +1085,8 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
 
 
+
+
     /* ===================================================================
      *                              JSX
      * =================================================================== */
@@ -1186,16 +1221,24 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                         <div className="flex flex-col gap-1">
                             <Label htmlFor={FIELD_IDS.tipoObra}>Tipo de Obra</Label>
                             <Select key={obraResetKey} value={tipoObra ?? undefined} onValueChange={v => setTipoObra(v)}>
-                                <SelectTrigger id={FIELD_IDS.tipoObra} className="w-56">
+                                <SelectTrigger className={["w-56", styleForTriggerId(selectedTipoId)].join(" ")}>
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
+
+
                                 <SelectContent>
-                                    {tiposObra.map(t => (
-                                        <SelectItem key={t.id} value={t.tipo_obra}>
+                                    {tiposObra.map((t) => (
+                                        <SelectItem
+                                            key={t.id}
+                                            value={t.tipo_obra}              // mantém seu value como está (string)
+                                            className={styleForItemId(t.id)} // cor do item via ID
+                                        >
                                             {t.tipo_obra}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
+
+
                             </Select>
                         </div>
 
