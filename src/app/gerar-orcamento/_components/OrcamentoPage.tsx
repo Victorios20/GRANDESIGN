@@ -232,7 +232,25 @@ const validatePreGerar = (
 // Normalização + formatação
 const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase()
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-const formatBR = (v: number) => BRL.format(v)
+const formatBR = (v: number) => BRL.format(Number.isFinite(v) ? v : 0)
+
+// De número -> string editável (sem milhar, com vírgula decimal)
+const toEditable = (n: number): string => {
+    if (!Number.isFinite(n)) return ""
+    // 2 casas, vírgula como decimal
+    return n.toFixed(2).replace(".", ",")
+}
+
+// De string editável -> número (aceita só dígitos e vírgula)
+const parseEditable = (s: string): number => {
+    if (!s) return 0
+    const only = s.replace(/[^\d,]/g, "")      // mantém dígitos e vírgula
+    const normalized = only.replace(",", ".")  // troca vírgula por ponto
+    const n = Number(normalized)
+    return Number.isFinite(n) ? n : 0
+}
+
+
 const formatPhone = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 11)
     if (d.length <= 2) return `(${d}`
@@ -299,7 +317,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     const [loadingCalc, setLoadingCalc] = useState(false)
     const [loadingPDF, setLoadingPDF] = useState(false)
     const [loadingSave, setLoadingSave] = useState(false)
-    const [hideTotals, setHideTotals] = useState(true)
+    const [hideTotals, setHideTotals] = useState(false)
     const [modalSucessoAberto, setModalSucessoAberto] = useState(false)
 
     /* --------------------------- Catálogos --------------------------- */
@@ -441,34 +459,34 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
      *                         Handlers (Etapa 1)
      * =================================================================== */
     const resetTotais = () => {
-  try {
-    // Recalcula APENAS o que é derivado das tabelas (madeiras e materiais)
-    const madeirasSubtotal = subtotalMadeiras(materiais.madeiras)
-    const materiaisSubtotal = subtotalGeral(materiais.materiaisGerais)
+        try {
+            // Recalcula APENAS o que é derivado das tabelas (madeiras e materiais)
+            const madeirasSubtotal = subtotalMadeiras(materiais.madeiras)
+            const materiaisSubtotal = subtotalGeral(materiais.materiaisGerais)
 
-    // Atualiza totEdit de forma imutável e, em seguida, recalcula Telhas – valores fixos
-    setTotEdit(prev => {
-      const next = {
-        ...prev,
-        madeiras: madeirasSubtotal,
-        materiais: materiaisSubtotal,
-        // NÃO mexe em: comissao, frete, empresaPS, empresaGD
-      }
+            // Atualiza totEdit de forma imutável e, em seguida, recalcula Telhas – valores fixos
+            setTotEdit(prev => {
+                const next = {
+                    ...prev,
+                    madeiras: madeirasSubtotal,
+                    materiais: materiaisSubtotal,
+                    // NÃO mexe em: comissao, frete, empresaPS, empresaGD
+                }
 
-      // Atualiza tabela "Telhas – valores fixos" com a soma já atualizada
-      const nextSoma = Object.values(next).reduce((s, v) => s + v, 0)
-      setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
+                // Atualiza tabela "Telhas – valores fixos" com a soma já atualizada
+                const nextSoma = Object.values(next).reduce((s, v) => s + v, 0)
+                setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
 
-      return next
-    })
+                return next
+            })
 
-    toast.success("Totais recalculados a partir das tabelas (reset suave).")
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Erro ao recalcular valores."
-    toast.error(msg)
-    console.error(err)
-  }
-}
+            toast.success("Totais recalculados a partir das tabelas (reset suave).")
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Erro ao recalcular valores."
+            toast.error(msg)
+            console.error(err)
+        }
+    }
 
 
 
@@ -712,7 +730,38 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         empresaGD: 0,
     }))
 
-    const [editingTot, setEditingTot] = useState<keyof typeof totEdit | null>(null)
+    // totEdit: Record<categoria, number> já existe no seu código
+
+    type TotKey = keyof typeof totEdit
+    const [totEditStr, setTotEditStr] = useState<Record<TotKey, string>>(() => {
+        const obj: Partial<Record<TotKey, string>> = {}
+        for (const [k, v] of Object.entries(totEdit) as [TotKey, number][]) {
+            obj[k] = toEditable(v)
+        }
+        return obj as Record<TotKey, string>
+    })
+
+
+
+    useEffect(() => {
+        setTotEditStr((prev) => {
+            const next: Partial<Record<TotKey, string>> = {}
+            for (const [k, v] of Object.entries(totEdit) as [TotKey, number][]) {
+                // só atualiza o texto se a string atual bate com o anterior já formatado
+                // (evita sobrescrever enquanto o usuário está digitando)
+                const was = prev?.[k]
+                const numWas = parseEditable(was ?? "")
+                if (!was || Math.abs(numWas - v) > 0.0001) {
+                    next[k] = toEditable(v)
+                } else {
+                    next[k] = was
+                }
+            }
+            return next as Record<TotKey, string>
+        })
+    }, [totEdit])
+
+
 
     // telhaValores dinâmico (no create recalcula; no edit vem do BD)
     const [telhaValores, setTelhaValores] = useState<Record<string, Pagto>>({
@@ -731,15 +780,15 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     }, [materiais.telhas, somaTotal, isEdit, hydrated])
 
 
-// Mantém subtotais sincronizados com as tabelas em tempo real (create e edit)
-// Não mexe nos campos manuais (comissao, frete, empresaPS, empresaGD)
-useEffect(() => {
-  setTotEdit(prev => ({
-    ...prev,
-    madeiras: subtotalMadeiras(materiais.madeiras),
-    materiais: subtotalGeral(materiais.materiaisGerais),
-  }))
-}, [materiais.madeiras, materiais.materiaisGerais])
+    // Mantém subtotais sincronizados com as tabelas em tempo real (create e edit)
+    // Não mexe nos campos manuais (comissao, frete, empresaPS, empresaGD)
+    useEffect(() => {
+        setTotEdit(prev => ({
+            ...prev,
+            madeiras: subtotalMadeiras(materiais.madeiras),
+            materiais: subtotalGeral(materiais.materiaisGerais),
+        }))
+    }, [materiais.madeiras, materiais.materiaisGerais])
 
 
 
@@ -1507,40 +1556,57 @@ useEffect(() => {
                         <CardContent className="p-3">
                             <Table>
                                 <TableBody>
-                                    {(Object.entries(totEdit) as [keyof typeof totEdit, number][]).map(([k, v]) => (
+                                    {(Object.entries(totEdit) as [TotKey, number][]).map(([k, v]) => (
                                         <TableRow key={k}>
                                             <TableCell>{displayLabel[k]}</TableCell>
 
                                             <TableCell className="pr-0">
-                                                <div className="flex justify-end items-center">
-                                                    {editingTot === k ? (
-                                                        <Input
-                                                            type="number"
-                                                            value={v}
-                                                            onChange={e => setTotEdit(p => ({ ...p, [k]: +e.target.value }))}
-                                                            className="w-24 h-8 text-right"
+                                                {hideTotals ? (
+                                                    <div className="text-right">••••••</div>
+                                                ) : (
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        <span className="text-muted-foreground">R$</span>
+                                                        <input
+                                                            inputMode="decimal"
+                                                            className="w-36 h-8 rounded-md border px-2 text-right"
+                                                            value={totEditStr[k] ?? ""}
+                                                            onFocus={(e) => {
+                                                                // Ao focar, tira qualquer formatação residual e volta para modo editável
+                                                                const num = parseEditable(e.target.value)
+                                                                setTotEditStr((p) => ({ ...p, [k]: toEditable(num) }))
+                                                            }}
+                                                            onChange={(e) => {
+                                                                // Digitação NATURAL: aceita só dígitos e vírgula, sem milhar
+                                                                const raw = e.target.value
+                                                                const filtered = raw.replace(/[^\d,]/g, "")
+                                                                setTotEditStr((p) => ({ ...p, [k]: filtered }))
+                                                                // Atualiza o numérico em tempo real para manter os cálculos corretos
+                                                                const num = parseEditable(filtered)
+                                                                setTotEdit((p) => ({ ...p, [k]: num }))
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                // Ao sair, mostramos bonito (BRL) na string — opcional
+                                                                // Se preferir manter SEM milhar também no blur, troque por toEditable(num).
+                                                                const num = parseEditable(e.target.value)
+                                                                setTotEditStr((p) => ({ ...p, [k]: formatBR(num) }))
+                                                                setTotEdit((p) => ({ ...p, [k]: num }))
+                                                            }}
                                                         />
-                                                    ) : hideTotals ? (
-                                                        "••••••"
-                                                    ) : (
-                                                        formatBR(v)
-                                                    )}
-                                                </div>
-                                            </TableCell>
-
-                                            <TableCell className="text-right w-12">
-                                                <Button size="icon" variant="ghost" onClick={() => setEditingTot(editingTot === k ? null : k)}>
-                                                    {editingTot === k ? <Save className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
-                                                </Button>
+                                                    </div>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))}
 
                                     <TableRow className="font-semibold border-t">
                                         <TableCell>Total Geral</TableCell>
-                                        <TableCell className="text-right">{hideTotals ? "••••••" : formatBR(somaTotal)}</TableCell>
+                                        <TableCell className="text-right">
+                                            {hideTotals ? "••••••" : formatBR(somaTotal)}
+                                        </TableCell>
                                     </TableRow>
                                 </TableBody>
+
+
                             </Table>
                         </CardContent>
                     </Card>
