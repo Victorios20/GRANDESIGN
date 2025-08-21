@@ -441,37 +441,35 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
      *                         Handlers (Etapa 1)
      * =================================================================== */
     const resetTotais = () => {
-        try {
-            const madeirasSubtotal = materiais.madeiras.reduce(
-                (s, m) => s + toPos(m.tamanho) * toPos(m.quantidade) * toPos(m.preco),
-                0
-            )
+  try {
+    // Recalcula APENAS o que é derivado das tabelas (madeiras e materiais)
+    const madeirasSubtotal = subtotalMadeiras(materiais.madeiras)
+    const materiaisSubtotal = subtotalGeral(materiais.materiaisGerais)
 
-            const materiaisSubtotal = materiais.materiaisGerais.reduce(
-                (s, m) => s + toPos(m.quantidade) * toPos(m.preco),
-                0
-            )
+    // Atualiza totEdit de forma imutável e, em seguida, recalcula Telhas – valores fixos
+    setTotEdit(prev => {
+      const next = {
+        ...prev,
+        madeiras: madeirasSubtotal,
+        materiais: materiaisSubtotal,
+        // NÃO mexe em: comissao, frete, empresaPS, empresaGD
+      }
 
-            const { maoDeObra, empresaGD } = tipoObra
-                ? calcularTotais({ tipoObra })
-                : { maoDeObra: 0, empresaGD: 0 }
+      // Atualiza tabela "Telhas – valores fixos" com a soma já atualizada
+      const nextSoma = Object.values(next).reduce((s, v) => s + v, 0)
+      setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
 
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
+      return next
+    })
 
-            toast.success("Valores recalculados com sucesso!")
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : "Erro ao recalcular valores."
-            toast.error(msg)
-            console.error(err)
-        }
-    }
+    toast.success("Totais recalculados a partir das tabelas (reset suave).")
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro ao recalcular valores."
+    toast.error(msg)
+    console.error(err)
+  }
+}
+
 
 
     const onFormChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -538,7 +536,6 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         })
 
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
-        resetTotais()
     }
 
     const calcular = async (): Promise<void> => {
@@ -734,11 +731,17 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     }, [materiais.telhas, somaTotal, isEdit, hydrated])
 
 
-    // No CREATE, mantém subtotais refletidos; no EDIT, não sobrescrever BD
-    useEffect(() => {
-        if (isEdit) return
-        setTotEdit(p => ({ ...p, madeiras: totMadeiras, materiais: totMateriais }))
-    }, [totMadeiras, totMateriais, isEdit])
+// Mantém subtotais sincronizados com as tabelas em tempo real (create e edit)
+// Não mexe nos campos manuais (comissao, frete, empresaPS, empresaGD)
+useEffect(() => {
+  setTotEdit(prev => ({
+    ...prev,
+    madeiras: subtotalMadeiras(materiais.madeiras),
+    materiais: subtotalGeral(materiais.materiaisGerais),
+  }))
+}, [materiais.madeiras, materiais.materiaisGerais])
+
+
 
     // Se o usuário editar o TÍTULO depois de confirmar, volta a exigir confirmação
     useEffect(() => {
