@@ -27,6 +27,11 @@ export type GetOrcamentoResult = {
     tipoObra: string
     largura: number
     comprimento: number
+    // Cobertura em L (opcionais)
+    larguraMaior?: number | null
+    larguraMenor?: number | null
+    comprimentoMaior?: number | null
+    comprimentoMenor?: number | null
   }
   materiais: {
     madeiras: Material[]
@@ -54,9 +59,16 @@ export type UpdateOrcamentoInput = {
     cidade: string // nome da cidade
   }
   parametros: {
-    tipoObra: string // nome do tipo de obra
-    largura: number
-    comprimento: number
+    tipoObra: string
+    // Agora opcionais e/ou nulos:
+    largura?: number | null
+    comprimento?: number | null
+
+    // Cobertura em L (já opcionais)
+    larguraMaior?: number | null
+    larguraMenor?: number | null
+    comprimentoMaior?: number | null
+    comprimentoMenor?: number | null
   }
   materiais: {
     madeiras: Omit<Material, "id">[] | Material[]
@@ -108,6 +120,12 @@ type OrcamentoJoinRow = {
   titulo?: string | null
   largura?: number | null
   comprimento?: number | null
+  // Cobertura em L no BD
+  largura_maior?: number | null
+  largura_menor?: number | null
+  comprimento_maior?: number | null
+  comprimento_menor?: number | null
+
   link_slide?: string | null
   link_pdf?: string | null
   totais_madeiras_preco?: number | null
@@ -117,7 +135,7 @@ type OrcamentoJoinRow = {
   totais_empresa_gd_preco?: number | null
   totais_frete_preco?: number | null
 
-  // ⚠ Pode vir objeto OU array dependendo do metadado do schema
+  // Pode vir objeto OU array dependendo do metadado do schema
   cliente?: ClienteRow | ClienteRow[] | null
   tipo_obra?: TipoObraRow | TipoObraRow[] | null
 
@@ -147,7 +165,10 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
   const { data, error } = await supabase
     .from("orcamento")
     .select(`
-      id, titulo, largura, comprimento, link_slide, link_pdf,
+      id, titulo,
+      largura, comprimento,
+      largura_maior, largura_menor, comprimento_maior, comprimento_menor,
+      link_slide, link_pdf,
       totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
       totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
       cliente:cliente_id (
@@ -170,7 +191,6 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
     throw new Error("Não foi possível carregar o orçamento.")
   }
 
-  // Tipar o 'data' cru para usar com segurança
   const row = data as unknown as OrcamentoJoinRow
 
   // cliente/tipo_obra podem vir como array; normalizamos
@@ -193,23 +213,23 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
   const materiaisGerais: Material[] = []
   const telhas: Material[] = []
 
-  ;(row.orcamento_material ?? []).forEach((m, i) => {
-    const norm = toMat(m, i)
-    if (m.tipo === "madeira") madeiras.push(norm)
-    else if (m.tipo === "geral") materiaisGerais.push(norm)
-    else if (m.tipo === "telha") telhas.push(norm)
-  })
+    ; (row.orcamento_material ?? []).forEach((m, i) => {
+      const norm = toMat(m, i)
+      if (m.tipo === "madeira") madeiras.push(norm)
+      else if (m.tipo === "geral") materiaisGerais.push(norm)
+      else if (m.tipo === "telha") telhas.push(norm)
+    })
 
   // Pagamentos (telhaValores)
   const telhaValores: Record<string, { pix: number; x10: number; x18: number }> = {}
-  ;(row.orcamento_pagamento ?? []).forEach(p => {
-    const tipo = (p.tipo_telhas ?? "").trim()
-    if (!tipo) return
-    if (!telhaValores[tipo]) telhaValores[tipo] = { pix: 0, x10: 0, x18: 0 }
-    if (p.metodo_pagamento === "pix") telhaValores[tipo].pix = nonNeg(p.valor)
-    if (p.metodo_pagamento === "x10") telhaValores[tipo].x10 = nonNeg(p.valor)
-    if (p.metodo_pagamento === "x18") telhaValores[tipo].x18 = nonNeg(p.valor)
-  })
+    ; (row.orcamento_pagamento ?? []).forEach(p => {
+      const tipo = (p.tipo_telhas ?? "").trim()
+      if (!tipo) return
+      if (!telhaValores[tipo]) telhaValores[tipo] = { pix: 0, x10: 0, x18: 0 }
+      if (p.metodo_pagamento === "pix") telhaValores[tipo].pix = nonNeg(p.valor)
+      if (p.metodo_pagamento === "x10") telhaValores[tipo].x10 = nonNeg(p.valor)
+      if (p.metodo_pagamento === "x18") telhaValores[tipo].x18 = nonNeg(p.valor)
+    })
 
   return {
     id: row.id,
@@ -224,6 +244,11 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
       tipoObra: tpo?.tipo_obra ?? "",
       largura: nonNeg(row.largura),
       comprimento: nonNeg(row.comprimento),
+      // Cobertura em L (se não existir no BD, mantemos null)
+      larguraMaior: row.largura_maior != null ? nonNeg(row.largura_maior) : null,
+      larguraMenor: row.largura_menor != null ? nonNeg(row.largura_menor) : null,
+      comprimentoMaior: row.comprimento_maior != null ? nonNeg(row.comprimento_maior) : null,
+      comprimentoMenor: row.comprimento_menor != null ? nonNeg(row.comprimento_menor) : null,
     },
     materiais: { madeiras, materiaisGerais, telhas },
     totais: {
@@ -255,7 +280,11 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
   if (eTipo || !tipoObraRow) throw new Error("Tipo de obra não encontrado.")
 
   // Obter cliente_id do orçamento
-  const { data: orcRow, error: eOrc } = await supabase.from("orcamento").select("cliente_id").eq("id", id).single()
+  const { data: orcRow, error: eOrc } = await supabase
+    .from("orcamento")
+    .select("cliente_id")
+    .eq("id", id)
+    .single()
   if (eOrc || !orcRow) throw new Error("Orçamento não encontrado.")
 
   // Atualizar cliente
@@ -270,14 +299,25 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
     .eq("id", orcRow.cliente_id)
   if (eUpdCli) throw new Error("Erro ao atualizar cliente.")
 
-  // Atualizar orçamento (campos principais + totais + links)
+  // Dimensões extras (Cobertura em L) — aplica se vier definido; null limpa; undefined ignora
+  // Dimensões — “aplica se vier definido; null limpa; undefined ignora”
+  const p = input.parametros || {}
+  const dimUpdate: Record<string, number | null> = {}
+
+  if (p.largura !== undefined) dimUpdate.largura = p.largura
+  if (p.comprimento !== undefined) dimUpdate.comprimento = p.comprimento
+  if (p.larguraMaior !== undefined) dimUpdate.largura_maior = p.larguraMaior
+  if (p.larguraMenor !== undefined) dimUpdate.largura_menor = p.larguraMenor
+  if (p.comprimentoMaior !== undefined) dimUpdate.comprimento_maior = p.comprimentoMaior
+  if (p.comprimentoMenor !== undefined) dimUpdate.comprimento_menor = p.comprimentoMenor
+
   const { error: eUpdOrc } = await supabase
     .from("orcamento")
     .update({
       titulo: input.titulo,
       tipo_obra_id: tipoObraRow.id,
-      largura: input.parametros.largura,
-      comprimento: input.parametros.comprimento,
+      // importantíssimo: só aplica se veio definido
+      ...dimUpdate,
       totais_madeiras_preco: input.totais.madeiras,
       totais_materiais_preco: input.totais.materiais,
       totais_comissao_preco: input.totais.comissao,
@@ -288,6 +328,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
       link_pdf: input.links.pdfUrl,
     })
     .eq("id", id)
+
   if (eUpdOrc) throw new Error("Erro ao atualizar orçamento.")
 
   // Substituir materiais
@@ -339,16 +380,20 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
   const { error: eDelPay } = await supabase.from("orcamento_pagamento").delete().eq("orcamento_id", id)
   if (eDelPay) throw new Error("Erro ao limpar pagamentos.")
 
-  const pagamentosToInsert: { orcamento_id: number; tipo_telhas: string; metodo_pagamento: "pix" | "x10" | "x18"; valor: number }[] = []
+  const pagamentosToInsert: {
+    orcamento_id: number
+    tipo_telhas: string
+    metodo_pagamento: "pix" | "x10" | "x18"
+    valor: number
+  }[] = []
+
   for (const [tipo, v] of Object.entries(input.telhaValores || {})) {
     if (!v) continue
-    if (v.pix || v.x10 || v.x18) {
-      pagamentosToInsert.push(
-        { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "pix", valor: nonNeg(v.pix) },
-        { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x10", valor: nonNeg(v.x10) },
-        { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x18", valor: nonNeg(v.x18) },
-      )
-    }
+    pagamentosToInsert.push(
+      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "pix", valor: nonNeg(v.pix) },
+      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x10", valor: nonNeg(v.x10) },
+      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x18", valor: nonNeg(v.x18) },
+    )
   }
 
   if (pagamentosToInsert.length) {

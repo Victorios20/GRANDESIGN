@@ -114,7 +114,18 @@ export type InitialData = {
     id: number
     titulo: string
     cliente: { nome: string; telefone: string; bairro: string; cidade: string }
-    parametros: { tipoObra: string; largura: number; comprimento: number }
+    parametros: {
+        tipoObra: string
+        // Podem não existir (caso Coberta em L)
+        largura?: number | null
+        comprimento?: number | null
+
+        // Novos campos da Coberta em L (opcionais)
+        larguraMaior?: number | null
+        larguraMenor?: number | null
+        comprimentoMaior?: number | null
+        comprimentoMenor?: number | null
+    }
     materiais: MateriaisPorCategoria
     totais: {
         madeiras: number
@@ -181,24 +192,24 @@ const scrollToField = (id: string) => {
 type ValidateResult = { ok: true } | { ok: false; missing: FieldKey; msg: string }
 
 const validateCalcular = (
-  _form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
-  tipoObra: string | null,
-  isCobertaL: boolean,
-  dim: Dim,
+    _form: { nome: string; telefone: string; cidade?: string | null; bairro?: string | null },
+    tipoObra: string | null,
+    isCobertaL: boolean,
+    dim: Dim,
 ): ValidateResult => {
-  if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra para calcular." }
+    if (!tipoObra?.trim()) return { ok: false, missing: "tipoObra", msg: "Selecione o tipo de obra para calcular." }
 
-  if (isCobertaL) {
-    if (!dim.larguraMaior || !dim.comprimentoMaior || !dim.larguraMenor || !dim.comprimentoMenor) {
-      return { ok: false, missing: "tipoObra", msg: "Informe Largura/Comprimento MAIOR e MENOR para Coberta em L." }
+    if (isCobertaL) {
+        if (!dim.larguraMaior || !dim.comprimentoMaior || !dim.larguraMenor || !dim.comprimentoMenor) {
+            return { ok: false, missing: "tipoObra", msg: "Informe Largura/Comprimento MAIOR e MENOR para Coberta em L." }
+        }
+    } else {
+        if (!dim.largura || !dim.comprimento) {
+            return { ok: false, missing: "tipoObra", msg: "Informe largura e comprimento para calcular." }
+        }
     }
-  } else {
-    if (!dim.largura || !dim.comprimento) {
-      return { ok: false, missing: "tipoObra", msg: "Informe largura e comprimento para calcular." }
-    }
-  }
 
-  return { ok: true }
+    return { ok: true }
 }
 
 
@@ -312,12 +323,12 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     const [tipoObra, setTipoObra] = useState<string | null>(null)
 
     const isCobertaL =
-    ((tipoObra ?? "")
-        .replace(/\u00A0/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase()
-        .startsWith("coberta em l"))
+        ((tipoObra ?? "")
+            .replace(/\u00A0/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase()
+            .startsWith("coberta em l"))
 
 
     const [dim, setDim] = useState<Dim>({
@@ -402,10 +413,17 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         setTipoObra(initialData.parametros.tipoObra ?? null)
         setDim(prev => ({
             ...prev,
-            largura: initialData.parametros.largura ?? 0,
-            comprimento: initialData.parametros.comprimento ?? 0,
-            // dimensões em L ficam 0 se não existirem no BD
+            // se não existir no BD, caem para 0 no front
+            largura: Number(initialData.parametros.largura ?? 0),
+            comprimento: Number(initialData.parametros.comprimento ?? 0),
+
+            // Coberta em L — também caem para 0 quando ausentes
+            larguraMaior: Number(initialData.parametros.larguraMaior ?? 0),
+            larguraMenor: Number(initialData.parametros.larguraMenor ?? 0),
+            comprimentoMaior: Number(initialData.parametros.comprimentoMaior ?? 0),
+            comprimentoMenor: Number(initialData.parametros.comprimentoMenor ?? 0),
         }))
+
         setMateriais(initialData.materiais)
         setTotEdit(initialData.totais)
         setTelhaValores({ ...initialData.telhaValores }) // usamos como veio do BD
@@ -517,72 +535,72 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
             larguraMenor: 0,
             comprimentoMaior: 0,
             comprimentoMenor: 0,
-            })
+        })
 
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         resetTotais()
     }
 
     const calcular = async (): Promise<void> => {
-  if (!tipoObra || loadingCalc) return
-  setLoadingCalc(true)
-  try {
-    let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
+        if (!tipoObra || loadingCalc) return
+        setLoadingCalc(true)
+        try {
+            let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
-    if (isCobertaL) {
-      // Aceita "Coberta em L" puro ou "Coberta em L - <base>"
-      // Se vier com sufixo, o dispatcher já detecta; se vier puro, usa "Linha na Parede 15" por default.
-      resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
-        larguraMaior: dim.larguraMaior,
-        comprimentoMaior: dim.comprimentoMaior,
-        larguraMenor: dim.larguraMenor,
-        comprimentoMenor: dim.comprimentoMenor,
-        // tipoBaseL opcional — se quiser expor no UI depois, basta enviar aqui
-      })
-    } else {
-      resultado = await calcularMateriais(tipoObra, dim.largura, dim.comprimento)
+            if (isCobertaL) {
+                // Aceita "Coberta em L" puro ou "Coberta em L - <base>"
+                // Se vier com sufixo, o dispatcher já detecta; se vier puro, usa "Linha na Parede 15" por default.
+                resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
+                    larguraMaior: dim.larguraMaior,
+                    comprimentoMaior: dim.comprimentoMaior,
+                    larguraMenor: dim.larguraMenor,
+                    comprimentoMenor: dim.comprimentoMenor,
+                    // tipoBaseL opcional — se quiser expor no UI depois, basta enviar aqui
+                })
+            } else {
+                resultado = await calcularMateriais(tipoObra, dim.largura, dim.comprimento)
+            }
+
+            const { madeira, materiais: mats, telhas } = resultado
+
+            const mapRow = (r: MaterialCalculado, i: number): Material => ({
+                id: Date.now() + i + Math.random(),
+                nome: r.descricao,
+                componente: r.componente,
+                quantidade: r.quantidade,
+                preco: r.preco_unitario,
+                tamanho: r.tamanho,
+                frete: r.frete ?? 0,
+            })
+
+            const madeirasNew = madeira.map(mapRow)
+            const materGNew = mats.map(mapRow)
+            const telhasNew = telhas.map(mapRow)
+
+            setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
+
+            const madeirasSubtotal = subtotalMadeiras(madeirasNew)
+            const materiaisSubtotal = subtotalGeral(materGNew)
+            const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
+
+            setTotEdit({
+                madeiras: madeirasSubtotal,
+                materiais: materiaisSubtotal,
+                comissao: 0,
+                frete: 0,
+                empresaPS: maoDeObra,
+                empresaGD: empresaGD,
+            })
+
+            toast.success("Cálculo concluído com sucesso!")
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
+            toast.error(message)
+            console.error(err)
+        } finally {
+            setLoadingCalc(false)
+        }
     }
-
-    const { madeira, materiais: mats, telhas } = resultado
-
-    const mapRow = (r: MaterialCalculado, i: number): Material => ({
-      id: Date.now() + i + Math.random(),
-      nome: r.descricao,
-      componente: r.componente,
-      quantidade: r.quantidade,
-      preco: r.preco_unitario,
-      tamanho: r.tamanho,
-      frete: r.frete ?? 0,
-    })
-
-    const madeirasNew = madeira.map(mapRow)
-    const materGNew = mats.map(mapRow)
-    const telhasNew = telhas.map(mapRow)
-
-    setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
-
-    const madeirasSubtotal = subtotalMadeiras(madeirasNew)
-    const materiaisSubtotal = subtotalGeral(materGNew)
-    const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
-
-    setTotEdit({
-      madeiras: madeirasSubtotal,
-      materiais: materiaisSubtotal,
-      comissao: 0,
-      frete: 0,
-      empresaPS: maoDeObra,
-      empresaGD: empresaGD,
-    })
-
-    toast.success("Cálculo concluído com sucesso!")
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
-    toast.error(message)
-    console.error(err)
-  } finally {
-    setLoadingCalc(false)
-  }
-}
 
 
     /* --------------------------- Edição inline --------------------------- */
@@ -777,14 +795,14 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
      *                         Handlers (Fluxos)
      * =================================================================== */
     const handleCalcular = () => {
-  const res = validateCalcular(form, tipoObra, isCobertaL, dim)
-  if (!res.ok) {
-    toast.warning(res.msg)
-    scrollToField(FIELD_IDS[res.missing])
-    return
-  }
-  calcular()
-}
+        const res = validateCalcular(form, tipoObra, isCobertaL, dim)
+        if (!res.ok) {
+            toast.warning(res.msg)
+            scrollToField(FIELD_IDS[res.missing])
+            return
+        }
+        calcular()
+    }
 
 
 
@@ -910,46 +928,75 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     }
 
     // payload comum para DB
-    const buildDbPayload = (): UpdateOrcamentoInput => ({
-  titulo,
-  cliente: { ...form },
-  parametros: {
-    tipoObra: tipoObra ?? "",
-    ...dim, // <<— inclui largura/comprimento e também os campos *Maior/Menor*
-  },
-  materiais: {
-    madeiras: materiais.madeiras.map(m => ({
-      nome: m.nome,
-      componente: m.componente ?? "",
-      quantidade: toPos(m.quantidade),
-      preco: toPos(m.preco),
-      tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
-      frete: null,
-    })),
-    materiaisGerais: materiais.materiaisGerais.map(m => ({
-      nome: m.nome,
-      componente: "",
-      quantidade: toPos(m.quantidade),
-      preco: toPos(m.preco),
-      tamanho: null,
-      frete: null,
-    })),
-    telhas: materiais.telhas.map(m => ({
-      nome: m.nome,
-      componente: "",
-      quantidade: toPos(m.quantidade),
-      preco: toPos(m.preco),
-      tamanho: null,
-      frete: m.frete != null ? toPos(m.frete) : 0,
-    })),
-  },
-  totais: { ...totEdit },
-  telhaValores,
-  links: {
-    slideUrl: links.slide ?? null,
-    pdfUrl: links.pdf ?? null,
-  },
-})
+    const buildDbPayload = (): UpdateOrcamentoInput => {
+        // monta 'parametros' de forma inteligente
+        const parametros: any = { tipoObra: tipoObra ?? "" }
+
+        if (isCobertaL) {
+            // Para Coberta em L, enviamos as 4 dimensões
+            parametros.larguraMaior = toPos(dim.larguraMaior)
+            parametros.larguraMenor = toPos(dim.larguraMenor)
+            parametros.comprimentoMaior = toPos(dim.comprimentoMaior)
+            parametros.comprimentoMenor = toPos(dim.comprimentoMenor)
+
+            // No EDIT, limpe largura/comprimento se não fizerem parte desse tipo
+            if (isEdit) {
+                parametros.largura = null
+                parametros.comprimento = null
+            }
+        } else {
+            // Obra “normal”: usa largura/comprimento
+            parametros.largura = toPos(dim.largura)
+            parametros.comprimento = toPos(dim.comprimento)
+
+            // No EDIT, limpe as dimensões da Coberta em L caso tenham ficado no BD
+            if (isEdit) {
+                parametros.larguraMaior = null
+                parametros.larguraMenor = null
+                parametros.comprimentoMaior = null
+                parametros.comprimentoMenor = null
+            }
+        }
+
+        return {
+            titulo,
+            cliente: { ...form },
+            parametros, // <<— agora vai o objeto ajustado
+            materiais: {
+                madeiras: materiais.madeiras.map(m => ({
+                    nome: m.nome,
+                    componente: m.componente ?? "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
+                    frete: null,
+                })),
+                materiaisGerais: materiais.materiaisGerais.map(m => ({
+                    nome: m.nome,
+                    componente: "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: null,
+                    frete: null,
+                })),
+                telhas: materiais.telhas.map(m => ({
+                    nome: m.nome,
+                    componente: "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: null,
+                    frete: m.frete != null ? toPos(m.frete) : 0,
+                })),
+            },
+            totais: { ...totEdit },
+            telhaValores,
+            links: {
+                slideUrl: links.slide ?? null,
+                pdfUrl: links.pdf ?? null,
+            },
+        }
+    }
+
 
 
 
