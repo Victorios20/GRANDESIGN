@@ -76,6 +76,8 @@ import {
 } from "@/components/ui/table"
 import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
 
+import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
+
 /* ===================================================================
  *                                Tipos
  * =================================================================== */
@@ -157,9 +159,9 @@ type OrcamentoPageProps = {
 // Cores mais fortes por ID
 const TIPO_OBRA_STYLE_BY_ID: Record<number, { item: string; trigger: string }> = {
     9: { // Caramanchão de 15 → amarelo suave
-    item:    "bg-yellow-400/30 hover:bg-yellow-400/40 data-[highlighted]:bg-yellow-400/40 data-[state=checked]:bg-yellow-400/50",
-    trigger: "bg-yellow-400/30",
-  },
+        item: "bg-yellow-400/30 hover:bg-yellow-400/40 data-[highlighted]:bg-yellow-400/40 data-[state=checked]:bg-yellow-400/50",
+        trigger: "bg-yellow-400/30",
+    },
     5: { // Linha na parede de 15
         item: "bg-sky-600/30 hover:bg-sky-600/40 data-[highlighted]:bg-sky-600/40 data-[state=checked]:bg-sky-600/50",
         trigger: "bg-sky-600/30",
@@ -623,7 +625,10 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
             const madeirasNew = madeira.map(mapRow)
             const materGNew = mats.map(mapRow)
-            const telhasNew = telhas.map(mapRow)
+            let telhasNew = telhas.map(mapRow)
+
+
+            telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
 
             setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
 
@@ -635,7 +640,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                 madeiras: madeirasSubtotal,
                 materiais: materiaisSubtotal,
                 comissao: 0,
-                frete: 0,
+                frete: 0,              // permanece manual/independente
                 empresaPS: maoDeObra,
                 empresaGD: empresaGD,
             })
@@ -1083,7 +1088,14 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     }
 
 
-
+    useEffect(() => {
+        setMateriais(prev => {
+            if (!prev.telhas.length) return prev;
+            const telhasAjustadas = aplicarFreteTelhasPorCidade(prev.telhas, cidades, form.cidade);
+            return { ...prev, telhas: telhasAjustadas };
+        });
+        // Recalcular "telhaValores" é automático via useEffect já existente
+    }, [form.cidade, cidades]);
 
 
 
