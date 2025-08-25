@@ -23,7 +23,7 @@ import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, Trash2, EyeIcon, ArrowUpRight } from "lucide-react"
+import { PlusCircle, Trash2, EyeIcon, ArrowUpRight, Edit } from "lucide-react"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 /* actions (supabase) */
@@ -432,13 +432,25 @@ export default function HomePage() {
                 {/* título + subtítulo */}
                 <Card className="border-0 shadow-none">
                   <CardHeader className="pb-1">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-3xl">
-                        Orçamento&nbsp;de&nbsp;{safeCell(orcamentoSel?.cliente?.nome)} – {safeCell(orcamentoSel?.cliente?.bairro)}
-                      </CardTitle>
+                    <div className="flex items-center justify-between">
+                      {/* Esquerda: título + copiar */}
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-3xl">
+                          Orçamento&nbsp;de&nbsp;{safeCell(orcamentoSel?.cliente?.nome)} – {safeCell(orcamentoSel?.cliente?.bairro)}
+                        </CardTitle>
 
-                      <CopyLinkButton value={editUrl} label="Copiar link de edição" />
+                        <CopyLinkButton value={editUrl} label="Copiar link de edição" />
+                      </div>
+
+                      {/* Direita: botão Editar */}
+                      <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
+                        <Link href={`/gerar-orcamento/edit/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Editar
+                        </Link>
+                      </Button>
                     </div>
+
 
                     <CardDescription className="mt-1">
                       <span className="font-medium">Título:</span> {safeCell(orcamentoSel?.titulo)}
@@ -707,11 +719,6 @@ export default function HomePage() {
                   <DialogClose asChild>
                     <Button variant="outline">Fechar</Button>
                   </DialogClose>
-                  <Button asChild>
-                    <Link href={`/gerar-orcamento/edit/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
-                      Editar
-                    </Link>
-                  </Button>
                 </DialogFooter>
               </>
             )}

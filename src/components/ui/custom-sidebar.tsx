@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 
-const APP_VERSION = "1.2.14"
+const APP_VERSION = "1.2.15"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()
@@ -156,7 +156,7 @@ export function CustomSidebar() {
                 <SidebarMenuItem>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link href="/gerar-orcamento">
+                      <Link href="/gerar-orcamento/new">
                         <SidebarMenuButton
                           isActive={false}
                           className={cn(
@@ -164,7 +164,7 @@ export function CustomSidebar() {
                             "hover:bg-black/5 transition-all duration-200"
                           )}
                         >
-                          <PlusIcon className={iconClass(isActive("/gerar-orcamento"))} />
+                          <PlusIcon className={iconClass(isActive("/gerar-orcamento/new"))} />
                           {isOpen && (
                             <motion.span
                               initial={{ opacity: 0 }}
