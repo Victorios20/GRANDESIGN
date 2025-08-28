@@ -36,10 +36,8 @@ import {
     listarComponentes,
     type Componente,
 } from "@/actions/componentes-db/componentes-db"
-import {
-    listarTiposObra,
-    type TipoObra,
-} from "@/actions/tipo-obra-db/tipo-obra-db"
+
+
 
 import { updateOrcamento } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
@@ -98,6 +96,7 @@ type MateriaisPorCategoria = {
     materiaisGerais: Material[]
     telhas: Material[]
 }
+type TipoObra = { id: number; tipo_obra: string }
 
 type Dim = {
     largura: number
@@ -425,27 +424,42 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     /* ===================================================================
      *                      Efeitos – carregar catálogos
      * =================================================================== */
-    useEffect(() => {
-        ; (async () => {
-            const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
-                listarMateriaisPorTipo("madeira"),
-                listarMateriaisPorTipo("geral"),
-                listarMateriaisPorTipo("telha"),
-                listarComponentes(),
-                listarTiposObra(),
-                getCidades(),
-            ])
+   useEffect(() => {
+  const ac = new AbortController()
 
-            setCatalogo({
-                madeiras: mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-                materiaisGerais: ges.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-                telhas: tls.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-            })
-            setComponentes(comps)
-            setTiposObra(tipos)
-            setCidades(cids)
-        })()
-    }, [])
+  ;(async () => {
+    try {
+      const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
+        listarMateriaisPorTipo("madeira"),
+        listarMateriaisPorTipo("geral"),
+        listarMateriaisPorTipo("telha"),
+        listarComponentes(),
+        // 👉 troca apenas aqui: busca os tipos via sua API
+        fetch("/api/tipos-obra", { signal: ac.signal }).then(async (r) => {
+          if (!r.ok) throw new Error(`Falha ao buscar tipos de obra: ${r.status}`)
+          return (await r.json()) as TipoObra[]
+        }),
+        getCidades(),
+      ])
+
+      setCatalogo({
+        madeiras:        mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+        materiaisGerais: ges .map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+        telhas:          tls .map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+      })
+      setComponentes(comps)
+      setTiposObra(tipos)   // ← vem da API agora
+      setCidades(cids)
+    } catch (e) {
+      if ((e as any)?.name !== "AbortError") {
+        console.error("Erro ao carregar catálogos:", e)
+      }
+    }
+  })()
+
+  return () => ac.abort()
+}, [])
+
 
     /* ===================================================================
      *                    HIDRATAÇÃO inicial (modo EDIT)

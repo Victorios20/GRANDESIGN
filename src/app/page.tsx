@@ -27,15 +27,10 @@ import { PlusCircle, Trash2, EyeIcon, ArrowUpRight, Edit } from "lucide-react"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 /* actions (supabase) */
-import {
-  listarBairros,
-  buscarOrcamentos,
-  detalheOrcamento,
-  OrcamentoTabela,
-  OrcamentoDetalhe,
-  MaterialItem,
+/* actions (fetch API) */
+import { listarBairros, buscarOrcamentos, detalheOrcamento } from "./_actions/home.actions"
+import type { OrcamentoTabela, OrcamentoDetalhe, MaterialItem } from "./_actions/home.actions"
 
-} from "@/actions/historico-orcamento-db/historico-orcamento-db"
 
 import { toast, Toaster } from "sonner"
 import { DateRangePicker } from "@/components/ui/DateRangePicker"
@@ -303,10 +298,7 @@ export default function HomePage() {
               {/* Ordenação por Data */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
-                <Select
-                  value={ordenarData}
-                  onValueChange={handleOrdenarData}
-                >
+                <Select value={ordenarData} onValueChange={(v) => setOrdenarData(v as "asc" | "desc")}>
                   <SelectTrigger className="w-full max-w-[160px]">
                     <SelectValue placeholder="Data" />
                   </SelectTrigger>
