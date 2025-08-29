@@ -25,21 +25,7 @@ import CopyLinkButton from "@/components/ui/CopyLinkButton"
 
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
-import { getCidades, type Cidade } from "@/actions/cidades-db/cidades-db"
-import {
-    salvarOrcamento,
-    salvarRascunhoOrcamento,
-} from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 
-import { listarMateriaisPorTipo } from "@/actions/materiais-db/materiais-db"
-import {
-    listarComponentes,
-    type Componente,
-} from "@/actions/componentes-db/componentes-db"
-
-
-
-import { updateOrcamento } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
 import type { TelhaPixValores } from "@/api/useGerarPDF"
 import type { UpdateOrcamentoInput } from "@/actions/edit-orcamento-db/edit-orcamento-db"
@@ -98,6 +84,8 @@ type MateriaisPorCategoria = {
 }
 type TipoObra = { id: number; tipo_obra: string }
 
+type Cidade = { id: number; nome: string }
+
 type Dim = {
     largura: number
     comprimento: number
@@ -107,7 +95,11 @@ type Dim = {
     comprimentoMenor: number
 }
 
-type Pagto = { pix: number; x10: number; x18: number }
+
+
+
+type Componente = { id: number; nome: string }
+
 
 type LinksState = { slide?: string; pdf?: string }
 
@@ -141,6 +133,9 @@ export type InitialData = {
     links: { slide?: string; pdf?: string; slideUrl?: string | null; pdfUrl?: string | null }
 }
 
+type MaterialCatalogItem = { descricao: string; preco_unitario: number }
+
+
 type OrcamentoPageProps = {
     mode?: "create" | "edit"
     /** Obrigatório no edit */
@@ -152,6 +147,129 @@ type OrcamentoPageProps = {
 /* ===================================================================
  *                              Helpers
  * =================================================================== */
+// ------------------ Helpers de POST para API ------------------
+// ADICIONE AQUI (abaixo do cabeçalho "Helpers de POST para API")
+type ApiErrorShape = {
+  error: string
+  code?: string
+  step?: string
+  details?: any
+  requestId?: string
+}
+
+type Pagto = { pix: number; x10: number; x18: number }
+type TotaisPayload = { madeiras: number; materiais: number; comissao: number; frete: number; empresaPS: number; empresaGD: number }
+
+type SalvarPayload = {
+    cliente: { nome: string; telefone: string; bairro: string; cidade?: string | null }
+    parametros: {
+        tipoObra: string
+        largura?: number | null
+        comprimento?: number | null
+        larguraMaior?: number | null
+        larguraMenor?: number | null
+        comprimentoMaior?: number | null
+        comprimentoMenor?: number | null
+    }
+    materiais: {
+    madeiras: {
+      nome: string
+      componente?: string
+      quantidade: number
+      preco: number
+      tamanho?: number | string | null | undefined   // <— relaxado
+      frete?: number | null | undefined              // <— relaxado
+    }[]
+    materiaisGerais: { nome: string; quantidade: number; preco: number }[]
+    telhas: { nome: string; quantidade: number; preco: number; frete?: number | null | undefined }[]
+  }
+    totais: TotaisPayload
+    telhaValores: Record<string, Pagto>
+    links?: { slideUrl: string | null; pdfUrl: string | null }
+    titulo: string
+}
+
+// SUBSTITUA a função postJSON atual por esta
+async function postJSON<T>(url: string, data: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(data),
+  })
+
+  const isJson = r.headers.get("content-type")?.includes("application/json")
+
+  if (!r.ok) {
+    let extra = ""
+    if (isJson) {
+      try {
+        const j = (await r.json()) as ApiErrorShape
+        const parts = [
+          j?.error,
+          j?.code ? `(${j.code})` : "",
+          j?.step ? `@${j.step}` : "",
+          j?.requestId ? `id:${j.requestId}` : "",
+        ].filter(Boolean)
+        extra = parts.length ? `: ${parts.join(" ")}` : ""
+        // log estruturado p/ DevTools
+        console.error("[API ERROR]", { url, status: r.status, ...j })
+      } catch {
+        // fallback silencioso
+      }
+    } else {
+      try { extra = `: ${await r.text()}` } catch {}
+    }
+    throw new Error(`Falha ao salvar (${r.status})${extra}`)
+  }
+
+  return (isJson ? r.json() : (null as unknown)) as Promise<T>
+}
+
+async function putJSON<T>(url: string, data: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(data),
+  })
+
+  const isJson = r.headers.get("content-type")?.includes("application/json")
+
+  if (!r.ok) {
+    let extra = ""
+    if (isJson) {
+      try {
+        const j = (await r.json()) as ApiErrorShape
+        const parts = [
+          j?.error,
+          j?.code ? `(${j.code})` : "",
+          j?.step ? `@${j.step}` : "",
+          j?.requestId ? `id:${j.requestId}` : "",
+        ].filter(Boolean)
+        extra = parts.length ? `: ${parts.join(" ")}` : ""
+        console.error("[API ERROR]", { url, status: r.status, ...j })
+      } catch {}
+    } else {
+      try { extra = `: ${await r.text()}` } catch {}
+    }
+    throw new Error(`Falha ao salvar (${r.status})${extra}`)
+  }
+
+  return (isJson ? r.json() : (null as unknown)) as Promise<T>
+}
+
+const updateOrcamentoAPI = (id: number, payload: UpdateOrcamentoInput) =>
+  putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
+
+
+
+const salvarOrcamentoAPI = (payload: SalvarPayload) =>
+    postJSON<{ id: number }>("/api/Orcamentos", payload).then(r => r.id)
+
+const salvarRascunhoAPI = (payload: SalvarPayload) =>
+  postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
+
 
 
 
@@ -424,41 +542,57 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     /* ===================================================================
      *                      Efeitos – carregar catálogos
      * =================================================================== */
-   useEffect(() => {
-  const ac = new AbortController()
+    useEffect(() => {
+        const ac = new AbortController()
 
-  ;(async () => {
-    try {
-      const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
-        listarMateriaisPorTipo("madeira"),
-        listarMateriaisPorTipo("geral"),
-        listarMateriaisPorTipo("telha"),
-        listarComponentes(),
-        // 👉 troca apenas aqui: busca os tipos via sua API
-        fetch("/api/tipos-obra", { signal: ac.signal }).then(async (r) => {
-          if (!r.ok) throw new Error(`Falha ao buscar tipos de obra: ${r.status}`)
-          return (await r.json()) as TipoObra[]
-        }),
-        getCidades(),
-      ])
+            ; (async () => {
+                try {
+                    const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
+                        fetch("/api/materiais?tipo=madeira", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar materiais de madeira: ${r.status}`)
+                            return (await r.json()) as MaterialCatalogItem[]
+                        }),
+                        fetch("/api/materiais?tipo=geral", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar materiais gerais: ${r.status}`)
+                            return (await r.json()) as MaterialCatalogItem[]
+                        }),
+                        fetch("/api/materiais?tipo=telha", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar telhas: ${r.status}`)
+                            return (await r.json()) as MaterialCatalogItem[]
+                        }),
+                        fetch("/api/componentes", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar componentes: ${r.status}`)
+                            return (await r.json()) as Componente[]
+                        }),
+                        fetch("/api/tipos-obra", { signal: ac.signal }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar tipos de obra: ${r.status}`)
+                            return (await r.json()) as TipoObra[]
+                        }),
+                        fetch("/api/cidades", { signal: ac.signal }).then(async (r) => {
+                            if (!r.ok) throw new Error(`Falha ao buscar cidades: ${r.status}`)
+                            return (await r.json()) as Cidade[]
+                        }),
+                    ])
 
-      setCatalogo({
-        madeiras:        mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-        materiaisGerais: ges .map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-        telhas:          tls .map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-      })
-      setComponentes(comps)
-      setTiposObra(tipos)   // ← vem da API agora
-      setCidades(cids)
-    } catch (e) {
-      if ((e as any)?.name !== "AbortError") {
-        console.error("Erro ao carregar catálogos:", e)
-      }
-    }
-  })()
 
-  return () => ac.abort()
-}, [])
+
+                    setCatalogo({
+                        madeiras: mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+                        materiaisGerais: ges.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+                        telhas: tls.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+                    })
+                    setComponentes(comps)
+                    setTiposObra(tipos)   // ← vem da API agora
+                    setCidades(cids)
+                } catch (e) {
+                    if ((e as any)?.name !== "AbortError") {
+                        console.error("Erro ao carregar catálogos:", e)
+                    }
+                }
+            })()
+
+        return () => ac.abort()
+    }, [])
 
 
     /* ===================================================================
@@ -958,9 +1092,9 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                             ...buildDbPayload(),
                             links: { slideUrl: slide, pdfUrl: pdf },
                         }
-                        await updateOrcamento(orcamentoId, payload)
+                        await updateOrcamentoAPI(orcamentoId, payload)
                     } else {
-                        await salvarOrcamento({
+                        await salvarOrcamentoAPI({
                             cliente: form,
                             parametros: { tipoObra: tipoObra ?? "", ...dim },
                             materiais,
@@ -1874,7 +2008,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     if (modalMode === "salvar" && !isEdit) {
                                         try {
                                             setLoadingSave(true)
-                                            await salvarRascunhoOrcamento({
+                                            await salvarRascunhoAPI({
                                                 cliente: form,
                                                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                 materiais,
@@ -1882,6 +2016,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                                 telhaValores,
                                                 titulo: tituloTemporario,
                                             })
+
                                             toast.success("Rascunho salvo com sucesso!")
                                             setModalSucessoAberto(true)
                                         } catch (err: unknown) {
@@ -1898,7 +2033,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                         try {
                                             if (!orcamentoId) throw new Error("ID do orçamento ausente.")
                                             setLoadingSave(true)
-                                            await updateOrcamento(orcamentoId, buildDbPayload())
+                                            await updateOrcamentoAPI(orcamentoId, buildDbPayload())
                                             toast.success("Orçamento atualizado com sucesso!")
                                         } catch (err: unknown) {
                                             const msg = err instanceof Error ? err.message : "Erro ao atualizar orçamento"
@@ -1915,7 +2050,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                             setLoadingSave(true)
                                             // se não tiver links, gravamos como rascunho; se tiver, como definitivo
                                             if (links.slide || links.pdf) {
-                                                await salvarOrcamento({
+                                                await salvarOrcamentoAPI({
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
@@ -1926,7 +2061,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                                 })
                                                 toast.success("Cópia salva como novo orçamento!")
                                             } else {
-                                                await salvarRascunhoOrcamento({
+                                                await salvarRascunhoAPI({
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
@@ -1936,6 +2071,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                                 })
                                                 toast.success("Cópia salva como rascunho!")
                                             }
+
                                         } catch (err: unknown) {
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar cópia"
                                             toast.error(msg)

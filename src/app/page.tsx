@@ -28,7 +28,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, Pagi
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 /* actions (supabase) */
 /* actions (fetch API) */
-import { listarBairros, buscarOrcamentos, detalheOrcamento } from "./_actions/home.actions"
+import { listarBairros, buscarOrcamentos } from "./_actions/home.actions"
 import type { OrcamentoTabela, OrcamentoDetalhe, MaterialItem } from "./_actions/home.actions"
 
 
@@ -98,19 +98,152 @@ export default function HomePage() {
     setPage(1)
   }
 
-  async function abrirModal(o: OrcamentoTabela) {
-    setLoadingModal(true)
-    try {
-      const det = await detalheOrcamento(o.id)
-      if (!det) throw new Error("Orçamento não encontrado")
-      setOrcamentoSel(det) // abre o modal
-    } catch (err) {
-      toast.error("Não foi possível carregar o orçamento.")
-      console.error(err)
-    } finally {
-      setLoadingModal(false)
+// helper numérico (aceita "1.234,56", "1234,56", "1234.56")
+// aceita number puro, "1.234,56", "1234,56" ou "1234.56" sem perder decimal
+function n(x: any) {
+  if (typeof x === "number") return Number.isFinite(x) ? x : 0
+  const s = String(x ?? "").trim()
+  if (!s) return 0
+  // se tiver vírgula, trata como formato BR ("1.234,56")
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", ".")) || 0
+  // senão, assume ponto como decimal ("1234.56")
+  return Number(s) || 0
+}
+
+
+function adaptEditPayloadToModal(src: any) {
+  const link_slide = src.link_slide ?? src.links?.slideUrl ?? null
+  const link_pdf   = src.link_pdf   ?? src.links?.pdfUrl   ?? null
+
+  // helper: pega a 1ª string não-vazia; se vier objeto {nome}, devolve nome
+  const pickStr = (...cands: any[]) => {
+    for (const c of cands) {
+      if (typeof c === "string" && c.trim()) return c
+      if (c && typeof c === "object" && typeof c.nome === "string" && c.nome.trim()) return c.nome
     }
+    return null
   }
+
+  // cobre: "tipoObra" (string), "tipo_obra" (string), "tipo_obra_nome", "tipo_obra.{tipo_obra|nome}"
+  const tipoObra =
+  src.tipoObra
+  ?? src.parametros?.tipoObra
+  ?? src.tipo_obra?.tipo_obra
+  ?? src.tipo_obra?.nome
+  ?? (typeof src.tipo_obra === "string" ? src.tipo_obra : null)
+  ?? src.tipo_obra_nome
+  ?? null
+
+  const dimensoes = {
+    largura: src.largura ?? src.parametros?.largura ?? null,
+    comprimento: src.comprimento ?? src.parametros?.comprimento ?? null,
+    larguraMenor: src.largura_menor ?? src.parametros?.larguraMenor ?? null,
+    larguraMaior: src.largura_maior ?? src.parametros?.larguraMaior ?? null,
+    comprimentoMenor: src.comprimento_menor ?? src.parametros?.comprimentoMenor ?? null,
+    comprimentoMaior: src.comprimento_maior ?? src.parametros?.comprimentoMaior ?? null,
+  }
+
+  // num parser
+  function n(x: any) {
+    if (typeof x === "number") return Number.isFinite(x) ? x : 0
+    const s = String(x ?? "").trim()
+    if (!s) return 0
+    if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", ".")) || 0
+    return Number(s) || 0
+  }
+
+  const normalizaItem = (i: any) => ({
+    nome: i.nome ?? i.descricao ?? "",
+    componente: i.componente ?? null,
+    quantidade: n(i.quantidade),
+    tamanho: i.tamanho != null ? n(i.tamanho) : null,
+    precoUnit: n(i.precoUnit ?? i.preco_unitario ?? i.preco),
+    frete: n(i.frete ?? 0),
+    tipo: i.tipo,
+  })
+
+  // pode vir flat (src.itens) ou agrupado (src.materiais.*)
+  const itensRaw = Array.isArray(src.itens) ? src.itens.map(normalizaItem) : []
+  const madeiras = (src.materiais?.madeiras ?? itensRaw.filter((x:any)=>x.tipo==="madeira")).map(normalizaItem)
+  const gerais   = (src.materiais?.materiaisGerais ?? itensRaw.filter((x:any)=>x.tipo==="geral")).map(normalizaItem)
+  const telhas   = (src.materiais?.telhas ?? itensRaw.filter((x:any)=>x.tipo==="telha")).map(normalizaItem)
+
+  const materiaisFlat = [
+    ...madeiras.map((m:any) => ({ ...m, tipo: "madeira" })),
+    ...gerais.map((g:any)   => ({ ...g, tipo: "geral" })),
+    ...telhas.map((t:any)   => ({ ...t, tipo: "telha" })),
+  ]
+
+  const pgBrutos = src.pagamentos ?? src.orcamento_pagamento ?? []
+  const pagamentos = pgBrutos.map((p:any)=>({
+    tipoTelhas: p.tipoTelhas ?? p.tipo_telhas ?? "",
+    metodo: (p.metodo ?? p.metodo_pagamento ?? "").toString().toLowerCase(),
+    valor: n(p.valor),
+  }))
+
+  const totais = {
+    madeiras: n(src.totais?.madeiras ?? src.totais_madeiras_preco),
+    materiais: n(src.totais?.materiais ?? src.totais_materiais_preco),
+    comissao: n(src.totais?.comissao ?? src.totais_comissao_preco),
+    empresaPS: n(src.totais?.empresaPS ?? src.totais_empresa_ps_preco),
+    empresaGD: n(src.totais?.empresaGD ?? src.totais_empresa_gd_preco),
+    frete: n(src.totais?.frete ?? src.totais_frete_preco),
+  }
+
+  const valorTotalCalc =
+    totais.madeiras + totais.materiais + totais.comissao + totais.empresaPS + totais.empresaGD + totais.frete
+
+  const valorTotal =
+    n(src.valor_total) || n(src.valorTotal) || valorTotalCalc
+
+  const dataISO =
+    (src.data_criacao ?? src.dataCriacao ?? src.created_at ?? new Date().toISOString()) as string
+
+  // 👇 agora cobre cidade como string em cliente.cidade, top-level e objeto {nome}
+  const cliente = {
+    nome: pickStr(src.cliente?.nome, src.nome_cliente) ?? "",
+    telefone: src.cliente?.telefone ?? null,
+    bairro: pickStr(src.cliente?.bairro, src.bairro),
+    cidade: pickStr(src.cliente?.cidade, src.cidade),
+  }
+
+  return {
+    id: src.id,
+    titulo: src.titulo ?? null,
+    cliente,
+    link_slide,
+    link_pdf,
+    tipoObra,
+    dimensoes,
+    materiais: materiaisFlat,
+    pagamentos,
+    totais: { ...totais, totalGeral: valorTotal },
+    dataISO,
+    valorTotal,
+  }
+}
+
+
+
+
+
+  async function abrirModal(o: OrcamentoTabela) {
+  setLoadingModal(true)
+  try {
+    const res = await fetch(`/api/Orcamentos/${o.id}`, { method: "GET" })
+    if (!res.ok) throw new Error("Orçamento não encontrado")
+    const data = await res.json()
+    const det = adaptEditPayloadToModal(data)
+    setOrcamentoSel(det)
+  } catch (err) {
+    toast.error("Não foi possível carregar o orçamento.")
+    console.error(err)
+  } finally {
+    setLoadingModal(false)
+  }
+}
+
+
 
   const handleOrdenarData = () => {
     setOrdenarData((prev) => (prev === 'asc' ? 'desc' : 'asc')); // Alterna entre 'asc' e 'desc'
@@ -123,19 +256,77 @@ export default function HomePage() {
   type MateriaisGroup = Record<"madeira" | "geral" | "telha", MaterialItem[]>
 
   /* agrupar materiais por tipo */
-  const materiaisGroup = useMemo(() => {
-    if (!orcamentoSel) return {} as MateriaisGroup
-    return orcamentoSel.materiais.reduce<MateriaisGroup>((acc, m) => {
-      ; (acc[m.tipo] ??= []).push(m)
+  // type MateriaisGroup = Record<"madeira" | "geral" | "telha", MaterialItem[]>
+
+const materiaisGroup = useMemo(() => {
+  const base: MateriaisGroup = { madeira: [], geral: [], telha: [] }
+  if (!orcamentoSel || orcamentoSel.materiais == null) return base
+
+  const m: any = orcamentoSel.materiais
+
+  // 1) Se vier como string JSON, tenta parsear
+  if (typeof m === "string") {
+    try {
+      const parsed = JSON.parse(m)
+      // Se virar objeto por categoria
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return {
+          madeira: parsed.madeiras ?? parsed.madeira ?? [],
+          geral: parsed.materiaisGerais ?? parsed.geral ?? [],
+          telha: parsed.telhas ?? parsed.telha ?? [],
+        } as MateriaisGroup
+      }
+      // Se virar array "flat"
+      if (Array.isArray(parsed)) {
+        return parsed.reduce<MateriaisGroup>((acc, item) => {
+          const k = item?.tipo === "madeira" ? "madeira"
+                  : item?.tipo === "telha"   ? "telha"
+                  : "geral"
+          acc[k].push(item)
+          return acc
+        }, base)
+      }
+    } catch {
+      // se der erro no parse, cai nos casos abaixo
+    }
+  }
+
+  // 2) Formato novo: objeto por categoria
+  if (m && typeof m === "object" && !Array.isArray(m)) {
+    return {
+      madeira: m.madeiras ?? m.madeira ?? [],
+      geral: m.materiaisGerais ?? m.geral ?? [],
+      telha: m.telhas ?? m.telha ?? [],
+    } as MateriaisGroup
+  }
+
+  // 3) Formato antigo: array flat com campo "tipo"
+  if (Array.isArray(m)) {
+    return m.reduce<MateriaisGroup>((acc, item) => {
+      const k = item?.tipo === "madeira" ? "madeira"
+              : item?.tipo === "telha"   ? "telha"
+              : "geral"
+      acc[k].push(item)
       return acc
-    }, { madeira: [], geral: [], telha: [] })
-  }, [orcamentoSel])
+    }, base)
+  }
+
+  return base
+}, [orcamentoSel])
+
 
 
 
   /* helpers */
-  const fmtBRL = (n: number) =>
-    n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+  // Substitua a versão atual por esta
+const fmtBRL = (n: unknown) => {
+  const v = typeof n === "number" ? n : Number(n)
+  const safe = Number.isFinite(v) ? v : 0
+  return safe.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+}
+
+
+
   const safeCell = (v: string | number | null | undefined) =>
     v === null || v === undefined || v === "" ? "-" : v
   const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy HH:mm")

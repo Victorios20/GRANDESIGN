@@ -1,352 +1,710 @@
-// src/actions/salvar-orcamento-db.ts
-import { supabase } from "@/supabase/client"
-import type { Material } from "@/app/gerar-orcamento/page"
-type OrcamentoMaterialInsert = {
-  orcamento_id: number
-  tipo: "madeira" | "geral" | "telha"
-  descricao: string
+/* ------------------------------------------------------------------
+   GRANDESIGN · src/actions/salvar-orcamento-db/salvar-orcamento-db.ts
+   Camada DB (server-only) usando Prisma ($queryRaw / $executeRaw).
+   - Mantém contratos e regras do Supabase (sem regressão de front)
+   - Transação para não deixar dados parciais
+   - Dimensões: salva SEM CONDICIONAL, aceitando null nos 6 campos
+------------------------------------------------------------------ */
+
+import { prisma } from "@/lib/prisma"
+/** ================================================================
+ * AppError (códigos e contexto)
+ * - Não altera funcionalidade nem contratos; só enriquece erros.
+ * ================================================================ */
+type AppErrorCode =
+  | "DUPLICATE_TITLE"
+  | "CITY_NOT_FOUND"
+  | "TYPE_NOT_FOUND"
+  | "INSERT_ORCAMENTO_FAILED"
+  | "INSERT_MATERIAL_FAILED"
+  | "INSERT_PAGAMENTO_FAILED"
+  | "CHECK_DUPLICATE_FAILED"
+
+class AppError extends Error {
+  code: AppErrorCode
+  step?: string
+  details?: Record<string, unknown>
+  constructor(code: AppErrorCode, message: string, step?: string, details?: Record<string, unknown>) {
+    super(message)
+    this.code = code
+    this.step = step
+    this.details = details
+  }
+}
+
+function logError(context: string, payload: Record<string, unknown>) {
+  try {
+    console.error(`[salvar-orcamento-db] ${context}`, payload)
+  } catch { }
+}
+
+/* ================================================================
+ * Tipos de entrada (espelham o payload que a página já envia)
+ * ================================================================ */
+
+export type MaterialInput = {
+  nome: string
+  componente?: string | null
   quantidade: number
-  preco_unitario: number
-  tamanho: number | null
-  componente: string | null
-  total: number
+  preco: number
+  tamanho?: number | string | null
+  frete?: number | null
+}
+
+export type ClienteInput = {
+  nome: string
+  telefone: string
+  bairro: string
+  cidade?: string | null // definitivo exige; rascunho aceita null
+}
+
+export type ParametrosInput = {
+  tipoObra?: string | null // definitivo exige; rascunho aceita null
+  largura?: number | null
+  comprimento?: number | null
+  larguraMaior?: number | null
+  larguraMenor?: number | null
+  comprimentoMaior?: number | null
+  comprimentoMenor?: number | null
+}
+
+export type TotaisInput = {
+  madeiras: number
+  materiais: number
+  comissao: number
+  empresaPS: number
+  empresaGD: number
   frete: number
 }
 
+export type TelhaValoresInput = Record<
+  string,
+  { pix: number; x10: number; x18: number }
+>
 
-export async function salvarOrcamento(params: {
-  cliente: {
-    nome: string
-    telefone: string
-    bairro: string
-    cidade: string
-  }
-  parametros: {
-    tipoObra: string
-    largura?: number | null
-    comprimento?: number | null
-    larguraMaior?: number | null
-    larguraMenor?: number | null
-    comprimentoMaior?: number | null
-    comprimentoMenor?: number | null
-  }
-  materiais: {
-    madeiras: Material[]
-    materiaisGerais: Material[]
-    telhas: Material[]
-  }
-  totais: {
-    madeiras: number
-    materiais: number
-    comissao: number
-    frete: number
-    empresaPS: number
-    empresaGD: number
-  }
-  telhaValores: Record<string, { pix: number; x10: number; x18: number }>
-  links: { slideUrl: string; pdfUrl: string }
-  titulo: string
-}) {
-  const { cliente, parametros, materiais, totais, telhaValores, links, titulo } = params
-
-
-  const tituloLimpo = titulo.trim()
-  // 1. Verifica se título já existe
-  const { data: existentes, error: erroBusca } = await supabase
-    .from("orcamento")
-    .select("id")
-    .eq("titulo", tituloLimpo)
-
-  if (erroBusca) throw new Error("Erro ao verificar título existente.")
-  if (existentes && existentes.length > 0) throw new Error("Já existe um orçamento com esse título.")
-
-
-  const cidade = await supabase.from("cidades").select("id").eq("nome", cliente.cidade).single()
-  if (!cidade.data) throw new Error("Cidade não encontrada")
-
-  const novoCliente = await supabase
-    .from("cliente")
-    .insert({
-      nome: cliente.nome,
-      telefone: cliente.telefone,
-      bairro: cliente.bairro,
-      cidade_id: cidade.data.id,
-    })
-    .select("id")
-    .single()
-  if (!novoCliente.data) throw new Error("Erro ao salvar cliente")
-
-  const tipoObra = await supabase
-    .from("tipo_obra")
-    .select("id")
-    .eq("tipo_obra", parametros.tipoObra)
-    .single()
-  if (!tipoObra.data) throw new Error("Tipo de obra não encontrado")
-
-  const orcamento = await supabase
-    .from("orcamento")
-    .insert({
-      cliente_id: novoCliente.data.id,
-      tipo_obra_id: tipoObra.data.id,
-      totais_madeiras_preco: totais.madeiras,
-      totais_materiais_preco: totais.materiais,
-      totais_comissao_preco: totais.comissao,
-      totais_empresa_ps_preco: totais.empresaPS,
-      totais_empresa_gd_preco: totais.empresaGD,
-      totais_frete_preco: totais.frete,
-      largura: parametros.largura ?? null,
-      comprimento: parametros.comprimento ?? null,
-      largura_maior: parametros.larguraMaior ?? null,
-      largura_menor: parametros.larguraMenor ?? null,
-      comprimento_maior: parametros.comprimentoMaior ?? null,
-      comprimento_menor: parametros.comprimentoMenor ?? null,
-      link_slide: links.slideUrl,
-      link_pdf: links.pdfUrl,
-      titulo: tituloLimpo,
-    })
-    .select("id")
-    .single()
-  if (!orcamento.data) throw new Error("Erro ao salvar orçamento")
-
-  const orcamentoId = orcamento.data.id
-
-  const materiaisToInsert = [
-    ...materiais.madeiras.map((m) => ({
-      orcamento_id: orcamentoId,
-      tipo: "madeira",
-      descricao: m.nome,
-      componente: m.componente,
-      quantidade: m.quantidade,
-      preco_unitario: m.preco,
-      tamanho: m.tamanho ? Number(String(m.tamanho).replace(",", ".")) : null,
-      total: m.tamanho
-        ? Number(String(m.tamanho).replace(",", ".")) * m.quantidade * m.preco
-        : 0,
-      frete: 0,
-    })),
-    ...materiais.materiaisGerais.map((m) => ({
-      orcamento_id: orcamentoId,
-      tipo: "geral",
-      descricao: m.nome,
-      quantidade: m.quantidade,
-      preco_unitario: m.preco,
-      tamanho: null,
-      componente: null,
-      total: m.quantidade * m.preco,
-      frete: 0,
-    })),
-    ...materiais.telhas.map((m) => ({
-      orcamento_id: orcamentoId,
-      tipo: "telha",
-      descricao: m.nome,
-      quantidade: m.quantidade,
-      preco_unitario: m.preco,
-      tamanho: null,
-      componente: null,
-      total: m.quantidade * m.preco + (m.frete ?? 0),
-      frete: m.frete ?? 0,
-    })),
-  ]
-
-  const r1 = await supabase.from("orcamento_material").insert(materiaisToInsert)
-  if (r1.error) throw new Error("Erro ao salvar materiais")
-
-  const pagamentosToInsert = Object.entries(telhaValores).flatMap(([tipo, val]) => [
-    { orcamento_id: orcamentoId, tipo_telhas: tipo, metodo_pagamento: "pix", valor: val.pix },
-    { orcamento_id: orcamentoId, tipo_telhas: tipo, metodo_pagamento: "x10", valor: val.x10 },
-    { orcamento_id: orcamentoId, tipo_telhas: tipo, metodo_pagamento: "x18", valor: val.x18 },
-  ])
-
-  const r2 = await supabase.from("orcamento_pagamento").insert(pagamentosToInsert)
-  if (r2.error) throw new Error("Erro ao salvar pagamentos")
-
-  return orcamentoId
+export type LinksInput = {
+  slideUrl: string
+  pdfUrl: string
 }
 
-export async function salvarRascunhoOrcamento(params: {
-  cliente: {
-    nome: string
-    telefone: string
-    bairro: string
-    cidade?: string   // ← agora opcional
-  }
-  parametros: {
-    tipoObra?: string // ← agora opcional
-    largura: number
-    comprimento: number
-  }
+export type SalvarOrcamentoParams = {
+  cliente: ClienteInput
+  parametros: ParametrosInput
   materiais: {
-    madeiras: Material[]
-    materiaisGerais: Material[]
-    telhas: Material[]
+    madeiras: MaterialInput[]
+    materiaisGerais: MaterialInput[]
+    telhas: MaterialInput[]
   }
-  totais: {
-    madeiras: number
-    materiais: number
-    comissao: number
-    frete: number
-    empresaPS: number
-    empresaGD: number
-  }
-  telhaValores: Record<string, { pix: number; x10: number; x18: number }>
+  totais: TotaisInput
+  telhaValores: TelhaValoresInput
+  links: LinksInput // definitivo exige links
   titulo: string
-}) {
-  const { cliente, parametros, materiais, totais, telhaValores, titulo } = params
+}
 
-  const tituloLimpo = titulo.trim()
-
-  /* ---------- chaves estrangeiras obrigatórias ---------- */
-  let cidadeId: number | null = null
-  if (cliente.cidade) {
-    const cidade = await supabase
-      .from("cidades")
-      .select("id")
-      .eq("nome", cliente.cidade)
-      .single()
-    if (!cidade.data) throw new Error("Cidade não encontrada")
-    cidadeId = cidade.data.id
+export type SalvarRascunhoParams = {
+  cliente: ClienteInput
+  parametros: ParametrosInput
+  materiais: {
+    madeiras: MaterialInput[]
+    materiaisGerais: MaterialInput[]
+    telhas: MaterialInput[]
   }
+  totais: TotaisInput
+  telhaValores: TelhaValoresInput
+  titulo: string
+}
 
+/* ================================================================
+ * Helpers internos
+ * ================================================================ */
 
-  const novoCliente = await supabase
-    .from("cliente")
-    .insert({
-      nome: cliente.nome,
-      telefone: cliente.telefone,
-      bairro: cliente.bairro,
-      cidade_id: cidadeId, // ← agora pode ser null
+function normalizeMetodoPagamento(m: string): "pix" | "10x" | "18x" {
+  if (m === "x10") return "10x"
+  if (m === "x18") return "18x"
+  return "pix"
+}
+
+function cleanText(s: string | null | undefined): string {
+  return (s ?? "").trim().replace(/\s+/g, " ")
+}
+
+function num(v: unknown): number {
+  if (v === null || v === undefined) return 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** aceita número ou string com vírgula; retorna number ou null */
+function parseTamanho(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === "number") return Number.isFinite(v) ? v : null
+  const t = v.replace(",", ".")
+  const n = Number(t)
+  return Number.isFinite(n) ? n : null
+}
+
+/* ================================================================
+ * SELECT de chaves estrangeiras
+ * ================================================================ */
+
+async function getCidadeIdByNome(tx: any, nome: string): Promise<number | null> {
+  const rows = (await tx.$queryRaw`
+    SELECT id
+    FROM cidades
+    WHERE nome = ${nome}
+    LIMIT 1
+  `) as Array<{ id: number }>
+  return rows?.[0]?.id ?? null
+}
+
+async function getTipoObraIdByNome(tx: any, tipoObra: string): Promise<number | null> {
+  const rows = (await tx.$queryRaw`
+    SELECT id
+    FROM tipo_obra
+    WHERE tipo_obra = ${tipoObra}
+    LIMIT 1
+  `) as Array<{ id: number }>
+  return rows?.[0]?.id ?? null
+}
+
+/* ================================================================
+ * Inserts básicos
+ * ================================================================ */
+
+async function insertCliente(
+  tx: any,
+  data: { nome: string; telefone: string; bairro: string; cidade_id: number | null }
+): Promise<number> {
+  const rows = (await tx.$queryRaw`
+    INSERT INTO cliente (nome, telefone, bairro, cidade_id)
+    VALUES (${data.nome}, ${data.telefone}, ${data.bairro}, ${data.cidade_id})
+    RETURNING id
+  `) as Array<{ id: number }>
+  if (!rows?.[0]?.id) throw new Error("Erro ao salvar cliente")
+  return rows[0].id
+}
+
+async function insertOrcamento(
+  tx: any,
+  data: {
+    cliente_id: number
+    tipo_obra_id: number | null
+    totais_madeiras_preco: number
+    totais_materiais_preco: number
+    totais_comissao_preco: number
+    totais_empresa_ps_preco: number
+    totais_empresa_gd_preco: number
+    totais_frete_preco: number
+    largura: number | null
+    comprimento: number | null
+    largura_maior: number | null
+    largura_menor: number | null
+    comprimento_maior: number | null
+    comprimento_menor: number | null
+    link_slide: string | null
+    link_pdf: string | null
+    titulo: string
+  }
+): Promise<number> {
+  const rows = (await tx.$queryRaw`
+    INSERT INTO orcamento (
+      cliente_id, tipo_obra_id,
+      totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
+      totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
+      largura, comprimento, largura_maior, largura_menor, comprimento_maior, comprimento_menor,
+      link_slide, link_pdf, titulo
+    ) VALUES (
+      ${data.cliente_id}, ${data.tipo_obra_id},
+      ${data.totais_madeiras_preco}, ${data.totais_materiais_preco}, ${data.totais_comissao_preco},
+      ${data.totais_empresa_ps_preco}, ${data.totais_empresa_gd_preco}, ${data.totais_frete_preco},
+      ${data.largura}, ${data.comprimento}, ${data.largura_maior}, ${data.largura_menor}, ${data.comprimento_maior}, ${data.comprimento_menor},
+      ${data.link_slide}, ${data.link_pdf}, ${data.titulo}
+    )
+    RETURNING id
+  `) as Array<{ id: number }>
+  if (!rows?.[0]?.id) throw new Error("Erro ao salvar orçamento")
+  return rows[0].id
+}
+
+async function insertMaterial(
+  tx: any,
+  row: {
+    orcamento_id: number
+    tipo: "madeira" | "geral" | "telha"
+    descricao: string
+    componente: string | null
+    quantidade: number
+    preco_unitario: number
+    tamanho: number | null
+    frete: number
+    total: number
+  }
+) {
+  await tx.$executeRaw`
+    INSERT INTO orcamento_material (
+      orcamento_id, tipo, descricao, componente, quantidade, preco_unitario, tamanho, frete, total
+    ) VALUES (
+      ${row.orcamento_id}, ${row.tipo}, ${row.descricao}, ${row.componente},
+      ${row.quantidade}, ${row.preco_unitario}, ${row.tamanho}, ${row.frete}, ${row.total}
+    )
+  `
+}
+
+async function insertPagamento(
+  tx: any,
+  row: { orcamento_id: number; tipo_telhas: string; metodo_pagamento: string; valor: number }
+) {
+  await tx.$executeRaw`
+    INSERT INTO orcamento_pagamento (orcamento_id, tipo_telhas, metodo_pagamento, valor)
+    VALUES (${row.orcamento_id}, ${row.tipo_telhas}, ${row.metodo_pagamento}, ${row.valor})
+  `
+}
+
+/* ================================================================
+ * Funções principais
+ * ================================================================ */
+
+/**
+ * Salvar orçamento DEFINITIVO
+ * - Título único
+ * - Cidade e Tipo de obra obrigatórios (por nome)
+ * - Links obrigatórios
+ * - Grava os 6 campos de dimensão como chegarem (podem ser null)
+ * - Insere materiais e pagamentos (sempre pix/x10/x18 por tipo)
+ * Retorna o id do orçamento
+ */
+export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<number> {
+  const tituloLimpo = cleanText(params.titulo)
+  const nomeCidade = cleanText(params.cliente.cidade ?? "")
+
+  return await prisma.$transaction(async (tx) => {
+    // 1) Título único
+    try {
+      const dup = (await tx.$queryRaw`
+        SELECT id FROM orcamento WHERE titulo = ${tituloLimpo} LIMIT 1
+      `) as Array<{ id: number }>
+      if (dup?.[0]?.id) {
+        // mantém a mesma mensagem para compat com a rota atual
+        throw new AppError("DUPLICATE_TITLE", "Já existe um orçamento com esse título.", "check-duplicate", { titulo: tituloLimpo })
+      }
+    } catch (err: any) {
+      if (err instanceof AppError && err.code === "DUPLICATE_TITLE") throw err
+      logError("check-duplicate failed", { titulo: tituloLimpo, err: String(err?.message ?? err) })
+      throw new AppError("CHECK_DUPLICATE_FAILED", "Erro ao verificar título existente.", "check-duplicate")
+    }
+
+    // 2) Cidade (obrigatória)
+    if (!nomeCidade) throw new AppError("CITY_NOT_FOUND", "Cidade não encontrada", "resolve-cidade")
+    const cidadeId = await getCidadeIdByNome(tx, nomeCidade)
+    if (!cidadeId) throw new AppError("CITY_NOT_FOUND", "Cidade não encontrada", "resolve-cidade", { nomeCidade })
+
+    // 3) Cliente
+    const clienteId = await insertCliente(tx, {
+      nome: cleanText(params.cliente.nome),
+      telefone: cleanText(params.cliente.telefone),
+      bairro: cleanText(params.cliente.bairro),
+      cidade_id: cidadeId,
     })
 
-    .select("id")
-    .single()
-  if (!novoCliente.data) throw new Error("Erro ao salvar cliente")
+    // 4) Tipo de obra (obrigatório)
+    const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
+    if (!tipoObraNome) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo")
+    const tipoObraId = await getTipoObraIdByNome(tx, tipoObraNome)
+    if (!tipoObraId) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo", { tipoObraNome })
 
-  let tipoObraId: number | null = null
-  if (parametros.tipoObra) {
-    const tipoObra = await supabase
-      .from("tipo_obra")
-      .select("id")
-      .eq("tipo_obra", parametros.tipoObra)
-      .single()
-    if (!tipoObra.data) throw new Error("Tipo de obra não encontrado")
-    tipoObraId = tipoObra.data.id
-  }
+    // 5) Orcamento (links obrigatórios)
+    let orcamentoId: number
+    try {
+      orcamentoId = await insertOrcamento(tx, {
+        cliente_id: clienteId,
+        tipo_obra_id: tipoObraId,
+        totais_madeiras_preco: num(params.totais.madeiras),
+        totais_materiais_preco: num(params.totais.materiais),
+        totais_comissao_preco: num(params.totais.comissao),
+        totais_empresa_ps_preco: num(params.totais.empresaPS),
+        totais_empresa_gd_preco: num(params.totais.empresaGD),
+        totais_frete_preco: num(params.totais.frete),
+        largura: params.parametros.largura ?? null,
+        comprimento: params.parametros.comprimento ?? null,
+        largura_maior: params.parametros.larguraMaior ?? null,
+        largura_menor: params.parametros.larguraMenor ?? null,
+        comprimento_maior: params.parametros.comprimentoMaior ?? null,
+        comprimento_menor: params.parametros.comprimentoMenor ?? null,
+        link_slide: params.links?.slideUrl ?? null,
+        link_pdf: params.links?.pdfUrl ?? null,
+        titulo: tituloLimpo,
+      })
+    } catch (err: any) {
+      logError("insert-orcamento failed", { titulo: tituloLimpo, clienteId, tipoObraId, err: String(err?.message ?? err) })
+      throw new AppError("INSERT_ORCAMENTO_FAILED", "Erro ao salvar orçamento", "insert-orcamento")
+    }
 
+    // 6) Materiais (madeira, geral, telha)
+    const mats = params.materiais
 
-  /* ---------- registro principal ---------- */
-  const orc = await supabase
-    .from("orcamento")
-    .insert({
-      cliente_id: novoCliente.data.id,
-      tipo_obra_id: tipoObraId,
-      largura: parametros.largura,
-      comprimento: parametros.comprimento,
-      totais_madeiras_preco: totais.madeiras,
-      totais_materiais_preco: totais.materiais,
-      totais_comissao_preco: totais.comissao,
-      totais_empresa_ps_preco: totais.empresaPS,
-      totais_empresa_gd_preco: totais.empresaGD,
-      totais_frete_preco: totais.frete,
-      link_slide: null,      // rascunho não tem links
-      link_pdf: null,
-      titulo: tituloLimpo,
-    })
-    .select("id")
-    .single()
-  if (!orc.data) throw new Error("Erro ao salvar rascunho")
-
-  const orcamentoId = orc.data.id
-
-  /* ---------- materiais (se existirem) ---------- */
-  /* ---------- materiais (se existirem) ---------- */
-  const materiaisToInsert: OrcamentoMaterialInsert[] = []
-
-  if (materiais.madeiras.length) {
-    materiaisToInsert.push(
-      ...materiais.madeiras.map<OrcamentoMaterialInsert>(m => ({
-        orcamento_id: orcamentoId,
-        tipo: "madeira",
-        descricao: m.nome,
-        componente: m.componente,
-        quantidade: m.quantidade,
-        preco_unitario: m.preco,
-        tamanho: m.tamanho ? Number(String(m.tamanho).replace(",", ".")) : null,
-        total: m.tamanho
-          ? Number(String(m.tamanho).replace(",", ".")) * m.quantidade * m.preco
-          : 0,
-        frete: 0,
-      })),
-    )
-  }
-
-  if (materiais.materiaisGerais.length) {
-    materiaisToInsert.push(
-      ...materiais.materiaisGerais.map<OrcamentoMaterialInsert>(m => ({
-        orcamento_id: orcamentoId,
-        tipo: "geral",
-        descricao: m.nome,
-        componente: null,
-        quantidade: m.quantidade,
-        preco_unitario: m.preco,
-        tamanho: null,
-        total: m.quantidade * m.preco,
-        frete: 0,
-      })),
-    )
-  }
-
-  if (materiais.telhas.length) {
-    materiaisToInsert.push(
-      ...materiais.telhas.map<OrcamentoMaterialInsert>(m => ({
-        orcamento_id: orcamentoId,
-        tipo: "telha",
-        descricao: m.nome,
-        componente: null,
-        quantidade: m.quantidade,
-        preco_unitario: m.preco,
-        tamanho: null,
-        total: m.quantidade * m.preco + (m.frete ?? 0),
-        frete: m.frete ?? 0,
-      })),
-    )
-  }
-
-
-  if (materiaisToInsert.length) {
-    const r = await supabase.from("orcamento_material").insert(materiaisToInsert)
-    if (r.error) throw new Error("Erro ao salvar materiais")
-  }
-
-  /* ---------- pagamentos fixos de telha (se existirem) ---------- */
-  const pagamentosToInsert = Object.entries(telhaValores).flatMap(([tipo, v]) =>
-    v.pix || v.x10 || v.x18
-      ? [
-        {
+    // madeiras
+    for (const m of mats.madeiras ?? []) {
+      const tamanho = parseTamanho(m.tamanho)
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const total = tamanho ? tamanho * quantidade * preco : 0
+      try {
+        await insertMaterial(tx, {
           orcamento_id: orcamentoId,
-          tipo_telhas: tipo,
-          metodo_pagamento: "pix",
-          valor: v.pix,
-        },
-        {
+          tipo: "madeira",
+          descricao: cleanText(m.nome),
+          componente: cleanText(m.componente ?? "") || null,
+          quantidade,
+          preco_unitario: preco,
+          tamanho,
+          frete: 0,
+          total,
+        })
+      } catch (err: any) {
+        logError("insert-material failed", { tipo: "madeira", err: String(err?.message ?? err), material: m })
+        throw new AppError("INSERT_MATERIAL_FAILED", "Erro ao inserir material (madeira).", "insert-material", { tipo: "madeira" })
+      }
+    }
+
+    // materiais gerais
+    for (const m of mats.materiaisGerais ?? []) {
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const total = quantidade * preco
+      try {
+        await insertMaterial(tx, {
           orcamento_id: orcamentoId,
-          tipo_telhas: tipo,
-          metodo_pagamento: "x10",
-          valor: v.x10,
-        },
-        {
-          orcamento_id: orcamentoId,
-          tipo_telhas: tipo,
-          metodo_pagamento: "x18",
-          valor: v.x18,
-        },
-      ]
-      : [],
+          tipo: "geral",
+          descricao: cleanText(m.nome),
+          componente: "",
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete: 0,
+          total,
+        })
+      } catch (err: any) {
+  logError("insert-material failed", {
+    tipo: "geral",
+    err: String(err?.message ?? err),
+    row: {
+      descricao: cleanText(m.nome),
+      quantidade,
+      preco_unitario: preco,
+      frete: 0,
+      total,
+      tamanho: null,
+      componente: "",
+
+    },
+  })
+  throw new AppError(
+    "INSERT_MATERIAL_FAILED",
+    "Erro ao inserir material (geral).",
+    "insert-material",
+    {
+      tipo: "geral",
+      descricao: cleanText(m.nome),
+      quantidade,
+      preco_unitario: preco,
+      frete: 0,
+      total,
+      dbMessage: String(err?.message ?? ""),
+    }
   )
+}
 
-  if (pagamentosToInsert.length) {
-    const r = await supabase.from("orcamento_pagamento").insert(pagamentosToInsert)
-    if (r.error) throw new Error("Erro ao salvar pagamentos")
+    }
+
+    // telhas
+    for (const m of mats.telhas ?? []) {
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const freteV = num(m.frete)
+      const total = quantidade * preco + freteV
+      try {
+        await insertMaterial(tx, {
+          orcamento_id: orcamentoId,
+          tipo: "telha",
+          descricao: cleanText(m.nome),
+          componente: "",
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete: freteV,
+          total,
+        })
+      } catch (err: any) {
+        logError("insert-material failed", {
+          tipo: "telha",
+          err: String(err?.message ?? err),
+          row: {
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: freteV,
+            total,
+            tamanho: null,
+          },
+        })
+        throw new AppError(
+          "INSERT_MATERIAL_FAILED",
+          "Erro ao inserir material (telha).",
+          "insert-material",
+          {
+            tipo: "telha",
+            // Detalhes a mais pro toast/log
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: freteV,
+            total,
+            // opcional: ecoar a mensagem SQL original (ajuda MUITO)
+            dbMessage: String(err?.message ?? ""),
+          }
+        )
+      }
+
+    }
+
+    // 7) Pagamentos (sempre 3 por tipo: pix, x10, x18)
+    for (const [tipoTelha, valores] of Object.entries(params.telhaValores ?? {})) {
+      try {
+        await insertPagamento(tx, {
+          orcamento_id: orcamentoId,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("pix"),
+          valor: num(valores?.pix),
+        })
+        await insertPagamento(tx, {
+          orcamento_id: orcamentoId,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("x10"),
+          valor: num(valores?.x10),
+        })
+        await insertPagamento(tx, {
+          orcamento_id: orcamentoId,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("x18"),
+          valor: num(valores?.x18),
+        })
+
+      } catch (err: any) {
+        logError("insert-pagamento failed", { metodo: "x18", err: String(err?.message ?? err) })
+        throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x18" })
+      }
+    }
+
+    return orcamentoId
+  },{
+    timeout: 120_000, // 120s de inatividade tolerada entre queries
+    maxWait: 20_000,  // 20s aguardando alocar a transação
+    // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
   }
+)
+}
 
-  return orcamentoId
+/**
+ * Salvar RASCUNHO de orçamento
+ * - Cidade e Tipo de obra OPCIONAIS
+ * - Links sempre null
+ * - Grava os 6 campos de dimensão como chegarem (podem ser null)
+ * - Insere materiais se houver
+ * - Insere pagamentos apenas quando houver algum valor > 0 para aquele tipo
+ * Retorna o id do orçamento
+ */
+export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): Promise<number> {
+  const tituloLimpo = cleanText(params.titulo)
+  const nomeCidade = cleanText(params.cliente.cidade ?? "")
+
+  return await prisma.$transaction(async (tx) => {
+    // 1) Cidade (opcional)
+    const cidadeId = nomeCidade ? await getCidadeIdByNome(tx, nomeCidade) : null
+
+    // 2) Cliente
+    const clienteId = await insertCliente(tx, {
+      nome: cleanText(params.cliente.nome),
+      telefone: cleanText(params.cliente.telefone),
+      bairro: cleanText(params.cliente.bairro),
+      cidade_id: cidadeId,
+    })
+
+    // 3) Tipo de obra (opcional)
+    const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
+    const tipoObraId = tipoObraNome ? await getTipoObraIdByNome(tx, tipoObraNome) : null
+
+    // 4) Orcamento (links null)
+    let orcamentoId: number
+    try {
+      orcamentoId = await insertOrcamento(tx, {
+        cliente_id: clienteId,
+        tipo_obra_id: tipoObraId ?? null,
+        totais_madeiras_preco: num(params.totais.madeiras),
+        totais_materiais_preco: num(params.totais.materiais),
+        totais_comissao_preco: num(params.totais.comissao),
+        totais_empresa_ps_preco: num(params.totais.empresaPS),
+        totais_empresa_gd_preco: num(params.totais.empresaGD),
+        totais_frete_preco: num(params.totais.frete),
+        largura: params.parametros.largura ?? null,
+        comprimento: params.parametros.comprimento ?? null,
+        largura_maior: params.parametros.larguraMaior ?? null,
+        largura_menor: params.parametros.larguraMenor ?? null,
+        comprimento_maior: params.parametros.comprimentoMaior ?? null,
+        comprimento_menor: params.parametros.comprimentoMenor ?? null,
+        link_slide: null,
+        link_pdf: null,
+        titulo: tituloLimpo,
+      })
+    } catch (err: any) {
+      logError("insert-orcamento failed", { titulo: tituloLimpo, clienteId, tipoObraId: null, err: String(err?.message ?? err) })
+      throw new AppError("INSERT_ORCAMENTO_FAILED", "Erro ao salvar orçamento", "insert-orcamento")
+    }
+
+    // 5) Materiais (se houver)
+    const mats = params.materiais
+
+    for (const m of mats.madeiras ?? []) {
+      const tamanho = parseTamanho(m.tamanho)
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const total = tamanho ? tamanho * quantidade * preco : 0
+      try {
+        await insertMaterial(tx, {
+          orcamento_id: orcamentoId,
+          tipo: "madeira",
+          descricao: cleanText(m.nome),
+          componente: cleanText(m.componente ?? "") || null,
+          quantidade,
+          preco_unitario: preco,
+          tamanho,
+          frete: 0,
+          total,
+        })
+      } catch (err: any) {
+        logError("insert-material failed", { tipo: "madeira", err: String(err?.message ?? err), material: m })
+        throw new AppError("INSERT_MATERIAL_FAILED", "Erro ao inserir material (madeira).", "insert-material", { tipo: "madeira" })
+      }
+    }
+
+    for (const m of mats.materiaisGerais ?? []) {
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const total = quantidade * preco
+      try {
+        await insertMaterial(tx, {
+          orcamento_id: orcamentoId,
+          tipo: "geral",
+          descricao: cleanText(m.nome),
+          componente: "",
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete: 0,
+          total,
+        })
+      } catch (err: any) {
+        logError("insert-material failed", { tipo: "geral", err: String(err?.message ?? err), material: m })
+        throw new AppError("INSERT_MATERIAL_FAILED", "Erro ao inserir material (geral).", "insert-material", { tipo: "geral" })
+      }
+    }
+
+    for (const m of mats.telhas ?? []) {
+      const quantidade = num(m.quantidade)
+      const preco = num(m.preco)
+      const freteV = num(m.frete)
+      const total = quantidade * preco + freteV
+      try {
+        await insertMaterial(tx, {
+          orcamento_id: orcamentoId,
+          tipo: "telha",
+          descricao: cleanText(m.nome),
+          componente: "",
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete: freteV,
+          total,
+        })
+      } catch (err: any) {
+        logError("insert-material failed", {
+          tipo: "telha",
+          err: String(err?.message ?? err),
+          row: {
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: freteV,
+            total,
+            tamanho: null,
+          },
+        })
+        throw new AppError(
+          "INSERT_MATERIAL_FAILED",
+          "Erro ao inserir material (telha).",
+          "insert-material",
+          {
+            tipo: "telha",
+            // Detalhes a mais pro toast/log
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: freteV,
+            total,
+            // opcional: ecoar a mensagem SQL original (ajuda MUITO)
+            dbMessage: String(err?.message ?? ""),
+          }
+        )
+      }
+
+    }
+
+    // 6) Pagamentos (apenas se houver algum valor > 0)
+    for (const [tipoTelha, valores] of Object.entries(params.telhaValores ?? {})) {
+      const vPix = num(valores?.pix)
+      const v10 = num(valores?.x10)
+      const v18 = num(valores?.x18)
+      if (vPix > 0 || v10 > 0 || v18 > 0) {
+        try {
+          await insertPagamento(tx, {
+            orcamento_id: orcamentoId,
+            tipo_telhas: tipoTelha,
+            metodo_pagamento: normalizeMetodoPagamento("pix"),
+            valor: vPix,
+          })
+        } catch (err: any) {
+          logError("insert-pagamento failed", { metodo: "pix", err: String(err?.message ?? err) })
+          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "pix" })
+        }
+        try {
+          await insertPagamento(tx, {
+            orcamento_id: orcamentoId,
+            tipo_telhas: tipoTelha,
+            metodo_pagamento: normalizeMetodoPagamento("x10"),
+            valor: v10,
+          })
+        } catch (err: any) {
+          logError("insert-pagamento failed", { metodo: "x10", err: String(err?.message ?? err) })
+          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x10" })
+        }
+        try {
+          await insertPagamento(tx, {
+            orcamento_id: orcamentoId,
+            tipo_telhas: tipoTelha,
+            metodo_pagamento: normalizeMetodoPagamento("x18"),
+            valor: v18,
+          })
+        } catch (err: any) {
+          logError("insert-pagamento failed", { metodo: "x18", err: String(err?.message ?? err) })
+          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x18" })
+        }
+      }
+    }
+
+    return orcamentoId
+  },
+  {
+    timeout: 120_000, // 120s de inatividade tolerada entre queries
+    maxWait: 20_000,  // 20s aguardando alocar a transação
+    // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
+  })
 }

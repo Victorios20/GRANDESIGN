@@ -1,20 +1,36 @@
 /* ------------------------------------------------------------------
-   GRANDESIGN · src/actions/components-db/componentes-db.ts
-   ------------------------------------------------------------------ */
-import { supabase } from "@/supabase/client"
+   GRANDESIGN · src/actions/componentes-db/componentes-db.ts
+   Camada DB (server-only) usando Prisma ($queryRaw).
+   Mantém o contrato atual:
+   - Tipo Componente { id: number; nome: string }
+   - listarComponentesDB(): SELECT id, nome FROM componentes ORDER BY id ASC
+   - Em erro: lança (a rota trata com 500)
+------------------------------------------------------------------ */
 
-/* ---------- Tipo local ---------- */
+import { prisma } from "@/lib/prisma"
+
+/** Shape usado no front */
 export interface Componente {
   id: number
   nome: string
 }
 
-/* ---------- SELECT * FROM componentes ORDER BY id ---------- */
-export async function listarComponentes(): Promise<Componente[]> {
-  const { data, error } = await supabase
-    .from("componentes")              // sem genérico aqui
-    .select("*")
-    .order("id", { ascending: true }) // ou .order("nome")
-  if (error) throw error
-  return data as Componente[]         // converte para o tipo local
+/** SELECT id, nome FROM componentes ORDER BY id ASC */
+export async function listarComponentesDB(): Promise<Componente[]> {
+  try {
+    const rows = (await prisma.$queryRaw`
+      SELECT id, nome
+      FROM componentes
+      ORDER BY id ASC
+    `) as Array<{ id: number; nome: string | null }>
+
+    return rows.map((r) => ({
+      id: r.id,
+      nome: r.nome ?? "",
+    }))
+  } catch (err) {
+    console.error("listarComponentesDB: erro ao listar componentes:", err)
+    // Mantemos o comportamento "falha => erro", igual ao Supabase (throw error)
+    throw err
+  }
 }

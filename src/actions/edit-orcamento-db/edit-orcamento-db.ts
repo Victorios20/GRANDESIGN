@@ -1,13 +1,14 @@
-// src/actions/edit-orcamento-db.ts
-import { supabase } from "@/supabase/client"
+// src/actions/edit-orcamento-db/edit-orcamento-db.ts
+import { prisma } from "@/lib/prisma"
 
-/** =====================================================================
- * Tipos de domínio (alinhados com o que o OrcamentoPage espera)
- * ===================================================================== */
-export type Material = {
-  id: number
+/* ========================= Helpers e Tipos ========================= */
+
+type UIInteger = number // id efêmero para a UI (não é id do BD)
+
+export type UIMaterial = {
+  id: UIInteger
   nome: string
-  componente: string
+  componente: string | null
   quantidade: number
   preco: number
   tamanho?: number | null
@@ -21,22 +22,21 @@ export type GetOrcamentoResult = {
     nome: string
     telefone: string
     bairro: string
-    cidade: string
+    cidade: string | null // por nome
   }
   parametros: {
-    tipoObra: string
-    largura: number
-    comprimento: number
-    // Cobertura em L (opcionais)
-    larguraMaior?: number | null
-    larguraMenor?: number | null
-    comprimentoMaior?: number | null
-    comprimentoMenor?: number | null
+    tipoObra: string | null // por nome
+    largura: number | null
+    comprimento: number | null
+    larguraMaior: number | null
+    larguraMenor: number | null
+    comprimentoMaior: number | null
+    comprimentoMenor: number | null
   }
   materiais: {
-    madeiras: Material[]
-    materiaisGerais: Material[]
-    telhas: Material[]
+    madeiras: UIMaterial[]
+    materiaisGerais: UIMaterial[]
+    telhas: UIMaterial[]
   }
   totais: {
     madeiras: number
@@ -46,358 +46,472 @@ export type GetOrcamentoResult = {
     empresaPS: number
     empresaGD: number
   }
-  links: { slideUrl: string | null; pdfUrl: string | null }
+  links: {
+    slideUrl: string | null
+    pdfUrl: string | null
+  }
+  // dinâmico: chaves = nomes das telhas
   telhaValores: Record<string, { pix: number; x10: number; x18: number }>
 }
 
 export type UpdateOrcamentoInput = {
   titulo: string
-  cliente: {
-    nome: string
-    telefone: string
-    bairro: string
-    cidade: string // nome da cidade
-  }
+  cliente: { nome: string; telefone: string; bairro: string; cidade: string | null } // cidade por nome
   parametros: {
-    tipoObra: string
-    // Agora opcionais e/ou nulos:
-    largura?: number | null
-    comprimento?: number | null
-
-    // Cobertura em L (já opcionais)
-    larguraMaior?: number | null
-    larguraMenor?: number | null
-    comprimentoMaior?: number | null
-    comprimentoMenor?: number | null
+    tipoObra: string | null // por nome
+    largura?: number | string | null
+    comprimento?: number | string | null
+    larguraMaior?: number | string | null
+    larguraMenor?: number | string | null
+    comprimentoMaior?: number | string | null
+    comprimentoMenor?: number | string | null
   }
   materiais: {
-    madeiras: Omit<Material, "id">[] | Material[]
-    materiaisGerais: Omit<Material, "id">[] | Material[]
-    telhas: Omit<Material, "id">[] | Material[]
+    madeiras: Array<{
+      id?: UIInteger
+      nome: string
+      componente?: string | null
+      quantidade: number | string
+      preco: number | string
+      tamanho?: number | string | null
+    }>
+    materiaisGerais: Array<{
+      id?: UIInteger
+      nome: string
+      quantidade: number | string
+      preco: number | string
+    }>
+    telhas: Array<{
+      id?: UIInteger
+      nome: string
+      quantidade: number | string
+      preco: number | string
+      frete?: number | string | null
+    }>
   }
   totais: {
-    madeiras: number
-    materiais: number
-    comissao: number
-    frete: number
-    empresaPS: number
-    empresaGD: number
+    madeiras: number | string
+    materiais: number | string
+    comissao: number | string
+    frete: number | string
+    empresaPS: number | string
+    empresaGD: number | string
   }
-  telhaValores: Record<string, { pix: number; x10: number; x18: number }>
   links: { slideUrl: string | null; pdfUrl: string | null }
+  // dinâmico (qualquer descrição de telha)
+  telhaValores: Record<string, { pix: number | string; x10: number | string; x18: number | string }>
 }
 
-/** =====================================================================
- * Tipos do SELECT bruto (para tipar corretamente os joins do Supabase)
- * ===================================================================== */
-type CidadeRow = { id?: number; nome?: string | null }
-type ClienteRow = {
-  nome?: string | null
-  telefone?: string | null
-  bairro?: string | null
-  cidade?: CidadeRow | CidadeRow[] | null
+/* ------------------------- utilidades numéricas ------------------------- */
+
+function cleanText(s: string | null | undefined) {
+  return (s ?? "").toString().trim().replace(/\s+/g, " ")
 }
-type TipoObraRow = { id?: number; tipo_obra?: string | null }
-
-type MaterialRow = {
-  tipo?: "madeira" | "geral" | "telha" | null
-  descricao?: string | null
-  quantidade?: number | null
-  preco_unitario?: number | null
-  tamanho?: number | null
-  componente?: string | null
-  frete?: number | null
-}
-
-type PagamentoRow = {
-  tipo_telhas?: string | null
-  metodo_pagamento?: "pix" | "x10" | "x18" | null
-  valor?: number | null
-}
-
-type OrcamentoJoinRow = {
-  id: number
-  titulo?: string | null
-  largura?: number | null
-  comprimento?: number | null
-  // Cobertura em L no BD
-  largura_maior?: number | null
-  largura_menor?: number | null
-  comprimento_maior?: number | null
-  comprimento_menor?: number | null
-
-  link_slide?: string | null
-  link_pdf?: string | null
-  totais_madeiras_preco?: number | null
-  totais_materiais_preco?: number | null
-  totais_comissao_preco?: number | null
-  totais_empresa_ps_preco?: number | null
-  totais_empresa_gd_preco?: number | null
-  totais_frete_preco?: number | null
-
-  // Pode vir objeto OU array dependendo do metadado do schema
-  cliente?: ClienteRow | ClienteRow[] | null
-  tipo_obra?: TipoObraRow | TipoObraRow[] | null
-
-  orcamento_material?: MaterialRow[] | null
-  orcamento_pagamento?: PagamentoRow[] | null
-}
-
-/** =====================================================================
- * Helpers de normalização e números
- * ===================================================================== */
-const first = <T,>(v: T | T[] | null | undefined): T | null =>
-  Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
-
-const nonNeg = (v: unknown): number => {
-  if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, v) : 0
-  if (typeof v === "string") {
-    const n = parseFloat(v.replace(",", "."))
-    return Number.isFinite(n) ? Math.max(0, n) : 0
+function toNumber(v: unknown): number | null {
+  if (v === null || v === undefined) return null
+  if (typeof v === "object") {
+    const anyV = v as any
+    if (typeof anyV?.toNumber === "function") {
+      const n = anyV.toNumber()
+      return Number.isFinite(n) ? n : null
+    }
+    const val = anyV?.valueOf?.() ?? anyV
+    if (typeof val === "number") return Number.isFinite(val) ? val : null
+    if (typeof val === "string") {
+      const n = Number(val.replace?.(",", ".") ?? val)
+      return Number.isFinite(n) ? n : null
+    }
   }
-  return 0
+  if (typeof v === "bigint") return Number(v)
+  if (typeof v === "number") return Number.isFinite(v) ? v : null
+  if (typeof v === "string") {
+    const n = Number(v.replace(",", "."))
+    return Number.isFinite(n) ? n : null
+  }
+  return null
 }
 
-/** =====================================================================
- * GET: traz absolutamente tudo no formato do componente
- * ===================================================================== */
-export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> {
-  const { data, error } = await supabase
-    .from("orcamento")
-    .select(`
-      id, titulo,
-      largura, comprimento,
-      largura_maior, largura_menor, comprimento_maior, comprimento_menor,
-      link_slide, link_pdf,
-      totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
-      totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
-      cliente:cliente_id (
-        nome, telefone, bairro,
-        cidade:cidade_id ( nome )
-      ),
-      tipo_obra:tipo_obra_id ( tipo_obra ),
-      orcamento_material:orcamento_material (
-        tipo, descricao, quantidade, preco_unitario, tamanho, componente, frete
-      ),
-      orcamento_pagamento:orcamento_pagamento (
-        tipo_telhas, metodo_pagamento, valor
-      )
-    `)
-    .eq("id", id)
-    .single()
+function nonNeg(v: unknown): number {
+  const n = toNumber(v)
+  if (n === null || !Number.isFinite(n)) return 0
+  return n < 0 ? 0 : n
+}
 
-  if (error || !data) {
-    console.error("[getOrcamentoById] erro:", error)
+
+
+// id efêmero só para keys da UI
+function ephemeralId(seed = 0) {
+  return (Date.now() & 0xfffffff) + Math.floor(Math.random() * 1000) + seed
+}
+
+// normaliza método de pagamento para persistência
+function normalizeMetodoPagamento(m: string): "pix" | "10x" | "18x" {
+  const mm = m.toLowerCase()
+  if (mm === "x10" || mm === "10x") return "10x"
+  if (mm === "x18" || mm === "18x") return "18x"
+  return "pix"
+}
+
+// para reconstruir telhaValores no GET com as chaves que a UI espera (pix/x10/x18)
+function uiMetodoKey(metodoPersistido: string): "pix" | "x10" | "x18" | null {
+  const mm = metodoPersistido.toLowerCase()
+  if (mm === "pix") return "pix"
+  if (mm === "10x" || mm === "x10") return "x10"
+  if (mm === "18x" || mm === "x18") return "x18"
+  return null
+}
+
+/* ========================= GET (carregar para edição) ========================= */
+
+export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> {
+  try {
+    const data = await prisma.$transaction(
+      async (tx) => {
+        const orc = await tx.orcamento.findUnique({
+          where: { id },
+          include: {
+            cliente: {
+              include: {
+                // era "cidade: true" → CORRETO:
+                cidades: true,
+              },
+            },
+            // mantém:
+            tipo_obra: true,
+          },
+        })
+
+        if (!orc) throw new Error("Orçamento não encontrado.")
+
+        // materiais
+        const mats = await tx.orcamento_material.findMany({
+          where: { orcamento_id: id },
+          orderBy: { id: "asc" },
+        })
+
+        // pagamentos (dinâmico por telha)
+        const pays = await tx.orcamento_pagamento.findMany({
+          where: { orcamento_id: id },
+          orderBy: [{ tipo_telhas: "asc" }, { metodo_pagamento: "asc" }],
+        })
+
+        return { orc, mats, pays }
+      },
+      { timeout: 120_000, maxWait: 20_000 }
+    )
+
+    const madeiras: UIMaterial[] = []
+    const gerais: UIMaterial[] = []
+    const telhas: UIMaterial[] = []
+
+    data.mats.forEach((m, idx) => {
+      const base = {
+        id: ephemeralId(idx),
+        nome: m.descricao ?? "",
+        componente: (m.componente ?? "") || null,
+        quantidade: nonNeg(m.quantidade),
+        preco: nonNeg(m.preco_unitario),
+      }
+
+      if (m.tipo === "madeira") {
+        madeiras.push({
+          ...base,
+          tamanho: toNumber(m.tamanho) ?? null,
+          frete: 0,
+        })
+      } else if (m.tipo === "geral") {
+        gerais.push({
+          ...base,
+          tamanho: null,
+          frete: 0,
+        })
+      } else {
+        // telha
+        telhas.push({
+          ...base,
+          tamanho: null,
+          frete: toNumber(m.frete) ?? 0,
+        })
+      }
+    })
+
+    // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas)
+    const telhaValores: GetOrcamentoResult["telhaValores"] = {}
+    for (const p of data.pays) {
+      const key = cleanText(p.tipo_telhas) || "Telha"
+      const uiKey = uiMetodoKey(p.metodo_pagamento)
+      if (!uiKey) continue
+      if (!telhaValores[key]) telhaValores[key] = { pix: 0, x10: 0, x18: 0 }
+      telhaValores[key][uiKey] += nonNeg(p.valor)
+    }
+
+    const res: GetOrcamentoResult = {
+      id,
+      titulo: data.orc.titulo ?? "",
+      cliente: {
+        nome: data.orc.cliente.nome ?? "",
+        telefone: data.orc.cliente.telefone ?? "",
+        bairro: data.orc.cliente.bairro ?? "",
+        cidade: data.orc.cliente.cidades?.nome ?? null,
+      },
+      parametros: {
+        tipoObra: data.orc.tipo_obra?.tipo_obra ?? null,
+        largura: toNumber(data.orc.largura),
+        comprimento: toNumber(data.orc.comprimento),
+        larguraMaior: toNumber(data.orc.largura_maior),
+        larguraMenor: toNumber(data.orc.largura_menor),
+        comprimentoMaior: toNumber(data.orc.comprimento_maior),
+        comprimentoMenor: toNumber(data.orc.comprimento_menor),
+      },
+      materiais: {
+        madeiras,
+        materiaisGerais: gerais,
+        telhas,
+      },
+      totais: {
+        madeiras: nonNeg(data.orc.totais_madeiras_preco),
+        materiais: nonNeg(data.orc.totais_materiais_preco),
+        comissao: nonNeg(data.orc.totais_comissao_preco),
+        frete: nonNeg(data.orc.totais_frete_preco),
+        empresaPS: nonNeg(data.orc.totais_empresa_ps_preco),
+        empresaGD: nonNeg(data.orc.totais_empresa_gd_preco),
+      },
+      links: {
+        slideUrl: data.orc.link_slide ?? null,
+        pdfUrl: data.orc.link_pdf ?? null,
+      },
+      telhaValores, // pode ser {}
+    }
+
+    return res
+  } catch (err: any) {
+    // mantém mensagem existente
+    if (typeof err?.message === "string") {
+      if (err.message.includes("Orçamento não encontrado")) throw err
+    }
     throw new Error("Não foi possível carregar o orçamento.")
   }
-
-  const row = data as unknown as OrcamentoJoinRow
-
-  // cliente/tipo_obra podem vir como array; normalizamos
-  const cli = first(row.cliente)
-  const cidadeObj = first(cli?.cidade ?? null)
-  const tpo = first(row.tipo_obra)
-
-  // Materiais: gerar id único para ser usado como key na UI
-  const toMat = (m: MaterialRow, idx: number): Material => ({
-    id: Date.now() + idx + Math.floor(Math.random() * 10000),
-    nome: m.descricao ?? "",
-    componente: m.componente ?? "",
-    quantidade: nonNeg(m.quantidade),
-    preco: nonNeg(m.preco_unitario),
-    tamanho: m.tamanho != null ? nonNeg(m.tamanho) : null,
-    frete: m.frete != null ? nonNeg(m.frete) : (m.tipo === "telha" ? 0 : null),
-  })
-
-  const madeiras: Material[] = []
-  const materiaisGerais: Material[] = []
-  const telhas: Material[] = []
-
-    ; (row.orcamento_material ?? []).forEach((m, i) => {
-      const norm = toMat(m, i)
-      if (m.tipo === "madeira") madeiras.push(norm)
-      else if (m.tipo === "geral") materiaisGerais.push(norm)
-      else if (m.tipo === "telha") telhas.push(norm)
-    })
-
-  // Pagamentos (telhaValores)
-  const telhaValores: Record<string, { pix: number; x10: number; x18: number }> = {}
-    ; (row.orcamento_pagamento ?? []).forEach(p => {
-      const tipo = (p.tipo_telhas ?? "").trim()
-      if (!tipo) return
-      if (!telhaValores[tipo]) telhaValores[tipo] = { pix: 0, x10: 0, x18: 0 }
-      if (p.metodo_pagamento === "pix") telhaValores[tipo].pix = nonNeg(p.valor)
-      if (p.metodo_pagamento === "x10") telhaValores[tipo].x10 = nonNeg(p.valor)
-      if (p.metodo_pagamento === "x18") telhaValores[tipo].x18 = nonNeg(p.valor)
-    })
-
-  return {
-    id: row.id,
-    titulo: row.titulo ?? "",
-    cliente: {
-      nome: cli?.nome ?? "",
-      telefone: cli?.telefone ?? "",
-      bairro: cli?.bairro ?? "",
-      cidade: cidadeObj?.nome ?? "",
-    },
-    parametros: {
-      tipoObra: tpo?.tipo_obra ?? "",
-      largura: nonNeg(row.largura),
-      comprimento: nonNeg(row.comprimento),
-      // Cobertura em L (se não existir no BD, mantemos null)
-      larguraMaior: row.largura_maior != null ? nonNeg(row.largura_maior) : null,
-      larguraMenor: row.largura_menor != null ? nonNeg(row.largura_menor) : null,
-      comprimentoMaior: row.comprimento_maior != null ? nonNeg(row.comprimento_maior) : null,
-      comprimentoMenor: row.comprimento_menor != null ? nonNeg(row.comprimento_menor) : null,
-    },
-    materiais: { madeiras, materiaisGerais, telhas },
-    totais: {
-      madeiras: nonNeg(row.totais_madeiras_preco),
-      materiais: nonNeg(row.totais_materiais_preco),
-      comissao: nonNeg(row.totais_comissao_preco),
-      empresaPS: nonNeg(row.totais_empresa_ps_preco),
-      empresaGD: nonNeg(row.totais_empresa_gd_preco),
-      frete: nonNeg(row.totais_frete_preco),
-    },
-    links: {
-      slideUrl: row.link_slide ?? null,
-      pdfUrl: row.link_pdf ?? null,
-    },
-    telhaValores,
-  }
 }
 
-/** =====================================================================
- * UPDATE: cliente + orçamento; substitui materiais e pagamentos
- * ===================================================================== */
+/* ========================= UPDATE (editar orçamento) ========================= */
+
 export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): Promise<void> {
-  // Descobrir IDs auxiliares por NOME
-  const [{ data: cidadeRow, error: eCidade }, { data: tipoObraRow, error: eTipo }] = await Promise.all([
-    supabase.from("cidades").select("id").eq("nome", input.cliente.cidade).single(),
-    supabase.from("tipo_obra").select("id").eq("tipo_obra", input.parametros.tipoObra).single(),
-  ])
-  if (eCidade || !cidadeRow) throw new Error("Cidade não encontrada.")
-  if (eTipo || !tipoObraRow) throw new Error("Tipo de obra não encontrado.")
+  await prisma.$transaction(
+    async (tx) => {
+      // 1) Checar existência e obter cliente_id
+      const atual = await tx.orcamento.findUnique({
+        where: { id },
+        select: { id: true, cliente_id: true },
+      })
+      if (!atual) throw new Error("Orçamento não encontrado.")
 
-  // Obter cliente_id do orçamento
-  const { data: orcRow, error: eOrc } = await supabase
-    .from("orcamento")
-    .select("cliente_id")
-    .eq("id", id)
-    .single()
-  if (eOrc || !orcRow) throw new Error("Orçamento não encontrado.")
+      // 2) Resolver cidade por nome (pode ser null)
+      let cidadeId: number | null = null
+      const cidadeNome = cleanText(input.cliente.cidade)
+      if (cidadeNome) {
+        const cidade = await tx.cidades.findFirst({
+          where: { nome: cidadeNome },
+          select: { id: true },
+        })
+        if (!cidade) throw new Error("Cidade não encontrada.")
+        cidadeId = cidade.id
+      }
 
-  // Atualizar cliente
-  const { error: eUpdCli } = await supabase
-    .from("cliente")
-    .update({
-      nome: input.cliente.nome,
-      telefone: input.cliente.telefone,
-      bairro: input.cliente.bairro,
-      cidade_id: cidadeRow.id,
-    })
-    .eq("id", orcRow.cliente_id)
-  if (eUpdCli) throw new Error("Erro ao atualizar cliente.")
+      // 3) Resolver tipo de obra por nome (pode ser null)
+      let tipoObraId: number | null = null
+      const tipoObraNome = cleanText(input.parametros.tipoObra)
+      if (tipoObraNome) {
+        const tipo = await tx.tipo_obra.findFirst({
+          where: { tipo_obra: tipoObraNome },
+          select: { id: true },
+        })
+        if (!tipo) throw new Error("Tipo de obra não encontrado.")
+        tipoObraId = tipo.id
+      }
 
-  // Dimensões extras (Cobertura em L) — aplica se vier definido; null limpa; undefined ignora
-  // Dimensões — “aplica se vier definido; null limpa; undefined ignora”
-  const p = input.parametros || {}
-  const dimUpdate: Record<string, number | null> = {}
+      // 4) Atualizar cliente
+      try {
+        await tx.cliente.update({
+          where: { id: atual.cliente_id },
+          data: {
+            nome: cleanText(input.cliente.nome),
+            telefone: cleanText(input.cliente.telefone),
+            bairro: cleanText(input.cliente.bairro),
+            cidade_id: cidadeId,
+          },
+        })
+      } catch {
+        throw new Error("Erro ao atualizar cliente.")
+      }
 
-  if (p.largura !== undefined) dimUpdate.largura = p.largura
-  if (p.comprimento !== undefined) dimUpdate.comprimento = p.comprimento
-  if (p.larguraMaior !== undefined) dimUpdate.largura_maior = p.larguraMaior
-  if (p.larguraMenor !== undefined) dimUpdate.largura_menor = p.larguraMenor
-  if (p.comprimentoMaior !== undefined) dimUpdate.comprimento_maior = p.comprimentoMaior
-  if (p.comprimentoMenor !== undefined) dimUpdate.comprimento_menor = p.comprimentoMenor
+      // 5) Atualizar orçamento (dimensões só se !== undefined)
+      const dimUpdate: Record<string, number | null | undefined> = {}
+      const {
+        largura,
+        comprimento,
+        larguraMaior,
+        larguraMenor,
+        comprimentoMaior,
+        comprimentoMenor,
+      } = input.parametros
 
-  const { error: eUpdOrc } = await supabase
-    .from("orcamento")
-    .update({
-      titulo: input.titulo,
-      tipo_obra_id: tipoObraRow.id,
-      // importantíssimo: só aplica se veio definido
-      ...dimUpdate,
-      totais_madeiras_preco: input.totais.madeiras,
-      totais_materiais_preco: input.totais.materiais,
-      totais_comissao_preco: input.totais.comissao,
-      totais_empresa_ps_preco: input.totais.empresaPS,
-      totais_empresa_gd_preco: input.totais.empresaGD,
-      totais_frete_preco: input.totais.frete,
-      link_slide: input.links.slideUrl,
-      link_pdf: input.links.pdfUrl,
-    })
-    .eq("id", id)
+      if (largura !== undefined) dimUpdate.largura = toNumber(largura)
+      if (comprimento !== undefined) dimUpdate.comprimento = toNumber(comprimento)
+      if (larguraMaior !== undefined) dimUpdate.largura_maior = toNumber(larguraMaior)
+      if (larguraMenor !== undefined) dimUpdate.largura_menor = toNumber(larguraMenor)
+      if (comprimentoMaior !== undefined) dimUpdate.comprimento_maior = toNumber(comprimentoMaior)
+      if (comprimentoMenor !== undefined) dimUpdate.comprimento_menor = toNumber(comprimentoMenor)
 
-  if (eUpdOrc) throw new Error("Erro ao atualizar orçamento.")
+      try {
+        await tx.orcamento.update({
+          where: { id },
+          data: {
+            titulo: cleanText(input.titulo),
+            tipo_obra_id: tipoObraId,
+            totais_madeiras_preco: nonNeg(input.totais.madeiras),
+            totais_materiais_preco: nonNeg(input.totais.materiais),
+            totais_comissao_preco: nonNeg(input.totais.comissao),
+            totais_empresa_ps_preco: nonNeg(input.totais.empresaPS),
+            totais_empresa_gd_preco: nonNeg(input.totais.empresaGD),
+            totais_frete_preco: nonNeg(input.totais.frete),
+            link_slide: input.links.slideUrl ?? null,
+            link_pdf: input.links.pdfUrl ?? null,
+            ...dimUpdate, // só aplica o que veio definido
+          },
+        })
+      } catch {
+        throw new Error("Erro ao atualizar orçamento.")
+      }
 
-  // Substituir materiais
-  const { error: eDelMat } = await supabase.from("orcamento_material").delete().eq("orcamento_id", id)
-  if (eDelMat) throw new Error("Erro ao limpar materiais.")
+      // 6) Materiais: delete → createMany (madeira, geral, telha)
+      try {
+        await tx.orcamento_material.deleteMany({ where: { orcamento_id: id } })
+      } catch {
+        throw new Error("Erro ao limpar materiais.")
+      }
 
-  const materiaisToInsert = [
-    ...(input.materiais.madeiras ?? []).map((m) => ({
-      orcamento_id: id,
-      tipo: "madeira" as const,
-      descricao: m.nome,
-      componente: m.componente ?? "",
-      quantidade: nonNeg(m.quantidade),
-      preco_unitario: nonNeg(m.preco),
-      tamanho: m.tamanho != null ? nonNeg(m.tamanho) : null,
-      total: (m.tamanho != null ? nonNeg(m.tamanho) : 0) * nonNeg(m.quantidade) * nonNeg(m.preco),
-      frete: 0,
-    })),
-    ...(input.materiais.materiaisGerais ?? []).map((m) => ({
-      orcamento_id: id,
-      tipo: "geral" as const,
-      descricao: m.nome,
-      componente: null,
-      quantidade: nonNeg(m.quantidade),
-      preco_unitario: nonNeg(m.preco),
-      tamanho: null,
-      total: nonNeg(m.quantidade) * nonNeg(m.preco),
-      frete: 0,
-    })),
-    ...(input.materiais.telhas ?? []).map((m) => ({
-      orcamento_id: id,
-      tipo: "telha" as const,
-      descricao: m.nome,
-      componente: null,
-      quantidade: nonNeg(m.quantidade),
-      preco_unitario: nonNeg(m.preco),
-      tamanho: null,
-      total: nonNeg(m.quantidade) * nonNeg(m.preco) + nonNeg(m.frete),
-      frete: m.frete != null ? nonNeg(m.frete) : 0,
-    })),
-  ]
+      const matsToCreate: Array<{
+        orcamento_id: number
+        tipo: "madeira" | "geral" | "telha"
+        descricao: string
+        componente: string | null
+        quantidade: number
+        preco_unitario: number
+        tamanho: number | null
+        frete: number
+        total: number
+      }> = []
 
-  if (materiaisToInsert.length) {
-    const { error: eInsMat } = await supabase.from("orcamento_material").insert(materiaisToInsert)
-    if (eInsMat) throw new Error("Erro ao salvar materiais.")
-  }
+      // madeiras
+      for (const m of input.materiais.madeiras ?? []) {
+        const quantidade = nonNeg(m.quantidade)
+        const preco = nonNeg(m.preco)
+        const tamanho = toNumber(m.tamanho) ?? 0
+        const total = quantidade * preco * tamanho
+        matsToCreate.push({
+          orcamento_id: id,
+          tipo: "madeira",
+          descricao: cleanText(m.nome),
+          componente: cleanText(m.componente ?? "") || "",
+          quantidade,
+          preco_unitario: preco,
+          tamanho,
+          frete: 0,
+          total,
+        })
+      }
 
-  // Substituir pagamentos (telhaValores)
-  const { error: eDelPay } = await supabase.from("orcamento_pagamento").delete().eq("orcamento_id", id)
-  if (eDelPay) throw new Error("Erro ao limpar pagamentos.")
+      // materiais gerais
+      for (const m of input.materiais.materiaisGerais ?? []) {
+        const quantidade = nonNeg(m.quantidade)
+        const preco = nonNeg(m.preco)
+        const total = quantidade * preco
+        matsToCreate.push({
+          orcamento_id: id,
+          tipo: "geral",
+          descricao: cleanText(m.nome),
+          componente: null, // mantém comportamento do arquivo original
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete: 0,
+          total,
+        })
+      }
 
-  const pagamentosToInsert: {
-    orcamento_id: number
-    tipo_telhas: string
-    metodo_pagamento: "pix" | "x10" | "x18"
-    valor: number
-  }[] = []
+      // telhas (dinâmico; detalhe no nome/descrição)
+      for (const m of input.materiais.telhas ?? []) {
+        const quantidade = nonNeg(m.quantidade)
+        const preco = nonNeg(m.preco)
+        const frete = nonNeg(m.frete)
+        const total = quantidade * preco + frete
+        matsToCreate.push({
+          orcamento_id: id,
+          tipo: "telha",
+          descricao: cleanText(m.nome),
+          componente: null,
+          quantidade,
+          preco_unitario: preco,
+          tamanho: null,
+          frete,
+          total,
+        })
+      }
 
-  for (const [tipo, v] of Object.entries(input.telhaValores || {})) {
-    if (!v) continue
-    pagamentosToInsert.push(
-      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "pix", valor: nonNeg(v.pix) },
-      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x10", valor: nonNeg(v.x10) },
-      { orcamento_id: id, tipo_telhas: tipo, metodo_pagamento: "x18", valor: nonNeg(v.x18) },
-    )
-  }
+      try {
+        if (matsToCreate.length > 0) {
+          await tx.orcamento_material.createMany({ data: matsToCreate })
+        }
+      } catch {
+        throw new Error("Erro ao salvar materiais.")
+      }
 
-  if (pagamentosToInsert.length) {
-    const { error: eInsPay } = await supabase.from("orcamento_pagamento").insert(pagamentosToInsert)
-    if (eInsPay) throw new Error("Erro ao salvar pagamentos.")
-  }
+      // 7) Pagamentos (dinâmico por telha): delete → createMany
+      try {
+        await tx.orcamento_pagamento.deleteMany({ where: { orcamento_id: id } })
+      } catch {
+        throw new Error("Erro ao limpar pagamentos.")
+      }
+
+      const paysToCreate: Array<{
+        orcamento_id: number
+        tipo_telhas: string
+        metodo_pagamento: "pix" | "10x" | "18x"
+        valor: number
+      }> = []
+
+      for (const [tipoTelhaBruto, valores] of Object.entries(input.telhaValores ?? {})) {
+        const tipoTelha = cleanText(tipoTelhaBruto)
+        if (!tipoTelha) continue // ignora chave vazia
+        // sempre 3 métodos no UPDATE (paridade com comportamento atual)
+        paysToCreate.push({
+          orcamento_id: id,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("pix"),
+          valor: nonNeg(valores?.pix),
+        })
+        paysToCreate.push({
+          orcamento_id: id,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("x10"),
+          valor: nonNeg(valores?.x10),
+        })
+        paysToCreate.push({
+          orcamento_id: id,
+          tipo_telhas: tipoTelha,
+          metodo_pagamento: normalizeMetodoPagamento("x18"),
+          valor: nonNeg(valores?.x18),
+        })
+      }
+
+      try {
+        if (paysToCreate.length > 0) {
+          await tx.orcamento_pagamento.createMany({ data: paysToCreate })
+        }
+      } catch {
+        throw new Error("Erro ao salvar pagamentos.")
+      }
+    },
+    { timeout: 120_000, maxWait: 20_000 }
+  )
 }

@@ -1,74 +1,51 @@
-import { supabase } from "@/supabase/client";
+/* ------------------------------------------------------------------
+   GRANDESIGN · src/actions/materiais-db/materiais-db.ts
+   Camada DB (server-only) usando Prisma ($queryRaw).
+   Contrato mantido:
+   - listarMateriaisPorTipoDB("madeira"|"geral"|"telha")
+     -> Array<{ descricao: string; preco_unitario: number }>
+   - Ordenação A–Z por descricao
+------------------------------------------------------------------ */
 
-export type TipoMaterial = "madeira" | "geral" | "telha";
+import { prisma } from "@/lib/prisma"
 
-export interface Material {
-  id: number;
-  descricao: string;
-  slug: string;
-  tipo: TipoMaterial;
-  preco_unitario: number;
-  unidade: string;
+export type MaterialCatalogItem = {
+  descricao: string
+  preco_unitario: number
 }
 
-type CamposAtualizacao = Partial<{
-  descricao: string;
-  preco_unitario: number;
-}>;
-
-/* --------- CRUD Unificado --------- */
-export async function listarMateriaisPorTipo(tipo: TipoMaterial): Promise<Material[]> {
-  const { data, error } = await supabase
-    .from("materiais")
-    .select("*")
-    .eq("tipo", tipo)
-    .order("descricao", { ascending: true }) 
-  if (error) throw error
-  return data
+/** fallback numérico leve (evita NaN) */
+function num(v: unknown): number {
+  if (v === null || v === undefined) return 0
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
 }
 
+/**
+ * Lista materiais por tipo.
+ * Saída enxuta: somente { descricao, preco_unitario }, A–Z por descricao.
+ */
+export async function listarMateriaisPorTipoDB(
+  tipo: "madeira" | "geral" | "telha"
+): Promise<MaterialCatalogItem[]> {
+  // guarda de tipo (defensivo)
+  if (tipo !== "madeira" && tipo !== "geral" && tipo !== "telha") return []
 
-export async function adicionarMaterial(
-  tipo: TipoMaterial,
-  descricao: string,
-  preco: number
-): Promise<Material> {
-  const slug = descricao
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, "_");
+  try {
+    const rows = (await prisma.$queryRaw`
+      SELECT descricao, preco_unitario
+      FROM materiais
+      WHERE tipo = ${tipo}
+      ORDER BY descricao ASC
+    `) as Array<{ descricao: string | null; preco_unitario: unknown }>
 
-  const { data, error } = await supabase
-    .from("materiais")
-    .insert({ descricao, slug, tipo, preco_unitario: preco, unidade: "un" })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-export async function atualizarMaterial(
-  id: number,
-  campos: CamposAtualizacao
-): Promise<void> {
-  const atualiza: Record<string, string | number> = {};
-  if (campos.descricao) {
-    atualiza.descricao = campos.descricao;
-    atualiza.slug = campos.descricao
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[^\w\s]/g, "")
-      .replace(/\s+/g, "_");
+    return rows.map((r) => ({
+      descricao: r.descricao ?? "",
+      preco_unitario: num(r.preco_unitario),
+    }))
+  } catch (err) {
+    console.error("listarMateriaisPorTipoDB: erro ao listar materiais:", err)
+    // mantemos o contrato de lançar em falha (rota responderá 500)
+    throw err
   }
-  if (campos.preco_unitario !== undefined) {
-    atualiza.preco_unitario = campos.preco_unitario;
-  }
-  const { error } = await supabase.from("materiais").update(atualiza).eq("id", id);
-  if (error) throw error;
-}
-
-export async function excluirMaterial(id: number): Promise<void> {
-  const { error } = await supabase.from("materiais").delete().eq("id", id);
-  if (error) throw error;
 }
