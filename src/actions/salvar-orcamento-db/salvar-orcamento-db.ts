@@ -384,35 +384,35 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
           total,
         })
       } catch (err: any) {
-  logError("insert-material failed", {
-    tipo: "geral",
-    err: String(err?.message ?? err),
-    row: {
-      descricao: cleanText(m.nome),
-      quantidade,
-      preco_unitario: preco,
-      frete: 0,
-      total,
-      tamanho: null,
-      componente: "",
+        logError("insert-material failed", {
+          tipo: "geral",
+          err: String(err?.message ?? err),
+          row: {
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: 0,
+            total,
+            tamanho: null,
+            componente: "",
 
-    },
-  })
-  throw new AppError(
-    "INSERT_MATERIAL_FAILED",
-    "Erro ao inserir material (geral).",
-    "insert-material",
-    {
-      tipo: "geral",
-      descricao: cleanText(m.nome),
-      quantidade,
-      preco_unitario: preco,
-      frete: 0,
-      total,
-      dbMessage: String(err?.message ?? ""),
-    }
-  )
-}
+          },
+        })
+        throw new AppError(
+          "INSERT_MATERIAL_FAILED",
+          "Erro ao inserir material (geral).",
+          "insert-material",
+          {
+            tipo: "geral",
+            descricao: cleanText(m.nome),
+            quantidade,
+            preco_unitario: preco,
+            frete: 0,
+            total,
+            dbMessage: String(err?.message ?? ""),
+          }
+        )
+      }
 
     }
 
@@ -469,39 +469,45 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
 
     // 7) Pagamentos (sempre 3 por tipo: pix, x10, x18)
     for (const [tipoTelha, valores] of Object.entries(params.telhaValores ?? {})) {
+      const t = cleanText(tipoTelha)
+      if (!t) continue // ignora chave vazia
+
+      const vPix = num(valores?.pix)
+      const v10 = num(valores?.x10)
+      const v18 = num(valores?.x18)
+
       try {
         await insertPagamento(tx, {
           orcamento_id: orcamentoId,
-          tipo_telhas: tipoTelha,
+          tipo_telhas: t,
           metodo_pagamento: normalizeMetodoPagamento("pix"),
-          valor: num(valores?.pix),
+          valor: vPix,
         })
         await insertPagamento(tx, {
           orcamento_id: orcamentoId,
-          tipo_telhas: tipoTelha,
+          tipo_telhas: t,
           metodo_pagamento: normalizeMetodoPagamento("x10"),
-          valor: num(valores?.x10),
+          valor: v10,
         })
         await insertPagamento(tx, {
           orcamento_id: orcamentoId,
-          tipo_telhas: tipoTelha,
+          tipo_telhas: t,
           metodo_pagamento: normalizeMetodoPagamento("x18"),
-          valor: num(valores?.x18),
+          valor: v18,
         })
-
       } catch (err: any) {
-        logError("insert-pagamento failed", { metodo: "x18", err: String(err?.message ?? err) })
-        throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x18" })
+        // mantém seus logs/tratativas
+        throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento")
       }
     }
 
     return orcamentoId
-  },{
+  }, {
     timeout: 120_000, // 120s de inatividade tolerada entre queries
     maxWait: 20_000,  // 20s aguardando alocar a transação
     // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
   }
-)
+  )
 }
 
 /**
@@ -660,51 +666,45 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
 
     // 6) Pagamentos (apenas se houver algum valor > 0)
     for (const [tipoTelha, valores] of Object.entries(params.telhaValores ?? {})) {
+      const t = cleanText(tipoTelha)
+      if (!t) continue // ignora chave vazia
+
       const vPix = num(valores?.pix)
       const v10 = num(valores?.x10)
       const v18 = num(valores?.x18)
+
       if (vPix > 0 || v10 > 0 || v18 > 0) {
         try {
           await insertPagamento(tx, {
             orcamento_id: orcamentoId,
-            tipo_telhas: tipoTelha,
+            tipo_telhas: t,
             metodo_pagamento: normalizeMetodoPagamento("pix"),
             valor: vPix,
           })
-        } catch (err: any) {
-          logError("insert-pagamento failed", { metodo: "pix", err: String(err?.message ?? err) })
-          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "pix" })
-        }
-        try {
           await insertPagamento(tx, {
             orcamento_id: orcamentoId,
-            tipo_telhas: tipoTelha,
+            tipo_telhas: t,
             metodo_pagamento: normalizeMetodoPagamento("x10"),
             valor: v10,
           })
-        } catch (err: any) {
-          logError("insert-pagamento failed", { metodo: "x10", err: String(err?.message ?? err) })
-          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x10" })
-        }
-        try {
           await insertPagamento(tx, {
             orcamento_id: orcamentoId,
-            tipo_telhas: tipoTelha,
+            tipo_telhas: t,
             metodo_pagamento: normalizeMetodoPagamento("x18"),
             valor: v18,
           })
         } catch (err: any) {
-          logError("insert-pagamento failed", { metodo: "x18", err: String(err?.message ?? err) })
-          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento", { metodo: "x18" })
+          // mantém seus logs/tratativas
+          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento")
         }
       }
     }
 
     return orcamentoId
   },
-  {
-    timeout: 120_000, // 120s de inatividade tolerada entre queries
-    maxWait: 20_000,  // 20s aguardando alocar a transação
-    // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
-  })
+    {
+      timeout: 120_000, // 120s de inatividade tolerada entre queries
+      maxWait: 20_000,  // 20s aguardando alocar a transação
+      // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
+    })
 }

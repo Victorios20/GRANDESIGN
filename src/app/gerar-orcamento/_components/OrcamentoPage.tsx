@@ -27,7 +27,6 @@ import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 
 
-import type { TelhaPixValores } from "@/api/useGerarPDF"
 import type { UpdateOrcamentoInput } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
 import { PageLayout } from "@/components/ui/pageLayout"
@@ -150,11 +149,11 @@ type OrcamentoPageProps = {
 // ------------------ Helpers de POST para API ------------------
 // ADICIONE AQUI (abaixo do cabeçalho "Helpers de POST para API")
 type ApiErrorShape = {
-  error: string
-  code?: string
-  step?: string
-  details?: any
-  requestId?: string
+    error: string
+    code?: string
+    step?: string
+    details?: any
+    requestId?: string
 }
 
 type Pagto = { pix: number; x10: number; x18: number }
@@ -172,17 +171,17 @@ type SalvarPayload = {
         comprimentoMenor?: number | null
     }
     materiais: {
-    madeiras: {
-      nome: string
-      componente?: string
-      quantidade: number
-      preco: number
-      tamanho?: number | string | null | undefined   // <— relaxado
-      frete?: number | null | undefined              // <— relaxado
-    }[]
-    materiaisGerais: { nome: string; quantidade: number; preco: number }[]
-    telhas: { nome: string; quantidade: number; preco: number; frete?: number | null | undefined }[]
-  }
+        madeiras: {
+            nome: string
+            componente?: string
+            quantidade: number
+            preco: number
+            tamanho?: number | string | null | undefined   // <— relaxado
+            frete?: number | null | undefined              // <— relaxado
+        }[]
+        materiaisGerais: { nome: string; quantidade: number; preco: number }[]
+        telhas: { nome: string; quantidade: number; preco: number; frete?: number | null | undefined }[]
+    }
     totais: TotaisPayload
     telhaValores: Record<string, Pagto>
     links?: { slideUrl: string | null; pdfUrl: string | null }
@@ -191,76 +190,76 @@ type SalvarPayload = {
 
 // SUBSTITUA a função postJSON atual por esta
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(data),
-  })
+    const r = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify(data),
+    })
 
-  const isJson = r.headers.get("content-type")?.includes("application/json")
+    const isJson = r.headers.get("content-type")?.includes("application/json")
 
-  if (!r.ok) {
-    let extra = ""
-    if (isJson) {
-      try {
-        const j = (await r.json()) as ApiErrorShape
-        const parts = [
-          j?.error,
-          j?.code ? `(${j.code})` : "",
-          j?.step ? `@${j.step}` : "",
-          j?.requestId ? `id:${j.requestId}` : "",
-        ].filter(Boolean)
-        extra = parts.length ? `: ${parts.join(" ")}` : ""
-        // log estruturado p/ DevTools
-        console.error("[API ERROR]", { url, status: r.status, ...j })
-      } catch {
-        // fallback silencioso
-      }
-    } else {
-      try { extra = `: ${await r.text()}` } catch {}
+    if (!r.ok) {
+        let extra = ""
+        if (isJson) {
+            try {
+                const j = (await r.json()) as ApiErrorShape
+                const parts = [
+                    j?.error,
+                    j?.code ? `(${j.code})` : "",
+                    j?.step ? `@${j.step}` : "",
+                    j?.requestId ? `id:${j.requestId}` : "",
+                ].filter(Boolean)
+                extra = parts.length ? `: ${parts.join(" ")}` : ""
+                // log estruturado p/ DevTools
+                console.error("[API ERROR]", { url, status: r.status, ...j })
+            } catch {
+                // fallback silencioso
+            }
+        } else {
+            try { extra = `: ${await r.text()}` } catch { }
+        }
+        throw new Error(`Falha ao salvar (${r.status})${extra}`)
     }
-    throw new Error(`Falha ao salvar (${r.status})${extra}`)
-  }
 
-  return (isJson ? r.json() : (null as unknown)) as Promise<T>
+    return (isJson ? r.json() : (null as unknown)) as Promise<T>
 }
 
 async function putJSON<T>(url: string, data: unknown): Promise<T> {
-  const r = await fetch(url, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(data),
-  })
+    const r = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify(data),
+    })
 
-  const isJson = r.headers.get("content-type")?.includes("application/json")
+    const isJson = r.headers.get("content-type")?.includes("application/json")
 
-  if (!r.ok) {
-    let extra = ""
-    if (isJson) {
-      try {
-        const j = (await r.json()) as ApiErrorShape
-        const parts = [
-          j?.error,
-          j?.code ? `(${j.code})` : "",
-          j?.step ? `@${j.step}` : "",
-          j?.requestId ? `id:${j.requestId}` : "",
-        ].filter(Boolean)
-        extra = parts.length ? `: ${parts.join(" ")}` : ""
-        console.error("[API ERROR]", { url, status: r.status, ...j })
-      } catch {}
-    } else {
-      try { extra = `: ${await r.text()}` } catch {}
+    if (!r.ok) {
+        let extra = ""
+        if (isJson) {
+            try {
+                const j = (await r.json()) as ApiErrorShape
+                const parts = [
+                    j?.error,
+                    j?.code ? `(${j.code})` : "",
+                    j?.step ? `@${j.step}` : "",
+                    j?.requestId ? `id:${j.requestId}` : "",
+                ].filter(Boolean)
+                extra = parts.length ? `: ${parts.join(" ")}` : ""
+                console.error("[API ERROR]", { url, status: r.status, ...j })
+            } catch { }
+        } else {
+            try { extra = `: ${await r.text()}` } catch { }
+        }
+        throw new Error(`Falha ao salvar (${r.status})${extra}`)
     }
-    throw new Error(`Falha ao salvar (${r.status})${extra}`)
-  }
 
-  return (isJson ? r.json() : (null as unknown)) as Promise<T>
+    return (isJson ? r.json() : (null as unknown)) as Promise<T>
 }
 
 const updateOrcamentoAPI = (id: number, payload: UpdateOrcamentoInput) =>
-  putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
+    putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
 
 
 
@@ -268,7 +267,7 @@ const salvarOrcamentoAPI = (payload: SalvarPayload) =>
     postJSON<{ id: number }>("/api/Orcamentos", payload).then(r => r.id)
 
 const salvarRascunhoAPI = (payload: SalvarPayload) =>
-  postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
+    postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
 
 
 
@@ -296,23 +295,6 @@ const TIPO_OBRA_STYLE_BY_ID: Record<number, { item: string; trigger: string }> =
 const styleForItemId = (id: number) => TIPO_OBRA_STYLE_BY_ID[id]?.item ?? ""
 const styleForTriggerId = (id?: number | null) =>
     id ? TIPO_OBRA_STYLE_BY_ID[id]?.trigger ?? "" : ""
-
-
-
-
-const toTelhaPixValores = (src: Record<string, any>): TelhaPixValores => {
-    const num = (v: any) =>
-        typeof v === "number"
-            ? v
-            : Number(String(v).replace(/\./g, "").replace(",", ".")) || 0
-
-    return {
-        Romana: { pix: num(src?.Romana?.pix), x10: num(src?.Romana?.x10), x18: num(src?.Romana?.x18) },
-        Colonial: { pix: num(src?.Colonial?.pix), x10: num(src?.Colonial?.x10), x18: num(src?.Colonial?.x18) },
-        Americana: { pix: num(src?.Americana?.pix), x10: num(src?.Americana?.x10), x18: num(src?.Americana?.x18) },
-        Maxxi: { pix: num(src?.Maxxi?.pix), x10: num(src?.Maxxi?.x10), x18: num(src?.Maxxi?.x18) },
-    }
-}
 
 
 
@@ -420,15 +402,27 @@ const FATOR_10X = 1.1457 // 14,57 %
 const FATOR_18X = 1.2385 // 23,85 %
 
 const calcTelhaValores = (
-    telhasArr: { id: number; nome: string; componente: string; quantidade: number; preco: number; tamanho?: string | number; frete?: number }[],
+    telhasArr: {
+        id: number
+        nome: string
+        componente: string
+        quantidade: number
+        preco: number
+        tamanho?: string | number
+        frete?: number
+    }[],
     totalGeral: number,
-): Record<"Romana" | "Colonial" | "Americana" | "Maxxi", Pagto> => {
-    const somaTipo = (slug: string) =>
-        telhasArr
-            .filter(t => t.nome.toLowerCase().includes(slug))
-            .reduce((s, t) => s + (t.quantidade * t.preco) + (t.frete ?? 0), 0)
+): Record<string, Pagto> => {
+    // Soma “extra” por NOME exato da telha (Etapa 2)
+    const grupos = new Map<string, number>()
+    for (const t of telhasArr) {
+        const nome = (t.nome ?? "").trim()
+        if (!nome) continue
+        const extra = (t.quantidade * t.preco) + (t.frete ?? 0)
+        grupos.set(nome, (grupos.get(nome) ?? 0) + extra)
+    }
 
-    const make = (extra: number) => {
+    const make = (extra: number): Pagto => {
         const base = totalGeral + extra
         const pix = Math.ceil(base / 100) * 100
         return {
@@ -438,13 +432,15 @@ const calcTelhaValores = (
         }
     }
 
-    return {
-        Romana: make(somaTipo("romana")),
-        Colonial: make(somaTipo("colonial")),
-        Americana: make(somaTipo("americana")),
-        Maxxi: make(somaTipo("maxxi")),
-    }
+    const out: Record<string, Pagto> = {}
+        ;[...grupos.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+            .forEach(([nome, extra]) => {
+                out[nome] = make(extra)
+            })
+    return out
 }
+
 
 
 /* ===================================================================
@@ -658,7 +654,10 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
                 // Atualiza tabela "Telhas – valores fixos" com a soma já atualizada
                 const nextSoma = Object.values(next).reduce((s, v) => s + v, 0)
-                setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
+                if (!isEdit) {
+                    setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
+                }
+
 
                 return next
             })
@@ -701,12 +700,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         })
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 })
-        setTelhaValores({
-            Romana: { pix: 0, x10: 0, x18: 0 },
-            Colonial: { pix: 0, x10: 0, x18: 0 },
-            Americana: { pix: 0, x10: 0, x18: 0 },
-            Maxxi: { pix: 0, x10: 0, x18: 0 },
-        })
+        setTelhaValores({})
         setTitulo("")
         setTituloTemporario("")
         setTituloConfirmado(false)
@@ -950,20 +944,29 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
 
     // telhaValores dinâmico (no create recalcula; no edit vem do BD)
-    const [telhaValores, setTelhaValores] = useState<Record<string, Pagto>>({
-        Romana: { pix: 0, x10: 0, x18: 0 },
-        Colonial: { pix: 0, x10: 0, x18: 0 },
-        Americana: { pix: 0, x10: 0, x18: 0 },
-        Maxxi: { pix: 0, x10: 0, x18: 0 },
-    })
+    const [telhaValores, setTelhaValores] = useState<Record<string, Pagto>>({})
+
 
     const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
 
+    const telhaTipos = Array.from(new Set([
+        ...Object.keys(telhaValores ?? {}),
+        ...materiais.telhas.map(t => (t.nome ?? "").trim()),
+    ]))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "pt-BR"))
+
+    const ensureTelha = (tipo: string): Pagto => ({
+        pix: telhaValores?.[tipo]?.pix ?? 0,
+        x10: telhaValores?.[tipo]?.x10 ?? 0,
+        x18: telhaValores?.[tipo]?.x18 ?? 0,
+    })
+
     // No CREATE, recalc telhaValores dinamicamente; no EDIT, não
     useEffect(() => {
-        if (isEdit && !hydrated) return // só trava no primeiro carregamento em edit
+        if (isEdit) return
         setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
-    }, [materiais.telhas, somaTotal, isEdit, hydrated])
+    }, [materiais.telhas, somaTotal, isEdit])
 
 
     // Mantém subtotais sincronizados com as tabelas em tempo real (create e edit)
@@ -1061,16 +1064,16 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
         try {
             setLoadingPDF(true)
-            const telhaVals: TelhaPixValores = toTelhaPixValores(telhaValores as any)
-
             const result = await gerarPDF({
                 cliente: form,
                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                 materiais,
                 totais: totEdit,
-                telhaValores: telhaVals,
+                // >>> ENVIA MAPA DINÂMICO PARA A HOOK
+                telhaValoresDinamicos: telhaValores,
                 titulo: snap,
             })
+
 
             const raw = result as any
             const r = Array.isArray(raw) ? raw[0] : raw
@@ -1099,10 +1102,11 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                             parametros: { tipoObra: tipoObra ?? "", ...dim },
                             materiais,
                             totais: totEdit,
-                            telhaValores: telhaVals,
+                            telhaValores, // <<< use o MAPA DINÂMICO do state
                             links: { slideUrl: slide, pdfUrl: pdf },
                             titulo: snap,
                         })
+
                     }
 
                     toast.success("Orçamento salvo automaticamente.")
@@ -1830,15 +1834,19 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {Object.entries(telhaValores).map(([tipo, v]) => (
-                                        <TableRow key={tipo}>
-                                            <TableCell>{tipo}</TableCell>
-                                            <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
-                                            <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
-                                            <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
-                                        </TableRow>
-                                    ))}
+                                    {telhaTipos.map((tipo) => {
+                                        const v = ensureTelha(tipo)
+                                        return (
+                                            <TableRow key={tipo}>
+                                                <TableCell>{tipo}</TableCell>
+                                                <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
+                                                <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
+                                                <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
                                 </TableBody>
+
                             </Table>
                         </CardContent>
                     </Card>

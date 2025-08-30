@@ -236,14 +236,29 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
     })
 
     // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas)
-    const telhaValores: GetOrcamentoResult["telhaValores"] = {}
-    for (const p of data.pays) {
-      const key = cleanText(p.tipo_telhas) || "Telha"
-      const uiKey = uiMetodoKey(p.metodo_pagamento)
-      if (!uiKey) continue
-      if (!telhaValores[key]) telhaValores[key] = { pix: 0, x10: 0, x18: 0 }
-      telhaValores[key][uiKey] += nonNeg(p.valor)
+    // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas) + UNIÃO com materiais (Etapa 2)
+const telhaValores: GetOrcamentoResult["telhaValores"] = {}
+
+// 1) Pivot dos pagamentos → { [tipoTelha]: { pix, x10, x18 } }
+for (const p of data.pays) {
+  const key = cleanText(p.tipo_telhas) || "Telha"
+  const uiKey = uiMetodoKey(p.metodo_pagamento)
+  if (!uiKey) continue
+  if (!telhaValores[key]) telhaValores[key] = { pix: 0, x10: 0, x18: 0 }
+  telhaValores[key][uiKey] += nonNeg(p.valor)
+}
+
+// 2) UNIÃO com os nomes usados na Etapa 2 (materiais tipo "telha")
+//    -> garante que telhas sem pagamento ainda apareçam com {0,0,0}
+for (const m of data.mats) {
+  if (m.tipo === "telha") {
+    const nome = cleanText(m.descricao)
+    if (nome && !telhaValores[nome]) {
+      telhaValores[nome] = { pix: 0, x10: 0, x18: 0 }
     }
+  }
+}
+
 
     const res: GetOrcamentoResult = {
       id,

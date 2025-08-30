@@ -17,11 +17,8 @@ export type Totais = {
   empresaGD: number
 }
 
-export type TelhaPixValores = Record<
-  "Romana" | "Colonial" | "Americana" | "Maxxi",
-  { pix: number; x10: number; x18: number }
->
-
+export type Pagto = { pix: number; x10: number; x18: number }
+export type TelhasDinamicas = Record<string, Pagto>
 
 /* ---------- Novos tipos de retorno ---------- */
 export interface PdfLinks {
@@ -44,9 +41,11 @@ export interface GerarPDFParams {
   }
   materiais: MateriaisPorCategoria
   totais: Totais
-  telhaValores: TelhaPixValores
-  titulo: string // ✅ novo campo
+  // >>> DINÂMICO agora:
+  telhaValoresDinamicos: TelhasDinamicas
+  titulo: string
 }
+
 
 /* ------------------- Erro customizado ------------------- */
 export class GerarPDFError extends Error {
@@ -95,64 +94,57 @@ const REQUEST_TIMEOUT_MS = 60_000 // 60 s
 export async function gerarPDF(
   params: GerarPDFParams,
 ): Promise<GerarPDFResponse> {
-  const { cliente, parametros, materiais, totais, telhaValores, titulo } = params
+  const { cliente, parametros, materiais, totais, telhaValoresDinamicos, titulo } = params
 
   const payload = {
-    titulo, // ✅ incluído aqui
-    cliente,
-    parametros,
-    madeiras: materiais.madeiras.map(m => ({
-      componente: m.componente,
-      madeira: m.nome,
-      tamanho: fmt(toNum(m.tamanho)),
-      quantidade: fmt(m.quantidade),
-      preco_m2: fmt(m.preco),
-      total: fmt(toNum(m.tamanho) * m.quantidade * m.preco),
-    })),
-    materiaisGerais: materiais.materiaisGerais.map(m => ({
-      descricao: m.nome,
-      quantidade: fmt(m.quantidade),
-      preco_unitario: fmt(m.preco),
-      total: fmt(m.quantidade * m.preco),
-    })),
-    telhas: materiais.telhas.map(m => ({
-      descricao: m.nome,
-      quantidade: fmt(m.quantidade),
-      preco_unitario: fmt(m.preco),
-      frete: fmt(m.frete ?? 0),
-      total: fmt(m.quantidade * m.preco + (m.frete ?? 0)),
-    })),
-    totais: {
-      madeiras: fmt(totais.madeiras),
-      materiaisGerais: fmt(totais.materiais),
-      comissao: fmt(totais.comissao),
-      empresaPS: fmt(totais.empresaPS),
-      empresaGD: fmt(totais.empresaGD),
-    },
-    telhasValoresFixos: {
-      Romana: {
-        pix: fmt(telhaValores.Romana.pix),
-        x10: fmt(telhaValores.Romana.x10),
-        x18: fmt(telhaValores.Romana.x18),
-      },
-      Colonial: {
-        pix: fmt(telhaValores.Colonial.pix),
-        x10: fmt(telhaValores.Colonial.x10),
-        x18: fmt(telhaValores.Colonial.x18),
-      },
-      Americana: {
-        pix: fmt(telhaValores.Americana.pix),
-        x10: fmt(telhaValores.Americana.x10),
-        x18: fmt(telhaValores.Americana.x18),
-      },
-      Maxxi: {
-        pix: fmt(telhaValores.Maxxi.pix),
-        x10: fmt(telhaValores.Maxxi.x10),
-        x18: fmt(telhaValores.Maxxi.x18),
-      },
-    },
+  titulo,
+  cliente,
+  parametros,
+  madeiras: materiais.madeiras.map(m => ({
+    componente: m.componente,
+    madeira: m.nome,
+    tamanho: fmt(toNum(m.tamanho)),
+    quantidade: fmt(m.quantidade),
+    preco_m2: fmt(m.preco),
+    total: fmt(toNum(m.tamanho) * m.quantidade * m.preco),
+  })),
+  materiaisGerais: materiais.materiaisGerais.map(m => ({
+    descricao: m.nome,
+    quantidade: fmt(m.quantidade),
+    preco_unitario: fmt(m.preco),
+    total: fmt(m.quantidade * m.preco),
+  })),
+  telhas: materiais.telhas.map(m => ({
+    descricao: m.nome,
+    quantidade: fmt(m.quantidade),
+    preco_unitario: fmt(m.preco),
+    frete: fmt(m.frete ?? 0),
+    total: fmt(m.quantidade * m.preco + (m.frete ?? 0)),
+  })),
+  totais: {
+    madeiras: fmt(totais.madeiras),
+    materiaisGerais: fmt(totais.materiais),
+    comissao: fmt(totais.comissao),
+    empresaPS: fmt(totais.empresaPS),
+    empresaGD: fmt(totais.empresaGD),
+  },
+  // >>> MAPA DINÂMICO ENVIADO PARA A API
+  telhaValoresDinamicos: Object.fromEntries(
+    Object.entries(telhaValoresDinamicos ?? {}).map(([nome, v]) => [
+      nome,
+      { pix: fmt(v.pix), x10: fmt(v.x10), x18: fmt(v.x18) },
+    ])
+  ),
+  /* Se precisar manter compat por um tempo:
+  telhasValoresFixos: Object.fromEntries(
+    Object.entries(telhaValoresDinamicos ?? {}).map(([nome, v]) => [
+      nome,
+      { pix: fmt(v.pix), x10: fmt(v.x10), x18: fmt(v.x18) },
+    ])
+  ),
+  */
+}
 
-  }
 
   console.log("[DEBUG] Payload enviado:", payload)
 
@@ -172,6 +164,8 @@ export async function gerarPDF(
         timeout: REQUEST_TIMEOUT_MS,
       },
     )
+    console.log("[useGerarPDF] telhas DINÂMICAS =>", Object.keys(payload.telhaValoresDinamicos), payload.telhaValoresDinamicos)
+
 
     console.log("[DEBUG] Links capturados:", data) // ← slideUrl & pdfUrl
     return data
