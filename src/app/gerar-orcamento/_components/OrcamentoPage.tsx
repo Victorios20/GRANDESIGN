@@ -1,7 +1,8 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-import { useState, useEffect, ChangeEvent } from "react"
+import { useState, useEffect, useRef, ChangeEvent } from "react"
+
 import { useRouter } from "next/navigation"
 import {
     Trash,
@@ -533,62 +534,72 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
             console.error(e)
         }
     }
-
+    const ranOnce = useRef(false)
 
     /* ===================================================================
      *                      Efeitos – carregar catálogos
      * =================================================================== */
+    /* ===================================================================
+ *                      Efeitos – carregar catálogos
+ * =================================================================== */
     useEffect(() => {
-        const ac = new AbortController()
+        if (ranOnce.current) return
+        ranOnce.current = true
 
+        const ac = new AbortController()
             ; (async () => {
                 try {
                     const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
-                        fetch("/api/materiais?tipo=madeira", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar materiais de madeira: ${r.status}`)
-                            return (await r.json()) as MaterialCatalogItem[]
+                        fetch("/api/materiais?tipo=madeira", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/materiais?tipo=madeira -> ${r.status}`)
+                            return r.json()
                         }),
-                        fetch("/api/materiais?tipo=geral", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar materiais gerais: ${r.status}`)
-                            return (await r.json()) as MaterialCatalogItem[]
+                        fetch("/api/materiais?tipo=geral", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/materiais?tipo=geral -> ${r.status}`)
+                            return r.json()
                         }),
-                        fetch("/api/materiais?tipo=telha", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar telhas: ${r.status}`)
-                            return (await r.json()) as MaterialCatalogItem[]
+                        fetch("/api/materiais?tipo=telha", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/materiais?tipo=telha -> ${r.status}`)
+                            return r.json()
                         }),
-                        fetch("/api/componentes", { signal: ac.signal, cache: "no-store" }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar componentes: ${r.status}`)
-                            return (await r.json()) as Componente[]
+                        fetch("/api/componentes", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/componentes -> ${r.status}`)
+                            return r.json()
                         }),
-                        fetch("/api/tipos-obra", { signal: ac.signal }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar tipos de obra: ${r.status}`)
-                            return (await r.json()) as TipoObra[]
+                        fetch("/api/tipos-obra", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/tipos-obra -> ${r.status}`)
+                            return r.json()
                         }),
-                        fetch("/api/cidades", { signal: ac.signal }).then(async (r) => {
-                            if (!r.ok) throw new Error(`Falha ao buscar cidades: ${r.status}`)
-                            return (await r.json()) as Cidade[]
+                        fetch("/api/cidades", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
+                            if (!r.ok) throw new Error(`/api/cidades -> ${r.status}`)
+                            return r.json()
                         }),
                     ])
 
-
-
                     setCatalogo({
-                        madeiras: mads.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-                        materiaisGerais: ges.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
-                        telhas: tls.map(m => ({ nome: m.descricao, preco: m.preco_unitario })),
+                        madeiras: mads.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
+                        materiaisGerais: ges.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
+                        telhas: tls.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
                     })
                     setComponentes(comps)
-                    setTiposObra(tipos)   // ← vem da API agora
+                    setTiposObra(tipos)
                     setCidades(cids)
                 } catch (e) {
                     if ((e as any)?.name !== "AbortError") {
                         console.error("Erro ao carregar catálogos:", e)
+                        // opcional: ainda assim inicializa vazio pra não travar UI
+                        setCatalogo({ madeiras: [], materiaisGerais: [], telhas: [] })
+                        setComponentes([])
+                        setTiposObra([])
+                        setCidades([])
                     }
                 }
             })()
 
         return () => ac.abort()
     }, [])
+
+
 
 
     /* ===================================================================
