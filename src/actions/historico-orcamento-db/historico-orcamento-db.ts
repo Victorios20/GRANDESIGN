@@ -149,23 +149,22 @@ export async function buscarOrcamentosDB(
 
   // WHERE com parâmetros opcionais (param é NULL => condição ignorada)
   const baseWhere = `
-    WHERE
-      ($1::text IS NULL OR
-        (CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname='unaccent')
-          THEN (unaccent(c.nome) ILIKE '%' || unaccent($1) || '%' OR unaccent(o.titulo) ILIKE '%' || unaccent($1) || '%')
-          ELSE (c.nome ILIKE '%' || $1 || '%' OR o.titulo ILIKE '%' || $1 || '%')
-        END)
+  WHERE
+    ($1::text IS NULL OR
+      (
+        immutable_unaccent(lower(c.nome))   ILIKE '%' || immutable_unaccent(lower($1)) || '%'
+        OR
+        immutable_unaccent(lower(o.titulo)) ILIKE '%' || immutable_unaccent(lower($1)) || '%'
       )
-      AND
-      ($2::text IS NULL OR
-        (CASE WHEN EXISTS (SELECT 1 FROM pg_extension WHERE extname='unaccent')
-          THEN (unaccent(c.bairro) ILIKE '%' || unaccent($2) || '%')
-          ELSE (c.bairro ILIKE '%' || $2 || '%')
-        END)
-      )
-      AND ($3::timestamptz IS NULL OR o.data_criacao >= $3)
-      AND ($4::timestamptz IS NULL OR o.data_criacao < $4)
-  `
+    )
+    AND
+    ($2::text IS NULL OR
+      immutable_unaccent(lower(c.bairro)) ILIKE '%' || immutable_unaccent(lower($2)) || '%'
+    )
+    AND ($3::timestamptz IS NULL OR o.data_criacao >= $3)
+    AND ($4::timestamptz IS NULL OR o.data_criacao <  $4)
+`;
+
 
   const listSQL_ASC = `
     SELECT
