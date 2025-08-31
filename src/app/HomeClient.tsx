@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, EyeIcon, Edit, Trash2, ArrowUpRight } from "lucide-react"
+import { PlusCircle, EyeIcon, Edit, Trash2, ArrowUpRight, Loader2 } from "lucide-react"
+
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { toast, Toaster } from "sonner"
@@ -35,6 +36,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [dataIni, setDataIni] = useState<Date | undefined>()
   const [dataFim, setDataFim] = useState<Date | undefined>()
   const [ordenarData, setOrdenarData] = useState<"asc" | "desc">("desc")
+  const [loadingRowId, setLoadingRowId] = useState<number | null>(null)
+
 
   /* dropdown */
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
@@ -52,13 +55,15 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [orcamentoSel, setOrcamentoSel] = useState<OrcamentoDetalhe | null>(null)
   const [loadingModal, setLoadingModal] = useState(false)
 
+
+
   /* evita refetch na 1ª renderização (já temos SSR) */
   const firstRun = useRef(true)
   useEffect(() => {
     if (firstRun.current) {
       firstRun.current = false
       // opcional: atualiza lista de bairros em background para garantir frescor
-      listarBairros().then(setListaBairros).catch(() => {})
+      listarBairros().then(setListaBairros).catch(() => { })
       return
     }
     consultar()
@@ -94,6 +99,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   function adaptEditPayloadToModal(src: any) {
     const link_slide = src.link_slide ?? src.links?.slideUrl ?? null
     const link_pdf = src.link_pdf ?? src.links?.pdfUrl ?? null
+
     const pickStr = (...cands: any[]) => {
       for (const c of cands) {
         if (typeof c === "string" && c.trim()) return c
@@ -101,6 +107,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       }
       return null
     }
+
     const tipoObra =
       src.tipoObra ??
       src.parametros?.tipoObra ??
@@ -109,6 +116,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       (typeof src.tipo_obra === "string" ? src.tipo_obra : null) ??
       src.tipo_obra_nome ??
       null
+
     const dimensoes = {
       largura: src.largura ?? src.parametros?.largura ?? null,
       comprimento: src.comprimento ?? src.parametros?.comprimento ?? null,
@@ -117,6 +125,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       comprimentoMenor: src.comprimento_menor ?? src.parametros?.comprimentoMenor ?? null,
       comprimentoMaior: src.comprimento_maior ?? src.parametros?.comprimentoMaior ?? null,
     }
+
     const normalizaItem = (i: any) => ({
       nome: i.nome ?? i.descricao ?? "",
       componente: i.componente ?? null,
@@ -126,21 +135,48 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       frete: n(i.frete ?? 0),
       tipo: i.tipo,
     })
+
     const itensRaw = Array.isArray(src.itens) ? src.itens.map(normalizaItem) : []
     const madeiras = (src.materiais?.madeiras ?? itensRaw.filter((x: any) => x.tipo === "madeira")).map(normalizaItem)
     const gerais = (src.materiais?.materiaisGerais ?? itensRaw.filter((x: any) => x.tipo === "geral")).map(normalizaItem)
     const telhas = (src.materiais?.telhas ?? itensRaw.filter((x: any) => x.tipo === "telha")).map(normalizaItem)
+
     const materiaisFlat = [
       ...madeiras.map((m: any) => ({ ...m, tipo: "madeira" })),
       ...gerais.map((g: any) => ({ ...g, tipo: "geral" })),
       ...telhas.map((t: any) => ({ ...t, tipo: "telha" })),
     ]
-    const pgBrutos = src.pagamentos ?? src.orcamento_pagamento ?? []
+
+    // 🔧 Pegar pagamentos SEM depender de um único nome
+    const pickArray = (obj: any, ...keys: string[]) => {
+      for (const k of keys) if (Array.isArray(obj?.[k])) return obj[k]
+      return []
+    }
+    const pgBrutos = pickArray(
+      src,
+      "pagamentos",              // já usado em alguns fluxos
+      "orcamento_pagamentos",    // plural
+      "orcamento_pagamento",     // singular
+      "pagamento"                // variação
+    )
+
+    // 🔧 Normalizar shape { tipoTelhas, metodo, valor }
     const pagamentos = pgBrutos.map((p: any) => ({
-      tipoTelhas: p.tipoTelhas ?? p.tipo_telhas ?? "",
-      metodo: (p.metodo ?? p.metodo_pagamento ?? "").toString().toLowerCase(),
-      valor: n(p.valor),
+      tipoTelhas:
+        p.tipoTelhas ?? p.tipo_telhas ?? p.tipo_telha ?? p.tipo ?? "",
+      metodo: String(
+        p.metodo ?? p.metodo_pagamento ?? p.forma ?? p.forma_pagamento ?? ""
+      ).toLowerCase(),
+      valor: n(p.valor ?? p.preco ?? p.preco_unitario),
     }))
+
+    // 🔧 Trazer o MAPA que a página Editar usa (prioridade no useMemo)
+    const telhaValores =
+      src.telhaValores ??
+      src.telha_valores ??
+      src.valoresTelhas ??
+      null
+
     const totais = {
       madeiras: n(src.totais?.madeiras ?? src.totais_madeiras_preco),
       materiais: n(src.totais?.materiais ?? src.totais_materiais_preco),
@@ -149,15 +185,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       empresaGD: n(src.totais?.empresaGD ?? src.totais_empresa_gd_preco),
       frete: n(src.totais?.frete ?? src.totais_frete_preco),
     }
-    const valorTotalCalc = totais.madeiras + totais.materiais + totais.comissao + totais.empresaPS + totais.empresaGD + totais.frete
+
+    const valorTotalCalc =
+      totais.madeiras + totais.materiais + totais.comissao + totais.empresaPS + totais.empresaGD + totais.frete
+
     const valorTotal = n(src.valor_total) || n(src.valorTotal) || valorTotalCalc
     const dataISO = (src.data_criacao ?? src.dataCriacao ?? src.created_at ?? new Date().toISOString()) as string
+
     const cliente = {
       nome: pickStr(src.cliente?.nome, src.nome_cliente) ?? "",
       telefone: src.cliente?.telefone ?? null,
       bairro: pickStr(src.cliente?.bairro, src.bairro),
       cidade: pickStr(src.cliente?.cidade, src.cidade),
     }
+
     return {
       id: src.id,
       titulo: src.titulo ?? null,
@@ -167,14 +208,18 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       tipoObra,
       dimensoes,
       materiais: materiaisFlat,
-      pagamentos,
+      pagamentos,           // <- agora sempre populado
+      telhaValores,         // <- AGORA VAI junto pro modal
       totais: { ...totais, totalGeral: valorTotal },
       dataISO,
       valorTotal,
     }
   }
 
+
   async function abrirModal(o: OrcamentoTabela) {
+    if (loadingRowId !== null) return // evita múltiplas requisições simultâneas
+    setLoadingRowId(o.id)
     setLoadingModal(true)
     try {
       const res = await fetch(`/api/Orcamentos/${o.id}`, { method: "GET" })
@@ -187,8 +232,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       console.error(err)
     } finally {
       setLoadingModal(false)
+      setLoadingRowId(null)
     }
   }
+
 
   const materiaisGroup = useMemo(() => {
     const base: Record<"madeira" | "geral" | "telha", MaterialItem[]> = { madeira: [], geral: [], telha: [] }
@@ -211,7 +258,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             return acc
           }, base)
         }
-      } catch {}
+      } catch { }
     }
     if (m && typeof m === "object" && !Array.isArray(m)) {
       return {
@@ -243,48 +290,79 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   // === defs portadas do page.tsx (1:1) ===
 
-// links do orçamento selecionado
-const slideUrl = orcamentoSel?.link_slide ?? ""
-const pdfUrl   = orcamentoSel?.link_pdf   ?? ""
+  // links do orçamento selecionado
+  const slideUrl = orcamentoSel?.link_slide ?? ""
+  const pdfUrl = orcamentoSel?.link_pdf ?? ""
 
-// URL absoluta para a tela de edição deste orçamento
-const editUrl =
-  orcamentoSel?.id
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/gerar-orcamento/edit/${orcamentoSel.id}`
-    : ""
+  // URL absoluta para a tela de edição deste orçamento
+  const editUrl =
+    orcamentoSel?.id
+      ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/gerar-orcamento/edit/${orcamentoSel.id}`
+      : ""
 
-// campos tipados do detalhe (aparecem no card “Dados do Cliente”)
-const tipoObra = orcamentoSel?.tipoObra ?? null
-const largura = orcamentoSel?.dimensoes?.largura
-const comprimento = orcamentoSel?.dimensoes?.comprimento
+  // campos tipados do detalhe (aparecem no card “Dados do Cliente”)
+  const tipoObra = orcamentoSel?.tipoObra ?? null
+  const largura = orcamentoSel?.dimensoes?.largura
+  const comprimento = orcamentoSel?.dimensoes?.comprimento
 
-// formato de dimensão exibido no modal
-function fmtDim(v: number | null | undefined): string {
-  return typeof v === "number" && isFinite(v) && v > 0
-    ? `${v.toLocaleString("pt-BR")} m`
-    : "-"
-}
+  // formato de dimensão exibido no modal
+  function fmtDim(v: number | null | undefined): string {
+    return typeof v === "number" && isFinite(v) && v > 0
+      ? `${v.toLocaleString("pt-BR")} m`
+      : "-"
+  }
 
-// pagamentos → tabela “Valores fixos – Telhas”
-const telhasFixos = useMemo(() => {
-  if (!orcamentoSel?.pagamentos?.length) return null
-  // estrutura: { [tipoTelha]: { pix?: number, "10×"?: number, "18×"?: number } }
-  const map: Record<string, { pix?: number; "10×"?: number; "18×"?: number }> = {}
+  const telhasFixos = useMemo(() => {
+    const src: any = orcamentoSel ?? {}
 
-  orcamentoSel.pagamentos.forEach(p => {
-    const tipo = p.tipoTelhas
-    const metodo = (p.metodo ?? "").toLowerCase()
-    if (!map[tipo]) map[tipo] = {}
-    if (metodo.includes("pix")) map[tipo].pix = p.valor
-    else if (metodo.includes("10")) map[tipo]["10×"] = p.valor
-    else if (metodo.includes("18")) map[tipo]["18×"] = p.valor
-  })
+    // 1) Preferir o mapa vindo do BD (mesmo contrato da tela de Editar)
+    const tvRaw =
+      src.telhaValores ??
+      src.telha_valores ??
+      src.valoresTelhas ??
+      null
 
-  // ordena tipos se existirem
-  const order = ["Romana", "Colonial", "Americana"]
-  const tipos = Object.keys(map).sort((a, b) => order.indexOf(a) - order.indexOf(b))
-  return { map, tipos }
-}, [orcamentoSel?.pagamentos])
+    if (tvRaw && typeof tvRaw === "object" && !Array.isArray(tvRaw)) {
+      const map: Record<string, { pix?: number; "10×": number | undefined; "18×": number | undefined }> = {}
+      for (const [tipo, vals] of Object.entries(tvRaw as Record<string, any>)) {
+        const t = String(tipo).trim()
+        if (!t) continue
+        map[t] = {
+          pix: n((vals as any).pix),
+          "10×": n((vals as any).x10 ?? (vals as any)["10x"] ?? (vals as any)["10×"]),
+          "18×": n((vals as any).x18 ?? (vals as any)["18x"] ?? (vals as any)["18×"]),
+        }
+      }
+      const tipos = Object.keys(map).sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }))
+      return { map, tipos }
+    }
+
+    // 2) Fallback: montar via pagamentos (aceita várias chaves/formatos)
+    const pickArray = (obj: any, ...keys: string[]) => {
+      for (const k of keys) if (Array.isArray(obj?.[k])) return obj[k]
+      return []
+    }
+    const pgs = pickArray(src, "pagamentos", "orcamento_pagamento", "orcamento_pagamentos", "pagamento")
+
+    const map: Record<string, { pix?: number; "10×"?: number; "18×"?: number }> = {}
+    const tipos: string[] = []
+
+    for (const p of pgs as any[]) {
+      const t = String(p.tipoTelhas ?? p.tipo_telhas ?? p.tipo_telha ?? p.tipo ?? "").trim()
+      if (!t) continue
+      if (!map[t]) { map[t] = {}; tipos.push(t) }
+
+      const metodo = String(p.metodo ?? p.metodo_pagamento ?? p.forma ?? p.forma_pagamento ?? "").toLowerCase()
+      const val = n(p.valor ?? p.preco ?? p.preco_unitario)
+
+      if (/(pix|vista|à vista|a vista)/.test(metodo)) map[t].pix = val
+      else if (/(10x|10×|(^|[^0-9])10([^0-9]|$))/.test(metodo)) map[t]["10×"] = val
+      else if (/(18x|18×|(^|[^0-9])18([^0-9]|$))/.test(metodo)) map[t]["18×"] = val
+    }
+
+    tipos.sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }))
+    return { map, tipos }
+  }, [orcamentoSel])
 
 
   /* ────────────────────────── JSX ────────────────────────── */
@@ -439,9 +517,12 @@ const telhasFixos = useMemo(() => {
                       {orcamentos.map(o => (
                         <TableRow
                           key={o.id}
-                          className="odd:bg-muted/40 hover:bg-bege/40 cursor-pointer"
-                          onClick={() => abrirModal(o)}
+                          className={`odd:bg-muted/40 hover:bg-muted/60 transition-colors ${loadingRowId === o.id ? "opacity-60 cursor-wait" : "cursor-pointer"
+                            }`}
+                          onClick={() => (loadingRowId === null) && abrirModal(o)}
                         >
+
+
                           <TableCell>{safeCell(o.titulo)}</TableCell>
                           <TableCell>{safeCell(o.cliente)}</TableCell>
                           <TableCell>{safeCell(o.bairro)}</TableCell>
@@ -453,10 +534,17 @@ const telhasFixos = useMemo(() => {
                               variant="ghost"
                               className="text-marromEscuro hover:bg-marromClaro/20"
                               disabled
+                              aria-busy={loadingRowId === o.id}
+                              title={loadingRowId === o.id ? "Carregando..." : "Visualizar"}
                             >
-                              <EyeIcon className="h-5 w-5" />
+                              {loadingRowId === o.id ? (
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                              ) : (
+                                <EyeIcon className="h-5 w-5" />
+                              )}
                             </Button>
                           </TableCell>
+
 
                         </TableRow>
                       ))}
@@ -681,45 +769,55 @@ const telhasFixos = useMemo(() => {
                     </CardContent>
                   </Card>
 
-                  {/* valores fixos – Telhas (do banco) */}
-                  {telhasFixos && telhasFixos.tipos.length > 0 && (
-                    <Card>
-                      <CardHeader><CardTitle>Valores fixos – Telhas</CardTitle></CardHeader>
-                      <CardContent className="p-4">
-                        <div className="rounded-lg overflow-hidden">
-                          <Table>
-                            <TableHeader className="bg-bege">
-                              <TableRow className="bg-bege hover:bg-bege">
-                                <TableHead>Tipo</TableHead>
-                                <TableHead className="text-right">Pix</TableHead>
-                                <TableHead className="text-right">10×</TableHead>
-                                <TableHead className="text-right">18×</TableHead>
+                  {/* Valores fixos – Telhas (sempre visível) */}
+
+                  <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="p-3 bg-bege/30 border-b border-bege">
+                      <CardTitle className="text-sm">Valores fixos – Telhas</CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="p-3">
+                      <div className="rounded-xl overflow-hidden border border-bege">
+                        <Table>
+                          <TableHeader className="bg-bege">
+                            <TableRow className="bg-bege hover:bg-bege">
+                              <TableHead>Tipo</TableHead>
+                              <TableHead className="text-right">Pix</TableHead>
+                              <TableHead className="text-right">10×</TableHead>
+                              <TableHead className="text-right">18×</TableHead>
+                            </TableRow>
+                          </TableHeader>
+
+                          <TableBody>
+                            {telhasFixos.tipos.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                  Sem valores fixos para este orçamento
+                                </TableCell>
                               </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {telhasFixos.tipos.map(tipo => {
-                                const row = telhasFixos.map[tipo]
+                            ) : (
+                              telhasFixos.tipos.map((tipo) => {
+                                const row = telhasFixos.map[tipo] || {}
+                                const pix = row.pix ?? 0
+                                const x10 = row["10×"] ?? 0
+                                const x18 = row["18×"] ?? 0
                                 return (
                                   <TableRow key={tipo}>
                                     <TableCell>{tipo}</TableCell>
-                                    <TableCell className="text-right">
-                                      {row.pix !== undefined ? fmtBRL(row.pix) : "-"}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {row["10×"] !== undefined ? fmtBRL(row["10×"]!) : "-"}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                      {row["18×"] !== undefined ? fmtBRL(row["18×"]!) : "-"}
-                                    </TableCell>
+                                    <TableCell className="text-right">{fmtBRL(pix)}</TableCell>
+                                    <TableCell className="text-right">{fmtBRL(x10)}</TableCell>
+                                    <TableCell className="text-right">{fmtBRL(x18)}</TableCell>
                                   </TableRow>
                                 )
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                              })
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+
                 </div>
 
                 {/* Links da Proposta (estilo Etapa 4, inputs desabilitados) */}

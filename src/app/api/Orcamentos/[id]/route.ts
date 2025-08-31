@@ -2,6 +2,11 @@
 import { NextResponse } from "next/server"
 import { getOrcamentoById, updateOrcamento } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
+// >>> melhorias de runtime/caching (não interferem no PUT)
+export const runtime = "nodejs"          // evita intermitência do Edge
+export const dynamic = "force-dynamic"   // garante execução dinâmica
+export const revalidate = 0              // sem cache estático do Next
+
 // GET /api/Orcamentos/[id]
 export async function GET(
   _req: Request,
@@ -16,10 +21,17 @@ export async function GET(
   try {
     const data = await getOrcamentoById(id)
     if (!data) return NextResponse.json({ error: "não encontrado" }, { status: 404 })
-    return NextResponse.json(data, { status: 200 })
+    // cache privado curtinho: reabrir o mesmo modal fica mais rápido
+    return NextResponse.json(data, {
+      status: 200,
+      headers: { "Cache-Control": "private, max-age=60" },
+    })
   } catch (err: any) {
     console.error("GET /api/Orcamentos/[id] erro:", err)
-    return NextResponse.json({ error: err?.message ?? "erro interno" }, { status: 500 })
+    // mantém sua semântica anterior
+    const msg = String(err?.message ?? "")
+    const status = /n(ã|a)o encontrado|not found/i.test(msg) ? 404 : 500
+    return NextResponse.json({ error: msg || "erro interno" }, { status })
   }
 }
 
