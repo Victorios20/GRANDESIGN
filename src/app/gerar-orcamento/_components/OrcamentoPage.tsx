@@ -1517,7 +1517,7 @@ setTelhaValores(telhaValoresAtual)
                                                 </>
                                             )}
                                             <TableHead className="w-28 text-right">
-                                                {cat === "madeiras" ? "Preço (m²)" : "Preço (un)"}
+                                                {cat === "madeiras" ? "Preço (m)" : "Preço (un)"}
                                             </TableHead>
                                             {cat === "telhas" && <TableHead className="w-28 text-right">Frete</TableHead>}
                                             <TableHead className="w-28 text-right">Total</TableHead>

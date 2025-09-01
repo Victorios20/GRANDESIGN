@@ -667,7 +667,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                                     <TableHead>Madeira</TableHead>
                                     <TableHead className="text-right">Quantidade</TableHead>
                                     <TableHead className="text-right">Tamanho</TableHead>
-                                    <TableHead className="text-right">Preço (m²)</TableHead>
+                                    <TableHead className="text-right">Preço (m)</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                   </>
                                 ) : tipo === "geral" ? (
