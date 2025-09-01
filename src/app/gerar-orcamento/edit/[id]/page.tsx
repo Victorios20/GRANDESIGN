@@ -1,54 +1,113 @@
 // src/app/gerar-orcamento/edit/[id]/page.tsx
-import OrcamentoPage, { type InitialData } from "../../_components/OrcamentoPage"
-// ⚠️ ajuste o caminho conforme o seu projeto:
-import { getOrcamentoById } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 import { notFound } from "next/navigation"
+import OrcamentoPage, { type InitialData } from "../../_components/OrcamentoPage"
 
-type PageProps = { params: Promise<{ id: string }> }
+// DB (server) – chamamos direto, sem HTTP
+import { listarTiposObra } from "@/actions/tipo-obra-db/tipo-obra-db"
+import { getCidadesDB } from "@/actions/cidades-db/cidades-db"
+import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
+import { listarMateriaisPorTipoDB } from "@/actions/materiais-db/materiais-db"
+import { getOrcamentoById, type GetOrcamentoResult } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
-export const metadata = {
-  title: "Editar Orçamento",
-  description: "Editar um orçamento existente",
-}
+// Opcional: revalidate em 5 min para catálogos
+export const revalidate = 300
 
-export default async function EditOrcamentoPage({ params }: PageProps) {
-  const { id: idStr } = await params
-  const id = Number(idStr)
-  if (!Number.isFinite(id) || id <= 0) notFound()
-
-  const data = await getOrcamentoById(id).catch(() => null)
-  if (!data) notFound()
-
-  // Normaliza materiais: tamanho: null -> "", frete: null -> undefined
-  const mapMat = (
-    arr: { id: number; nome: string; componente: string; quantidade: number; preco: number; tamanho?: number | null; frete?: number | null }[],
-  ) =>
-    arr.map(m => ({
-      ...m,
-      tamanho: m.tamanho ?? "",          // <- OrcamentoPage espera string|number
-      frete: m.frete ?? undefined,       // <- remove null
+function toInitialData(data: GetOrcamentoResult): InitialData {
+  // Normalizações exigidas pelo componente:
+  // - cliente.cidade: string (null -> "")
+  // - materiais.*[].componente: string (null -> "")
+  // - materiais.*[].tamanho: string|number (null -> "")
+  // - materiais.*[].frete: number|undefined (null -> undefined)
+  const mapMat = (arr: GetOrcamentoResult["materiais"]["madeiras"]) =>
+    arr.map((m) => ({
+      id: m.id ?? 0,
+      nome: m.nome ?? "",
+      componente: (m.componente ?? "") || "",
+      quantidade: m.quantidade ?? 0,
+      preco: m.preco ?? 0,
+      tamanho: m.tamanho == null ? "" : m.tamanho, // string|number
+      frete: m.frete == null ? undefined : m.frete,
     }))
 
-  const initialData: InitialData = {
-    ...data,
+  return {
+    id: data.id,
+    titulo: data.titulo ?? "",
+    cliente: {
+      nome: data.cliente?.nome ?? "",
+      telefone: data.cliente?.telefone ?? "",
+      bairro: data.cliente?.bairro ?? "",
+      cidade: data.cliente?.cidade ?? "", // ← crucial (sem null)
+    },
+    parametros: {
+      tipoObra: data.parametros?.tipoObra ?? "",
+      largura: data.parametros?.largura ?? null,
+      comprimento: data.parametros?.comprimento ?? null,
+      larguraMaior: data.parametros?.larguraMaior ?? null,
+      larguraMenor: data.parametros?.larguraMenor ?? null,
+      comprimentoMaior: data.parametros?.comprimentoMaior ?? null,
+      comprimentoMenor: data.parametros?.comprimentoMenor ?? null,
+    },
     materiais: {
       madeiras: mapMat(data.materiais.madeiras),
       materiaisGerais: mapMat(data.materiais.materiaisGerais),
       telhas: mapMat(data.materiais.telhas),
     },
+    totais: {
+      madeiras: data.totais?.madeiras ?? 0,
+      materiais: data.totais?.materiais ?? 0,
+      comissao: data.totais?.comissao ?? 0,
+      frete: data.totais?.frete ?? 0,
+      empresaPS: data.totais?.empresaPS ?? 0,
+      empresaGD: data.totais?.empresaGD ?? 0,
+    },
+    telhaValores: data.telhaValores ?? {},
     links: {
-      slide: data.links.slideUrl ?? undefined,
-      pdf: data.links.pdfUrl ?? undefined,
-      slideUrl: data.links.slideUrl,
-      pdfUrl: data.links.pdfUrl,
+      slideUrl: data.links?.slideUrl ?? null,
+      pdfUrl: data.links?.pdfUrl ?? null,
+      // os dois abaixo são opcionais no componente
+      slide: undefined,
+      pdf: undefined,
     },
   }
+}
+
+export default async function Page(context: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await context.params
+  const id = Number(idStr)
+
+  if (!Number.isFinite(id)) {
+    notFound()
+  }
+
+  // Carrega catálogos em paralelo
+  const [tiposObra, cidades, componentes, madeirasDB, geraisDB, telhasDB, orc] = await Promise.all([
+    listarTiposObra(),
+    getCidadesDB(),
+    listarComponentesDB(),
+    listarMateriaisPorTipoDB("madeira"),
+    listarMateriaisPorTipoDB("geral"),
+    listarMateriaisPorTipoDB("telha"),
+    getOrcamentoById(id),
+  ])
+
+  // Adapta shape do catálogo para o componente (nome/preco)
+  const catalogo = {
+    madeiras: madeirasDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+    materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+    telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
+  }
+
+  const initialData = toInitialData(orc)
 
   return (
     <OrcamentoPage
       mode="edit"
-      orcamentoId={data.id}
+      orcamentoId={id}
       initialData={initialData}
+      catalogo={catalogo}
+      componentes={componentes}
+      tiposObra={tiposObra}
+      cidades={cidades}
     />
   )
 }

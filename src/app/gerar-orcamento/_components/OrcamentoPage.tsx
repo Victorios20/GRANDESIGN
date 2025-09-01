@@ -1,7 +1,7 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-import { useState, useEffect, useRef, ChangeEvent } from "react"
+import { useState, useEffect, ChangeEvent } from "react"
 
 import { useRouter } from "next/navigation"
 import {
@@ -133,16 +133,37 @@ export type InitialData = {
     links: { slide?: string; pdf?: string; slideUrl?: string | null; pdfUrl?: string | null }
 }
 
-type MaterialCatalogItem = { descricao: string; preco_unitario: number }
-
-
-type OrcamentoPageProps = {
-    mode?: "create" | "edit"
-    /** Obrigatório no edit */
-    orcamentoId?: number
-    /** Dados já vindos do BD (obrigatório no edit) */
-    initialData?: InitialData
+type Catalogo = {
+    madeiras: { nome: string; preco: number }[]
+    materiaisGerais: { nome: string; preco: number }[]
+    telhas: { nome: string; preco: number }[]
 }
+
+
+// COLE este bloco NO MESMO LUGAR
+type BaseProps = {
+    // catálogos SEMPRE vêm por props
+    catalogo: Catalogo
+    componentes: Componente[]
+    tiposObra: TipoObra[]
+    cidades: Cidade[]
+}
+
+// "create": pode omitir mode (default "create"); NÃO tem id nem initialData
+type CreateProps = BaseProps & {
+    mode?: "create"
+}
+
+// "edit": é obrigatório mode="edit" E também orcamentoId + initialData
+type EditProps = BaseProps & {
+    mode: "edit"
+    orcamentoId: number
+    initialData: InitialData
+}
+
+// contrato final: union discriminada
+type OrcamentoPageProps = CreateProps | EditProps
+
 
 /* ===================================================================
  *                              Helpers
@@ -447,9 +468,33 @@ const calcTelhaValores = (
 /* ===================================================================
  *                            Componente
  * =================================================================== */
-export default function OrcamentoPage({ mode = "create", orcamentoId, initialData }: OrcamentoPageProps) {
+export default function OrcamentoPage(props: OrcamentoPageProps) {
+
     const router = useRouter()
-    const isEdit = mode === "edit"
+
+    // narrowing correto em cima de props.mode
+    const isEdit = props.mode === "edit"
+
+    // props comuns (existem em ambos os ramos)
+    const {
+        catalogo: catalogoProp,
+        componentes: componentesProp,
+        tiposObra: tiposObraProp,
+        cidades: cidadesProp,
+    } = props
+
+    // somente no edit — agora com narrowing do TypeScript
+    let orcamentoId: number | undefined
+    let initialData: InitialData | undefined
+    if (props.mode === "edit") {
+        orcamentoId = props.orcamentoId
+        initialData = props.initialData
+    }
+
+    // (opcional) manter uma variável mode se você usa em outros lugares
+    const mode: "create" | "edit" = isEdit ? "edit" : "create"
+
+
 
     // reseta Selects quando limpa
     const [cityResetKey, setCityResetKey] = useState(0)
@@ -476,6 +521,14 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
     const [componentes, setComponentes] = useState<Componente[]>([])
     const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
     const [cidades, setCidades] = useState<Cidade[]>([])
+
+    useEffect(() => {
+        setCatalogo(catalogoProp ?? { madeiras: [], materiaisGerais: [], telhas: [] })
+        setComponentes(componentesProp ?? [])
+        setTiposObra(tiposObraProp ?? [])
+        setCidades(cidadesProp ?? [])
+    }, [catalogoProp, componentesProp, tiposObraProp, cidadesProp])
+
 
     /* ---------------------- Estado principal (Etapas) ---------------------- */
     const [titulo, setTitulo] = useState("")
@@ -534,70 +587,8 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
             console.error(e)
         }
     }
-    const ranOnce = useRef(false)
 
-    /* ===================================================================
-     *                      Efeitos – carregar catálogos
-     * =================================================================== */
-    /* ===================================================================
- *                      Efeitos – carregar catálogos
- * =================================================================== */
-    useEffect(() => {
-        if (ranOnce.current) return
-        ranOnce.current = true
 
-        const ac = new AbortController()
-            ; (async () => {
-                try {
-                    const [mads, ges, tls, comps, tipos, cids] = await Promise.all([
-                        fetch("/api/materiais?tipo=madeira", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/materiais?tipo=madeira -> ${r.status}`)
-                            return r.json()
-                        }),
-                        fetch("/api/materiais?tipo=geral", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/materiais?tipo=geral -> ${r.status}`)
-                            return r.json()
-                        }),
-                        fetch("/api/materiais?tipo=telha", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/materiais?tipo=telha -> ${r.status}`)
-                            return r.json()
-                        }),
-                        fetch("/api/componentes", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/componentes -> ${r.status}`)
-                            return r.json()
-                        }),
-                        fetch("/api/tipos-obra", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/tipos-obra -> ${r.status}`)
-                            return r.json()
-                        }),
-                        fetch("/api/cidades", { signal: ac.signal, cache: "no-store", headers: { accept: "application/json" } }).then(r => {
-                            if (!r.ok) throw new Error(`/api/cidades -> ${r.status}`)
-                            return r.json()
-                        }),
-                    ])
-
-                    setCatalogo({
-                        madeiras: mads.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
-                        materiaisGerais: ges.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
-                        telhas: tls.map((m: any) => ({ nome: m.descricao, preco: m.preco_unitario })),
-                    })
-                    setComponentes(comps)
-                    setTiposObra(tipos)
-                    setCidades(cids)
-                } catch (e) {
-                    if ((e as any)?.name !== "AbortError") {
-                        console.error("Erro ao carregar catálogos:", e)
-                        // opcional: ainda assim inicializa vazio pra não travar UI
-                        setCatalogo({ madeiras: [], materiaisGerais: [], telhas: [] })
-                        setComponentes([])
-                        setTiposObra([])
-                        setCidades([])
-                    }
-                }
-            })()
-
-        return () => ac.abort()
-    }, [])
 
 
 
@@ -663,11 +654,9 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                     // NÃO mexe em: comissao, frete, empresaPS, empresaGD
                 }
 
-                // Atualiza tabela "Telhas – valores fixos" com a soma já atualizada
                 const nextSoma = Object.values(next).reduce((s, v) => s + v, 0)
-                if (!isEdit) {
-                    setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
-                }
+                setTelhaValores(calcTelhaValores(materiais.telhas, nextSoma))
+
 
 
                 return next
@@ -960,12 +949,10 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
     const somaTotal = Object.values(totEdit).reduce((s, v) => s + v, 0)
 
-    const telhaTipos = Array.from(new Set([
-        ...Object.keys(telhaValores ?? {}),
-        ...materiais.telhas.map(t => (t.nome ?? "").trim()),
-    ]))
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b, "pt-BR"))
+    const telhaTipos = Array.from(
+        new Set(materiais.telhas.map(t => (t.nome ?? "").trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"))
+
 
     const ensureTelha = (tipo: string): Pagto => ({
         pix: telhaValores?.[tipo]?.pix ?? 0,
@@ -973,11 +960,11 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
         x18: telhaValores?.[tipo]?.x18 ?? 0,
     })
 
-    // No CREATE, recalc telhaValores dinamicamente; no EDIT, não
     useEffect(() => {
-        if (isEdit) return
+        if (isEdit && !hydrated) return
         setTelhaValores(calcTelhaValores(materiais.telhas, somaTotal))
-    }, [materiais.telhas, somaTotal, isEdit])
+    }, [materiais.telhas, somaTotal, isEdit, hydrated])
+
 
 
     // Mantém subtotais sincronizados com as tabelas em tempo real (create e edit)
@@ -1075,13 +1062,15 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
 
         try {
             setLoadingPDF(true)
+            const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
+setTelhaValores(telhaValoresAtual)
             const result = await gerarPDF({
                 cliente: form,
                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                 materiais,
                 totais: totEdit,
                 // >>> ENVIA MAPA DINÂMICO PARA A HOOK
-                telhaValoresDinamicos: telhaValores,
+                telhaValoresDinamicos: telhaValoresAtual,
                 titulo: snap,
             })
 
@@ -1113,7 +1102,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                             parametros: { tipoObra: tipoObra ?? "", ...dim },
                             materiais,
                             totais: totEdit,
-                            telhaValores, // <<< use o MAPA DINÂMICO do state
+                            telhaValores: telhaValoresAtual,
                             links: { slideUrl: slide, pdfUrl: pdf },
                             titulo: snap,
                         })
@@ -1211,6 +1200,8 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
             }
         }
 
+        const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
+
         return {
             titulo,
             cliente: { ...form },
@@ -1242,7 +1233,7 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                 })),
             },
             totais: { ...totEdit },
-            telhaValores,
+            telhaValores: telhaValoresAtual,
             links: {
                 slideUrl: links.slide ?? null,
                 pdfUrl: links.pdf ?? null,
@@ -2027,12 +2018,13 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                     if (modalMode === "salvar" && !isEdit) {
                                         try {
                                             setLoadingSave(true)
+                                            const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
                                             await salvarRascunhoAPI({
                                                 cliente: form,
                                                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                 materiais,
                                                 totais: totEdit,
-                                                telhaValores,
+                                                telhaValores: telhaValoresAtual,
                                                 titulo: tituloTemporario,
                                             })
 
@@ -2069,23 +2061,25 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                                             setLoadingSave(true)
                                             // se não tiver links, gravamos como rascunho; se tiver, como definitivo
                                             if (links.slide || links.pdf) {
+                                                const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
                                                 await salvarOrcamentoAPI({
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
                                                     totais: totEdit,
-                                                    telhaValores,
+                                                    telhaValores: telhaValoresAtual,
                                                     links: { slideUrl: links.slide ?? "", pdfUrl: links.pdf ?? "" },
                                                     titulo: tituloTemporario,
                                                 })
                                                 toast.success("Cópia salva como novo orçamento!")
                                             } else {
+                                                const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
                                                 await salvarRascunhoAPI({
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
                                                     totais: totEdit,
-                                                    telhaValores,
+                                                    telhaValores: telhaValoresAtual,
                                                     titulo: tituloTemporario,
                                                 })
                                                 toast.success("Cópia salva como rascunho!")
@@ -2123,6 +2117,8 @@ export default function OrcamentoPage({ mode = "create", orcamentoId, initialDat
                 slideUrl={links.slide}
                 clearAll={clearAll}
             />
+
+
         </PageLayout>
     )
 }
