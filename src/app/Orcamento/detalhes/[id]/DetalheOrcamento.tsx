@@ -34,7 +34,14 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const pdfUrl = detalhe.links.pdfUrl ?? ""
 
   return (
-    <PageLayout>
+    // para:
+<PageLayout
+  links={[
+    { label: "Home", href: "/" },
+    { label: "Detalhar Orçamento", href: `/orcamento/detalhes/${detalhe.id}` }, // ou sem href se preferir não clicável
+  ]}
+>
+
 
         <div className="container mx-auto space-y-8">
       {/* Cabeçalho (como o título do modal) */}
