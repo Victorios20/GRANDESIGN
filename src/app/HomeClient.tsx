@@ -11,7 +11,14 @@ import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, EyeIcon, Edit, Trash2, ArrowUpRight, Loader2 } from "lucide-react"
+import { PlusCircle, EllipsisVertical, Eye, Pencil, Trash2, ArrowUpRight, Edit } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
+
 
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
@@ -516,11 +523,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     <TableBody>
                       {orcamentos.map(o => (
                         <TableRow
-                          key={o.id}
-                          className={`odd:bg-muted/40 hover:bg-muted/60 transition-colors ${loadingRowId === o.id ? "opacity-60 cursor-wait" : "cursor-pointer"
-                            }`}
-                          onClick={() => (loadingRowId === null) && abrirModal(o)}
-                        >
+  key={o.id}
+  className="odd:bg-muted/40 hover:bg-muted/60 transition-colors"
+>
+
 
 
                           <TableCell>{safeCell(o.titulo)}</TableCell>
@@ -529,21 +535,36 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                           <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
                           <TableCell className="text-center">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-marromEscuro hover:bg-marromClaro/20"
-                              disabled
-                              aria-busy={loadingRowId === o.id}
-                              title={loadingRowId === o.id ? "Carregando..." : "Visualizar"}
-                            >
-                              {loadingRowId === o.id ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                              ) : (
-                                <EyeIcon className="h-5 w-5" />
-                              )}
-                            </Button>
-                          </TableCell>
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="text-marromEscuro hover:bg-marromClaro/20"
+        aria-label="Ações"
+      >
+        <EllipsisVertical className="h-5 w-5" />
+      </Button>
+    </DropdownMenuTrigger>
+
+    <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuItem asChild className="cursor-pointer">
+        <Link href={`/gerar-orcamento/edit/${o.id}`} title="Editar orçamento">
+          <Pencil className="mr-2 h-4 w-4" />
+          Editar orçamento
+        </Link>
+      </DropdownMenuItem>
+
+      <DropdownMenuItem asChild className="cursor-pointer">
+        <Link href={`/orcamento/detalhes/${o.id}`} title="Visualizar detalhes">
+          <Eye className="mr-2 h-4 w-4" />
+          Visualizar detalhes
+        </Link>
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+</TableCell>
+
 
 
                         </TableRow>

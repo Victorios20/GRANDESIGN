@@ -1063,7 +1063,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         try {
             setLoadingPDF(true)
             const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-setTelhaValores(telhaValoresAtual)
+            setTelhaValores(telhaValoresAtual)
             const result = await gerarPDF({
                 cliente: form,
                 parametros: { tipoObra: tipoObra ?? "", ...dim },
@@ -1635,7 +1635,38 @@ setTelhaValores(telhaValoresAtual)
                                                     ) : (
                                                         <>
                                                             {/* Outras categorias */}
-                                                            <TableCell>{m.nome}</TableCell>
+                                                            {/* Descrição (Materiais Gerais / Telhas) */}
+                                                            <TableCell>
+                                                                {ed ? (
+                                                                    <Select
+                                                                        value={editData.nome || ""}
+                                                                        onValueChange={(v) => {
+                                                                            const ref = catalogo[cat].find(o => o.nome === v)
+                                                                            setEditData(d => ({
+                                                                                ...d,
+                                                                                nome: v,
+                                                                                // ao escolher o item, já trazemos o preço do catálogo
+                                                                                preco: ref ? ref.preco : d.preco,
+                                                                            }))
+                                                                        }}
+                                                                    >
+                                                                        <SelectTrigger className="h-8">
+                                                                            <SelectValue placeholder="Selecione" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {catalogo[cat].map(o => (
+                                                                                <SelectItem key={o.nome} value={o.nome}>
+                                                                                    {o.nome}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                ) : (
+                                                                    m.nome
+                                                                )}
+                                                            </TableCell>
+
+                                                            {/* Quantidade */}
                                                             <TableCell className="text-right">
                                                                 {ed ? (
                                                                     <Input
@@ -1653,6 +1684,7 @@ setTelhaValores(telhaValoresAtual)
                                                                     m.quantidade
                                                                 )}
                                                             </TableCell>
+
                                                         </>
                                                     )}
 
