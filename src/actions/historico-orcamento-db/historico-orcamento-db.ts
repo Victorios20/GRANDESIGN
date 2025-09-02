@@ -142,7 +142,10 @@ export async function buscarOrcamentosDB(
   const allowedPer = new Set([5, 10, 20])
   const perPage = allowedPer.has(params.perPage ?? 10) ? (params.perPage as number) : 10
   const ordenarData: "asc" | "desc" = params.ordenarData === "asc" ? "asc" : "desc"
-  const offset = (page - 1) * perPage
+
+  const hasSearch = !!nome
+const limit = hasSearch ? 500 : perPage   // pode ajustar 500 conforme seu gosto
+const offset = hasSearch ? 0 : (page - 1) * perPage
 
   const ini = params.dataIni ? startOfDay(params.dataIni) : null
   const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
@@ -196,25 +199,25 @@ export async function buscarOrcamentosDB(
 
   const listSQL = ordenarData === "asc" ? listSQL_ASC : listSQL_DESC
 
-  // Executa em transação (duas queries com os MESMOS parâmetros)
   const [rows, countRows] = await prisma.$transaction([
-    prisma.$queryRawUnsafe(
-      listSQL,
-      nome ?? null,
-      bairro ?? null,
-      ini,
-      fimExclusivo,
-      perPage,
-      offset
-    ),
-    prisma.$queryRawUnsafe(
-      countSQL,
-      nome ?? null,
-      bairro ?? null,
-      ini,
-      fimExclusivo
-    ),
-  ])
+  prisma.$queryRawUnsafe(
+    listSQL,
+    nome ?? null,
+    bairro ?? null,
+    ini,
+    fimExclusivo,
+    limit,   
+    offset   
+  ),
+  prisma.$queryRawUnsafe(
+    countSQL,
+    nome ?? null,
+    bairro ?? null,
+    ini,
+    fimExclusivo
+  ),
+])
+
 
   const rs = rows as Array<{
     id: number

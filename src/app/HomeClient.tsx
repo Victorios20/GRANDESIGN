@@ -55,8 +55,15 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [loadingTabela, setLoadingTabela] = useState(false)
 
   /* paginação */
-  const [page, setPage] = useState(1)
-  const [perPage, setPerPage] = useState(10)
+  // estados…
+const [page, setPage] = useState(1)
+const [perPage, setPerPage] = useState(10)
+
+// ⇩ adiciona logo abaixo dos estados
+useEffect(() => {
+  if (nome.trim() && page !== 1) setPage(1)
+}, [nome])
+
 
   /* modal */
   const [orcamentoSel, setOrcamentoSel] = useState<OrcamentoDetalhe | null>(null)
@@ -81,7 +88,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     setLoadingTabela(true)
     const dIniISO = dataIni?.toISOString().slice(0, 10)
     const dFimISO = dataFim?.toISOString().slice(0, 10)
-    const { dados, total } = await buscarOrcamentos(nome, bairro, dIniISO, dFimISO, page, perPage, ordenarData)
+    // dentro de consultar()
+const pageToSend = nome.trim() ? 1 : page
+const { dados, total } = await buscarOrcamentos(
+  nome, bairro, dIniISO, dFimISO, pageToSend, perPage, ordenarData
+)
+
     setOrcamentos(dados)
     setTotal(total)
     setLoadingTabela(false)
