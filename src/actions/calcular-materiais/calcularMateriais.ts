@@ -187,12 +187,19 @@ async function calcularMateriaisNormal(
     }
 
     // TERÇAS: default 11,5cm; exceção para Linha na Parede com 5–6 em L e C
-    let tipoTerca = "Linha 11,5cm"
-    const larguraEntre5e6 = largura >= 5 && largura <= 6
-    const comprimentoEntre5e6 = comprimento >= 5 && comprimento <= 6
-    if (/^Linha na Parede/.test(tipoObra) && larguraEntre5e6 && comprimentoEntre5e6) {
-      tipoTerca = "Linha 15cm"
-    }
+// TERÇAS (madeira comum):
+// Regra: se comprimento > 4,5 m → usar 15 cm;
+// EXCETO: se houver 3 pranchões (≥6 m) E comprimento ≤ 7 m → usar 11,5 cm.
+// Caso contrário, 11,5 cm.
+let tipoTerca = "Linha 11,5cm"
+const hasThreePranchao = pranchaoBase === 3
+
+if (comprimento > 4.5) {
+  tipoTerca = (hasThreePranchao && comprimento <= 7)
+    ? "Linha 11,5cm"
+    : "Linha 15cm"
+}
+
 
     add(tipoTerca, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
     add("Caibro", "Caibros", ROUND_INT(comprimento / 0.32) + 1, largArred)
@@ -323,7 +330,7 @@ async function calcularMateriaisNormal(
 }
 
 /* ============================================================
- *          IMPLEMENTAÇÃO – COBERTA EM L (coluna compartilhada)
+ *          IMPLEMENTAÇÃO – COBERTA EM L (coluna na frente)
  *          Componentes:
  *          Pontalete, Pranchão(maior/menor), Terça(maior/menor),
  *          Caibro(maior/menor), Beiral(maior/menor/meio)
@@ -358,62 +365,57 @@ export async function calcularMateriaisCobertaL(
     materiaisRaw.push({ descricao, componente: "", quantidade: qtd })
   }
 
-  /* ---------- 1) Brabos (por perna) ---------- */
-  const brabosBaseMaior = CMaior >= 6 ? 3 : 2
-  const brabosBaseMenor = CMenor >= 6 ? 3 : 2
+/* ---------- 1) Pranchões (sempre 2: 1 maior, 1 menor) ---------- */
+add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
+add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
 
-  const brabosEfMaior = (isLinhaParede || isLinhaParedeComColuna) ? Math.max(0, brabosBaseMaior - 1) : brabosBaseMaior
-  const brabosEfMenor = (isLinhaParede || isLinhaParedeComColuna) ? Math.max(0, brabosBaseMenor - 1) : brabosBaseMenor
 
-  // Pranchões
-  add("Linha 30cm", "Pranchão (maior)", brabosEfMaior, LMaior)
-  add("Linha 30cm", "Pranchão (menor)", brabosEfMenor, LMenor)
+  /* ---------- 2) Pontaletes (fixo = 5, na prática 2,5 m) ---------- */
+  add(`Linha ${espessura}`, "Pontalete", 5, 2.5)
 
-  /* ---------- 2) Pontaletes ---------- */
-  // Linha na Parede (sem coluna) → tem pontalete
-  if (isLinhaParede) {
-    if (brabosEfMaior > 0) add(`Linha ${espessura}`, "Pontalete", brabosEfMaior * 2, 2.5)
-    if (brabosEfMenor > 0) add(`Linha ${espessura}`, "Pontalete", brabosEfMenor * 2, 2.5)
-  }
-  // Pontalete (tipo base) → também tem pontalete (mesma regra do normal)
-  if (isPontalete) {
-    if (brabosEfMaior > 0) add(`Linha ${espessura}`, "Pontalete", brabosEfMaior * 2, 2.5)
-    if (brabosEfMenor > 0) add(`Linha ${espessura}`, "Pontalete", brabosEfMenor * 2, 2.5)
-  }
+/* ---------- 3) Terças (L): tipo único 11,5 cm; maiores = (LMaior - LMenor) + 1; menores = (LMenor - 1) ---------- */
+// Tipo único no L (com 3 pranchões não passa de 4,5 m sem apoio)
+const tipoTercaL = "Linha 11,5cm"
 
-  /* ---------- 3) Terças ---------- */
-  const tercaTipoMaior = (/^Linha na Parede/.test(tipoBase) && LMaior >= 5 && LMaior <= 6 && CMaior >= 5 && CMaior <= 6)
-    ? "Linha 15cm"
-    : "Linha 11,5cm"
-  const tercaTipoMenor = (/^Linha na Parede/.test(tipoBase) && LMenor >= 5 && LMenor <= 6 && CMenor >= 5 && CMenor <= 6)
-    ? "Linha 15cm"
-    : "Linha 11,5cm"
+// Quantidades
+const tercasMaior = ROUND_INT(Math.max(1, (LMaior - LMenor) + 1))
+const tercasMenor = ROUND_INT(Math.max(0, LMenor - 1))
 
-  add(tercaTipoMaior, "Terça (maior)", ROUND_INT(LMaior) + 1, CMaior + 0.5)
-  add(tercaTipoMenor, "Terça (menor)", ROUND_INT(LMenor) + 1, CMenor + 0.5)
+// Tamanhos: comprimento + 0,5 (add já arredonda pra cima em passos de 0,5 via ROUND_HALF)
+add(tipoTercaL, "Terça (maior)", tercasMaior, CMaior + 0.5)
+add(tipoTercaL, "Terça (menor)", tercasMenor, CMenor + 0.5)
 
-  /* ---------- 4) Caibros ---------- */
-  add("Caibro", "Caibro (maior)", ROUND_INT(CMaior / 0.32) + 1, LMaior)
-  add("Caibro", "Caibro (menor)", ROUND_INT(CMenor / 0.32) + 1, LMenor)
 
-  /* ---------- 5) Beirais ---------- */
-  add("Beiral Trab. 15cm", "Beiral (maior)", 1, LMaior)
-  add("Beiral Trab. 15cm", "Beiral (menor)", 1, LMenor)
-  if (LMaior > LMenor) add("Beiral Trab. 15cm", "Beiral (meio)", 1, LMaior - LMenor)
 
-  /* ---------- 6) Materiais variáveis por coluna ---------- */
-  let linhasColunasMaior = 0
-  let linhasColunasMenor = 0
-  if (isColuna) {
-    linhasColunasMaior += 4 + (CMaior >= 6 ? 8 : 4)
-    linhasColunasMenor += 4 + (CMenor >= 6 ? 8 : 4)
-  } else if (isLinhaParedeComColuna) {
-    linhasColunasMaior += (CMaior >= 6 ? 8 : 4)
-    linhasColunasMenor += (CMenor >= 6 ? 8 : 4)
-  }
-  // coluna compartilhada no canto => -2 linhas no total (1 coluna)
+
+/* ---------- 4) Caibros: quantidades pela diferença de C / 0,32; tamanhos pelas L ---------- */
+// Caibro (maior) = ( (CMaior - CMenor + 1) / 0,32 )
+// Caibro (menor) = ( (CMenor - 1) / 0,32 )
+const caibrosMaior = ROUND_INT(Math.max(0, (CMenor) / 0.32 + 1))
+const caibrosMenor = ROUND_INT(Math.max(0, (CMaior - CMenor) / 0.32))
+
+// Extensão dos caibros: LMaior e LMenor
+add("Caibro", "Caibro (maior)", caibrosMaior, LMaior)
+add("Caibro", "Caibro (menor)", caibrosMenor, LMenor)
+
+
+
+/* ---------- 5) Beirais: 2 peças (maior e meio) ---------- */
+// maior = LMaior + 0,5 (arredondado pra cima em 0,5)
+add("Beiral Trab. 15cm", "Beiral (maior)", 1, LMaior + 0.5)
+
+// meio = (CMaior - CMenor) + 0,5 (arredondado pra cima em 0,5)
+add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
+
+// ⚠️ Removido: "Beiral (menor)"
+
+
+  /* ---------- 6) Materiais variáveis por coluna (coluna na frente por padrão) ---------- */
+  // Só colunas frontais por perna: C >= 6 ? 8 : 4; coluna compartilhada no canto: -2 linhas
+  let linhasColunasMaior = (CMaior >= 6 ? 8 : 4)
+  let linhasColunasMenor = (CMenor >= 6 ? 8 : 4)
   let linhasTotais = linhasColunasMaior + linhasColunasMenor
-  if (linhasTotais >= 2) linhasTotais -= 2
+  if (linhasTotais >= 2) linhasTotais -= 2 // compartilha a do canto
   const qtdColunas = linhasTotais / 2
 
   if (qtdColunas > 0) {
@@ -423,21 +425,17 @@ export async function calcularMateriaisCobertaL(
   }
 
   /* ---------- 7) Parafuso Sextavado ---------- */
-  const qtdPontalTotal = madeiraRaw
-    .filter(m => m.componente === "Pontalete")
-    .reduce((s, x) => s + x.quantidade, 0)
+  // Derivado dos pontaletes fixos (5): 3 por pontalete + 2 de folga
+  const qtdSextavado = 5 * 3 + 2
+  addMaterial("Parafuso Sextavado", qtdSextavado)
 
-  let qtdSextavado = 0
-  if (qtdPontalTotal) qtdSextavado += qtdPontalTotal * 3
-  if (isLinhaParede || isLinhaParedeComColuna) {
-    qtdSextavado += ROUND_INT(LMaior)
-    qtdSextavado += ROUND_INT(LMenor)
-  }
-  if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
+  /* ---------- 8) Telhas: Área1 + Área2, com 8% de perda por recorte ---------- */
+  // Área1 = CMenor * LMaior
+  const area1 = CMenor * LMaior
+  // Área2 = (CMaior - CMenor) * LMenor
+  const area2 = (CMaior - CMenor) * LMenor
+  const areaComPerda = (area1 + area2) * 1.08
 
-  /* ---------- 8) Telhas (+8% perda por recorte do L) ---------- */
-  const areaTotal = (LMaior * CMaior) + (LMenor * CMenor)
-  const areaComPerda = areaTotal * 1.08
   const formulas = {
     Romana:    { factor: 17, offset: 10 },
     Americana: { factor: 12, offset: 10 },
