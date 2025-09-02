@@ -391,7 +391,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             totais_frete_preco: nonNeg(input.totais.frete),
             link_slide: input.links.slideUrl ?? null,
             link_pdf: input.links.pdfUrl ?? null,
-            ...dimUpdate, // só aplica o que veio definido
+            ...dimUpdate, 
+            data_criacao: new Date(),
           },
         })
       } catch {
