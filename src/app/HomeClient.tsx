@@ -556,7 +556,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       </DropdownMenuItem>
 
       <DropdownMenuItem asChild className="cursor-pointer">
-        <Link href={`/orcamento/detalhes/${o.id}`} title="Visualizar detalhes">
+        <Link href={`/Orcamento/detalhes/${o.id}`} title="Visualizar detalhes">
           <Eye className="mr-2 h-4 w-4" />
           Visualizar detalhes
         </Link>
