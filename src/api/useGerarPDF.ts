@@ -1,6 +1,16 @@
 // src/api/useGerarPDF.ts
 import axios, { isAxiosError } from "axios"
-import type { Material } from "@/app/gerar-orcamento/page"
+
+
+export type Material = {
+  id: number
+  nome: string
+  componente: string
+  quantidade: number
+  preco: number
+  tamanho?: string | number
+  frete?: number // ← NOVO
+}
 
 /* ---------- Tipos auxiliares ---------- */
 export type MateriaisPorCategoria = {
