@@ -78,15 +78,27 @@ export default function ModalSucessoProposta({
 
 
                         {/* Novo Orçamento Button */}
+                        {/* Novo Orçamento Button */}
                         <Button
                             onClick={() => {
                                 clearAll()
-                                onClose() // Fecha o modal após resetar os dados
+                                onClose()
+                                // foca no título (id="titulo") ou rola pro topo
+                                setTimeout(() => {
+                                    const el = document.getElementById("titulo") as HTMLInputElement | null
+                                    if (el) {
+                                        el.scrollIntoView({ behavior: "smooth", block: "center" })
+                                        el.focus()
+                                    } else {
+                                        window.scrollTo({ top: 0, behavior: "smooth" })
+                                    }
+                                }, 60) // pequeno atraso para esperar o reset/render
                             }}
                             className="px-6 bg-marromEscuro text-white"
                         >
                             Novo Orçamento
                         </Button>
+
                     </div>
                 </DialogFooter>
             </DialogContent>
