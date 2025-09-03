@@ -1,14 +1,17 @@
--- 1) Extensões (ok rodar em transação)
+-- Extensões (ok em transação)
 CREATE EXTENSION IF NOT EXISTS unaccent;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
--- 2) Função auxiliar para índices TRGM por expressão
+-- Função wrapper imutável (usa a forma de 1 argumento)
 CREATE OR REPLACE FUNCTION public.immutable_unaccent(text)
-RETURNS text AS $$
-  SELECT unaccent('unaccent', $1)
-$$ LANGUAGE sql IMMUTABLE;
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT unaccent($1)
+$$;
 
--- 3) Índices que o drift apontou (mantive seus nomes)
+-- Índices (com IF NOT EXISTS)
 CREATE INDEX IF NOT EXISTS "idx_orcamento_data_criacao"
   ON "public"."orcamento"("data_criacao" DESC);
 
@@ -18,7 +21,7 @@ CREATE INDEX IF NOT EXISTS "idx_orc_mat_orcamento_id_id"
 CREATE INDEX IF NOT EXISTS "idx_orc_pag_orcamento_id_tipo_metodo"
   ON "public"."orcamento_pagamento"("orcamento_id", "tipo_telhas", "metodo_pagamento");
 
--- 4) Seus índices de busca (já usados no gd)
+-- Índices de busca que você usa no gd
 CREATE INDEX IF NOT EXISTS idx_cliente_cidade_id
   ON public.cliente USING btree (cidade_id);
 
