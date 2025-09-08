@@ -1,4 +1,9 @@
 // src/app/gerar-orcamento/new/page.tsx
+
+// 👇 Adicione estas duas linhas para impedir SSG/ISR e evitar tocar no DB no build
+export const dynamic = 'force-dynamic'
+export const revalidate = 0 // sobrescreve o revalidate anterior
+
 import OrcamentoPage from "../_components/OrcamentoPage"
 
 // DB (server) – chamamos direto, sem HTTP
@@ -7,11 +12,11 @@ import { getCidadesDB } from "@/actions/cidades-db/cidades-db"
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisPorTipoDB } from "@/actions/materiais-db/materiais-db"
 
-// Opcional: revalidate em 10 min pros catálogos
-export const revalidate = 600
+// ❌ remova esta linha antiga se ela ainda estiver no arquivo:
+// export const revalidate = 600
 
 export default async function Page() {
-  // Carrega catálogos em paralelo
+  // Carrega catálogos em paralelo (agora só em runtime)
   const [tiposObra, cidades, componentes, madeirasDB, geraisDB, telhasDB] = await Promise.all([
     listarTiposObra(),
     getCidadesDB(),
@@ -21,7 +26,6 @@ export default async function Page() {
     listarMateriaisPorTipoDB("telha"),
   ])
 
-  // Adapta shape do catálogo para o componente (nome/preco)
   const catalogo = {
     madeiras: madeirasDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
     materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
@@ -30,7 +34,6 @@ export default async function Page() {
 
   return (
     <OrcamentoPage
-      // mode default já é "create"
       catalogo={catalogo}
       componentes={componentes}
       tiposObra={tiposObra}
