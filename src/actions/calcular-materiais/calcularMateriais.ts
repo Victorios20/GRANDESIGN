@@ -100,7 +100,7 @@ async function calcularMateriaisNormal(
   const materiaisRaw: BaseRow[] = []
   const telhasRaw: BaseRow[] = []
 
-  const area       = largura * comprimento
+  const area = largura * ROUND_HALF(comprimento + 0.5)
   const largArred  = ROUND_HALF(largura)
   const compArred  = ROUND_HALF(comprimento)
   const espessura  = tipoObra.includes("11,5") ? "11,5cm" : "15cm"
