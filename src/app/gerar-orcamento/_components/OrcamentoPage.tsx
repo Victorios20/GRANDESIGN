@@ -1093,9 +1093,11 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         if (!orcamentoId) throw new Error("ID do orçamento ausente.")
                         const payload: UpdateOrcamentoInput = {
                             ...buildDbPayload(),
+                            titulo: snap, // garante o título recém-confirmado
                             links: { slideUrl: slide, pdfUrl: pdf },
                         }
                         await updateOrcamentoAPI(orcamentoId, payload)
+
                     } else {
                         await salvarOrcamentoAPI({
                             cliente: form,
@@ -2076,7 +2078,10 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         try {
                                             if (!orcamentoId) throw new Error("ID do orçamento ausente.")
                                             setLoadingSave(true)
-                                            await updateOrcamentoAPI(orcamentoId, buildDbPayload())
+                                            await updateOrcamentoAPI(orcamentoId, {
+                                                ...buildDbPayload(),
+                                                titulo: tituloTemporario.trim(),
+                                            })
                                             toast.success("Orçamento atualizado com sucesso!")
                                         } catch (err: unknown) {
                                             const msg = err instanceof Error ? err.message : "Erro ao atualizar orçamento"
