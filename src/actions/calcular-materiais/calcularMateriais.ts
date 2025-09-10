@@ -155,7 +155,7 @@ async function calcularMateriaisNormal(
       const qtdFrontais = comprimento > 6 ? 8 : 4
       add(madeiraVar, "Colunas Frontais", qtdFrontais, 3.5)
       add(madeiraVar, "Travessa", 2, largArred)
-      add(madeiraVar, "Pérgola", ROUND_INT(comprimento / 0.35) + 1, compArred)
+      add(madeiraVar, "Pérgola", ROUND_INT(largura / 0.35), compArred)
       add("Caibro", "Caibros", 2, largArred)
       break
     }
@@ -350,11 +350,7 @@ export async function calcularMateriaisCobertaL(
   const materiaisRaw: BaseRow[] = []
   const telhasRaw: BaseRow[] = []
 
-  const espessura  = tipoBase.includes("11,5") ? "11,5cm" : "15cm"
-  const isLinhaParede          = /^Linha na Parede(?! \+ Coluna)/.test(tipoBase)
-  const isLinhaParedeComColuna = /^Linha na Parede \+ Coluna/.test(tipoBase)
-  const isColuna               = /^Coluna /.test(tipoBase)
-  const isPontalete            = /^Pontalete /.test(tipoBase)
+  const espessura = tipoBase.includes("11,5") ? "11,5cm" : "15cm"
 
   const add = (descricao: string, componente: string, qtd: number, tam: number) => {
     if (qtd <= 0) return
@@ -365,74 +361,52 @@ export async function calcularMateriaisCobertaL(
     materiaisRaw.push({ descricao, componente: "", quantidade: qtd })
   }
 
-/* ---------- 1) Pranchões (sempre 2: 1 maior, 1 menor) ---------- */
-add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
-add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
+  /* ---------- 1) Pranchões (total 3: 2 no maior, 1 no menor) ---------- */
+  add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
+  add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
 
-
-  /* ---------- 2) Pontaletes (fixo = 5, na prática 2,5 m) ---------- */
+  /* ---------- 2) Pontaletes (fixo = 5, 2,5 m) ---------- */
   add(`Linha ${espessura}`, "Pontalete", 5, 2.5)
 
-/* ---------- 3) Terças (L): tipo único 11,5 cm; maiores = (LMaior - LMenor) + 1; menores = (LMenor - 1) ---------- */
-// Tipo único no L (com 3 pranchões não passa de 4,5 m sem apoio)
-const tipoTercaL = "Linha 11,5cm"
+  /* ---------- 3) Terças (L) ---------- */
+  // Tipo único no L (com 3 pranchões não passa de 4,5 m sem apoio)
+  const tipoTercaL = "Linha 11,5cm"
+  // Quantidades
+  const tercasMaior = ROUND_INT(Math.max(1, (LMaior - LMenor) + 2))
+  const tercasMenor = ROUND_INT(Math.max(0, LMenor - 1))
+  // Tamanhos: comprimento + 0,5 (arredondado para 0,5 pelo add)
+  add(tipoTercaL, "Terça (maior)", tercasMaior, CMaior + 0.5)
+  add(tipoTercaL, "Terça (menor)", tercasMenor, CMenor + 0.5)
 
-// Quantidades
-const tercasMaior = ROUND_INT(Math.max(1, (LMaior - LMenor) + 1))
-const tercasMenor = ROUND_INT(Math.max(0, LMenor - 1))
+  /* ---------- 4) Caibros ---------- */
+  // Quantidades: em função dos comprimentos, passo 0,32 m
+  const caibrosMaior = ROUND_INT(Math.max(0, (CMenor) / 0.32 + 1))          // cobre a perna maior
+  const caibrosMenor = ROUND_INT(Math.max(0, (CMaior - CMenor) / 0.32))     // cobre a perna menor
+  // Tamanhos pelos L maiores/menores
+  add("Caibro", "Caibro (maior)", caibrosMaior, LMaior)
+  add("Caibro", "Caibro (menor)", caibrosMenor, LMenor)
 
-// Tamanhos: comprimento + 0,5 (add já arredonda pra cima em passos de 0,5 via ROUND_HALF)
-add(tipoTercaL, "Terça (maior)", tercasMaior, CMaior + 0.5)
-add(tipoTercaL, "Terça (menor)", tercasMenor, CMenor + 0.5)
+  /* ---------- 5) Beirais ---------- */
+  add("Beiral Trab. 15cm", "Beiral (maior)", 1, LMaior + 0.5)               // maior
+  add("Beiral Trab. 15cm", "Beiral (meio)",  1, (CMaior - CMenor) + 0.5)    // meio
+  // (sem "Beiral (menor)")
 
-
-
-
-/* ---------- 4) Caibros: quantidades pela diferença de C / 0,32; tamanhos pelas L ---------- */
-// Caibro (maior) = ( (CMaior - CMenor + 1) / 0,32 )
-// Caibro (menor) = ( (CMenor - 1) / 0,32 )
-const caibrosMaior = ROUND_INT(Math.max(0, (CMenor) / 0.32 + 1))
-const caibrosMenor = ROUND_INT(Math.max(0, (CMaior - CMenor) / 0.32))
-
-// Extensão dos caibros: LMaior e LMenor
-add("Caibro", "Caibro (maior)", caibrosMaior, LMaior)
-add("Caibro", "Caibro (menor)", caibrosMenor, LMenor)
-
-
-
-/* ---------- 5) Beirais: 2 peças (maior e meio) ---------- */
-// maior = LMaior + 0,5 (arredondado pra cima em 0,5)
-add("Beiral Trab. 15cm", "Beiral (maior)", 1, LMaior + 0.5)
-
-// meio = (CMaior - CMenor) + 0,5 (arredondado pra cima em 0,5)
-add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
-
-// ⚠️ Removido: "Beiral (menor)"
-
-
-  /* ---------- 6) Materiais variáveis por coluna (coluna na frente por padrão) ---------- */
-  // Só colunas frontais por perna: C >= 6 ? 8 : 4; coluna compartilhada no canto: -2 linhas
-  let linhasColunasMaior = (CMaior >= 6 ? 8 : 4)
-  let linhasColunasMenor = (CMenor >= 6 ? 8 : 4)
-  let linhasTotais = linhasColunasMaior + linhasColunasMenor
-  if (linhasTotais >= 2) linhasTotais -= 2 // compartilha a do canto
-  const qtdColunas = linhasTotais / 2
-
-  if (qtdColunas > 0) {
-    addMaterial("Parafusos Franceses", qtdColunas * 3 + 3)
-    addMaterial("Cimento, Areia e Brita", ROUND_INT(qtdColunas / 2))
-    addMaterial("Impermeabilizante", 1) // preço multiplicado por qtdColunas no toCalc
-  }
+  /* ---------- 6) Coluna fixa na Coberta em L ---------- */
+  const qtdColunas = 1
+  // Madeira da coluna (1 coluna = 2 linhas de 3,5 m)
+  add(`Linha ${espessura}`, "Coluna", 2, 3.5)
+  // Materiais derivados da coluna
+  addMaterial("Parafusos Franceses", qtdColunas * 3 + 1)
+  addMaterial("Cimento, Areia e Brita", ROUND_INT(qtdColunas / 2))
+  addMaterial("Impermeabilizante", 1) // preço multiplicado por qtdColunas no toCalc
 
   /* ---------- 7) Parafuso Sextavado ---------- */
-  // Derivado dos pontaletes fixos (5): 3 por pontalete + 2 de folga
+  // 5 pontaletes fixos → 3 por pontalete + 2 de folga
   const qtdSextavado = 5 * 3 + 2
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
   /* ---------- 8) Telhas: Área1 + Área2, com 8% de perda por recorte ---------- */
-  // Área1 = CMenor * LMaior
   const area1 = CMenor * LMaior
-  // Área2 = (CMaior - CMenor) * LMenor
   const area2 = (CMaior - CMenor) * LMenor
   const areaComPerda = (area1 + area2) * 1.08
 
@@ -449,7 +423,7 @@ add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
     telhasRaw.push({ descricao: nome, componente: "", quantidade: qtd })
   })
 
-  /* ---------- Agrupar / preços / retorno ---------- */
+  /* ---------- Agrupar / ordenar / preços / retorno ---------- */
   const agrupar = <T extends BaseRow>(rows: T[]): T[] => {
     const map = new Map<string, T>()
     for (const r of rows) {
@@ -461,11 +435,29 @@ add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
     return Array.from(map.values())
   }
 
-  const madeiraAgrup   = agrupar(madeiraRaw)
-  const materiaisAgrup = agrupar(materiaisRaw)
-  const telhasAgrup    = agrupar(telhasRaw)
+  // Ordem de exibição (inclui nomes específicos usados no L)
+  const ordemMadeira = [
+    "Linha na Parede", "Colunas Traseiras", "Colunas Frontais",
+    "Coluna",
+    "Pranchão", "Pranchão (maior)", "Pranchão (menor)",
+    "Pontalete",
+    "Travessa", "Pérgola",
+    "Terças", "Terça (maior)", "Terça (menor)",
+    "Caibros", "Caibro (maior)", "Caibro (menor)",
+    "Beiral", "Beiral (maior)", "Beiral (meio)"
+  ] as const
+  type ComponenteOrdem = typeof ordemMadeira[number]
+  const ordenarMadeiras = (a: MadeiraRow, b: MadeiraRow) => {
+    const iA = ordemMadeira.indexOf(a.componente as ComponenteOrdem)
+    const iB = ordemMadeira.indexOf(b.componente as ComponenteOrdem)
+    return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB)
+  }
 
-  const descricoesBusca = [...madeiraAgrup, ...materiaisAgrup, ...telhasAgrup]
+  const madeiraAgrupOrd = agrupar(madeiraRaw).sort(ordenarMadeiras) as MadeiraRow[]
+  const materiaisAgrup  = agrupar(materiaisRaw)
+  const telhasAgrup     = agrupar(telhasRaw)
+
+  const descricoesBusca = [...madeiraAgrupOrd, ...materiaisAgrup, ...telhasAgrup]
     .map(r => r.descricao).filter((v, i, a) => a.indexOf(v) === i)
 
   let precos: MaterialRow[]
@@ -491,8 +483,9 @@ add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
   })
 
   return {
-    madeira:   madeiraAgrup.map(toCalc),
+    madeira:   madeiraAgrupOrd.map(toCalc),
     materiais: materiaisAgrup.map(toCalc),
     telhas:    telhasAgrup.map(toCalc),
   }
 }
+
