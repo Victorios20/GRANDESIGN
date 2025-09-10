@@ -57,7 +57,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   /* paginação */
   // estados…
 const [page, setPage] = useState(1)
-const [perPage, setPerPage] = useState(10)
+const [perPage, setPerPage] = useState(20)
 
 // ⇩ adiciona logo abaixo dos estados
 useEffect(() => {
