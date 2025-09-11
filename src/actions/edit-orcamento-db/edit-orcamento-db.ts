@@ -58,7 +58,8 @@ export type UpdateOrcamentoInput = {
   titulo: string
   cliente: { nome: string; telefone: string; bairro: string; cidade: string | null } // cidade por nome
   parametros: {
-    tipoObra: string | null // por nome
+    tipoObraId?: number | null
+    tipoObra: string | null
     largura?: number | string | null
     comprimento?: number | string | null
     larguraMaior?: number | string | null
@@ -237,27 +238,27 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
 
     // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas)
     // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas) + UNIÃO com materiais (Etapa 2)
-const telhaValores: GetOrcamentoResult["telhaValores"] = {}
+    const telhaValores: GetOrcamentoResult["telhaValores"] = {}
 
-// 1) Pivot dos pagamentos → { [tipoTelha]: { pix, x10, x18 } }
-for (const p of data.pays) {
-  const key = cleanText(p.tipo_telhas) || "Telha"
-  const uiKey = uiMetodoKey(p.metodo_pagamento)
-  if (!uiKey) continue
-  if (!telhaValores[key]) telhaValores[key] = { pix: 0, x10: 0, x18: 0 }
-  telhaValores[key][uiKey] += nonNeg(p.valor)
-}
-
-// 2) UNIÃO com os nomes usados na Etapa 2 (materiais tipo "telha")
-//    -> garante que telhas sem pagamento ainda apareçam com {0,0,0}
-for (const m of data.mats) {
-  if (m.tipo === "telha") {
-    const nome = cleanText(m.descricao)
-    if (nome && !telhaValores[nome]) {
-      telhaValores[nome] = { pix: 0, x10: 0, x18: 0 }
+    // 1) Pivot dos pagamentos → { [tipoTelha]: { pix, x10, x18 } }
+    for (const p of data.pays) {
+      const key = cleanText(p.tipo_telhas) || "Telha"
+      const uiKey = uiMetodoKey(p.metodo_pagamento)
+      if (!uiKey) continue
+      if (!telhaValores[key]) telhaValores[key] = { pix: 0, x10: 0, x18: 0 }
+      telhaValores[key][uiKey] += nonNeg(p.valor)
     }
-  }
-}
+
+    // 2) UNIÃO com os nomes usados na Etapa 2 (materiais tipo "telha")
+    //    -> garante que telhas sem pagamento ainda apareçam com {0,0,0}
+    for (const m of data.mats) {
+      if (m.tipo === "telha") {
+        const nome = cleanText(m.descricao)
+        if (nome && !telhaValores[nome]) {
+          telhaValores[nome] = { pix: 0, x10: 0, x18: 0 }
+        }
+      }
+    }
 
 
     const res: GetOrcamentoResult = {
@@ -332,17 +333,28 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         cidadeId = cidade.id
       }
 
-      // 3) Resolver tipo de obra por nome (pode ser null)
+      // 3) Resolver tipo de obra (aceita id ou nome)
       let tipoObraId: number | null = null
-      const tipoObraNome = cleanText(input.parametros.tipoObra)
-      if (tipoObraNome) {
-        const tipo = await tx.tipo_obra.findFirst({
-          where: { tipo_obra: tipoObraNome },
-          select: { id: true },
-        })
-        if (!tipo) throw new Error("Tipo de obra não encontrado.")
-        tipoObraId = tipo.id
+      const tipoObraIdPayload = Number((input.parametros as any)?.tipoObraId)
+      if (Number.isFinite(tipoObraIdPayload)) {
+        const chk = (await tx.$queryRaw`SELECT id FROM tipo_obra WHERE id = ${tipoObraIdPayload} LIMIT 1`) as Array<{ id: number }>
+        tipoObraId = chk?.[0]?.id ?? null
       }
+      if (!tipoObraId) {
+        const tipoObraNome = cleanText(input.parametros.tipoObra)
+        if (tipoObraNome) {
+          const alvo = tipoObraNome.trim().replace(/\u00A0/g, " ").replace(/\s+/g, " ").toLowerCase()
+          const row = (await tx.$queryRaw`
+      SELECT id
+      FROM tipo_obra
+      WHERE lower(regexp_replace(replace(tipo_obra, chr(160), ' '), '\s+', ' ', 'g')) = ${alvo}
+      LIMIT 1
+    `) as Array<{ id: number }>
+          if (!row?.[0]?.id) throw new Error("Tipo de obra não encontrado.")
+          tipoObraId = row[0].id
+        }
+      }
+
 
       // 4) Atualizar cliente
       try {
@@ -391,7 +403,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             totais_frete_preco: nonNeg(input.totais.frete),
             link_slide: input.links.slideUrl ?? null,
             link_pdf: input.links.pdfUrl ?? null,
-            ...dimUpdate, 
+            ...dimUpdate,
             data_criacao: new Date(),
           },
         })

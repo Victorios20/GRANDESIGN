@@ -1174,7 +1174,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     // payload comum para DB
     const buildDbPayload = (): UpdateOrcamentoInput => {
         // monta 'parametros' de forma inteligente
-        const parametros: any = { tipoObra: tipoObra ?? "" }
+        const parametros: any = { tipoObra: tipoObra ?? "", tipoObraId: selectedTipoId }
 
         if (isCobertaL) {
             // Para Coberta em L, enviamos as 4 dimensões

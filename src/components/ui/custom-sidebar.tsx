@@ -23,7 +23,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 
-const APP_VERSION = "1.3.4"
+const APP_VERSION = "1.3.5"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()

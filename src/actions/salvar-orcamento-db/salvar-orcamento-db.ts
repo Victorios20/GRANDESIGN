@@ -59,7 +59,8 @@ export type ClienteInput = {
 }
 
 export type ParametrosInput = {
-  tipoObra?: string | null // definitivo exige; rascunho aceita null
+  tipoObraId?: number | null
+  tipoObra?: string | null
   largura?: number | null
   comprimento?: number | null
   larguraMaior?: number | null
@@ -67,6 +68,7 @@ export type ParametrosInput = {
   comprimentoMaior?: number | null
   comprimentoMenor?: number | null
 }
+
 
 export type TotaisInput = {
   madeiras: number
@@ -158,14 +160,16 @@ async function getCidadeIdByNome(tx: any, nome: string): Promise<number | null> 
 }
 
 async function getTipoObraIdByNome(tx: any, tipoObra: string): Promise<number | null> {
+  const alvo = (tipoObra ?? "").trim().replace(/\u00A0/g, " ").replace(/\s+/g, " ").toLowerCase()
   const rows = (await tx.$queryRaw`
     SELECT id
     FROM tipo_obra
-    WHERE tipo_obra = ${tipoObra}
+    WHERE lower(regexp_replace(replace(tipo_obra, chr(160), ' '), '\s+', ' ', 'g')) = ${alvo}
     LIMIT 1
   `) as Array<{ id: number }>
   return rows?.[0]?.id ?? null
 }
+
 
 /* ================================================================
  * Inserts básicos
@@ -307,10 +311,20 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
     })
 
     // 4) Tipo de obra (obrigatório)
-    const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
-    if (!tipoObraNome) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo")
-    const tipoObraId = await getTipoObraIdByNome(tx, tipoObraNome)
-    if (!tipoObraId) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo", { tipoObraNome })
+
+    const tipoObraIdPayload = Number((params.parametros as any)?.tipoObraId)
+    let tipoObraId: number | null = null
+    if (Number.isFinite(tipoObraIdPayload)) {
+      const chk = (await tx.$queryRaw`SELECT id FROM tipo_obra WHERE id = ${tipoObraIdPayload} LIMIT 1`) as Array<{ id: number }>
+      tipoObraId = chk?.[0]?.id ?? null
+    }
+    if (!tipoObraId) {
+      const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
+      if (!tipoObraNome) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo")
+      tipoObraId = await getTipoObraIdByNome(tx, tipoObraNome)
+      if (!tipoObraId) throw new AppError("TYPE_NOT_FOUND", "Tipo de obra não encontrado", "resolve-tipo", { tipoObraNome })
+    }
+
 
     // 5) Orcamento (links obrigatórios)
     let orcamentoId: number
