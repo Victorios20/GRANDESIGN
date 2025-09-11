@@ -56,13 +56,13 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   /* paginação */
   // estados…
-const [page, setPage] = useState(1)
-const [perPage, setPerPage] = useState(20)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(20)
 
-// ⇩ adiciona logo abaixo dos estados
-useEffect(() => {
-  if (nome.trim() && page !== 1) setPage(1)
-}, [nome])
+  // ⇩ adiciona logo abaixo dos estados
+  useEffect(() => {
+    if (nome.trim() && page !== 1) setPage(1)
+  }, [nome])
 
 
   /* modal */
@@ -71,17 +71,15 @@ useEffect(() => {
 
 
 
-  /* evita refetch na 1ª renderização (já temos SSR) */
-  const firstRun = useRef(true)
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false
-      // opcional: atualiza lista de bairros em background para garantir frescor
-      listarBairros().then(setListaBairros).catch(() => { })
-      return
-    }
+    listarBairros().then(setListaBairros).catch(() => { })
+    if ((initial?.dados?.length ?? 0) !== perPage) consultar()
+
+  }, [])
+
+  useEffect(() => {
     consultar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [nome, bairro, dataIni, dataFim, page, perPage, ordenarData])
 
   async function consultar() {
@@ -89,10 +87,10 @@ useEffect(() => {
     const dIniISO = dataIni?.toISOString().slice(0, 10)
     const dFimISO = dataFim?.toISOString().slice(0, 10)
     // dentro de consultar()
-const pageToSend = nome.trim() ? 1 : page
-const { dados, total } = await buscarOrcamentos(
-  nome, bairro, dIniISO, dFimISO, pageToSend, perPage, ordenarData
-)
+    const pageToSend = nome.trim() ? 1 : page
+    const { dados, total } = await buscarOrcamentos(
+      nome, bairro, dIniISO, dFimISO, pageToSend, perPage, ordenarData
+    )
 
     setOrcamentos(dados)
     setTotal(total)
@@ -535,9 +533,9 @@ const { dados, total } = await buscarOrcamentos(
                     <TableBody>
                       {orcamentos.map(o => (
                         <TableRow
-  key={o.id}
-  className="odd:bg-muted/40 hover:bg-muted/60 transition-colors"
->
+                          key={o.id}
+                          className="odd:bg-muted/40 hover:bg-muted/60 transition-colors"
+                        >
 
 
 
@@ -547,35 +545,35 @@ const { dados, total } = await buscarOrcamentos(
                           <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
                           <TableCell className="text-center">
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button
-        size="icon"
-        variant="ghost"
-        className="text-marromEscuro hover:bg-marromClaro/20"
-        aria-label="Ações"
-      >
-        <EllipsisVertical className="h-5 w-5" />
-      </Button>
-    </DropdownMenuTrigger>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="text-marromEscuro hover:bg-marromClaro/20"
+                                  aria-label="Ações"
+                                >
+                                  <EllipsisVertical className="h-5 w-5" />
+                                </Button>
+                              </DropdownMenuTrigger>
 
-    <DropdownMenuContent align="end" className="w-48">
-      <DropdownMenuItem asChild className="cursor-pointer">
-        <Link href={`/gerar-orcamento/edit/${o.id}`} title="Editar orçamento">
-          <Pencil className="mr-2 h-4 w-4" />
-          Editar orçamento
-        </Link>
-      </DropdownMenuItem>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem asChild className="cursor-pointer">
+                                  <Link href={`/gerar-orcamento/edit/${o.id}`} title="Editar orçamento">
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Editar orçamento
+                                  </Link>
+                                </DropdownMenuItem>
 
-      <DropdownMenuItem asChild className="cursor-pointer">
-        <Link href={`/Orcamento/detalhes/${o.id}`} title="Visualizar detalhes">
-          <Eye className="mr-2 h-4 w-4" />
-          Visualizar detalhes
-        </Link>
-      </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
-</TableCell>
+                                <DropdownMenuItem asChild className="cursor-pointer">
+                                  <Link href={`/Orcamento/detalhes/${o.id}`} title="Visualizar detalhes">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Visualizar detalhes
+                                  </Link>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
 
 
 
