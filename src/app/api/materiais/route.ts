@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { listarMateriaisPorTipoDB } from "@/actions/materiais-db/materiais-db"
+import {
+  listarMateriaisPorTipoDB,
+  criarMaterialDB,
+} from "@/actions/materiais-db/materiais-db"
 
 export const dynamic = "force-dynamic" // evita cache da rota
 
@@ -28,5 +31,23 @@ export async function GET(req: Request) {
   } catch (err) {
     console.error("Erro ao listar materiais:", err)
     return NextResponse.json({ error: "Erro ao listar materiais" }, { status: 500 })
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const body = await req.json()
+    const { descricao, tipo, preco_unitario, unidade_de_medida } = body ?? {}
+
+    const created = await criarMaterialDB({
+      descricao,
+      tipo,
+      preco_unitario,
+      unidade_de_medida,
+    })
+
+    return NextResponse.json({ ok: true, id: created.id }, { status: 201 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err?.message || "Falha ao criar material" }, { status: 400 })
   }
 }

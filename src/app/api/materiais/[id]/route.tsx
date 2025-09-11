@@ -1,9 +1,12 @@
 /* ────────────────────────────────────────────────────────────────
-   File: app/api/materiais/[id]/route.ts
-   PATCH para atualizar preço do material. Mantido com runtime node.
+   PATCH para atualizar NOME (descricao) e/ou PREÇO (preco_unitario)
+   DELETE para excluir material
 ───────────────────────────────────────────────────────────────── */
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import {
+  atualizarMaterialDB,
+  deletarMaterialDB,
+} from "@/actions/materiais-db/materiais-db"
 
 export const runtime = "nodejs"
 
@@ -18,22 +21,41 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}))
-  const preco = Number(body?.preco_unitario)
-  if (!Number.isFinite(preco) || preco <= 0) {
-    return NextResponse.json(
-      { error: "preco_unitario inválido" },
-      { status: 400 }
-    )
-  }
+  const { descricao, preco_unitario } = body ?? {}
 
   try {
-    const updated = await prisma.materiais.update({
-      where: { id: materialId },
-      data: { preco_unitario: preco },
-      select: { id: true },
+    await atualizarMaterialDB({
+      id: materialId,
+      descricao:
+        typeof descricao === "string" && descricao.trim() !== ""
+          ? descricao
+          : undefined,
+      // Aceita >= 0; mude para > 0 se desejar manter a regra antiga
+      preco_unitario:
+        preco_unitario !== undefined ? Number(preco_unitario) : undefined,
     })
-    return NextResponse.json({ ok: true, id: updated.id })
-  } catch (e) {
-    return NextResponse.json({ error: "Falha ao atualizar" }, { status: 500 })
+
+    return NextResponse.json({ ok: true, id: materialId }, { status: 200 })
+  } catch (e: any) {
+    const msg = e?.message || "Falha ao atualizar material"
+    return NextResponse.json({ error: msg }, { status: 400 })
+  }
+}
+
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params
+  const materialId = Number(id)
+  if (!Number.isFinite(materialId)) {
+    return NextResponse.json({ error: "id inválido" }, { status: 400 })
+  }
+  try {
+    await deletarMaterialDB(materialId)
+    return NextResponse.json({ ok: true, id: materialId }, { status: 200 })
+  } catch (e: any) {
+    const msg = e?.message || "Falha ao excluir material"
+    return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
