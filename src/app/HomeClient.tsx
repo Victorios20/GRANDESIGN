@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
@@ -495,12 +496,23 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
         {/* TABELA */}
         <Card className="mt-8">
-          <CardHeader>
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">Orçamentos</CardTitle>
-              <CardDescription>Tabela com os orçamentos dos clientes.</CardDescription>
-            </div>
-          </CardHeader>
+          <CardHeader className="pb-4">
+  <div className="flex items-center justify-between">
+    <div className="space-y-1">
+      <CardTitle className="text-2xl text-marromEscuro">Orçamentos</CardTitle>
+      <CardDescription className="text-marromClaro">
+        Tabela com os orçamentos dos clientes.
+      </CardDescription>
+    </div>
+
+    <Link href="/Orcamento/new">
+      <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
+        Gerar Orçamento
+      </InteractiveHoverButton>
+    </Link>
+  </div>
+</CardHeader>
+
 
           <CardContent className="p-4 sm:p-6">
             {loadingTabela ? (
