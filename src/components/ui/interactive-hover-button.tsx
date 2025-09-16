@@ -17,7 +17,7 @@ export const InteractiveHoverButton = React.forwardRef<
         "bg-white text-marromEscuro",
         "hover:bg-bege hover:text-marromEscuro",
         "transition-colors",
-        "min-w-[190px]",
+        "min-w-[160px]",
         className
       )}
       {...props}

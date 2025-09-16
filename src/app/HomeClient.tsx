@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
-
+import { BigShinyButton } from "@/components/ui/BigShinyButton"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { toast, Toaster } from "sonner"
@@ -384,16 +384,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       <TooltipProvider>
         <Toaster richColors closeButton />
         {/* BOTÃO “Gerar orçamento” */}
-        <Link href="/Orcamento/new" className="block mb-8">
-          <Button
-            className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
-                       bg-white text-marromEscuro border-3 border-marromClaro
-                       shadow-md hover:shadow-lg hover:bg-bege"
-          >
-            <PlusCircle className="h-12 w-12 opacity-60" />
-            Gerar orçamento
-          </Button>
-        </Link>
+
+
+<Link href="/Orcamento/new" className="block mb-8">
+  <BigShinyButton />
+</Link>
+
 
         {/* CARD FILTROS */}
         <Card>
@@ -507,7 +503,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
     <Link href="/Orcamento/new">
       <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
-        Gerar Orçamento
+        Gerar Novo
       </InteractiveHoverButton>
     </Link>
   </div>

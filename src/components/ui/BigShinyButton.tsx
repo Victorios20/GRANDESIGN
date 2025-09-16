@@ -3,12 +3,12 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 import { motion, type MotionProps } from "motion/react"
-import { Hammer } from "lucide-react"
+
 
 const animationProps: MotionProps = {
-  initial: { "--x": "100%", scale: 0.8 },
+  initial: { "--x": "100%", scale: 0.9 },
   animate: { "--x": "-100%", scale: 1 },
-  whileTap: { scale: 0.95 },
+  whileTap: { scale: 0.97 },
   transition: {
     repeat: Infinity,
     repeatType: "loop",
@@ -26,35 +26,35 @@ const animationProps: MotionProps = {
   },
 }
 
-interface ShinyButtonProps
+interface BigShinyButtonProps
   extends Omit<React.HTMLAttributes<HTMLElement>, keyof MotionProps>,
     MotionProps {
   className?: string
 }
 
-export const ShinyButton = React.forwardRef<HTMLButtonElement, ShinyButtonProps>(
+export const BigShinyButton = React.forwardRef<HTMLButtonElement, BigShinyButtonProps>(
   ({ className, ...props }, ref) => {
     return (
       <motion.button
         ref={ref}
         className={cn(
-          "relative cursor-pointer rounded-lg px-6 py-2 font-medium flex items-center gap-2",
-          "bg-white text-marromEscuro border",
-          "hover:bg-gray-100 transition-colors shadow-sm", // hover cinza suave
+          "relative cursor-pointer w-full h-20 sm:h-24 rounded-2xl px-8 font-semibold flex items-center justify-center gap-4",
+          "text-2xl sm:text-3xl",
+          "bg-white text-marromEscuro border-2 border-marromClaro",
+          "shadow-md hover:shadow-lg hover:bg-bege transition-colors",
           className
         )}
         {...animationProps}
         {...props}
       >
-        <Hammer className="h-4 w-4" />
         <span
-          className="relative block size-full text-sm tracking-wide"
+          className="relative block tracking-wide"
           style={{
             maskImage:
               "linear-gradient(-75deg,var(--primary) calc(var(--x) + 20%),transparent calc(var(--x) + 30%),var(--primary) calc(var(--x) + 100%))",
           }}
         >
-          Lançar obra
+          Gerar orçamento
         </span>
         <span
           style={{
@@ -71,4 +71,4 @@ export const ShinyButton = React.forwardRef<HTMLButtonElement, ShinyButtonProps>
   }
 )
 
-ShinyButton.displayName = "ShinyButton"
+BigShinyButton.displayName = "BigShinyButton"
