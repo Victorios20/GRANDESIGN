@@ -26,7 +26,7 @@ import { toast, Toaster } from "sonner"
 import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { type DateRange } from "react-day-picker"
 
-/* suas ações HTTP atuais (mantidas) */
+
 import { listarBairros, buscarOrcamentos } from "./_actions/home.actions"
 import type { OrcamentoTabela, OrcamentoDetalhe, MaterialItem } from "./_actions/home.actions"
 
@@ -37,7 +37,7 @@ type InitialData = {
 }
 
 export default function HomeClient({ initial }: { initial: InitialData }) {
-  /* filtros */
+
   const [nome, setNome] = useState("")
   const [bairro, setBairro] = useState<string>("")
   const [dataIni, setDataIni] = useState<Date | undefined>()
@@ -46,26 +46,25 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [loadingRowId, setLoadingRowId] = useState<number | null>(null)
 
 
-  /* dropdown */
+
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
 
-  /* tabela */
+
   const [orcamentos, setOrcamentos] = useState<OrcamentoTabela[]>(initial.dados ?? [])
   const [total, setTotal] = useState<number>(initial.total ?? 0)
   const [loadingTabela, setLoadingTabela] = useState(false)
 
-  /* paginação */
-  // estados…
+
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
 
-  // ⇩ adiciona logo abaixo dos estados
+
   useEffect(() => {
     if (nome.trim() && page !== 1) setPage(1)
   }, [nome])
 
 
-  /* modal */
+
   const [orcamentoSel, setOrcamentoSel] = useState<OrcamentoDetalhe | null>(null)
   const [loadingModal, setLoadingModal] = useState(false)
 
@@ -164,20 +163,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       ...telhas.map((t: any) => ({ ...t, tipo: "telha" })),
     ]
 
-    // 🔧 Pegar pagamentos SEM depender de um único nome
+
     const pickArray = (obj: any, ...keys: string[]) => {
       for (const k of keys) if (Array.isArray(obj?.[k])) return obj[k]
       return []
     }
     const pgBrutos = pickArray(
       src,
-      "pagamentos",              // já usado em alguns fluxos
-      "orcamento_pagamentos",    // plural
-      "orcamento_pagamento",     // singular
-      "pagamento"                // variação
+      "pagamentos",              
+      "orcamento_pagamentos",    
+      "orcamento_pagamento",     
+      "pagamento"                
     )
 
-    // 🔧 Normalizar shape { tipoTelhas, metodo, valor }
+
     const pagamentos = pgBrutos.map((p: any) => ({
       tipoTelhas:
         p.tipoTelhas ?? p.tipo_telhas ?? p.tipo_telha ?? p.tipo ?? "",
@@ -187,7 +186,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       valor: n(p.valor ?? p.preco ?? p.preco_unitario),
     }))
 
-    // 🔧 Trazer o MAPA que a página Editar usa (prioridade no useMemo)
+
     const telhaValores =
       src.telhaValores ??
       src.telha_valores ??
@@ -225,8 +224,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       tipoObra,
       dimensoes,
       materiais: materiaisFlat,
-      pagamentos,           // <- agora sempre populado
-      telhaValores,         // <- AGORA VAI junto pro modal
+      pagamentos,           
+      telhaValores,         
       totais: { ...totais, totalGeral: valorTotal },
       dataISO,
       valorTotal,
@@ -235,7 +234,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
 
   async function abrirModal(o: OrcamentoTabela) {
-    if (loadingRowId !== null) return // evita múltiplas requisições simultâneas
+    if (loadingRowId !== null) return 
     setLoadingRowId(o.id)
     setLoadingModal(true)
     try {
@@ -305,24 +304,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const handleOrdenarData = () => setOrdenarData(prev => (prev === "asc" ? "desc" : "asc"))
 
-  // === defs portadas do page.tsx (1:1) ===
 
-  // links do orçamento selecionado
   const slideUrl = orcamentoSel?.link_slide ?? ""
   const pdfUrl = orcamentoSel?.link_pdf ?? ""
 
-  // URL absoluta para a tela de edição deste orçamento
   const editUrl =
-    orcamentoSel?.id
-      ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/gerar-orcamento/edit/${orcamentoSel.id}`
-      : ""
+  orcamentoSel?.id
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/Orcamento/edit/${orcamentoSel.id}`
+    : ""
 
-  // campos tipados do detalhe (aparecem no card “Dados do Cliente”)
+
   const tipoObra = orcamentoSel?.tipoObra ?? null
   const largura = orcamentoSel?.dimensoes?.largura
   const comprimento = orcamentoSel?.dimensoes?.comprimento
 
-  // formato de dimensão exibido no modal
   function fmtDim(v: number | null | undefined): string {
     return typeof v === "number" && isFinite(v) && v > 0
       ? `${v.toLocaleString("pt-BR")} m`
@@ -332,7 +327,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const telhasFixos = useMemo(() => {
     const src: any = orcamentoSel ?? {}
 
-    // 1) Preferir o mapa vindo do BD (mesmo contrato da tela de Editar)
+
     const tvRaw =
       src.telhaValores ??
       src.telha_valores ??
@@ -388,7 +383,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       <TooltipProvider>
         <Toaster richColors closeButton />
         {/* BOTÃO “Gerar orçamento” */}
-        <Link href="/gerar-orcamento/new" className="block mb-8">
+        <Link href="/Orcamento/new" className="block mb-8">
           <Button
             className="w-full h-20 sm:h-24 text-xl sm:text-2xl font-semibold gap-3
                        bg-white text-marromEscuro border-3 border-marromClaro
@@ -559,7 +554,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
                               <DropdownMenuContent align="end" className="w-48">
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                  <Link href={`/gerar-orcamento/edit/${o.id}`} title="Editar orçamento">
+                                  <Link href={`/Orcamento/edit/${o.id}`} title="Editar orçamento">
                                     <Pencil className="mr-2 h-4 w-4" />
                                     Editar orçamento
                                   </Link>
@@ -642,7 +637,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
                       {/* Direita: botão Editar */}
                       <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
-                        <Link href={`/gerar-orcamento/edit/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
+                        <Link href={`/Orcamento/edit/${orcamentoSel.id}`} onClick={() => setOrcamentoSel(null)}>
                           <Edit className="h-4 w-4 mr-2" />
                           Editar
                         </Link>

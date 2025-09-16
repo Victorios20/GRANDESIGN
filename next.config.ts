@@ -2,8 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: {
-    // Ignora erros do ESLint no build de produção
     ignoreDuringBuilds: true,
+  },
+  async redirects() {
+    return [
+      { source: "/gerar-orcamento/:path*", destination: "/Orcamento/:path*", permanent: true },
+    ];
   },
 };
 

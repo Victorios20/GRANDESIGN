@@ -1264,7 +1264,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         <PageLayout
             links={[
                 { label: "Home", href: "/" },
-                { label: pageTitle, href: "/gerar-orcamento" },
+                { label: pageTitle, href: isEdit && orcamentoId ? `/Orcamento/edit/${orcamentoId}` : "/Orcamento/new" },
             ]}
         >
             <Toaster position="top-right" richColors closeButton />
