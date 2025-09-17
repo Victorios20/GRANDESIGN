@@ -4,28 +4,6 @@ import React from "react"
 import { cn } from "@/lib/utils"
 import { motion, type MotionProps } from "motion/react"
 
-
-const animationProps: MotionProps = {
-  initial: { "--x": "100%", scale: 0.9 },
-  animate: { "--x": "-100%", scale: 1 },
-  whileTap: { scale: 0.97 },
-  transition: {
-    repeat: Infinity,
-    repeatType: "loop",
-    repeatDelay: 1,
-    type: "spring",
-    stiffness: 20,
-    damping: 15,
-    mass: 2,
-    scale: {
-      type: "spring",
-      stiffness: 200,
-      damping: 5,
-      mass: 0.5,
-    },
-  },
-}
-
 interface BigShinyButtonProps
   extends Omit<React.HTMLAttributes<HTMLElement>, keyof MotionProps>,
     MotionProps {
@@ -44,7 +22,23 @@ export const BigShinyButton = React.forwardRef<HTMLButtonElement, BigShinyButton
           "shadow-md hover:shadow-lg hover:bg-bege transition-colors",
           className
         )}
-        {...animationProps}
+        initial={{ ["--x" as any]: "100%", scale: 0.9 }}
+        animate={{ ["--x" as any]: "-100%", scale: 1 }}
+        whileHover={{ scale: 0.96 }}
+        whileTap={{ scale: 0.94 }}
+        transition={{
+          ["--x" as any]: {
+            repeat: Infinity,
+            repeatType: "loop",
+            ease: "linear",
+            duration: 2
+          },
+          scale: {
+            type: "spring",
+            bounce: 0.35,
+            duration: 0.4
+          }
+        }}
         {...props}
       >
         <span
@@ -56,15 +50,17 @@ export const BigShinyButton = React.forwardRef<HTMLButtonElement, BigShinyButton
         >
           Gerar orçamento
         </span>
+
         <span
+          className="absolute inset-0 z-10 block rounded-[inherit] p-px pointer-events-none"
           style={{
-            mask: "linear-gradient(rgb(0,0,0), rgb(0,0,0)) content-box exclude,linear-gradient(rgb(0,0,0), rgb(0,0,0))",
+            mask:
+              "linear-gradient(rgb(0,0,0), rgb(0,0,0)) content-box exclude,linear-gradient(rgb(0,0,0), rgb(0,0,0))",
             WebkitMask:
               "linear-gradient(rgb(0,0,0), rgb(0,0,0)) content-box exclude,linear-gradient(rgb(0,0,0), rgb(0,0,0))",
             backgroundImage:
               "linear-gradient(-75deg,var(--primary)/10% calc(var(--x)+20%),var(--primary)/50% calc(var(--x)+25%),var(--primary)/10% calc(var(--x)+100%))",
           }}
-          className="absolute inset-0 z-10 block rounded-[inherit] p-px"
         />
       </motion.button>
     )

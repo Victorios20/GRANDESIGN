@@ -171,10 +171,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     }
     const pgBrutos = pickArray(
       src,
-      "pagamentos",              
-      "orcamento_pagamentos",    
-      "orcamento_pagamento",     
-      "pagamento"                
+      "pagamentos",
+      "orcamento_pagamentos",
+      "orcamento_pagamento",
+      "pagamento"
     )
 
 
@@ -225,8 +225,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       tipoObra,
       dimensoes,
       materiais: materiaisFlat,
-      pagamentos,           
-      telhaValores,         
+      pagamentos,
+      telhaValores,
       totais: { ...totais, totalGeral: valorTotal },
       dataISO,
       valorTotal,
@@ -235,7 +235,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
 
   async function abrirModal(o: OrcamentoTabela) {
-    if (loadingRowId !== null) return 
+    if (loadingRowId !== null) return
     setLoadingRowId(o.id)
     setLoadingModal(true)
     try {
@@ -310,9 +310,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const pdfUrl = orcamentoSel?.link_pdf ?? ""
 
   const editUrl =
-  orcamentoSel?.id
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/Orcamento/edit/${orcamentoSel.id}`
-    : ""
+    orcamentoSel?.id
+      ? `${typeof window !== "undefined" ? window.location.origin : "https://app.grandesignce.com.br"}/Orcamento/edit/${orcamentoSel.id}`
+      : ""
 
 
   const tipoObra = orcamentoSel?.tipoObra ?? null
@@ -386,9 +386,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         {/* BOTÃO “Gerar orçamento” */}
 
 
-<Link href="/Orcamento/new" className="block mb-8">
-  <BigShinyButton />
-</Link>
+        <Link href="/Orcamento/new" className="block mb-8">
+          <BigShinyButton />
+        </Link>
 
 
         {/* CARD FILTROS */}
@@ -409,21 +409,24 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           </CardHeader>
 
           <CardContent className="p-4 sm:p-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-              {/* Nome */}
+            <div className="flex flex-wrap lg:flex-nowrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Nome ou Título</label>
-                <Input value={nome} placeholder="Ex: João ou João_Cobertura_Messejana" onChange={e => setNome(e.target.value)} />
+                <Input
+                  className="h-9 w-[280px]"
+                  value={nome}
+                  placeholder="Ex: João ou João_Cobertura_Messejana"
+                  onChange={e => setNome(e.target.value)}
+                />
               </div>
 
-              {/* Bairro */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Bairro</label>
                 <Select value={bairro} onValueChange={value => setBairro(value)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-9 w-[200px]">
                     <SelectValue placeholder="Bairro" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     {[...new Set(listaBairros)].map(b => (
                       <SelectItem key={b} value={b}>
                         {b}
@@ -433,19 +436,18 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 </Select>
               </div>
 
-              {/* Período */}
-              <div className="flex flex-col gap-1 lg:col-span-2">
+              <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Período</label>
                 <DateRangePicker
+                  className="w-[240px]"
                   range={{ from: dataIni, to: dataFim }}
-                  onChange={(range: DateRange | undefined) => {
+                  onChange={(range) => {
                     setDataIni(range?.from)
                     setDataFim(range?.to)
                   }}
                 />
               </div>
 
-              {/* Linhas por página */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Linhas / pág</label>
                 <Select
@@ -455,7 +457,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     setPage(1)
                   }}
                 >
-                  <SelectTrigger className="w-full max-w-[96px]">
+                  <SelectTrigger className="h-9 w-[96px]">
                     <SelectValue placeholder="10" />
                   </SelectTrigger>
                   <SelectContent>
@@ -468,12 +470,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 </Select>
               </div>
 
-
-              {/* Ordenação por Data */}
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
                 <Select value={ordenarData} onValueChange={(v) => setOrdenarData(v as "asc" | "desc")}>
-                  <SelectTrigger className="w-full max-w-[160px]">
+                  <SelectTrigger className="h-9 w-[160px]">
                     <SelectValue placeholder="Data" />
                   </SelectTrigger>
                   <SelectContent>
@@ -482,10 +482,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                   </SelectContent>
                 </Select>
               </div>
-
-
             </div>
           </CardContent>
+
         </Card>
 
 
@@ -493,21 +492,21 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         {/* TABELA */}
         <Card className="mt-8">
           <CardHeader className="pb-4">
-  <div className="flex items-center justify-between">
-    <div className="space-y-1">
-      <CardTitle className="text-2xl text-marromEscuro">Orçamentos</CardTitle>
-      <CardDescription className="text-marromClaro">
-        Tabela com os orçamentos dos clientes.
-      </CardDescription>
-    </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl text-marromEscuro">Orçamentos</CardTitle>
+                <CardDescription className="text-marromClaro">
+                  Tabela com os orçamentos dos clientes.
+                </CardDescription>
+              </div>
 
-    <Link href="/Orcamento/new">
-      <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
-        Gerar Novo
-      </InteractiveHoverButton>
-    </Link>
-  </div>
-</CardHeader>
+              <Link href="/Orcamento/new">
+                <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
+                  Gerar Novo
+                </InteractiveHoverButton>
+              </Link>
+            </div>
+          </CardHeader>
 
 
           <CardContent className="p-4 sm:p-6">

@@ -10,9 +10,11 @@ import { DateRange } from "react-day-picker"
 interface Props {
   range: DateRange
   onChange: (range: DateRange | undefined) => void
+  className?: string
+  compact?: boolean
 }
 
-export function DateRangePicker({ range, onChange }: Props) {
+export function DateRangePicker({ range, onChange, className, compact }: Props) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -20,12 +22,14 @@ export function DateRangePicker({ range, onChange }: Props) {
           id="date"
           variant="secondary"
           className={cn(
-            "w-full justify-start text-left font-normal",
-            !range.from && "text-muted-foreground"
+            "justify-start text-left font-normal h-9 px-3",
+            "w-[220px]",
+            !range?.from && "text-muted-foreground",
+            className
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {range.from ? (
+          {range?.from ? (
             range.to ? (
               <>
                 {format(range.from, "dd/MM/yyyy")} - {format(range.to, "dd/MM/yyyy")}
@@ -44,7 +48,7 @@ export function DateRangePicker({ range, onChange }: Props) {
           mode="range"
           selected={range}
           onSelect={onChange}
-          numberOfMonths={2}
+          numberOfMonths={1}
         />
       </PopoverContent>
     </Popover>
