@@ -178,9 +178,9 @@ async function calcularMateriaisNormal(
 
     // ===== PRANCHÃO =====
     if (isCaibroRipa) {
-      // Pranchão 20 cm a cada 1,5 m (sem limitação de quantidade)
-      const qtdPranchao20 = ROUND_INT(comprimento / 1.5)
-      if (qtdPranchao20 > 0) add("Linha 20cm", "Pranchão", qtdPranchao20, largArred)
+      // Pranchão 25 cm a cada 2 m (sem limitação de quantidade)
+      const qtdPranchao20 = ROUND_INT(comprimento / 2)
+      if (qtdPranchao20 > 0) add("Linha 25cm", "Pranchão", qtdPranchao20, largArred)
 
       // NOVA REGRA: 2 pontaletes por pranchão (sem limite)
       const qtdPontalete = qtdPranchao20 * 2
