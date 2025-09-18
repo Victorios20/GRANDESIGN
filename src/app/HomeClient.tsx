@@ -54,19 +54,19 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [cidadesOpts, setCidadesOpts] = useState<{ id: number; label: string }[]>([])
   const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
   const availableFields = useMemo(() => ([
-  { id: "q",         label: "Nome ou Título", type: "text" },
-  { id: "telefone",  label: "Telefone",       type: "text" },
-  { id: "bairro",    label: "Bairro",         type: "text" },
-  { id: "cidadeId",  label: "Cidade",         type: "select",   options: cidadesOpts as Option[] },
-  { id: "tipoObraId",label: "Tipo de obra",   type: "select",   options: tiposOpts as Option[] },
-  { id: "dateField", label: "Campo de data",  type: "segmented" },
-  { id: "dateRange", label: "Período",        type: "dateRange" },
-  { id: "pageSize",  label: "Linhas por página", type: "select", options: [5,10,20] },
-] as const), [cidadesOpts, tiposOpts])
+    { id: "q", label: "Nome ou Título", type: "text" },
+    { id: "telefone", label: "Telefone", type: "text" },
+    { id: "bairro", label: "Bairro", type: "text" },
+    { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
+    { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
+    { id: "dateField", label: "Campo de data", type: "segmented" },
+    { id: "dateRange", label: "Período", type: "dateRange" },
+    { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
+  ] as const), [cidadesOpts, tiposOpts])
 
   const [selectedFields, setSelectedFields] = useState<FieldId[]>([
-  "q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"
-])
+    "q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"
+  ])
 
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
 
@@ -100,8 +100,34 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             fetch(`/api/cidades?page=1&pageSize=100`).then(r => r.json()),
             fetch(`/api/tipos-obra?page=1&pageSize=100`).then(r => r.json()),
           ])
-          setCidadesOpts(rc?.options ?? [])
-          setTiposOpts(rt?.options ?? [])
+
+          // Normalizador robusto: aceita options | data | items | array cru
+          function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
+            const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
+            if (!Array.isArray(arr)) return []
+
+            return arr
+              .map((x: any) => {
+                const id = Number(x?.id)
+                if (!Number.isFinite(id)) return null
+                // tenta em ordem: chaves conhecidas → fallback genérico
+                const label =
+                  labelKeys.map(k => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
+                  (typeof x?.label === "string" ? x.label : null) ??
+                  (typeof x?.nome === "string" ? x.nome : null) ??
+                  (typeof x?.descricao === "string" ? x.descricao : null) ??
+                  (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
+                  ""
+                const lab = String(label).trim()
+                if (!lab) return null
+                return { id, label: lab }
+              })
+              .filter(Boolean) as { id: number; label: string }[]
+          }
+
+          setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
+          setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
+
         } catch { }
       })()
 
@@ -431,35 +457,35 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
         {/* CARD FILTROS */}
         <FilterCard
-  value={{
-    q: nome,
-    telefone,
-    bairro,
-    cidadeId,
-    tipoObraId,
-    ini: dataIni ? dataIni.toISOString().slice(0,10) : undefined,
-    fim: dataFim ? dataFim.toISOString().slice(0,10) : undefined,
-    pageSize: perPage as 5|10|20,
-    dateField: "criacao",
-  }}
-  onChange={(next: FilterState) => {
-    setNome(next.q ?? "")
-    setTelefone(next.telefone ?? "")
-    setBairro(next.bairro ?? "")
-    setCidadeId(next.cidadeId ?? null)
-    setTipoObraId(next.tipoObraId ?? null)
-    setPerPage((next.pageSize as number) ?? perPage)
-    setDataIni(next.ini ? new Date(next.ini) : undefined)
-    setDataFim(next.fim ? new Date(next.fim) : undefined)
-    setPage(1)
-  }}
-  onClear={() => limparFiltros()}
-  availableFields={availableFields as any}
-  selectedFields={selectedFields}
-  onSelectedFieldsChange={setSelectedFields}
-  persistKey="gd:home:filters"
-  loading={loadingTabela}
-/>
+          value={{
+            q: nome,
+            telefone,
+            bairro,
+            cidadeId,
+            tipoObraId,
+            ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
+            fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+            pageSize: perPage as 5 | 10 | 20,
+            dateField: "criacao",
+          }}
+          onChange={(next: FilterState) => {
+            setNome(next.q ?? "")
+            setTelefone(next.telefone ?? "")
+            setBairro(next.bairro ?? "")
+            setCidadeId(next.cidadeId ?? null)
+            setTipoObraId(next.tipoObraId ?? null)
+            setPerPage((next.pageSize as number) ?? perPage)
+            setDataIni(next.ini ? new Date(next.ini) : undefined)
+            setDataFim(next.fim ? new Date(next.fim) : undefined)
+            setPage(1)
+          }}
+          onClear={() => limparFiltros()}
+          availableFields={availableFields as any}
+          selectedFields={selectedFields}
+          onSelectedFieldsChange={setSelectedFields}
+          persistKey="gd:home:filters"
+          loading={loadingTabela}
+        />
 
         {/* TABELA */}
         <Card className="mt-8">
