@@ -59,18 +59,18 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   ] as const), [cidadesOpts, tiposOpts])
 
   const PERSIST_KEY = "gd.historico.filtros.campos.v1"
-const DEFAULT_FIELDS: FieldId[] = ["q","dateRange","pageSize","bairro","telefone","cidadeId","tipoObraId"]
+  const DEFAULT_FIELDS: FieldId[] = ["q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"]
 
-const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
-  if (typeof window === "undefined") return DEFAULT_FIELDS
-  try {
-    const raw = localStorage.getItem(PERSIST_KEY)
-    const saved = raw ? (JSON.parse(raw) as FieldId[]) : null
-    return Array.isArray(saved) && saved.length ? saved : DEFAULT_FIELDS
-  } catch {
-    return DEFAULT_FIELDS
-  }
-})
+  const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
+    if (typeof window === "undefined") return DEFAULT_FIELDS
+    try {
+      const raw = localStorage.getItem(PERSIST_KEY)
+      const saved = raw ? (JSON.parse(raw) as FieldId[]) : null
+      return Array.isArray(saved) && saved.length ? saved : DEFAULT_FIELDS
+    } catch {
+      return DEFAULT_FIELDS
+    }
+  })
 
 
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
@@ -91,10 +91,10 @@ const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
 
 
   useEffect(() => {
-  try {
-    localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
-  } catch {}
-}, [selectedFields])
+    try {
+      localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
+    } catch { }
+  }, [selectedFields])
 
 
   useEffect(() => {
@@ -180,6 +180,7 @@ const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
 
   const safeCell = (v: string | number | null | undefined) => (v == null || v === "" ? "-" : v)
   const strDate = (iso: string) => format(parseISO(iso), "dd/MM/yyyy HH:mm")
+
   const totalPaginas = Math.max(1, Math.ceil(total / perPage))
 
 
@@ -207,7 +208,6 @@ const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
             ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
             fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
             pageSize: perPage as 5 | 10 | 20,
-            dateField: "criacao",
           }}
           onChange={(next: FilterState) => {
             setNome(next.q ?? "")
@@ -267,7 +267,7 @@ const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
                         <TableHead>Bairro</TableHead>
                         <TableHead>Cidade</TableHead>
                         <TableHead>Tipo de obra</TableHead>
-                        <TableHead>Data</TableHead>
+                        <TableHead>Data da Atualização</TableHead>
                         <TableHead>Telefone</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead className="text-center">Ações</TableHead>
@@ -286,7 +286,7 @@ const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
                           <TableCell>{safeCell(o.bairro)}</TableCell>
                           <TableCell>{safeCell((o as any).cidade)}</TableCell>
                           <TableCell>{safeCell((o as any).tipoObra)}</TableCell>
-                          <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
+                          <TableCell>{safeCell(strDate((o as any).data_ultima_alteracao))}</TableCell>
                           <TableCell>{safeCell((o as any).clienteTelefone)}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
 

@@ -138,42 +138,44 @@ export async function buscarOrcamentosDB(
     ($2::text IS NULL OR
       immutable_unaccent(lower(c.bairro)) ILIKE '%' || immutable_unaccent(lower($2)) || '%'
     )
-    AND ($3::timestamptz IS NULL OR o.data_criacao >= $3)
-    AND ($4::timestamptz IS NULL OR o.data_criacao <  $4)
+    AND ($3::timestamp IS NULL OR o.data_ultima_alteracao >= $3::timestamp)
+    AND ($4::timestamp IS NULL OR o.data_ultima_alteracao <  $4::timestamp)
     AND ($5::text IS NULL OR immutable_unaccent(lower(c.telefone)) ILIKE '%' || immutable_unaccent(lower($5)) || '%')
     AND ($6::int  IS NULL OR c.cidade_id = $6)
     AND ($7::int  IS NULL OR o.tipo_obra_id = $7)
 `
 
-
   const listSQL_ASC = `
-    SELECT
-  o.id,
-  o.titulo,
-  c.nome AS nome_cliente,
-  c.telefone AS cliente_telefone,
-  c.bairro,
-  c.cidade_id,
-  ci.nome AS cidade_nome,
-  t.tipo_obra AS "tipoObra",
-  o.data_criacao,
-  COALESCE(
-    (SELECT MIN(op.valor)  FROM orcamento_pagamento op  WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%'),
-    (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id),
-    0
-  ) AS valor_pix_preferido
-FROM orcamento o
-JOIN cliente c ON c.id = o.cliente_id
-LEFT JOIN cidades ci ON ci.id = c.cidade_id
-LEFT JOIN tipo_obra t ON t.id = o.tipo_obra_id
-${baseWhere}
-ORDER BY o.data_criacao ASC
+  SELECT
+    o.id,
+    o.titulo,
+    c.nome AS nome_cliente,
+    c.telefone AS cliente_telefone,
+    c.bairro,
+    c.cidade_id,
+    ci.nome AS cidade_nome,
+    t.tipo_obra AS "tipoObra",
+    o.data_criacao,
+    o.data_ultima_alteracao,
+    o.data_ultima_alteracao,
+    COALESCE(
+      (SELECT MIN(op.valor)  FROM orcamento_pagamento op  WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%'),
+      (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id),
+      0
+    ) AS valor_pix_preferido
+  FROM orcamento o
+  JOIN cliente c ON c.id = o.cliente_id
+  LEFT JOIN cidades ci ON ci.id = c.cidade_id
+  LEFT JOIN tipo_obra t ON t.id = o.tipo_obra_id
+  ${baseWhere}
+ORDER BY o.data_ultima_alteracao ASC
 LIMIT $8 OFFSET $9
 
-  `
+`
+
+  const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_ultima_alteracao ASC", "ORDER BY o.data_ultima_alteracao DESC")
 
 
-  const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_criacao ASC", "ORDER BY o.data_criacao DESC")
 
   const countSQL = `
     SELECT COUNT(*)::bigint AS total
@@ -220,27 +222,36 @@ LIMIT $8 OFFSET $9
     cidade_nome: string | null
     tipoObra: string | null
     data_criacao: string | Date
+    data_ultima_alteracao: string | Date
     valor_pix_preferido: unknown
   }>
+
   const cs = countRows as Array<{ total: bigint | number }>
 
   const total = cs?.[0]?.total != null ? Number(cs[0].total) : 0
 
-  const dados = rs.map((r) => {
-    const valorNum = num(r.valor_pix_preferido)
-    const dataISO =
-      r.data_criacao instanceof Date
-        ? r.data_criacao.toISOString()
-        : new Date(r.data_criacao).toISOString()
+function toISO(x: unknown): string | null {
+  if (!x) return null
+  const d = x instanceof Date ? x : new Date(String(x))
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
 
-    const item: any = {
-      id: r.id,
-      titulo: r.titulo ?? null,
-      cliente: r.nome_cliente ?? null,
-      bairro: r.bairro ?? null,
-      dataISO,
-      valorFormatado: BRL.format(valorNum),
-    }
+const dados = rs.map((r) => {
+  const valorNum = num(r.valor_pix_preferido)
+
+  const criacaoISO = toISO(r.data_criacao)
+  const atualizacaoISO = toISO(r.data_ultima_alteracao) ?? criacaoISO
+
+  const item: any = {
+    id: r.id,
+    titulo: r.titulo ?? null,
+    cliente: r.nome_cliente ?? null,
+    bairro: r.bairro ?? null,
+    dataISO: criacaoISO!,
+    data_ultima_alteracao: atualizacaoISO!,
+    valorFormatado: BRL.format(valorNum),
+  }
+
 
     item.cidade = r.cidade_nome ?? null
     item.cidadeId = r.cidade_id ?? null

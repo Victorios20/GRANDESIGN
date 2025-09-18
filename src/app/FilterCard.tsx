@@ -22,7 +22,6 @@ export type FilterState = {
     bairro?: string
     cidadeId?: number | null
     tipoObraId?: number | null
-    dateField?: "criacao" | "atualizacao"
     ini?: string
     fim?: string
     pageSize?: 5 | 10 | 20
@@ -34,7 +33,6 @@ export type FieldId =
     | "bairro"
     | "cidadeId"
     | "tipoObraId"
-    | "dateField"
     | "dateRange"
     | "pageSize"
 
@@ -44,9 +42,9 @@ export type AvailableField =
     | { id: "bairro"; label: string; type: "text" }
     | { id: "cidadeId"; label: string; type: "select"; options: Option[] }
     | { id: "tipoObraId"; label: string; type: "select"; options: Option[] }
-    | { id: "dateField"; label: string; type: "segmented" }
     | { id: "dateRange"; label: string; type: "dateRange" }
     | { id: "pageSize"; label: string; type: "select"; options: number[] }
+
 
 export type FilterCardProps = {
     value: FilterState
@@ -88,16 +86,23 @@ export default function FilterCard(props: FilterCardProps) {
     }, [persistKey, selectedFields])
 
     useEffect(() => {
-        if (!persistKey) return
-        try {
-            const raw = localStorage.getItem(persistKey)
-            if (!raw) return
-            const saved = JSON.parse(raw) as FieldId[]
-            if (Array.isArray(saved) && saved.length && JSON.stringify(saved) !== JSON.stringify(selectedFields)) {
-                onSelectedFieldsChange(saved)
-            }
-        } catch { }
-    }, [])
+  if (!persistKey) return
+  try {
+    const raw = localStorage.getItem(persistKey)
+    if (!raw) return
+    const savedRaw = JSON.parse(raw) as string[]
+    const allow = ["q","telefone","bairro","cidadeId","tipoObraId","dateRange","pageSize"] as const
+    const saved: FieldId[] = Array.isArray(savedRaw)
+      ? savedRaw.filter((id): id is FieldId => (allow as readonly string[]).includes(id))
+      : []
+    if (JSON.stringify(saved) !== JSON.stringify(selectedFields)) {
+      onSelectedFieldsChange(saved)
+    }
+  } catch { }
+}, [])
+
+
+
 
     const fieldMap = useMemo(() => {
         const m = new Map<FieldId, AvailableField>()
@@ -260,38 +265,11 @@ export default function FilterCard(props: FilterCardProps) {
                             )
                         }
 
-                        if (id === "dateField" && meta.type === "segmented") {
-                            return (
-                                <div key={id} className="flex flex-col gap-1 w-[160px]">
-                                    <Label className="text-sm font-medium text-marromEscuro">{meta.label}</Label>
-                                    <div className="flex gap-4 items-center h-9">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                className="accent-marromEscuro"
-                                                checked={(value.dateField || "criacao") === "criacao"}
-                                                onChange={() => set({ dateField: "criacao" })}
-                                            />
-                                            <span>Criação</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                className="accent-marromEscuro"
-                                                checked={value.dateField === "atualizacao"}
-                                                onChange={() => set({ dateField: "atualizacao" })}
-                                            />
-                                            <span>Última</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            )
-                        }
 
                         if (id === "dateRange" && meta.type === "dateRange") {
                             return (
                                 <div key={id} className="flex flex-col gap-1 w-[240px]">
-                                    <Label className="text-sm font-medium text-marromEscuro">Período</Label>
+                                    <Label className="text-sm font-medium text-marromEscuro">Período da última atualização</Label>
                                     <DateRangePicker
                                         className="w-[240px]"
                                         range={{ from: fromDate, to: toDate }}

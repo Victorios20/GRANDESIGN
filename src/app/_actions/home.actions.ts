@@ -8,8 +8,11 @@ export interface OrcamentoTabela {
   cliente: string | null
   bairro: string | null
   dataISO: string
+  data_ultima_alteracao: string
   valorFormatado: string
+  tipoObra?: string | null
 }
+
 
 export type MaterialItem = {
   nome: string
