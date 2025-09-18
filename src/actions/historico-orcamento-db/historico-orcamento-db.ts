@@ -7,7 +7,9 @@ export interface OrcamentoTabela {
   bairro: string | null
   dataISO: string
   valorFormatado: string
+  tipoObra?: string | null
 }
+
 
 export type MaterialItem = {
   nome: string
@@ -107,20 +109,20 @@ export async function buscarOrcamentosDB(
   params: BuscarOrcamentosParams
 ): Promise<{ dados: OrcamentoTabela[]; total: number }> {
   const nome = cleanFilterText(params.nome)
-const bairro = cleanFilterText(params.bairro)
-const telefone = cleanFilterText(params.telefone)
-const cidadeId = typeof params.cidadeId === "number" ? params.cidadeId : null
-const tipoObraId = typeof params.tipoObraId === "number" ? params.tipoObraId : null
+  const bairro = cleanFilterText(params.bairro)
+  const telefone = cleanFilterText(params.telefone)
+  const cidadeId = typeof params.cidadeId === "number" ? params.cidadeId : null
+  const tipoObraId = typeof params.tipoObraId === "number" ? params.tipoObraId : null
 
-const page = Math.max(1, params.page ?? 1)
-const allowedPer = new Set([5, 10, 20])
-const perPage = allowedPer.has(params.perPage ?? 10) ? (params.perPage as number) : 10
-const ordenarData: "asc" | "desc" = params.ordenarData === "asc" ? "asc" : "desc"
-const hasSearch = !!nome
-const limit = hasSearch ? 500 : perPage
-const offset = hasSearch ? 0 : (page - 1) * perPage
-const ini = params.dataIni ? startOfDay(params.dataIni) : null
-const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
+  const page = Math.max(1, params.page ?? 1)
+  const allowedPer = new Set([5, 10, 20])
+  const perPage = allowedPer.has(params.perPage ?? 10) ? (params.perPage as number) : 10
+  const ordenarData: "asc" | "desc" = params.ordenarData === "asc" ? "asc" : "desc"
+  const hasSearch = !!nome
+  const limit = hasSearch ? 500 : perPage
+  const offset = hasSearch ? 0 : (page - 1) * perPage
+  const ini = params.dataIni ? startOfDay(params.dataIni) : null
+  const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
 
 
   const baseWhere = `
@@ -153,20 +155,24 @@ const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
   c.bairro,
   c.cidade_id,
   ci.nome AS cidade_nome,
+  t.tipo_obra AS "tipoObra",
   o.data_criacao,
   COALESCE(
-    (SELECT MIN(op.valor) FROM orcamento_pagamento op WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%' AND op.tipo_telhas ILIKE '%romana%'),
-    (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id AND op2.metodo_pagamento ILIKE '%pix%'),
+    (SELECT MIN(op.valor)  FROM orcamento_pagamento op  WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%'),
+    (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id),
     0
   ) AS valor_pix_preferido
 FROM orcamento o
 JOIN cliente c ON c.id = o.cliente_id
 LEFT JOIN cidades ci ON ci.id = c.cidade_id
+LEFT JOIN tipo_obra t ON t.id = o.tipo_obra_id
 ${baseWhere}
 ORDER BY o.data_criacao ASC
 LIMIT $8 OFFSET $9
 
   `
+
+
   const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_criacao ASC", "ORDER BY o.data_criacao DESC")
 
   const countSQL = `
@@ -179,62 +185,71 @@ LIMIT $8 OFFSET $9
   const listSQL = ordenarData === "asc" ? listSQL_ASC : listSQL_DESC
 
   const [rows, countRows] = await prisma.$transaction([
-  prisma.$queryRawUnsafe(
-    listSQL,
-    nome ?? null,
-    bairro ?? null,
-    ini,
-    fimExclusivo,
-    telefone ?? null,
-    cidadeId ?? null,
-    tipoObraId ?? null,
-    limit,
-    offset
-  ),
-  prisma.$queryRawUnsafe(
-    countSQL,
-    nome ?? null,
-    bairro ?? null,
-    ini,
-    fimExclusivo,
-    telefone ?? null,
-    cidadeId ?? null,
-    tipoObraId ?? null
-  ),
-])
+    prisma.$queryRawUnsafe(
+      listSQL,
+      nome ?? null,
+      bairro ?? null,
+      ini,
+      fimExclusivo,
+      telefone ?? null,
+      cidadeId ?? null,
+      tipoObraId ?? null,
+      limit,
+      offset
+    ),
+    prisma.$queryRawUnsafe(
+      countSQL,
+      nome ?? null,
+      bairro ?? null,
+      ini,
+      fimExclusivo,
+      telefone ?? null,
+      cidadeId ?? null,
+      tipoObraId ?? null
+    ),
+  ])
 
 
   const rs = rows as Array<{
-  id: number
-  titulo: string | null
-  nome_cliente: string | null
-  cliente_telefone: string | null
-  bairro: string | null
-  cidade_id: number | null
-  cidade_nome: string | null
-  data_criacao: Date | string
-  valor_pix_preferido: unknown
-}>
+    id: number
+    titulo: string | null
+    nome_cliente: string | null
+    cliente_telefone: string | null
+    bairro: string | null
+    cidade_id: number | null
+    cidade_nome: string | null
+    tipoObra: string | null
+    data_criacao: string | Date
+    valor_pix_preferido: unknown
+  }>
   const cs = countRows as Array<{ total: bigint | number }>
 
   const total = cs?.[0]?.total != null ? Number(cs[0].total) : 0
 
   const dados = rs.map((r) => {
-  const valorNum = num(r.valor_pix_preferido)
-  const dataISO = r.data_criacao instanceof Date ? r.data_criacao.toISOString() : new Date(r.data_criacao).toISOString()
-  const item: any = {
-    id: r.id,
-    titulo: r.titulo ?? null,
-    cliente: r.nome_cliente ?? null,
-    bairro: r.bairro ?? null,
-    dataISO,
-    valorFormatado: BRL.format(valorNum),
-  }
-  item.cidade = r.cidade_nome ?? null
-  item.cidadeId = r.cidade_id ?? null
-  item.clienteTelefone = r.cliente_telefone ?? null
-  return item
-}) as any[]
+    const valorNum = num(r.valor_pix_preferido)
+    const dataISO =
+      r.data_criacao instanceof Date
+        ? r.data_criacao.toISOString()
+        : new Date(r.data_criacao).toISOString()
+
+    const item: any = {
+      id: r.id,
+      titulo: r.titulo ?? null,
+      cliente: r.nome_cliente ?? null,
+      bairro: r.bairro ?? null,
+      dataISO,
+      valorFormatado: BRL.format(valorNum),
+    }
+
+    item.cidade = r.cidade_nome ?? null
+    item.cidadeId = r.cidade_id ?? null
+    item.clienteTelefone = r.cliente_telefone ?? null
+    item.tipoObra = r.tipoObra ?? null
+
+    return item
+  }) as any[]
+
 
   return { dados, total }
 

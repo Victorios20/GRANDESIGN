@@ -58,9 +58,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
   ] as const), [cidadesOpts, tiposOpts])
 
-  const [selectedFields, setSelectedFields] = useState<FieldId[]>([
-    "q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"
-  ])
+  const PERSIST_KEY = "gd.historico.filtros.campos.v1"
+const DEFAULT_FIELDS: FieldId[] = ["q","dateRange","pageSize","bairro","telefone","cidadeId","tipoObraId"]
+
+const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
+  if (typeof window === "undefined") return DEFAULT_FIELDS
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY)
+    const saved = raw ? (JSON.parse(raw) as FieldId[]) : null
+    return Array.isArray(saved) && saved.length ? saved : DEFAULT_FIELDS
+  } catch {
+    return DEFAULT_FIELDS
+  }
+})
+
 
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
 
@@ -73,12 +84,17 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [page, setPage] = useState(1)
   const [perPage, setPerPage] = useState(20)
 
-
   useEffect(() => {
     if (nome.trim() && page !== 1) setPage(1)
   }, [nome])
 
 
+
+  useEffect(() => {
+  try {
+    localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
+  } catch {}
+}, [selectedFields])
 
 
   useEffect(() => {
@@ -208,7 +224,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           availableFields={availableFields as any}
           selectedFields={selectedFields}
           onSelectedFieldsChange={setSelectedFields}
-          persistKey="gd:home:filters"
           loading={loadingTabela}
         />
 
@@ -251,6 +266,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                         <TableHead>Cliente</TableHead>
                         <TableHead>Bairro</TableHead>
                         <TableHead>Cidade</TableHead>
+                        <TableHead>Tipo de obra</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Telefone</TableHead>
                         <TableHead>Valor</TableHead>
@@ -258,22 +274,22 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                       </TableRow>
                     </TableHeader>
 
+
                     <TableBody>
                       {orcamentos.map(o => (
                         <TableRow
                           key={o.id}
                           className="odd:bg-muted/40 hover:bg-muted/60 transition-colors"
                         >
-
-
-
                           <TableCell>{safeCell(o.titulo)}</TableCell>
                           <TableCell>{safeCell(o.cliente)}</TableCell>
                           <TableCell>{safeCell(o.bairro)}</TableCell>
                           <TableCell>{safeCell((o as any).cidade)}</TableCell>
+                          <TableCell>{safeCell((o as any).tipoObra)}</TableCell>
                           <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
                           <TableCell>{safeCell((o as any).clienteTelefone)}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
+
                           <TableCell className="text-center">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
