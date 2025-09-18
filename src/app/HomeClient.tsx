@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogFooter, DialogClose } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { PlusCircle, EllipsisVertical, Eye, Pencil, Trash2, ArrowUpRight, Edit } from "lucide-react"
+import { PlusCircle, EllipsisVertical, Eye, Pencil, Trash2, ArrowUpRight, Edit, Copy } from "lucide-react"
+
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -24,8 +25,8 @@ import { BigShinyButton } from "@/components/ui/BigShinyButton"
 import { Pagination, PaginationContent, PaginationItem, PaginationPrevious, PaginationNext } from "@/components/ui/pagination"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { toast, Toaster } from "sonner"
-import { DateRangePicker } from "@/components/ui/DateRangePicker"
-import { type DateRange } from "react-day-picker"
+import FilterCard, { type FieldId, type Option, type FilterState } from "./FilterCard"
+
 
 
 import { listarBairros, buscarOrcamentos } from "./_actions/home.actions"
@@ -46,7 +47,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [ordenarData, setOrdenarData] = useState<"asc" | "desc">("desc")
   const [loadingRowId, setLoadingRowId] = useState<number | null>(null)
 
+  const [telefone, setTelefone] = useState("")
+  const [cidadeId, setCidadeId] = useState<number | null>(null)
+  const [tipoObraId, setTipoObraId] = useState<number | null>(null)
 
+  const [cidadesOpts, setCidadesOpts] = useState<{ id: number; label: string }[]>([])
+  const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
+  const availableFields = useMemo(() => ([
+  { id: "q",         label: "Nome ou Título", type: "text" },
+  { id: "telefone",  label: "Telefone",       type: "text" },
+  { id: "bairro",    label: "Bairro",         type: "text" },
+  { id: "cidadeId",  label: "Cidade",         type: "select",   options: cidadesOpts as Option[] },
+  { id: "tipoObraId",label: "Tipo de obra",   type: "select",   options: tiposOpts as Option[] },
+  { id: "dateField", label: "Campo de data",  type: "segmented" },
+  { id: "dateRange", label: "Período",        type: "dateRange" },
+  { id: "pageSize",  label: "Linhas por página", type: "select", options: [5,10,20] },
+] as const), [cidadesOpts, tiposOpts])
+
+  const [selectedFields, setSelectedFields] = useState<FieldId[]>([
+  "q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"
+])
 
   const [listaBairros, setListaBairros] = useState<string[]>(initial.listaBairros ?? [])
 
@@ -73,14 +93,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   useEffect(() => {
     listarBairros().then(setListaBairros).catch(() => { })
-    if ((initial?.dados?.length ?? 0) !== perPage) consultar()
 
+      ; (async () => {
+        try {
+          const [rc, rt] = await Promise.all([
+            fetch(`/api/cidades?page=1&pageSize=100`).then(r => r.json()),
+            fetch(`/api/tipos-obra?page=1&pageSize=100`).then(r => r.json()),
+          ])
+          setCidadesOpts(rc?.options ?? [])
+          setTiposOpts(rt?.options ?? [])
+        } catch { }
+      })()
+
+    if ((initial?.dados?.length ?? 0) !== perPage) consultar()
   }, [])
+
 
   useEffect(() => {
     consultar()
+  }, [nome, bairro, telefone, cidadeId, tipoObraId, dataIni, dataFim, page, perPage, ordenarData])
 
-  }, [nome, bairro, dataIni, dataFim, page, perPage, ordenarData])
 
   async function consultar() {
     setLoadingTabela(true)
@@ -89,8 +121,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     // dentro de consultar()
     const pageToSend = nome.trim() ? 1 : page
     const { dados, total } = await buscarOrcamentos(
-      nome, bairro, dIniISO, dFimISO, pageToSend, perPage, ordenarData
+      nome, bairro, dIniISO, dFimISO, pageToSend, perPage, ordenarData,
+      { telefone, cidadeId, tipoObraId }
     )
+
 
     setOrcamentos(dados)
     setTotal(total)
@@ -100,10 +134,14 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   function limparFiltros() {
     setNome("")
     setBairro("")
+    setTelefone("")
+    setCidadeId(null)
+    setTipoObraId(null)
     setDataIni(undefined)
     setDataFim(undefined)
     setPage(1)
   }
+
 
   function n(x: any) {
     if (typeof x === "number") return Number.isFinite(x) ? x : 0
@@ -392,102 +430,36 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
 
         {/* CARD FILTROS */}
-        <Card>
-          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">Filtros</CardTitle>
-              <CardDescription>Preencha os campos para refinar a lista de orçamentos.</CardDescription>
-            </div>
-            <Button
-              variant="secondary"
-              onClick={limparFiltros}
-              className="flex items-center gap-2 border-destructive text-destructive hover:bg-destructive/10"
-            >
-              <Trash2 className="h-4 w-4" />
-              Limpar filtros
-            </Button>
-          </CardHeader>
-
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-wrap lg:flex-nowrap items-end gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Nome ou Título</label>
-                <Input
-                  className="h-9 w-[280px]"
-                  value={nome}
-                  placeholder="Ex: João ou João_Cobertura_Messejana"
-                  onChange={e => setNome(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Bairro</label>
-                <Select value={bairro} onValueChange={value => setBairro(value)}>
-                  <SelectTrigger className="h-9 w-[200px]">
-                    <SelectValue placeholder="Bairro" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {[...new Set(listaBairros)].map(b => (
-                      <SelectItem key={b} value={b}>
-                        {b}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Período</label>
-                <DateRangePicker
-                  className="w-[240px]"
-                  range={{ from: dataIni, to: dataFim }}
-                  onChange={(range) => {
-                    setDataIni(range?.from)
-                    setDataFim(range?.to)
-                  }}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Linhas / pág</label>
-                <Select
-                  value={String(perPage)}
-                  onValueChange={v => {
-                    setPerPage(Number(v))
-                    setPage(1)
-                  }}
-                >
-                  <SelectTrigger className="h-9 w-[96px]">
-                    <SelectValue placeholder="10" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[5, 10, 20].map(n => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-marromEscuro">Ordenar por Data</label>
-                <Select value={ordenarData} onValueChange={(v) => setOrdenarData(v as "asc" | "desc")}>
-                  <SelectTrigger className="h-9 w-[160px]">
-                    <SelectValue placeholder="Data" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Mais Antigo</SelectItem>
-                    <SelectItem value="desc">Mais Recente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-
-        </Card>
-
-
+        <FilterCard
+  value={{
+    q: nome,
+    telefone,
+    bairro,
+    cidadeId,
+    tipoObraId,
+    ini: dataIni ? dataIni.toISOString().slice(0,10) : undefined,
+    fim: dataFim ? dataFim.toISOString().slice(0,10) : undefined,
+    pageSize: perPage as 5|10|20,
+    dateField: "criacao",
+  }}
+  onChange={(next: FilterState) => {
+    setNome(next.q ?? "")
+    setTelefone(next.telefone ?? "")
+    setBairro(next.bairro ?? "")
+    setCidadeId(next.cidadeId ?? null)
+    setTipoObraId(next.tipoObraId ?? null)
+    setPerPage((next.pageSize as number) ?? perPage)
+    setDataIni(next.ini ? new Date(next.ini) : undefined)
+    setDataFim(next.fim ? new Date(next.fim) : undefined)
+    setPage(1)
+  }}
+  onClear={() => limparFiltros()}
+  availableFields={availableFields as any}
+  selectedFields={selectedFields}
+  onSelectedFieldsChange={setSelectedFields}
+  persistKey="gd:home:filters"
+  loading={loadingTabela}
+/>
 
         {/* TABELA */}
         <Card className="mt-8">
@@ -527,11 +499,14 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                         <TableHead>Título</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Bairro</TableHead>
+                        <TableHead>Cidade</TableHead>
                         <TableHead>Data</TableHead>
+                        <TableHead>Telefone</TableHead>
                         <TableHead>Valor</TableHead>
                         <TableHead className="text-center">Ações</TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {orcamentos.map(o => (
                         <TableRow
@@ -544,7 +519,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                           <TableCell>{safeCell(o.titulo)}</TableCell>
                           <TableCell>{safeCell(o.cliente)}</TableCell>
                           <TableCell>{safeCell(o.bairro)}</TableCell>
+                          <TableCell>{safeCell((o as any).cidade)}</TableCell>
                           <TableCell>{safeCell(strDate(o.dataISO))}</TableCell>
+                          <TableCell>{safeCell((o as any).clienteTelefone)}</TableCell>
                           <TableCell>{safeCell(o.valorFormatado)}</TableCell>
                           <TableCell className="text-center">
                             <DropdownMenu>
@@ -559,7 +536,23 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                                 </Button>
                               </DropdownMenuTrigger>
 
-                              <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={async () => {
+                                    const link = `https://app.grandesignce.com.br/gerar-orcamento/edit/${o.id}`
+                                    try {
+                                      await navigator.clipboard.writeText(link)
+                                      toast.success("Link copiado!")
+                                    } catch {
+                                      toast.error("Não foi possível copiar o link.")
+                                    }
+                                  }}
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Copiar link de edição
+                                </DropdownMenuItem>
+
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                   <Link href={`/Orcamento/edit/${o.id}`} title="Editar orçamento">
                                     <Pencil className="mr-2 h-4 w-4" />
@@ -574,6 +567,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                                   </Link>
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
+
                             </DropdownMenu>
                           </TableCell>
 

@@ -1,24 +1,12 @@
-/* ------------------------------------------------------------------
-   GRANDESIGN · src/actions/historico-orcamento-db/historico-orcamento-db.ts
-   Padrão: importa prisma de "@/lib/prisma" (mesmo do tipo-obra-db).
-   Melhorias leves: filtros com trim, bairros únicos + A–Z,
-   fallback numérico centralizado, data fim inclusiva (até 23:59:59).
-   Mantém shapes e nomes consumidos pela Home (sem regressão).
------------------------------------------------------------------- */
-
 import { prisma } from "@/lib/prisma"
-
-/* =====================================================================
- * Tipos exportados — usados pela Home (NÃO ALTERAR SHAPE/NOMES)
- * ===================================================================== */
 
 export interface OrcamentoTabela {
   id: number
   titulo: string | null
   cliente: string | null
   bairro: string | null
-  dataISO: string          // ISO completo; a Home formata dd/MM/yyyy HH:mm
-  valorFormatado: string   // BRL pronto (front NÃO formata)
+  dataISO: string
+  valorFormatado: string
 }
 
 export type MaterialItem = {
@@ -37,7 +25,7 @@ export type OrcamentoDetalhe = {
   titulo: string | null
   dataISO: string
   tipoObra: string | null
-  dimensoes: { largura: number; comprimento: number } // fallback 0 quando nulo
+  dimensoes: { largura: number; comprimento: number }
   cliente: {
     nome: string | null
     telefone: string | null
@@ -53,55 +41,37 @@ export type OrcamentoDetalhe = {
     frete: number
     totalGeral: number
   }
-  valorTotal: number // redundante (compatibilidade)
+  valorTotal: number
   materiais: MaterialItem[]
   pagamentos: { tipoTelhas: string; metodo: string; valor: number }[]
   link_slide?: string | null
   link_pdf?: string | null
 }
 
-/* =====================================================================
- * Helpers internos (não exportados)
- * ===================================================================== */
-
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 
-/** Fallback numérico centralizado */
 function num(v: unknown): number {
   if (v === null || v === undefined) return 0
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
 }
 
-/** Normalização leve de textos de filtro (trim + colapso de espaços) */
 function cleanFilterText(s?: string | null): string | undefined {
   if (!s) return undefined
   const t = s.trim().replace(/\s+/g, " ")
   return t.length ? t : undefined
 }
 
-/** Converte 'YYYY-MM-DD' em Date no início do dia (local) */
 function startOfDay(dateYMD: string): Date {
   const [y, m, d] = dateYMD.split("-").map((x) => parseInt(x, 10))
   return new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0)
 }
 
-/** Próximo dia (para comparação < próximoDia, garantindo fim-do-dia inclusivo) */
 function nextDay(dateYMD: string): Date {
   const s = startOfDay(dateYMD)
   return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 1, 0, 0, 0, 0)
 }
 
-/* =====================================================================
- * LISTAR BAIRROS — DISTINCT TRIM(c.bairro) A–Z (apenas clientes com orçamento)
- * ===================================================================== */
-
-/**
- * Retorna lista de bairros usados em orçamentos:
- * - Apenas não nulos/não vazios
- * - Únicos e ordenados A–Z
- * Observação: mantém deduplicação defensiva em memória.
- */
 export async function listarBairrosDB(): Promise<string[]> {
   const rows = (await prisma.$queryRaw`
     SELECT DISTINCT TRIM(c.bairro) AS bairro
@@ -119,38 +89,40 @@ export async function listarBairrosDB(): Promise<string[]> {
   return Array.from(set)
 }
 
-/* =====================================================================
- * BUSCAR ORÇAMENTOS — lista paginada + total, filtros e ordenação por data
- * ===================================================================== */
-
 export type BuscarOrcamentosParams = {
-  nome?: string              // busca em cliente.nome OU orcamento.titulo (case-insensitive; tenta UNACCENT se existir)
-  bairro?: string            // substring (case-insensitive; tenta UNACCENT se existir)
-  dataIni?: string           // 'YYYY-MM-DD' (inclusive)
-  dataFim?: string           // 'YYYY-MM-DD' (inclusive até 23:59:59)
-  page?: number              // 1-based
-  perPage?: number           // 5 | 10 | 20
-  ordenarData?: "asc" | "desc" // por o.data_criacao
+  nome?: string
+  bairro?: string
+  telefone?: string
+  cidadeId?: number
+  tipoObraId?: number
+  dataIni?: string
+  dataFim?: string
+  page?: number
+  perPage?: number
+  ordenarData?: "asc" | "desc"
 }
+
 
 export async function buscarOrcamentosDB(
   params: BuscarOrcamentosParams
 ): Promise<{ dados: OrcamentoTabela[]; total: number }> {
   const nome = cleanFilterText(params.nome)
-  const bairro = cleanFilterText(params.bairro)
-  const page = Math.max(1, params.page ?? 1)
-  const allowedPer = new Set([5, 10, 20])
-  const perPage = allowedPer.has(params.perPage ?? 10) ? (params.perPage as number) : 10
-  const ordenarData: "asc" | "desc" = params.ordenarData === "asc" ? "asc" : "desc"
+const bairro = cleanFilterText(params.bairro)
+const telefone = cleanFilterText(params.telefone)
+const cidadeId = typeof params.cidadeId === "number" ? params.cidadeId : null
+const tipoObraId = typeof params.tipoObraId === "number" ? params.tipoObraId : null
 
-  const hasSearch = !!nome
-const limit = hasSearch ? 500 : perPage   // pode ajustar 500 conforme seu gosto
+const page = Math.max(1, params.page ?? 1)
+const allowedPer = new Set([5, 10, 20])
+const perPage = allowedPer.has(params.perPage ?? 10) ? (params.perPage as number) : 10
+const ordenarData: "asc" | "desc" = params.ordenarData === "asc" ? "asc" : "desc"
+const hasSearch = !!nome
+const limit = hasSearch ? 500 : perPage
 const offset = hasSearch ? 0 : (page - 1) * perPage
+const ini = params.dataIni ? startOfDay(params.dataIni) : null
+const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
 
-  const ini = params.dataIni ? startOfDay(params.dataIni) : null
-  const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
 
-  // WHERE com parâmetros opcionais (param é NULL => condição ignorada)
   const baseWhere = `
   WHERE
     ($1::text IS NULL OR
@@ -166,27 +138,34 @@ const offset = hasSearch ? 0 : (page - 1) * perPage
     )
     AND ($3::timestamptz IS NULL OR o.data_criacao >= $3)
     AND ($4::timestamptz IS NULL OR o.data_criacao <  $4)
-`;
+    AND ($5::text IS NULL OR immutable_unaccent(lower(c.telefone)) ILIKE '%' || immutable_unaccent(lower($5)) || '%')
+    AND ($6::int  IS NULL OR c.cidade_id = $6)
+    AND ($7::int  IS NULL OR o.tipo_obra_id = $7)
+`
 
 
   const listSQL_ASC = `
     SELECT
-      o.id,
-      o.titulo,
-      c.nome AS nome_cliente,
-      c.bairro,
-      o.data_criacao,
-      COALESCE(o.totais_madeiras_preco,0)
-      + COALESCE(o.totais_materiais_preco,0)
-      + COALESCE(o.totais_comissao_preco,0)
-      + COALESCE(o.totais_empresa_ps_preco,0)
-      + COALESCE(o.totais_empresa_gd_preco,0)
-      + COALESCE(o.totais_frete_preco,0) AS valor_total
-    FROM orcamento o
-    JOIN cliente c ON c.id = o.cliente_id
-    ${baseWhere}
-    ORDER BY o.data_criacao ASC
-    LIMIT $5 OFFSET $6
+  o.id,
+  o.titulo,
+  c.nome AS nome_cliente,
+  c.telefone AS cliente_telefone,
+  c.bairro,
+  c.cidade_id,
+  ci.nome AS cidade_nome,
+  o.data_criacao,
+  COALESCE(
+    (SELECT MIN(op.valor) FROM orcamento_pagamento op WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%' AND op.tipo_telhas ILIKE '%romana%'),
+    (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id AND op2.metodo_pagamento ILIKE '%pix%'),
+    0
+  ) AS valor_pix_preferido
+FROM orcamento o
+JOIN cliente c ON c.id = o.cliente_id
+LEFT JOIN cidades ci ON ci.id = c.cidade_id
+${baseWhere}
+ORDER BY o.data_criacao ASC
+LIMIT $8 OFFSET $9
+
   `
   const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_criacao ASC", "ORDER BY o.data_criacao DESC")
 
@@ -206,47 +185,57 @@ const offset = hasSearch ? 0 : (page - 1) * perPage
     bairro ?? null,
     ini,
     fimExclusivo,
-    limit,   
-    offset   
+    telefone ?? null,
+    cidadeId ?? null,
+    tipoObraId ?? null,
+    limit,
+    offset
   ),
   prisma.$queryRawUnsafe(
     countSQL,
     nome ?? null,
     bairro ?? null,
     ini,
-    fimExclusivo
+    fimExclusivo,
+    telefone ?? null,
+    cidadeId ?? null,
+    tipoObraId ?? null
   ),
 ])
 
 
   const rs = rows as Array<{
-    id: number
-    titulo: string | null
-    nome_cliente: string | null
-    bairro: string | null
-    data_criacao: Date | string
-    valor_total: unknown
-  }>
+  id: number
+  titulo: string | null
+  nome_cliente: string | null
+  cliente_telefone: string | null
+  bairro: string | null
+  cidade_id: number | null
+  cidade_nome: string | null
+  data_criacao: Date | string
+  valor_pix_preferido: unknown
+}>
   const cs = countRows as Array<{ total: bigint | number }>
 
   const total = cs?.[0]?.total != null ? Number(cs[0].total) : 0
 
-  const dados: OrcamentoTabela[] = rs.map((r) => {
-    const valorNum = num(r.valor_total)
-    const dataISO =
-      r.data_criacao instanceof Date
-        ? r.data_criacao.toISOString()
-        : new Date(r.data_criacao).toISOString()
-    return {
-      id: r.id,
-      titulo: r.titulo ?? null,
-      cliente: r.nome_cliente ?? null,
-      bairro: r.bairro ?? null,
-      dataISO,
-      valorFormatado: BRL.format(valorNum),
-    }
-  })
+  const dados = rs.map((r) => {
+  const valorNum = num(r.valor_pix_preferido)
+  const dataISO = r.data_criacao instanceof Date ? r.data_criacao.toISOString() : new Date(r.data_criacao).toISOString()
+  const item: any = {
+    id: r.id,
+    titulo: r.titulo ?? null,
+    cliente: r.nome_cliente ?? null,
+    bairro: r.bairro ?? null,
+    dataISO,
+    valorFormatado: BRL.format(valorNum),
+  }
+  item.cidade = r.cidade_nome ?? null
+  item.cidadeId = r.cidade_id ?? null
+  item.clienteTelefone = r.cliente_telefone ?? null
+  return item
+}) as any[]
 
   return { dados, total }
-}
 
+}

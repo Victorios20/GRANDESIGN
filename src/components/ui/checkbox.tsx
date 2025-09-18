@@ -25,9 +25,9 @@ function Checkbox(
 
        /* ─────────────── ESTADO MARCADO ─────────────── */
 // Fundo bege quando marcado (cor arbitrária via Tailwind)
-"data-[state=checked]:bg-[#E8C99A]",
+"data-[state=checked]:bg-bege",
 // Borda bege quando marcado
-"data-[state=checked]:border-[#E8C99A]",
+"data-[state=checked]:border-bege",
 
 
         /* ─────────────── FOCUS E VALIDAÇÕES ─────────────── */
