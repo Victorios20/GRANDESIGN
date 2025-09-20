@@ -61,16 +61,16 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
   const availableFields = useMemo(
     () =>
-      ([
-        { id: "q", label: "Nome ou Título", type: "text" },
-        { id: "telefone", label: "Telefone", type: "text" },
-        { id: "bairro", label: "Bairro", type: "text" },
-        { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
-        { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
-        { id: "dateField", label: "Campo de data", type: "segmented" },
-        { id: "dateRange", label: "Período", type: "dateRange" },
-        { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
-      ] as const),
+    ([
+      { id: "q", label: "Nome ou Título", type: "text" },
+      { id: "telefone", label: "Telefone", type: "text" },
+      { id: "bairro", label: "Bairro", type: "text" },
+      { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
+      { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
+      { id: "dateField", label: "Campo de data", type: "segmented" },
+      { id: "dateRange", label: "Período", type: "dateRange" },
+      { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
+    ] as const),
     [cidadesOpts, tiposOpts]
   )
 
@@ -107,44 +107,44 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   useEffect(() => {
     try {
       localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
-    } catch {}
+    } catch { }
   }, [selectedFields])
 
   // carregar selects e primeira consulta
   useEffect(() => {
-    listarBairros().catch(() => {})
+    listarBairros().catch(() => { })
 
-    ;(async () => {
-      try {
-        const [rc, rt] = await Promise.all([
-          fetch(`/api/cidades?page=1&pageSize=100`).then((r) => r.json()),
-          fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json()),
-        ])
+      ; (async () => {
+        try {
+          const [rc, rt] = await Promise.all([
+            fetch(`/api/cidades?page=1&pageSize=100`).then((r) => r.json()),
+            fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json()),
+          ])
 
-        function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
-          const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
-          if (!Array.isArray(arr)) return []
-          return arr
-            .map((x: any) => {
-              const id = Number(x?.id)
-              if (!Number.isFinite(id)) return null
-              const label =
-                labelKeys.map((k) => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
-                (typeof x?.label === "string" ? x.label : null) ??
-                (typeof x?.nome === "string" ? x.nome : null) ??
-                (typeof x?.descricao === "string" ? x.descricao : null) ??
-                (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
-                ""
-              const lab = String(label).trim()
-              if (!lab) return null
-              return { id, label: lab }
-            })
-            .filter(Boolean) as { id: number; label: string }[]
-        }
-        setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
-        setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
-      } catch {}
-    })()
+          function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
+            const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
+            if (!Array.isArray(arr)) return []
+            return arr
+              .map((x: any) => {
+                const id = Number(x?.id)
+                if (!Number.isFinite(id)) return null
+                const label =
+                  labelKeys.map((k) => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
+                  (typeof x?.label === "string" ? x.label : null) ??
+                  (typeof x?.nome === "string" ? x.nome : null) ??
+                  (typeof x?.descricao === "string" ? x.descricao : null) ??
+                  (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
+                  ""
+                const lab = String(label).trim()
+                if (!lab) return null
+                return { id, label: lab }
+              })
+              .filter(Boolean) as { id: number; label: string }[]
+          }
+          setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
+          setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
+        } catch { }
+      })()
 
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,13 +396,32 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         },
         components: {
           MuiTableHead: { styleOverrides: { root: { backgroundColor: BEGE } } },
-          MuiTableRow: { styleOverrides: { head: { backgroundColor: BEGE } } },
-          MuiTableCell: {
+          MuiTableRow: {
             styleOverrides: {
-              head: { backgroundColor: BEGE, color: MARROM, fontWeight: 700 },
-              root: { color: MARROM, borderBottom: "1px solid rgba(0,0,0,0.06)" },
+              head: {
+                backgroundColor: BEGE,
+                height: 36,                 // ↓ altura da linha do cabeçalho
+              },
             },
           },
+          MuiTableCell: {
+            styleOverrides: {
+              head: {
+                backgroundColor: BEGE,
+                color: MARROM,
+                fontWeight: 700,
+                paddingTop: 6,              // ↓ menos padding vertical
+                paddingBottom: 6,
+                lineHeight: 1.1,
+                whiteSpace: "nowrap",
+              },
+              root: {
+                color: MARROM,
+                borderBottom: "1px solid rgba(0,0,0,0.06)",
+              },
+            },
+          },
+
           MuiIconButton: {
             styleOverrides: {
               root: { color: MARROM, "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
