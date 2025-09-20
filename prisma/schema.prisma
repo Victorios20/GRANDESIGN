@@ -41,12 +41,25 @@ model frete {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model materiais {
   id                Int              @id @default(autoincrement())
-  descricao         String           @unique @db.VarChar(150)
+  descricao         String           @db.VarChar(150)
   tipo              String           @db.VarChar(20)
   preco_unitario    Decimal          @db.Decimal(10, 2)
   unidade_de_medida String?          @default("un") @db.VarChar(20)
+  fornecedorId      Int?
+  fornecedor        fornecedores?    @relation(fields: [fornecedorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   receitas_fixas    receitas_fixas[]
+
+  @@index([tipo])
+  @@index([fornecedorId])
+  @@unique([descricao, fornecedorId], map: "ux_materiais_desc_fornecedor")
 }
+
+model fornecedores {
+  id         Int          @id @default(autoincrement())
+  nome       String       @unique @db.VarChar(120)
+  materiais  materiais[]
+}
+
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
