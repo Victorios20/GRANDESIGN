@@ -8,9 +8,10 @@ function getParam(url: URL, k: string) {
 
 export async function GET(req: Request) {
   const url = new URL(req.url)
+  const search = getParam(url, "search") || undefined
+  
   const page = Number(getParam(url, "page") || "1")
   const perPage = Number(getParam(url, "perPage") || "20")
-  const search = getParam(url, "search") || undefined
   const orderBy = getParam(url, "orderBy") || undefined
   const orderDir = (getParam(url, "orderDir") as "asc" | "desc" | null) || undefined
   const bairro = getParam(url, "bairro") || undefined

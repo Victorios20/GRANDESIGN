@@ -63,61 +63,136 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
   const page = Math.max(1, Number(params.page || 1))
   const perPage = Math.min(100, Math.max(1, Number(params.perPage || 20)))
   const skip = (page - 1) * perPage
-  const orderBy = pickOrder(params.orderBy, params.orderDir)
 
-  const where: Prisma.orcamentoWhereInput = {
-    AND: [
-      params.search ? {
-        OR: [
-          { titulo: { contains: params.search, mode: "insensitive" } },
-          { cliente: { nome: { contains: params.search, mode: "insensitive" } } },
-          { cliente: { telefone: { contains: params.search, mode: "insensitive" } } },
-          { cliente: { bairro: { contains: params.search, mode: "insensitive" } } },
-          { tipo_obra: { tipo_obra: { contains: params.search, mode: "insensitive" } } }
-        ]
-      } : {},
-      like(params.bairro) ? { cliente: { bairro: { contains: like(params.bairro), mode: "insensitive" } } } : {},
-      like(params.telefone) ? { cliente: { telefone: { contains: like(params.telefone), mode: "insensitive" } } } : {},
-      params.cidadeId ? { cliente: { cidade_id: params.cidadeId || undefined } } : {},
-      params.tipoObraId ? { tipo_obra_id: params.tipoObraId || undefined } : {},
-      params.dIni || params.dFim ? {
-        data_ultima_alteracao: {
-          gte: params.dIni ? new Date(params.dIni) : undefined,
-          lte: params.dFim ? new Date(params.dFim + "T23:59:59.999Z") : undefined
-        }
-      } : {}
-    ]
+const rawSearch = (params.search ?? "").trim()
+const searchPattern = rawSearch ? `%${rawSearch.replace(/([_%\\])/g, "\\$1").replace(/\s+/g, "%")}%` : null
+const bairroPattern = (params.bairro ?? "").trim()
+  ? `%${String(params.bairro).trim().replace(/([_%\\])/g, "\\$1").replace(/\s+/g, "%")}%`
+  : null
+const dIni = params.dIni ? new Date(params.dIni) : null
+const dFim = params.dFim ? new Date(`${params.dFim}T23:59:59.999Z`) : null
+const cidadeId = params.cidadeId ?? null
+const tipoObraId = params.tipoObraId ?? null
+const telefoneFiltro = (params.telefone ?? "").trim() || null
+const searchDigits = rawSearch.replace(/\D+/g, "")
+
+const ob = (params.orderBy || "data_ultima_alteracao")
+const asc = params.orderDir === "asc"
+
+const totalRows = await prisma.$queryRaw<Array<{ count: bigint }>>`
+  SELECT COUNT(*)::bigint AS count
+  FROM orcamento o
+  JOIN cliente c ON c.id = o.cliente_id
+  LEFT JOIN cidades ci ON ci.id = c.cidade_id
+  LEFT JOIN tipo_obra to2 ON to2.id = o.tipo_obra_id
+  WHERE
+    (${searchPattern as any}::text IS NULL OR (
+      unaccent(lower(c.nome))   LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(o.titulo)) LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(c.bairro)) LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(ci.nome))  LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      (CASE WHEN ${searchDigits as any}::text <> '' THEN regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || ${searchDigits as any} || '%' ELSE false END)
+    ))
+    AND (${bairroPattern as any}::text IS NULL OR
+      unaccent(lower(c.bairro)) LIKE unaccent(lower(${bairroPattern as any})) ESCAPE '\\'
+    )
+    AND (${dIni as any}::timestamp IS NULL OR o.data_ultima_alteracao >= ${dIni as any})
+    AND (${dFim as any}::timestamp IS NULL OR o.data_ultima_alteracao <= ${dFim as any})
+    AND (${cidadeId as any}::int4 IS NULL OR c.cidade_id = ${cidadeId as any})
+    AND (${tipoObraId as any}::int4 IS NULL OR o.tipo_obra_id = ${tipoObraId as any})
+    AND (${telefoneFiltro as any}::text IS NULL OR
+      regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || regexp_replace(${telefoneFiltro as any}, '\\D', '', 'g') || '%'
+    )
+`
+
+const total = Number(totalRows?.[0]?.count ?? 0)
+
+const rows = await prisma.$queryRaw<Array<{
+  id: number
+  titulo: string | null
+  cliente_nome: string | null
+  bairro: string | null
+  cidade_nome: string | null
+  cliente_telefone: string | null
+  tipo_obra: string | null
+  data_ultima_alteracao: Date | null
+  totais_madeiras_preco: number | null
+  totais_materiais_preco: number | null
+  totais_frete_preco: number | null
+  totais_comissao_preco: number | null
+  totais_empresa_ps_preco: number | null
+  totais_empresa_gd_preco: number | null
+}>>`
+  SELECT
+    o.id,
+    o.titulo,
+    c.nome AS cliente_nome,
+    c.bairro AS bairro,
+    ci.nome AS cidade_nome,
+    c.telefone AS cliente_telefone,
+    to2.tipo_obra AS tipo_obra,
+    o.data_ultima_alteracao,
+    o.totais_madeiras_preco,
+    o.totais_materiais_preco,
+    o.totais_frete_preco,
+    o.totais_comissao_preco,
+    o.totais_empresa_ps_preco,
+    o.totais_empresa_gd_preco
+  FROM orcamento o
+  JOIN cliente c ON c.id = o.cliente_id
+  LEFT JOIN cidades ci ON ci.id = c.cidade_id
+  LEFT JOIN tipo_obra to2 ON to2.id = o.tipo_obra_id
+  WHERE
+    (${searchPattern as any}::text IS NULL OR (
+      unaccent(lower(c.nome))   LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(o.titulo)) LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(c.bairro)) LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      unaccent(lower(ci.nome))  LIKE unaccent(lower(${searchPattern as any})) ESCAPE '\\' OR
+      (CASE WHEN ${searchDigits as any}::text <> '' THEN regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || ${searchDigits as any} || '%' ELSE false END)
+    ))
+    AND (${bairroPattern as any}::text IS NULL OR
+      unaccent(lower(c.bairro)) LIKE unaccent(lower(${bairroPattern as any})) ESCAPE '\\'
+    )
+    AND (${dIni as any}::timestamp IS NULL OR o.data_ultima_alteracao >= ${dIni as any})
+    AND (${dFim as any}::timestamp IS NULL OR o.data_ultima_alteracao <= ${dFim as any})
+    AND (${cidadeId as any}::int4 IS NULL OR c.cidade_id = ${cidadeId as any})
+    AND (${tipoObraId as any}::int4 IS NULL OR o.tipo_obra_id = ${tipoObraId as any})
+    AND (${telefoneFiltro as any}::text IS NULL OR
+      regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || regexp_replace(${telefoneFiltro as any}, '\\D', '', 'g') || '%'
+    )
+  ORDER BY
+    CASE WHEN ${ob === "titulo" && asc}  THEN o.titulo END ASC,
+    CASE WHEN ${ob === "titulo" && !asc} THEN o.titulo END DESC,
+    CASE WHEN ${ob === "cliente" && asc} THEN c.nome END ASC,
+    CASE WHEN ${ob === "cliente" && !asc} THEN c.nome END DESC,
+    CASE WHEN ${ob === "bairro" && asc}  THEN c.bairro END ASC,
+    CASE WHEN ${ob === "bairro" && !asc} THEN c.bairro END DESC,
+    CASE WHEN ${ob === "cidade" && asc}  THEN ci.nome END ASC,
+    CASE WHEN ${ob === "cidade" && !asc} THEN ci.nome END DESC,
+    CASE WHEN ${ob === "tipoObra" && asc}  THEN to2.tipo_obra END ASC,
+    CASE WHEN ${ob === "tipoObra" && !asc} THEN to2.tipo_obra END DESC,
+    CASE WHEN ${ob === "data_ultima_alteracao" && asc}  THEN o.data_ultima_alteracao END ASC,
+    CASE WHEN ${ob === "data_ultima_alteracao" && !asc} THEN o.data_ultima_alteracao END DESC,
+    o.id DESC
+  LIMIT ${perPage} OFFSET ${skip}
+`
+
+const dados = rows.map((r) => {
+  const valor = sumValores(r as any)
+  return {
+    id: r.id,
+    titulo: r.titulo ?? null,
+    cliente: r.cliente_nome ?? null,
+    bairro: r.bairro ?? null,
+    dataISO: r.data_ultima_alteracao ? new Date(r.data_ultima_alteracao).toISOString() : null,
+    data_ultima_alteracao: r.data_ultima_alteracao ? new Date(r.data_ultima_alteracao).toISOString() : null,
+    valorFormatado: formatBRL(valor),
+    tipoObra: r.tipo_obra ?? null,
+    cidade: r.cidade_nome ?? null,
+    clienteTelefone: r.cliente_telefone ?? null
   }
+})
 
-  const [total, rows] = await Promise.all([
-    prisma.orcamento.count({ where }),
-    prisma.orcamento.findMany({
-      where,
-      include: {
-        cliente: { include: { cidades: true } },
-        tipo_obra: true
-      },
-      orderBy,
-      skip,
-      take: perPage
-    })
-  ])
+return { dados, total }
 
-  const dados = rows.map((o) => {
-    const valor = sumValores(o as any)
-    return {
-      id: o.id,
-      titulo: o.titulo ?? null,
-      cliente: o.cliente?.nome ?? null,
-      bairro: o.cliente?.bairro ?? null,
-      dataISO: o.data_ultima_alteracao?.toISOString(),
-      data_ultima_alteracao: o.data_ultima_alteracao?.toISOString(),
-      valorFormatado: formatBRL(valor),
-      tipoObra: o.tipo_obra?.tipo_obra ?? null,
-      cidade: o.cliente?.cidades?.nome ?? null,
-      clienteTelefone: o.cliente?.telefone ?? null
-    }
-  })
-
-  return { dados, total }
 }

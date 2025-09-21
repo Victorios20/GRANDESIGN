@@ -1,7 +1,8 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-import { useState, useEffect, ChangeEvent } from "react"
+import { useState, useEffect, useMemo, ChangeEvent } from "react"
+
 
 import { useRouter } from "next/navigation"
 import {
@@ -95,13 +96,11 @@ type Dim = {
     comprimentoMenor: number
 }
 
-
-
-
 type Componente = { id: number; nome: string }
-
+type Fornecedor = { id: number; nome: string }
 
 type LinksState = { slide?: string; pdf?: string }
+
 
 export type InitialData = {
     id: number
@@ -279,6 +278,22 @@ async function putJSON<T>(url: string, data: unknown): Promise<T> {
 
     return (isJson ? r.json() : (null as unknown)) as Promise<T>
 }
+
+async function getFornecedores(): Promise<Fornecedor[]> {
+    const r = await fetch("/api/fornecedores", { cache: "no-store" })
+    if (!r.ok) throw new Error("Falha ao listar fornecedores")
+    return r.json()
+}
+
+async function getMadeirasByFornecedor(fornecedorId: number): Promise<Array<{ nome: string; preco: number }>> {
+    const r = await fetch(`/api/materiais?fornecedorId=${fornecedorId}`, { cache: "no-store" })
+    if (!r.ok) throw new Error("Falha ao listar madeiras do fornecedor")
+    const rows: Array<{ id: number; descricao: string; preco_unitario: number }> = await r.json()
+    return rows
+        .map(r => ({ nome: r.descricao, preco: Number(r.preco_unitario ?? 0) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+}
+
 
 const updateOrcamentoAPI = (id: number, payload: UpdateOrcamentoInput) =>
     putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
@@ -513,21 +528,70 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     /* --------------------------- Catálogos --------------------------- */
     const [catalogo, setCatalogo] = useState<{
+        // madeiras agora vêm por fornecedor → usamos 'catalogoMadeiras'
         madeiras: { nome: string; preco: number }[]
         materiaisGerais: { nome: string; preco: number }[]
         telhas: { nome: string; preco: number }[]
     }>({ madeiras: [], materiaisGerais: [], telhas: [] })
 
+    // catálogo dinâmico para MADEIRAS (depende do fornecedor selecionado)
+    const [catalogoMadeiras, setCatalogoMadeiras] = useState<{ nome: string; preco: number }[]>([])
+
     const [componentes, setComponentes] = useState<Componente[]>([])
     const [tiposObra, setTiposObra] = useState<TipoObra[]>([])
     const [cidades, setCidades] = useState<Cidade[]>([])
 
+    // fornecedores (lista + seleção)
+    const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
+    const [fornecedorSel, setFornecedorSel] = useState<number | null>(null)
+    const fornecedorSelObj = useMemo(
+        () => fornecedores.find(f => f.id === fornecedorSel) || null,
+        [fornecedores, fornecedorSel]
+    )
+
     useEffect(() => {
-        setCatalogo(catalogoProp ?? { madeiras: [], materiaisGerais: [], telhas: [] })
+        // materiais gerais e telhas continuam vindos por props
+        setCatalogo({
+            madeiras: [], // ignorado (usamos catalogoMadeiras)
+            materiaisGerais: catalogoProp?.materiaisGerais ?? [],
+            telhas: catalogoProp?.telhas ?? [],
+        })
         setComponentes(componentesProp ?? [])
         setTiposObra(tiposObraProp ?? [])
         setCidades(cidadesProp ?? [])
     }, [catalogoProp, componentesProp, tiposObraProp, cidadesProp])
+
+    // carregar fornecedores + seleção inicial
+    useEffect(() => {
+        ; (async () => {
+            try {
+                const lista = await getFornecedores()
+                setFornecedores(lista)
+                const fromLS = Number(localStorage.getItem("gd.fornecedorSelecionado") || "")
+                const preferido =
+                    (Number.isFinite(fromLS) && lista.some(f => f.id === fromLS)) ? fromLS :
+                        (lista.find(f => f.nome.toLowerCase() === "shopping da madeira")?.id ?? lista[0]?.id)
+                setFornecedorSel(preferido ?? null)
+            } catch (e: any) {
+                toast.error(e?.message ?? "Falha ao carregar fornecedores")
+            }
+        })()
+    }, [])
+
+    // ao trocar fornecedor → buscar madeiras
+    useEffect(() => {
+        if (!fornecedorSel) return
+        localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
+            ; (async () => {
+                try {
+                    const list = await getMadeirasByFornecedor(fornecedorSel)
+                    setCatalogoMadeiras(list)
+                } catch (e: any) {
+                    toast.error(e?.message ?? "Falha ao listar madeiras do fornecedor")
+                }
+            })()
+    }, [fornecedorSel])
+
 
 
     /* ---------------------- Estado principal (Etapas) ---------------------- */
@@ -881,7 +945,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }
 
         if (nomeSel !== "vazio") {
-            const ref = catalogo[c].find(m => m.nome === nomeSel)
+            const source = c === "madeiras" ? catalogoMadeiras : catalogo[c]
+            const ref = source.find(m => m.nome === nomeSel)
             if (ref) {
                 novo.nome = ref.nome
                 novo.preco = ref.preco
@@ -890,6 +955,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setMateriais(prev => ({ ...prev, [c]: [...prev[c], novo] }))
         startEdit(c, novo)
     }
+
 
     /* ===================================================================
      *                         Totais (Etapa 3)
@@ -1476,29 +1542,53 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         <div key={cat} className="border rounded-lg shadow-sm" id={cat === "madeiras" ? FIELD_IDS.madeiras : undefined}>
                             {/* Cabeçalho da tabela */}
                             <div className="flex justify-between items-center px-3 py-2 bg-bege rounded-t-lg">
-                                <span className="font-medium text-sm">{titulo}</span>
+                                <span className="font-medium text-sm">
+                                    {cat === "madeiras" && fornecedorSelObj ? `Madeiras — ${fornecedorSelObj.nome}` : titulo}
+                                </span>
 
-                                {/* seletor “+ Adicionar” – reseta após cada inclusão */}
-                                <Select
-                                    key={addResetKey[cat]}
-                                    onValueChange={v => {
-                                        addMaterial(cat, v)
-                                        setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 }))
-                                    }}
-                                >
-                                    <SelectTrigger className="w-52 h-8 text-xs bg-white">
-                                        <SelectValue placeholder="+ Adicionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="vazio">(linha vazia)</SelectItem>
-                                        {catalogo[cat].map(o => (
-                                            <SelectItem key={o.nome} value={o.nome}>
-                                                {o.nome}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div className="flex items-center gap-2">
+                                    {cat === "madeiras" && (
+                                        <Select
+                                            value={fornecedorSel ? String(fornecedorSel) : ""}
+                                            onValueChange={(v) => setFornecedorSel(Number(v))}
+                                        >
+                                            <SelectTrigger className="h-8 w-56 bg-white text-xs">
+                                                <SelectValue placeholder="Fornecedor" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {fornecedores.map((f) => (
+                                                    <SelectItem key={f.id} value={String(f.id)}>
+                                                        {f.nome}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+
+                                    {/* seletor “+ Adicionar” – reseta após cada inclusão */}
+                                    <Select
+                                        key={addResetKey[cat]}
+                                        onValueChange={v => {
+                                            addMaterial(cat, v)
+                                            setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 }))
+                                        }}
+                                        disabled={cat === "madeiras" && !fornecedorSel}
+                                    >
+                                        <SelectTrigger className="w-52 h-8 text-xs bg-white">
+                                            <SelectValue placeholder="+ Adicionar" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="vazio">(linha vazia)</SelectItem>
+                                            {(cat === "madeiras" ? catalogoMadeiras : catalogo[cat]).map(o => (
+                                                <SelectItem key={o.nome} value={o.nome}>
+                                                    {o.nome}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
+
 
                             {/* Corpo da tabela */}
                             <div className="overflow-x-auto">
@@ -1571,7 +1661,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                                     <Select
                                                                         value={editData.nome || ""}
                                                                         onValueChange={v => {
-                                                                            const ref = catalogo[cat].find(o => o.nome === v)
+                                                                            const source = catalogoMadeiras
+                                                                            const ref = source.find(o => o.nome === v)
                                                                             setEditData(d => ({ ...d, nome: v, preco: ref ? ref.preco : d.preco }))
                                                                         }}
                                                                     >
@@ -1579,13 +1670,14 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                                             <SelectValue placeholder="Selecione" />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
-                                                                            {catalogo[cat].map(o => (
+                                                                            {catalogoMadeiras.map(o => (
                                                                                 <SelectItem key={o.nome} value={o.nome}>
                                                                                     {o.nome}
                                                                                 </SelectItem>
                                                                             ))}
                                                                         </SelectContent>
                                                                     </Select>
+
                                                                 ) : (
                                                                     m.nome
                                                                 )}

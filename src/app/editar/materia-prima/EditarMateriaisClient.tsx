@@ -1,14 +1,4 @@
-/* ────────────────────────────────────────────────────────────────
-   File: app/home/editar-materiais/EditarMateriaisClient.tsx
-
-   Ajustes pedidos:
-   - Botão "Adicionar" no TOPO de cada tabela.
-   - Ao clicar, aparece uma "linha" de inclusão no TOPO (inputs + Salvar/Cancelar).
-     (Faz scrollIntoView para garantir visibilidade.)
-   - Deletar linhas (materiais: gerais/madeiras/telhas; e componentes).
-───────────────────────────────────────────────────────────────── */
 "use client"
-
 import { useMemo, useRef, useState, useEffect } from "react"
 import { PageLayout } from "@/components/ui/pageLayout"
 import {
@@ -32,6 +22,15 @@ import { Edit, Save, X, Loader2, Plus, Trash2 } from "lucide-react"
 
 import { Toaster, toast } from "sonner"
 import ConfirmDeleteModal from "@/components/modals/ConfirmDeleteModal"
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
 
 
 export type ItemBase = { id: number; nome: string; preco: number }
@@ -139,12 +138,68 @@ async function postComponente(nome: string) {
   return res.json() as Promise<{ ok: true; id: number }>
 }
 
-/* ============================
- * Tabela genérica p/ Materiais
- * - Edita NOME e PREÇO
- * - Adiciona novo item (via botão no topo)
- * - Exclui item
- * ============================ */
+type Fornecedor = { id: number; nome: string }
+
+async function getFornecedores(): Promise<Fornecedor[]> {
+  const res = await fetch(`/api/fornecedores`, { cache: "no-store" })
+  if (!res.ok) throw new Error("Falha ao listar fornecedores")
+  return res.json()
+}
+
+async function getMadeirasByFornecedor(fornecedorId: number) {
+  const res = await fetch(`/api/materiais?fornecedorId=${fornecedorId}`, { cache: "no-store" })
+  if (!res.ok) throw new Error("Falha ao listar madeiras do fornecedor")
+  return res.json() as Promise<Array<{ id: number; descricao: string; preco_unitario: number }>>
+}
+
+async function postMadeira(input: {
+  descricao: string
+  preco_unitario: number
+  unidade_de_medida?: string | null
+  fornecedorId: number
+}) {
+  const res = await fetch(`/api/materiais`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.error || "Falha ao criar madeira")
+  }
+  return res.json() as Promise<{ id: number }>
+}
+
+async function patchMadeira(
+  id: number,
+  fields: { descricao?: string; preco_unitario?: number; unidade_de_medida?: string | null }
+) {
+  const res = await fetch(`/api/materiais/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.error || "Falha ao atualizar madeira")
+  }
+  return res.json()
+}
+
+async function deleteMadeira(id: number) {
+  const res = await fetch(`/api/materiais/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data?.error || "Falha ao excluir madeira")
+  }
+  return res.json()
+}
+
 function TabelaMateriais({
   title,
   tipo,
@@ -170,8 +225,16 @@ function TabelaMateriais({
   const [novoPreco, setNovoPreco] = useState("")
   const addRef = useRef<HTMLDivElement | null>(null)
 
+  const isMadeiraTabela = tipo === "madeira"
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([])
+  const [fornecedorSel, setFornecedorSel] = useState<number | null>(null)
+  const fornecedorSelObj = useMemo(
+    () => fornecedores.find((f) => f.id === fornecedorSel) || null,
+    [fornecedores, fornecedorSel]
+  )
 
   const [confirmOpen, setConfirmOpen] = useState(false)
+
   const [confirmLoading, setConfirmLoading] = useState(false)
   const [toDelete, setToDelete] = useState<{ id: number; nome: string } | null>(null)
 
@@ -181,6 +244,40 @@ function TabelaMateriais({
       addRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" })
     }
   }, [adding])
+
+  useEffect(() => {
+    if (!isMadeiraTabela) return
+      ; (async () => {
+        try {
+          const lista = await getFornecedores()
+          setFornecedores(lista)
+          const fromLS = Number(localStorage.getItem("gd.fornecedorSelecionado") || "")
+          const preferido =
+            (Number.isFinite(fromLS) && lista.some((f) => f.id === fromLS)) ? fromLS :
+              (lista.find((f) => f.nome.toLowerCase() === "shopping da madeira")?.id ?? lista[0]?.id)
+          setFornecedorSel(preferido ?? null)
+        } catch (err: any) {
+          toast.error(err?.message ?? "Falha ao carregar fornecedores")
+        }
+      })()
+  }, [isMadeiraTabela])
+
+
+  useEffect(() => {
+    if (!isMadeiraTabela || !fornecedorSel) return
+    localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
+      ; (async () => {
+        try {
+          const rows = await getMadeirasByFornecedor(fornecedorSel)
+          const mapped = rows
+            .map((r) => ({ id: r.id, nome: r.descricao, preco: Number(r.preco_unitario ?? 0) }))
+            .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+          setItems(mapped)
+        } catch (err: any) {
+          toast.error(err?.message ?? "Falha ao listar madeiras do fornecedor")
+        }
+      })()
+  }, [isMadeiraTabela, fornecedorSel, setItems])
 
   // Deleção em progresso por id
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -230,10 +327,12 @@ function TabelaMateriais({
         )
       )
 
-      await patchMaterial(editingId, {
-        descricao: nome,
-        preco_unitario: parsed,
-      })
+      if (isMadeiraTabela) {
+        await patchMadeira(editingId, { descricao: nome, preco_unitario: parsed })
+      } else {
+        await patchMaterial(editingId, { descricao: nome, preco_unitario: parsed })
+      }
+
 
       toast.success("Material atualizado!")
       cancelEdit()
@@ -268,16 +367,37 @@ function TabelaMateriais({
     }
 
     try {
-      setAddingSaving(true) // LIGA LOADING
-      const res = await postMaterial({ descricao: nome, tipo, preco_unitario: parsed })
-      setItems((prev) => [{ id: res.id, nome, preco: parsed }, ...prev].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")))
+      setAddingSaving(true)
+      if (isMadeiraTabela) {
+        if (!fornecedorSel) {
+          toast.warning("Selecione um fornecedor.")
+          return
+        }
+        const res = await postMadeira({
+          descricao: nome,
+          preco_unitario: parsed,
+          unidade_de_medida: null,
+          fornecedorId: fornecedorSel,
+        })
+        const rows = await getMadeirasByFornecedor(fornecedorSel)
+        const mapped = rows
+          .map((r) => ({ id: r.id, nome: r.descricao, preco: Number(r.preco_unitario ?? 0) }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+        setItems(mapped)
+      } else {
+        const res = await postMaterial({ descricao: nome, tipo, preco_unitario: parsed })
+        setItems((prev) =>
+          [{ id: res.id, nome, preco: parsed }, ...prev].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+        )
+      }
       cancelAdd()
       toast.success("Material criado!")
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao criar material.")
     } finally {
-      setAddingSaving(false) // DESLIGA LOADING
+      setAddingSaving(false)
     }
+
   }
 
   const openConfirm = (row: ItemBase) => {
@@ -291,7 +411,12 @@ function TabelaMateriais({
       setConfirmLoading(true)
       // otimista
       setItems((prev) => prev.filter((i) => i.id !== toDelete.id))
-      await deleteMaterial(toDelete.id)
+      if (isMadeiraTabela) {
+        await deleteMadeira(toDelete.id)
+      } else {
+        await deleteMaterial(toDelete.id)
+      }
+
       toast.success("Material excluído!")
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao excluir material.")
@@ -309,20 +434,37 @@ function TabelaMateriais({
     <Card className="w-full border shadow-sm rounded-2xl">
       <CardHeader className="flex items-center justify-between bg-bege-header rounded-t-2xl">
         <CardTitle className="text-lg font-semibold text-marromEscuro">
-          {title}
+          {isMadeiraTabela && fornecedorSelObj ? `Madeiras — ${fornecedorSelObj.nome}` : title}
         </CardTitle>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {isMadeiraTabela && (
+            <Select
+              value={fornecedorSel ? String(fornecedorSel) : ""}
+              onValueChange={(v) => setFornecedorSel(Number(v))}
+            >
+              <SelectTrigger className="h-9 w-56 bg-white">
+                <SelectValue placeholder="Selecione o fornecedor" />
+              </SelectTrigger>
+              <SelectContent>
+                {fornecedores.map((f) => (
+                  <SelectItem key={f.id} value={String(f.id)}>
+                    {f.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
           {!adding ? (
             <Button
               size="sm"
               onClick={startAdd}
-              disabled={editingId !== null || addingSaving || isSaving}
+              disabled={editingId !== null || addingSaving || isSaving || (isMadeiraTabela && !fornecedorSel)}
               title="Adicionar"
             >
               <Plus className="w-4 h-4 mr-2" />
               Adicionar
             </Button>
-
           ) : (
             <div className="flex items-center gap-2" ref={addRef}>
               <Input
@@ -340,7 +482,6 @@ function TabelaMateriais({
                 onChange={(e) => setNovoPreco(e.target.value)}
                 disabled={addingSaving}
               />
-
               <Button
                 size="sm"
                 onClick={saveAdd}
@@ -364,11 +505,11 @@ function TabelaMateriais({
               >
                 <X className="w-4 h-4" />
               </Button>
-
             </div>
           )}
         </div>
       </CardHeader>
+
 
       <CardContent className="overflow-x-auto rounded-b-2xl">
         <Table className="rounded-xl overflow-hidden">
@@ -422,7 +563,7 @@ function TabelaMateriais({
                           size="icon"
                           onClick={saveEdit}
                           disabled={isSaving}
-                          aria-busy={isSaving}   
+                          aria-busy={isSaving}
                           aria-label="Salvar"
                           title="Salvar"
                         >
@@ -462,7 +603,7 @@ function TabelaMateriais({
                           variant="ghost"
                           size="icon"
                           onClick={() => openConfirm(row)}
-                          disabled={editingId !== null || isSaving || addingSaving}  
+                          disabled={editingId !== null || isSaving || addingSaving}
                           aria-label="Excluir"
                           title="Excluir"
                         >
@@ -604,7 +745,7 @@ function TabelaComponentes({
     const nome = (novoNome || "").trim()
     if (!nome) { toast.warning("Informe um nome para adicionar."); return }
     try {
-      setAddingSaving(true)                                
+      setAddingSaving(true)
       const res = await postComponente(nome)
       setItems((prev) => [{ id: res.id, nome }, ...prev])
       cancelAdd()
@@ -612,7 +753,7 @@ function TabelaComponentes({
     } catch (err: any) {
       toast.error(err?.message ?? "Falha ao criar componente.")
     } finally {
-      setAddingSaving(false)                              
+      setAddingSaving(false)
     }
   }
 
@@ -650,7 +791,7 @@ function TabelaComponentes({
             <Button
               size="sm"
               onClick={startAdd}
-              disabled={editingId !== null || addingSaving || isSaving}  
+              disabled={editingId !== null || addingSaving || isSaving}
               title="Adicionar"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -664,16 +805,16 @@ function TabelaComponentes({
                 placeholder="Nome do componente"
                 value={novoNome}
                 onChange={(e) => setNovoNome(e.target.value)}
-                disabled={addingSaving}                          
+                disabled={addingSaving}
               />
               <Button
                 size="sm"
                 onClick={saveAdd}
                 title="Salvar novo"
-                disabled={addingSaving}                           
-                aria-busy={addingSaving}                         
+                disabled={addingSaving}
+                aria-busy={addingSaving}
               >
-                {addingSaving ? (                               
+                {addingSaving ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <Save className="w-4 h-4 mr-2" />
@@ -685,7 +826,7 @@ function TabelaComponentes({
                 variant="ghost"
                 onClick={cancelAdd}
                 title="Cancelar"
-                disabled={addingSaving}                            
+                disabled={addingSaving}
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -732,7 +873,7 @@ function TabelaComponentes({
                           size="icon"
                           onClick={saveEdit}
                           disabled={isSaving}
-                          aria-busy={isSaving}         
+                          aria-busy={isSaving}
                           aria-label="Salvar"
                           title="Salvar"
                         >
@@ -757,7 +898,7 @@ function TabelaComponentes({
                           variant="ghost"
                           size="icon"
                           onClick={() => startEdit(row)}
-                          disabled={editingId !== null || adding || isSaving || addingSaving} 
+                          disabled={editingId !== null || adding || isSaving || addingSaving}
                           aria-label="Editar"
                           title="Editar"
                         >
@@ -768,7 +909,7 @@ function TabelaComponentes({
                           variant="ghost"
                           size="icon"
                           onClick={() => openConfirm(row)}
-                          disabled={editingId !== null || isSaving || addingSaving} 
+                          disabled={editingId !== null || isSaving || addingSaving}
                           aria-label="Excluir"
                           title="Excluir"
                         >

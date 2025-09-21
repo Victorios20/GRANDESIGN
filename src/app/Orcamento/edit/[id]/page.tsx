@@ -2,11 +2,11 @@
 import { notFound } from "next/navigation"
 import OrcamentoPage, { type InitialData } from "../../_components/OrcamentoPage"
 
-// DB (server) – chamamos direto, sem HTTP
+// DB (server)
 import { listarTiposObra } from "@/actions/tipo-obra-db/tipo-obra-db"
 import { getCidadesDB } from "@/actions/cidades-db/cidades-db"
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
-import { listarMateriaisPorTipoDB } from "@/actions/materiais-db/materiais-db"
+import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
 import { getOrcamentoById, type GetOrcamentoResult } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
 // Opcional: revalidate em 5 min para catálogos
@@ -74,28 +74,25 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
 export default async function Page(context: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await context.params
   const id = Number(idStr)
-
   if (!Number.isFinite(id)) {
     notFound()
   }
 
-  // Carrega catálogos em paralelo
-  const [tiposObra, cidades, componentes, madeirasDB, geraisDB, telhasDB, orc] = await Promise.all([
+  const [tiposObra, cidades, componentes, geraisDB, telhasDB, orc] = await Promise.all([
     listarTiposObra(),
     getCidadesDB(),
     listarComponentesDB(),
-    listarMateriaisPorTipoDB("madeira"),
-    listarMateriaisPorTipoDB("geral"),
-    listarMateriaisPorTipoDB("telha"),
+    listarMateriaisGerais(),
+    listarTelhas(),
     getOrcamentoById(id),
   ])
 
-  // Adapta shape do catálogo para o componente (nome/preco)
   const catalogo = {
-    madeiras: madeirasDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
-    materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
-    telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: m.preco_unitario })),
-  }
+  madeiras: [], // madeiras agora vêm no client por fornecedor selecionado
+  materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+  telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+}
+
 
   const initialData = toInitialData(orc)
 
