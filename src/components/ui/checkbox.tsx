@@ -1,58 +1,28 @@
-/* src/components/ui/checkbox.tsx */
 "use client"
 
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
-import { CheckIcon } from "lucide-react"
-
+import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-function Checkbox(
-  { className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>,
-) {
-  return (
-    <CheckboxPrimitive.Root
-      data-slot="checkbox"
-      className={cn(
-        /* ─────────────── TAMANHO, BORDAS, ETC ─────────────── */
-        "peer size-4 shrink-0 rounded-[4px] shadow-xs outline-none transition-shadow",
-
-        /* ─────────────── ESTADO DESMARCADO ─────────────── */
-        // Borda bege quando desmarcado
-        "border border-bege",
-        // Fundo padrão (escuro se dark mode)
-        "dark:bg-input/30",
-
-       /* ─────────────── ESTADO MARCADO ─────────────── */
-// Fundo bege quando marcado (cor arbitrária via Tailwind)
-"data-[state=checked]:bg-bege",
-// Borda bege quando marcado
-"data-[state=checked]:border-bege",
-
-
-        /* ─────────────── FOCUS E VALIDAÇÕES ─────────────── */
-        // Anel de foco acessível
-        "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:border-ring",
-        // Borda vermelha se inválido (formulário)
-        "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
-
-        /* ─────────────── ESTADO DISABLED ─────────────── */
-        "disabled:cursor-not-allowed disabled:opacity-50",
-
-        /* ─────────────── ESTILOS EXTERNOS ─────────────── */
-        className,
-      )}
-      {...props}
-    >
-      <CheckboxPrimitive.Indicator
-        data-slot="checkbox-indicator"
-        className="flex items-center justify-center transition-none"
-      >
-        {/* Ícone de check (✓) em marrom escuro — ALTERE AQUI para `text-white` se quiser ele branco */}
-        <CheckIcon className="size-3.5 text-marromEscuro" />
-      </CheckboxPrimitive.Indicator>
-    </CheckboxPrimitive.Root>
-  )
-}
+const Checkbox = React.forwardRef<
+  React.ComponentRef<typeof CheckboxPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <CheckboxPrimitive.Root
+    ref={ref}
+    className={cn(
+      "peer h-4 w-4 shrink-0 rounded-sm border border-input bg-transparent ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:!bg-[#E8C99A] data-[state=checked]:!border-[#E8C99A] data-[state=checked]:text-[#8B5E3C]"
+,
+      className
+    )}
+    {...props}
+  >
+    <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
+      <Check className="h-4 w-4" />
+    </CheckboxPrimitive.Indicator>
+  </CheckboxPrimitive.Root>
+))
+Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }
