@@ -579,18 +579,81 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }, [])
 
     // ao trocar fornecedor → buscar madeiras
-    useEffect(() => {
-        if (!fornecedorSel) return
-        localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
-            ; (async () => {
-                try {
-                    const list = await getMadeirasByFornecedor(fornecedorSel)
-                    setCatalogoMadeiras(list)
-                } catch (e: any) {
-                    toast.error(e?.message ?? "Falha ao listar madeiras do fornecedor")
-                }
-            })()
-    }, [fornecedorSel])
+    // carregar fornecedores + seleção inicial
+useEffect(() => {
+  ;(async () => {
+    try {
+      const lista = await getFornecedores()
+      setFornecedores(lista)
+      const fromLS = Number(localStorage.getItem("gd.fornecedorSelecionado") || "")
+      const preferido =
+        (Number.isFinite(fromLS) && lista.some(f => f.id === fromLS)) ? fromLS :
+        (lista.find(f => f.nome.toLowerCase() === "shopping da madeira")?.id ?? lista[0]?.id)
+      setFornecedorSel(preferido ?? null)
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao carregar fornecedores")
+    }
+  })()
+}, [])
+
+// ao trocar fornecedor → buscar madeiras
+useEffect(() => {
+  if (!fornecedorSel) return
+  localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
+  ;(async () => {
+    try {
+      const list = await getMadeirasByFornecedor(fornecedorSel)
+      setCatalogoMadeiras(list)
+    } catch (e: any) {
+      toast.error(e?.message ?? "Falha ao listar madeiras do fornecedor")
+    }
+  })()
+}, [fornecedorSel])
+
+// ATUALIZAR preços na tabela de MADEIRAS quando fornecedor/catalogo mudarem
+useEffect(() => {
+  if (!fornecedorSel) return
+  if (!catalogoMadeiras.length) return
+  if (!materiais.madeiras.length) return
+
+  const mapa = new Map(catalogoMadeiras.map(o => [o.nome, o.preco]))
+
+  let changed = 0
+  const missing: string[] = []
+  let newEditPrice: number | undefined
+
+  const atualizadas = materiais.madeiras.map(m => {
+    const novoPreco = mapa.get(m.nome)
+    if (novoPreco == null) {
+      missing.push((m.nome ?? "").trim())
+      return m
+    }
+    if (Number(novoPreco) !== Number(m.preco)) {
+      changed++
+      if (edit?.cat === "madeiras" && edit.id === m.id) {
+        newEditPrice = novoPreco
+      }
+      return { ...m, preco: novoPreco }
+    }
+    return m
+  })
+
+  if (changed > 0) {
+    setMateriais(prev => ({ ...prev, madeiras: atualizadas }))
+    if (newEditPrice !== undefined) {
+      setEditData(d => ({ ...d, preco: newEditPrice! }))
+    }
+    toast.success(`Preços de madeiras atualizados (${changed})`)
+  }
+
+  const unicos = Array.from(new Set(missing.filter(Boolean)))
+  if (unicos.length) {
+    const lista = unicos.slice(0, 8).join(", ") + (unicos.length > 8 ? "…" : "")
+    toast.warning(`Itens não encontrados no fornecedor selecionado: ${lista}`)
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [fornecedorSel, catalogoMadeiras])
+
 
 
 
