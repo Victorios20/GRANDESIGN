@@ -19,7 +19,7 @@ export const BigShinyButton = React.forwardRef<HTMLButtonElement, BigShinyButton
           "relative cursor-pointer w-full h-20 sm:h-24 rounded-2xl px-8 font-semibold flex items-center justify-center gap-4",
           "text-2xl sm:text-3xl",
           "bg-white text-marromEscuro border-2 border-marromClaro",
-          "shadow-md hover:shadow-lg hover:bg-bege transition-colors",
+          "shadow-xl hover:shadow-2xl hover:bg-bege transition-colors",
           className
         )}
         initial={{ ["--x" as any]: "100%", scale: 0.9 }}

@@ -4,13 +4,35 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-/* --- contêiner -------------------------------- */
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+type CardProps = React.ComponentProps<"div"> & {
+  elevation?: 1 | 2 | 3 | 4
+  interactive?: boolean
+  noShadow?: boolean
+}
+
+const ELEVATION_MAP: Record<NonNullable<CardProps["elevation"]>, string> = {
+  1: "shadow-sm",
+  2: "shadow-lg",
+  3: "shadow-xl",
+  4: "shadow-2xl",
+}
+
+function Card({
+  className,
+  elevation = 3,
+  interactive = false,
+  noShadow,
+  ...props
+}: CardProps) {
+  const shadow = noShadow ? "" : ELEVATION_MAP[elevation]
+  const hover = interactive && !noShadow ? "transition-shadow hover:shadow-2xl" : ""
   return (
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-2xl border py-6",
+        shadow,
+        hover,
         className
       )}
       {...props}
@@ -18,7 +40,6 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/* --- cabeçalho -------------------------------- */
 function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -32,60 +53,40 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-/* --- TÍTULO (cor padrão: marrom-escuro) -------- */
 function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-title"
-      className={cn(
-        "leading-none font-semibold text-marromEscuro", // ← cor aplicada
-        className
-      )}
+      className={cn("leading-none font-semibold text-marromEscuro", className)}
       {...props}
     />
   )
 }
 
-/* --- SUBTÍTULO / descrição -------------------- */
 function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn(
-        "text-marromClaro text-sm",                     // ← cor aplicada
-        className
-      )}
+      className={cn("text-marromClaro text-sm", className)}
       {...props}
     />
   )
 }
 
-/* --- ação opcional (canto direito) ------------- */
 function CardAction({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className
-      )}
+      className={cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className)}
       {...props}
     />
   )
 }
 
-/* --- corpo ------------------------------------ */
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-content"
-      className={cn("px-6", className)}
-      {...props}
-    />
-  )
+  return <div data-slot="card-content" className={cn("px-6", className)} {...props} />
 }
 
-/* --- rodapé ----------------------------------- */
 function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
