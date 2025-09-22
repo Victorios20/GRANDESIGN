@@ -1,108 +1,124 @@
-// src/actions/CalcularMateriais/calcularMateriais-db.server.ts
-"use server"
+import { prisma } from "@/lib/prisma"
+import type { Prisma } from "@/generated/prisma"
 
-
- import { PrismaClient } from "@/generated/prisma"
-
-export type MaterialRow = {
+type MaterialRow = {
   id: number
   descricao: string
   tipo: string
   preco_unitario: number
-  unidade: string
-}
-
-type ReceitaFixa = { material_id: number; quantidade: number }
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __prisma__: PrismaClient | undefined
-}
-
-function getPrisma() {
-  if (!global.__prisma__) {
-    global.__prisma__ = new PrismaClient()
-  }
-  return global.__prisma__
-}
-
-const prisma = getPrisma()
-
-/** Aceita objetos tipo Decimal.js (com toNumber), strings, bigint, etc. */
-type DecimalJsLike = { toNumber?: () => number; valueOf?: () => unknown }
-
-const toNumber = (v: unknown): number => {
-  if (v == null) return 0
-  if (typeof v === "number") return v
-  if (typeof v === "bigint") return Number(v)
-  if (typeof v === "string") {
-    const n = Number(v)
-    return Number.isFinite(n) ? n : 0
-  }
-  if (typeof v === "object") {
-    const anyV = v as DecimalJsLike
-    if (typeof anyV.toNumber === "function") {
-      const n = anyV.toNumber()
-      return typeof n === "number" && Number.isFinite(n) ? n : 0
-    }
-    if (typeof anyV.valueOf === "function") {
-      const val = anyV.valueOf()
-      if (typeof val === "number") return Number.isFinite(val) ? val : 0
-      const n = Number(val as any)
-      return Number.isFinite(n) ? n : 0
-    }
-  }
-  return 0
-}
-
-type ReceitaFixaRowDB = {
-  material_id: number
-  quantidade: number | string | null | DecimalJsLike | unknown
-}
-
-type MaterialDBRow = {
-  id: number
-  descricao: string
-  tipo: string
-  preco_unitario: number | string | null | DecimalJsLike | unknown
   unidade_de_medida: string | null
+  fornecedorId: number | null
 }
 
-const mapMaterial = (m: MaterialDBRow): MaterialRow => ({
-  id: m.id,
-  descricao: m.descricao,
-  tipo: m.tipo,
-  preco_unitario: toNumber(m.preco_unitario),
-  unidade: m.unidade_de_medida ?? "un",
-})
+function toNumber(n: Prisma.Decimal | number): number {
+  return typeof n === "number" ? n : Number(n)
+}
 
-export async function getReceitasFixasServer(tipoObra: string): Promise<ReceitaFixa[]> {
-  if (!tipoObra) return []
-  const rows = (await prisma.receitas_fixas.findMany({
-    where: { tipo_obra: tipoObra },
-    select: { material_id: true, quantidade: true },
-  })) as ReceitaFixaRowDB[]
+function sanitizeDescricoes(descricoes: string[]): string[] {
+  const set = new Set<string>()
+  for (const d of descricoes) {
+    const s = (d ?? "").trim()
+    if (s) set.add(s)
+  }
+  return Array.from(set)
+}
 
-  return rows.map((r) => ({
-    material_id: r.material_id,
-    quantidade: toNumber(r.quantidade),
+export async function getMateriaisByDescricoesServer(
+  descricoes: string[],
+  fornecedorId: number,
+  opts?: { strict?: boolean }
+): Promise<MaterialRow[]> {
+  const list = sanitizeDescricoes(descricoes)
+  if (!list.length) return []
+  if (typeof fornecedorId !== "number") {
+    throw new Error("fornecedorId obrigatório")
+  }
+
+  const rows = await prisma.materiais.findMany({
+    where: {
+      descricao: { in: list },
+      OR: [
+        { AND: [{ tipo: "madeira" }, { fornecedorId }] },
+        { AND: [{ NOT: { tipo: "madeira" } }, { fornecedorId: null }] },
+      ],
+    },
+    select: {
+      id: true,
+      descricao: true,
+      tipo: true,
+      preco_unitario: true,
+      unidade_de_medida: true,
+      fornecedorId: true,
+    },
+  })
+
+  const result: MaterialRow[] = rows.map(r => ({
+    id: r.id,
+    descricao: r.descricao,
+    tipo: r.tipo,
+    preco_unitario: toNumber(r.preco_unitario),
+    unidade_de_medida: r.unidade_de_medida,
+    fornecedorId: r.fornecedorId ?? null,
   }))
+
+  if (opts?.strict !== false) {
+    const found = new Set(result.map(r => r.descricao))
+    const missing = list.filter(d => !found.has(d))
+    if (missing.length) {
+      throw new Error(`Materiais não encontrados para o fornecedor informado: ${missing.join(", ")}`)
+    }
+  }
+
+  return result
 }
 
-export async function getMateriaisByIdsServer(ids: number[]): Promise<MaterialRow[]> {
-  if (!Array.isArray(ids) || ids.length === 0) return []
-  const rows = (await prisma.materiais.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true },
-  })) as MaterialDBRow[]
-  return rows.map(mapMaterial)
+
+export async function getMateriaisByIdsServer(
+  ids: number[],
+  fornecedorId: number,
+  opts?: { strict?: boolean }
+): Promise<MaterialRow[]> {
+  const uniqueIds = Array.from(new Set(ids.filter(id => typeof id === "number" && Number.isFinite(id))))
+  if (!uniqueIds.length) return []
+  if (typeof fornecedorId !== "number") {
+    throw new Error("fornecedorId obrigatório")
+  }
+
+  const rows = await prisma.materiais.findMany({
+    where: {
+      id: { in: uniqueIds },
+      OR: [
+        { AND: [{ tipo: "madeira" }, { fornecedorId }] },
+        { AND: [{ NOT: { tipo: "madeira" } }, { fornecedorId: null }] },
+      ],
+    },
+    select: {
+      id: true,
+      descricao: true,
+      tipo: true,
+      preco_unitario: true,
+      unidade_de_medida: true,
+      fornecedorId: true,
+    },
+  })
+
+  const result: MaterialRow[] = rows.map(r => ({
+    id: r.id,
+    descricao: r.descricao,
+    tipo: r.tipo,
+    preco_unitario: toNumber(r.preco_unitario),
+    unidade_de_medida: r.unidade_de_medida,
+    fornecedorId: r.fornecedorId ?? null,
+  }))
+
+  if (opts?.strict !== false) {
+    const found = new Set(result.map(r => r.id))
+    const missing = uniqueIds.filter(id => !found.has(id))
+    if (missing.length) {
+      throw new Error(`IDs de materiais não encontrados para o fornecedor informado: ${missing.join(", ")}`)
+    }
+  }
+
+  return result
 }
 
-export async function getMateriaisByDescricoesServer(descricoes: string[]): Promise<MaterialRow[]> {
-  if (!Array.isArray(descricoes) || descricoes.length === 0) return []
-  const rows = (await prisma.materiais.findMany({
-    where: { descricao: { in: descricoes } },
-    select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true },
-  })) as MaterialDBRow[]
-  return rows.map(mapMaterial)
-}

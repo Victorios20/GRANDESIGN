@@ -804,17 +804,20 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
             if (isCobertaL) {
-                // Aceita "Coberta em L" puro ou "Coberta em L - <base>"
-                // Se vier com sufixo, o dispatcher já detecta; se vier puro, usa "Linha na Parede 15" por default.
                 resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
                     larguraMaior: dim.larguraMaior,
                     comprimentoMaior: dim.comprimentoMaior,
                     larguraMenor: dim.larguraMenor,
                     comprimentoMenor: dim.comprimentoMenor,
-                    // tipoBaseL opcional — se quiser expor no UI depois, basta enviar aqui
+                    fornecedorId: Number(fornecedorSel),
                 })
             } else {
-                resultado = await calcularMateriais(tipoObra, dim.largura, dim.comprimento)
+                resultado = await calcularMateriais(
+                    tipoObra,
+                    dim.largura,
+                    dim.comprimento,
+                    { fornecedorId: Number(fornecedorSel) }
+                )
             }
 
             const { madeira, materiais: mats, telhas } = resultado
@@ -1458,25 +1461,20 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 <SelectTrigger className={["w-56", styleForTriggerId(selectedTipoId)].join(" ")}>
                                     <SelectValue placeholder="Selecione" />
                                 </SelectTrigger>
-
-
                                 <SelectContent>
                                     {tiposObra.map((t) => (
                                         <SelectItem
                                             key={t.id}
-                                            value={t.tipo_obra}              // mantém seu value como está (string)
-                                            className={styleForItemId(t.id)} // cor do item via ID
+                                            value={t.tipo_obra}
+                                            className={styleForItemId(t.id)}
                                         >
                                             {t.tipo_obra}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
-
-
                             </Select>
                         </div>
 
-                        {/* Dimensões */}
                         {isCobertaL ? (
                             ([
                                 ["larguraMaior", "Largura maior"],
@@ -1518,7 +1516,26 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             ))
                         )}
 
-                        <Button onClick={handleCalcular} disabled={loadingCalc} className="min-w-[132px]">
+                        <div className="flex flex-col gap-1">
+                            <Label>Fornecedor</Label>
+                            <Select
+                                value={fornecedorSel ? String(fornecedorSel) : ""}
+                                onValueChange={(v) => setFornecedorSel(Number(v))}
+                            >
+                                <SelectTrigger className="w-56">
+                                    <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {fornecedores.map((f) => (
+                                        <SelectItem key={f.id} value={String(f.id)}>
+                                            {f.nome}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <Button onClick={handleCalcular} disabled={loadingCalc || !fornecedorSel} className="min-w-[132px]">
                             {loadingCalc ? (
                                 <>
                                     <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
@@ -1530,6 +1547,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             )}
                         </Button>
                     </div>
+
+
 
                     {/* Tabelas por categoria */}
                     {(
@@ -1547,25 +1566,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 </span>
 
                                 <div className="flex items-center gap-2">
-                                    {cat === "madeiras" && (
-                                        <Select
-                                            value={fornecedorSel ? String(fornecedorSel) : ""}
-                                            onValueChange={(v) => setFornecedorSel(Number(v))}
-                                        >
-                                            <SelectTrigger className="h-8 w-56 bg-white text-xs">
-                                                <SelectValue placeholder="Fornecedor" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {fornecedores.map((f) => (
-                                                    <SelectItem key={f.id} value={String(f.id)}>
-                                                        {f.nome}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-
-                                    {/* seletor “+ Adicionar” – reseta após cada inclusão */}
                                     <Select
                                         key={addResetKey[cat]}
                                         onValueChange={v => {
@@ -1587,6 +1587,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         </SelectContent>
                                     </Select>
                                 </div>
+
                             </div>
 
 
