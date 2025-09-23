@@ -6,16 +6,27 @@ export const runtime = "nodejs"
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({} as any))
     const descricoes = Array.isArray(body?.descricoes)
       ? (body.descricoes as unknown[]).map((x) => (typeof x === "string" ? x : "")).filter(Boolean)
       : []
-
     if (descricoes.length === 0) return NextResponse.json([], { status: 200 })
 
-    const data = await getMateriaisByDescricoesServer(descricoes)
+    const fornecedorIdRaw = body?.fornecedorId
+    const fornecedorId =
+      typeof fornecedorIdRaw === "number"
+        ? fornecedorIdRaw
+        : typeof fornecedorIdRaw === "string" && fornecedorIdRaw.trim() !== ""
+        ? Number(fornecedorIdRaw)
+        : NaN
+    if (!Number.isFinite(fornecedorId)) {
+      return NextResponse.json({ error: "fornecedorId obrigatório" }, { status: 400 })
+    }
+
+    const data = await getMateriaisByDescricoesServer(descricoes, fornecedorId)
     return NextResponse.json(data, { status: 200 })
-  } catch {
-    return NextResponse.json({ error: "Falha ao obter materiais por descrições" }, { status: 500 })
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Falha ao obter materiais por descrições"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

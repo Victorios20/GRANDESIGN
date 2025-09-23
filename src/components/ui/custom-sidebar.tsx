@@ -12,7 +12,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, BoxesIcon, TruckIcon, ChevronDown, ClockIcon } from 'lucide-react'
+import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon } from 'lucide-react'
+
 
 import Link from "next/link"
 import Image from "next/image"
@@ -23,7 +24,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 
-const APP_VERSION = "1.3.6"
+const APP_VERSION = "1.4.1"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()
@@ -156,7 +157,7 @@ export function CustomSidebar() {
                 <SidebarMenuItem>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link href="/gerar-orcamento/new">
+                      <Link href="/Orcamento/new">
                         <SidebarMenuButton
                           isActive={false}
                           className={cn(
@@ -164,7 +165,8 @@ export function CustomSidebar() {
                             "hover:bg-black/5 transition-all duration-200"
                           )}
                         >
-                          <PlusIcon className={iconClass(isActive("/gerar-orcamento/new"))} />
+                          <PlusIcon className={iconClass(isActive("/Orcamento/new"))} />
+
                           {isOpen && (
                             <motion.span
                               initial={{ opacity: 0 }}
@@ -275,7 +277,6 @@ export function CustomSidebar() {
                   <SidebarGroupContent>
                     <SidebarMenu>
                       <TooltipProvider delayDuration={300}>
-                        {/* Matéria-Prima */}
                         <motion.div variants={menuItemVariants} custom={0}>
                           <SidebarMenuItem>
                             <Tooltip>
@@ -307,75 +308,10 @@ export function CustomSidebar() {
                             </Tooltip>
                           </SidebarMenuItem>
                         </motion.div>
-
-                        {/* Produtos */}
-                        <motion.div variants={menuItemVariants} custom={1}>
-                          <SidebarMenuItem>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Link href="/editar/produtos">
-                                  <SidebarMenuButton
-                                    isActive={false}
-                                    className={cn(
-                                      isOpen ? "justify-start" : "justify-center",
-                                      "hover:bg-black/5 transition-all duration-200"
-                                    )}
-                                  >
-                                    <BoxesIcon className={iconClass(isActive("/editar/produtos"))} />
-                                    {isOpen && (
-                                      <motion.span
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="ml-2"
-                                      >
-                                        Produtos
-                                      </motion.span>
-                                    )}
-                                  </SidebarMenuButton>
-                                </Link>
-                              </TooltipTrigger>
-                              {!isOpen && <TooltipContent side="right">Produtos</TooltipContent>}
-                            </Tooltip>
-                          </SidebarMenuItem>
-                        </motion.div>
-
-                        {/* Frete */}
-                        <motion.div variants={menuItemVariants} custom={2}>
-                          <SidebarMenuItem>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Link href="/editar/frete">
-                                  <SidebarMenuButton
-                                    isActive={false}
-                                    className={cn(
-                                      isOpen ? "justify-start" : "justify-center",
-                                      "hover:bg-black/5 transition-all duration-200"
-                                    )}
-                                  >
-                                    <TruckIcon className={iconClass(isActive("/editar/frete"))} />
-                                    {isOpen && (
-                                      <motion.span
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="ml-2"
-                                      >
-                                        Frete
-                                      </motion.span>
-                                    )}
-                                  </SidebarMenuButton>
-                                </Link>
-                              </TooltipTrigger>
-                              {!isOpen && <TooltipContent side="right">Frete</TooltipContent>}
-                            </Tooltip>
-                          </SidebarMenuItem>
-                        </motion.div>
                       </TooltipProvider>
                     </SidebarMenu>
                   </SidebarGroupContent>
+
                 </motion.div>
               )}
             </AnimatePresence>
@@ -417,7 +353,7 @@ export function CustomSidebar() {
           </TooltipProvider>
         </SidebarMenu>
 
-        {/* Versão (abaixo de tudo, centralizada) */}
+        {/* Versão */}
         <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
           <span className="text-marromEscuro text-xs font-medium select-none">
             Versão {APP_VERSION}

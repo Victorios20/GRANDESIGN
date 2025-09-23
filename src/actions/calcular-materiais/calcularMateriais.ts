@@ -3,10 +3,12 @@
    ---------------------------------------------- */
 import {
   getMateriaisByDescricoes,
-  getReceitasFixas,
   getMateriaisByIds,
+  getReceitasFixas,
   type MaterialRow,
 } from "./calcularMateriais-db"
+
+
 
 /* ================= Tipos ================= */
 
@@ -58,9 +60,14 @@ export async function calcularMateriais(
   tipoObra: string,
   largura?: number,
   comprimento?: number,
-  opts?: Partial<CobertaLOpts>,
+  opts?: ({ fornecedorId: number } & Partial<CobertaLOpts>),
 ): Promise<Resultado> {
   const tipoNorm = (tipoObra ?? "").replace(/\u00A0/g, " ").trim()
+  const fornecedorId = opts?.fornecedorId
+  if (typeof fornecedorId !== "number") {
+    throw new Error("fornecedorId obrigatório")
+  }
+
 
   // Detecta Coberta em L (aceita "Coberta em L" e "Coberta em L - Linha na Parede 15")
   if (/^Coberta em L/i.test(tipoNorm)) {
@@ -78,14 +85,14 @@ export async function calcularMateriais(
       throw new Error("Coberta em L: informe largura/comprimento MAIOR e MENOR.")
     }
 
-    return calcularMateriaisCobertaL(base, L.LMaior, L.CMaior, L.LMenor, L.CMenor)
+  return calcularMateriaisCobertaL(base, L.LMaior, L.CMaior, L.LMenor, L.CMenor, fornecedorId)
   }
 
   // Fluxo normal (compatível com chamadas antigas)
   if (!tipoObra || !largura || !comprimento) {
     throw new Error("Parâmetros obrigatórios: tipoObra, largura, comprimento")
   }
-  return calcularMateriaisNormal(tipoNorm, largura, comprimento)
+  return calcularMateriaisNormal(tipoNorm, largura, comprimento, fornecedorId)
 }
 
 /* ============================================================
@@ -95,7 +102,9 @@ async function calcularMateriaisNormal(
   tipoNorm: string,
   largura: number,
   comprimento: number,
+  fornecedorId: number,
 ): Promise<Resultado> {
+
   const madeiraRaw: MadeiraRow[] = []
   const materiaisRaw: BaseRow[] = []
   const telhasRaw: BaseRow[] = []
@@ -277,8 +286,7 @@ async function calcularMateriaisNormal(
   try {
     const receitasFixas = await getReceitasFixas(tipoNorm)
     const ids = receitasFixas.map(r => r.material_id)
-    const materiaisFixos = await getMateriaisByIds(ids)
-
+    const materiaisFixos = await getMateriaisByIds(ids, fornecedorId)
     receitasFixas.forEach(({ material_id, quantidade }) => {
       const material = materiaisFixos.find(m => m.id === material_id)
       if (material) {
@@ -327,7 +335,7 @@ async function calcularMateriaisNormal(
 
   let precos: MaterialRow[]
   try {
-    precos = await getMateriaisByDescricoes(descricoesBusca)
+    precos = await getMateriaisByDescricoes(descricoesBusca, fornecedorId)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Falha ao buscar preços dos materiais."
     throw new Error(message)
@@ -361,11 +369,12 @@ async function calcularMateriaisNormal(
  *          Caibro(maior/menor), Beiral(maior/menor/meio)
  * ============================================================ */
 export async function calcularMateriaisCobertaL(
-  tipoBase: string,   // "Linha na Parede 15" | "Coluna 11,5" | "Pontalete 15" | "Linha na Parede + Coluna 11,5"
+  tipoBase: string,
   LMaior: number,
   CMaior: number,
   LMenor: number,
   CMenor: number,
+  fornecedorId: number,
 ): Promise<Resultado> {
   if (!tipoBase || !LMaior || !CMaior || !LMenor || !CMenor) {
     throw new Error("Parâmetros obrigatórios da Coberta em L não informados.")
@@ -477,7 +486,7 @@ export async function calcularMateriaisCobertaL(
 
   let precosL: MaterialRow[]
   try {
-    precosL = await getMateriaisByDescricoes(descricoesBuscaL)
+    precosL = await getMateriaisByDescricoes(descricoesBuscaL, fornecedorId)
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Falha ao buscar preços dos materiais."
     throw new Error(message)

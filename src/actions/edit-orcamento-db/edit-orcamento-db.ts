@@ -403,11 +403,11 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             totais_frete_preco: nonNeg(input.totais.frete),
             link_slide: input.links.slideUrl ?? null,
             link_pdf: input.links.pdfUrl ?? null,
-            ...dimUpdate,
-            data_criacao: new Date(),
+            ...dimUpdate
           },
         })
       } catch {
+
         throw new Error("Erro ao atualizar orçamento.")
       }
 

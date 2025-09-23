@@ -41,47 +41,58 @@ model frete {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model materiais {
   id                Int              @id @default(autoincrement())
-  descricao         String           @unique @db.VarChar(150)
+  descricao         String           @db.VarChar(150)
   tipo              String           @db.VarChar(20)
   preco_unitario    Decimal          @db.Decimal(10, 2)
   unidade_de_medida String?          @default("un") @db.VarChar(20)
+  fornecedorId      Int?
+  fornecedor        fornecedores?    @relation(fields: [fornecedorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   receitas_fixas    receitas_fixas[]
+
+  @@index([tipo])
+  @@index([fornecedorId])
+  @@unique([descricao, fornecedorId], map: "ux_materiais_desc_fornecedor")
 }
+
+model fornecedores {
+  id         Int          @id @default(autoincrement())
+  nome       String       @unique @db.VarChar(120)
+  materiais  materiais[]
+}
+
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model orcamento {
-  id                      Int         @id @default(autoincrement())
+  id                      Int       @id @default(autoincrement())
   cliente_id              Int
   tipo_obra_id            Int?
-  link_slide              String?     @db.VarChar(255)
-  data_criacao            DateTime?   @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
-  data_ultima_alteracao   DateTime @default(now()) @updatedAt @map("data_ultima_alteracao") @db.Timestamp(6)
-  totais_madeiras_preco   Decimal     @default(0.00) @db.Decimal(10, 2)
-  totais_materiais_preco  Decimal     @default(0.00) @db.Decimal(10, 2)
-  totais_comissao_preco   Decimal     @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_ps_preco Decimal     @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_gd_preco Decimal     @default(0.00) @db.Decimal(10, 2)
-  largura                 Decimal?    @db.Decimal(10, 2)
-  comprimento             Decimal?    @db.Decimal(10, 2)
-  totais_frete_preco      Decimal     @default(0.00) @db.Decimal(10, 2)
+  link_slide              String?   @db.VarChar(255)
+  data_criacao            DateTime? @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
+  data_ultima_alteracao   DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @updatedAt @map("data_ultima_alteracao") @db.Timestamp(6)
+  totais_madeiras_preco   Decimal   @default(0.00) @db.Decimal(10, 2)
+  totais_materiais_preco  Decimal   @default(0.00) @db.Decimal(10, 2)
+  totais_comissao_preco   Decimal   @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_ps_preco Decimal   @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_gd_preco Decimal   @default(0.00) @db.Decimal(10, 2)
+  largura                 Decimal?  @db.Decimal(10, 2)
+  comprimento             Decimal?  @db.Decimal(10, 2)
+  totais_frete_preco      Decimal   @default(0.00) @db.Decimal(10, 2)
   link_pdf                String?
-  titulo                  String?     @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
-  largura_menor           Decimal?    @db.Decimal(10, 2)
-  largura_maior           Decimal?    @db.Decimal(10, 2)
-  comprimento_menor       Decimal?    @db.Decimal(10, 2)
-  comprimento_maior       Decimal?    @db.Decimal(10, 2)
+  titulo                  String?   @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
+  largura_menor           Decimal?  @db.Decimal(10, 2)
+  largura_maior           Decimal?  @db.Decimal(10, 2)
+  comprimento_menor       Decimal?  @db.Decimal(10, 2)
+  comprimento_maior       Decimal?  @db.Decimal(10, 2)
 
-  cliente                 cliente     @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  tipo_obra               tipo_obra?  @relation(fields: [tipo_obra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  orcamento_material      orcamento_material[]
-  orcamento_pagamento     orcamento_pagamento[]
-
+  cliente             cliente               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipo_obra           tipo_obra?            @relation(fields: [tipo_obra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orcamento_material  orcamento_material[]
+  orcamento_pagamento orcamento_pagamento[]
 
   @@index([data_criacao(sort: Desc)], map: "idx_orcamento_data_criacao")
   @@index([data_ultima_alteracao(sort: Desc)], map: "idx_orcamento_data_ultima_alteracao")
 }
-
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model orcamento_material {

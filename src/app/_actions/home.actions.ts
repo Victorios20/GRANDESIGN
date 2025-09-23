@@ -8,8 +8,11 @@ export interface OrcamentoTabela {
   cliente: string | null
   bairro: string | null
   dataISO: string
+  data_ultima_alteracao: string
   valorFormatado: string
+  tipoObra?: string | null
 }
+
 
 export type MaterialItem = {
   nome: string
@@ -55,7 +58,8 @@ const noStore: RequestInit = { cache: "no-store" }
 export async function listarBairros(opts?: { signal?: AbortSignal }): Promise<string[]> {
   const r = await fetch(`/api/bairros`, { ...noStore, signal: opts?.signal })
   if (!r.ok) throw new Error("Falha ao listar bairros")
-  return r.json()
+  const j = await r.json()
+  return Array.isArray(j) ? j : j?.options ?? []
 }
 
 export async function buscarOrcamentos(
@@ -65,13 +69,18 @@ export async function buscarOrcamentos(
   dFimISO: string | undefined,
   page: number,
   perPage: number,
-  ordenarData: "asc" | "desc"
+  ordenarData: "asc" | "desc",
+  extra?: { telefone?: string; cidadeId?: number | null; tipoObraId?: number | null }
 ): Promise<{ dados: OrcamentoTabela[]; total: number }> {
   const sp = new URLSearchParams()
   if (nome?.trim()) sp.set("q", nome)
   if (bairro?.trim()) sp.set("bairro", bairro)
   if (dIniISO) sp.set("ini", dIniISO)
   if (dFimISO) sp.set("fim", dFimISO)
+  if (extra?.telefone?.trim()) sp.set("telefone", extra.telefone.trim())
+  if (extra?.cidadeId != null && extra.cidadeId !== 0) sp.set("cidadeId", String(extra.cidadeId))
+  if (extra?.tipoObraId != null && extra.tipoObraId !== 0) sp.set("tipoObraId", String(extra.tipoObraId))
+
   sp.set("page", String(page))
   sp.set("pageSize", String(perPage))
   sp.set("ordem", ordenarData)
