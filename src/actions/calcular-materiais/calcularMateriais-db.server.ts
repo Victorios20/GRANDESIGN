@@ -122,3 +122,18 @@ export async function getMateriaisByIdsServer(
   return result
 }
 
+export async function getReceitasFixasServer(tipoObra: string): Promise<Array<{ material_id: number; quantidade: number; componente?: string | null }>> {
+  if (!tipoObra) return []
+  const rows = await prisma.receitas_fixas.findMany({
+    where: { tipo_obra: tipoObra },
+    select: { material_id: true, quantidade: true },
+    orderBy: { material_id: "asc" },
+  })
+  return rows.map(r => ({
+    material_id: r.material_id,
+    quantidade: Number(r.quantidade ?? 0),
+  }))
+}
+
+
+
