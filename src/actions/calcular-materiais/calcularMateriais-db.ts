@@ -46,12 +46,27 @@ export type ReceitaFixaRow = {
   componente: string | null
 }
 
-export async function getReceitasFixas(tipoObra: string): Promise<ReceitaFixaRow[]> {
-  const body = JSON.stringify({ tipoObra })
-  return fetchJSON<ReceitaFixaRow[]>("/api/receitas-fixas", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body,
-    cache: "no-store",
-  })
+export type ReceitaFixa = {
+  material_id: number
+  quantidade: number
+  componente?: string | null
 }
+
+export async function getReceitasFixas(tipoObra: string): Promise<ReceitaFixa[]> {
+  try {
+    if (!tipoObra) return []
+    const qs = new URLSearchParams({ tipoObra })
+    const res = await fetch(`/api/CalcularMateriais/ReceitasFixas?${qs.toString()}`, {
+      method: "GET",
+      cache: "no-store",
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    if (!Array.isArray(data)) return []
+    return data as ReceitaFixa[]
+  } catch {
+    return []
+  }
+}
+
+
