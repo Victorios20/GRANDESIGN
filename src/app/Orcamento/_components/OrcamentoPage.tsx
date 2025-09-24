@@ -1,7 +1,7 @@
 // src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
-import { useState, useEffect, useMemo, ChangeEvent } from "react"
+import { useState, useEffect, useMemo, ChangeEvent, useRef } from "react"
 
 
 import { useRouter } from "next/navigation"
@@ -16,7 +16,11 @@ import {
     EyeOff,
     ArrowUpRight,
     Copy,
+    ChevronsUpDown,
+    UserPlus,
+    UserCheck
 } from "lucide-react"
+
 import { Toaster, toast } from "sonner"
 
 import { calcularMateriais } from "@/actions/calcular-materiais/calcularMateriais"
@@ -59,6 +63,16 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+
+import {
+    Command,
+    CommandList,
+    CommandItem,
+    CommandEmpty,
+    CommandGroup,
+} from "@/components/ui/command"
+
+
 import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
 
 import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
@@ -100,7 +114,15 @@ type Componente = { id: number; nome: string }
 type Fornecedor = { id: number; nome: string }
 
 type LinksState = { slide?: string; pdf?: string }
-
+type ClienteSearchResult = {
+    id: number
+    nome: string
+    telefone: string | null
+    bairro: string | null
+    cidade_id: number | null
+    cidade_nome: string | null
+    cpf: string | null
+}
 
 export type InitialData = {
     id: number
@@ -181,7 +203,12 @@ type Pagto = { pix: number; x10: number; x18: number }
 type TotaisPayload = { madeiras: number; materiais: number; comissao: number; frete: number; empresaPS: number; empresaGD: number }
 
 type SalvarPayload = {
+    // NOVO: quando presente, usamos o cliente já existente
+    clienteId?: number
+
+    // Mantido para preencher UI/relatórios e para fallback antigo
     cliente: { nome: string; telefone: string; bairro: string; cidade?: string | null }
+
     parametros: {
         tipoObra: string
         largura?: number | null
@@ -197,8 +224,8 @@ type SalvarPayload = {
             componente?: string
             quantidade: number
             preco: number
-            tamanho?: number | string | null | undefined   // <— relaxado
-            frete?: number | null | undefined              // <— relaxado
+            tamanho?: number | string | null | undefined
+            frete?: number | null | undefined
         }[]
         materiaisGerais: { nome: string; quantidade: number; preco: number }[]
         telhas: { nome: string; quantidade: number; preco: number; frete?: number | null | undefined }[]
@@ -208,6 +235,7 @@ type SalvarPayload = {
     links?: { slideUrl: string | null; pdfUrl: string | null }
     titulo: string
 }
+
 
 // SUBSTITUA a função postJSON atual por esta
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
@@ -307,6 +335,67 @@ const salvarRascunhoAPI = (payload: SalvarPayload) =>
     postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
 
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function buscarClientes(by: "name" | "phone", q: string, limit = 10): Promise<ClienteSearchResult[]> {
+    const url = `/api/clientes/search?by=${by}&q=${encodeURIComponent(q)}&limit=${limit}`
+    const r = await fetch(url, { cache: "no-store" })
+    if (!r.ok) throw new Error("Falha na busca de clientes")
+    return r.json()
+}
+
+// tenta achar por nome exato (para associar em caso de 409)
+async function findClienteByNomeExato(nome: string): Promise<ClienteSearchResult | null> {
+    const list = await buscarClientes("name", nome, 10)
+    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ")
+    const alvo = norm(nome)
+    return list.find(c => norm(c.nome ?? "") === alvo) ?? null
+}
+
+// cria cliente OU associa ao existente quando back devolver 409
+async function criarOuAssociarCliente(
+    form: { nome: string; telefone: string; bairro: string; cidade: string },
+    cidades: { id: number; nome: string }[],
+): Promise<{ id: number; associado: boolean }> {
+    const nome = form.nome.trim()
+    if (!nome) throw new Error("Informe o nome do cliente.")
+    const cidadeId = cidades.find(c => c.nome === form.cidade)?.id ?? null
+    const telefoneRaw = form.telefone?.replace(/\D/g, "") || null
+    const bairro = form.bairro?.trim() || null
+
+    const r = await fetch("/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, telefone: telefoneRaw, bairro, cidade_id: cidadeId }),
+    })
+
+    if (r.status === 201) {
+        const j = await r.json()
+        return { id: Number(j?.id), associado: false }
+    }
+
+    if (r.status === 409) {
+        // tenta associar: buscar o id do existente
+        const encontrado = await findClienteByNomeExato(nome)
+        if (encontrado?.id) return { id: encontrado.id, associado: true }
+
+        // fallback: tenta extrair id do payload de erro (se vier)
+        try {
+            const j = await r.json()
+            if (j?.id) return { id: Number(j.id), associado: true }
+        } catch { /* ignore */ }
+
+        throw new Error("Cliente já existe.")
+    }
+
+    let msg = `Falha ao cadastrar cliente (${r.status})`
+    try {
+        const j = await r.json()
+        if (j?.error) msg = j.error
+    } catch { /* ignore */ }
+    throw new Error(msg)
+}
+
 
 
 // Cores mais fortes por ID
@@ -345,8 +434,10 @@ const FIELD_IDS = {
     bairro: "inp-bairro",
     tipoObra: "inp-tipo-obra",
     madeiras: "tbl-madeiras",
+    cadastrarCliente: "btn-cadastrar-cliente",
 } as const
 type FieldKey = keyof typeof FIELD_IDS
+
 
 const scrollToField = (id: string) => {
     const el = document.getElementById(id)
@@ -397,8 +488,13 @@ const validatePreGerar = (
     return { ok: true }
 }
 
-// Normalização + formatação
 const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase()
+
+const normalizeHuman = (s: string) =>
+    normalize(s)
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "") // remove acentos
+
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const formatBR = (v: number) => BRL.format(Number.isFinite(v) ? v : 0)
 
@@ -578,82 +674,99 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         })()
     }, [])
 
+
     // ao trocar fornecedor → buscar madeiras
-    // carregar fornecedores + seleção inicial
-useEffect(() => {
-  ;(async () => {
-    try {
-      const lista = await getFornecedores()
-      setFornecedores(lista)
-      const fromLS = Number(localStorage.getItem("gd.fornecedorSelecionado") || "")
-      const preferido =
-        (Number.isFinite(fromLS) && lista.some(f => f.id === fromLS)) ? fromLS :
-        (lista.find(f => f.nome.toLowerCase() === "shopping da madeira")?.id ?? lista[0]?.id)
-      setFornecedorSel(preferido ?? null)
-    } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao carregar fornecedores")
-    }
-  })()
-}, [])
+    useEffect(() => {
+        if (!fornecedorSel) return
+        localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
+            ; (async () => {
+                try {
+                    const list = await getMadeirasByFornecedor(fornecedorSel)
+                    setCatalogoMadeiras(list)
+                } catch (e: any) {
+                    toast.error(e?.message ?? "Falha ao listar madeiras do fornecedor")
+                }
+            })()
+    }, [fornecedorSel])
 
-// ao trocar fornecedor → buscar madeiras
-useEffect(() => {
-  if (!fornecedorSel) return
-  localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
-  ;(async () => {
-    try {
-      const list = await getMadeirasByFornecedor(fornecedorSel)
-      setCatalogoMadeiras(list)
-    } catch (e: any) {
-      toast.error(e?.message ?? "Falha ao listar madeiras do fornecedor")
-    }
-  })()
-}, [fornecedorSel])
+    // ATUALIZAR preços na tabela de MADEIRAS quando fornecedor/catalogo mudarem
+    useEffect(() => {
+        if (!fornecedorSel) return
+        if (!catalogoMadeiras.length) return
+        if (!materiais.madeiras.length) return
 
-// ATUALIZAR preços na tabela de MADEIRAS quando fornecedor/catalogo mudarem
-useEffect(() => {
-  if (!fornecedorSel) return
-  if (!catalogoMadeiras.length) return
-  if (!materiais.madeiras.length) return
+        const mapa = new Map(catalogoMadeiras.map(o => [o.nome, o.preco]))
 
-  const mapa = new Map(catalogoMadeiras.map(o => [o.nome, o.preco]))
+        let changed = 0
+        const missing: string[] = []
+        let newEditPrice: number | undefined
 
-  let changed = 0
-  const missing: string[] = []
-  let newEditPrice: number | undefined
+        const atualizadas = materiais.madeiras.map(m => {
+            const novoPreco = mapa.get(m.nome)
+            if (novoPreco == null) {
+                missing.push((m.nome ?? "").trim())
+                return m
+            }
+            if (Number(novoPreco) !== Number(m.preco)) {
+                changed++
+                if (edit?.cat === "madeiras" && edit.id === m.id) {
+                    newEditPrice = novoPreco
+                }
+                return { ...m, preco: novoPreco }
+            }
+            return m
+        })
 
-  const atualizadas = materiais.madeiras.map(m => {
-    const novoPreco = mapa.get(m.nome)
-    if (novoPreco == null) {
-      missing.push((m.nome ?? "").trim())
-      return m
-    }
-    if (Number(novoPreco) !== Number(m.preco)) {
-      changed++
-      if (edit?.cat === "madeiras" && edit.id === m.id) {
-        newEditPrice = novoPreco
-      }
-      return { ...m, preco: novoPreco }
-    }
-    return m
-  })
+        if (changed > 0) {
+            setMateriais(prev => ({ ...prev, madeiras: atualizadas }))
+            if (newEditPrice !== undefined) {
+                setEditData(d => ({ ...d, preco: newEditPrice! }))
+            }
+            toast.success(`Preços de madeiras atualizados (${changed})`)
+        }
 
-  if (changed > 0) {
-    setMateriais(prev => ({ ...prev, madeiras: atualizadas }))
-    if (newEditPrice !== undefined) {
-      setEditData(d => ({ ...d, preco: newEditPrice! }))
-    }
-    toast.success(`Preços de madeiras atualizados (${changed})`)
-  }
+        const unicos = Array.from(new Set(missing.filter(Boolean)))
+        if (unicos.length) {
+            const lista = unicos.slice(0, 8).join(", ") + (unicos.length > 8 ? "…" : "")
+            toast.warning(`Itens não encontrados no fornecedor selecionado: ${lista}`)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fornecedorSel, catalogoMadeiras])
 
-  const unicos = Array.from(new Set(missing.filter(Boolean)))
-  if (unicos.length) {
-    const lista = unicos.slice(0, 8).join(", ") + (unicos.length > 8 ? "…" : "")
-    toast.warning(`Itens não encontrados no fornecedor selecionado: ${lista}`)
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [fornecedorSel, catalogoMadeiras])
 
+
+
+    // refs para detectar clique fora dos dropdowns (Nome/Telefone)
+    const nomeBoxRef = useRef<HTMLDivElement | null>(null)
+    const telBoxRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        const onPointerDown = (e: PointerEvent) => {
+            const t = e.target as Node
+            // fecha Nome se clicar fora
+            if (nomeBoxRef.current && !nomeBoxRef.current.contains(t)) {
+                setQNome("")
+                setResNome([])
+            }
+            // fecha Telefone se clicar fora
+            if (telBoxRef.current && !telBoxRef.current.contains(t)) {
+                setQTel("")
+                setResTel([])
+            }
+        }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setQNome(""); setResNome([])
+                setQTel(""); setResTel([])
+            }
+        }
+        document.addEventListener("pointerdown", onPointerDown, true)
+        window.addEventListener("keydown", onKey)
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true)
+            window.removeEventListener("keydown", onKey)
+        }
+    }, [])
 
 
 
@@ -663,8 +776,104 @@ useEffect(() => {
     const [modalMode, setModalMode] = useState<"salvar" | "gerar" | "salvar_copia" | null>(null)
     const [tituloTemporario, setTituloTemporario] = useState("")
 
+    // estado do formulário (Etapa 1)
     const [form, setForm] = useState({ nome: "", telefone: "", cidade: "", bairro: "" })
     const [tipoObra, setTipoObra] = useState<string | null>(null)
+
+    // ——— Cliente associado ao orçamento ———
+    const [clienteId, setClienteId] = useState<number | null>(null)
+    // snapshot (pra futura lógica de “Editar cliente” quando sujar nome/telefone/cidade/bairro)
+    const [clienteSnap, setClienteSnap] = useState({ nome: "", telefone: "", cidade: "", bairro: "" })
+    const clienteDirty = useMemo(() => {
+        const telA = (form.telefone || "").replace(/\D/g, "")
+        const telB = (clienteSnap.telefone || "").replace(/\D/g, "")
+        return (
+            normalizeHuman(form.nome) !== normalizeHuman(clienteSnap.nome) ||
+            telA !== telB ||
+            normalizeHuman(form.cidade) !== normalizeHuman(clienteSnap.cidade) ||
+            normalize(form.bairro) !== normalize(clienteSnap.bairro)
+        )
+    }, [form, clienteSnap])
+
+
+    const ensureClienteAssociado = (): boolean => {
+        if (clienteId == null) {
+            toast.error("Selecione ou cadastre um cliente antes de continuar.")
+            const el = document.getElementById(FIELD_IDS.cadastrarCliente) || document.getElementById(FIELD_IDS.nome)
+            if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" })
+                    ; (el as HTMLInputElement).focus?.()
+            }
+            return false
+        }
+        return true
+    }
+
+
+    // ------ Autocomplete states (Nome / Telefone) ------
+    const [qNome, setQNome] = useState("")
+    const [loadingNome, setLoadingNome] = useState(false)
+    const [resNome, setResNome] = useState<ClienteSearchResult[]>([])
+
+    const [qTel, setQTel] = useState("")
+    const [loadingTel, setLoadingTel] = useState(false)
+    const [resTel, setResTel] = useState<ClienteSearchResult[]>([])
+
+    // fetch debounced (Nome)
+    useEffect(() => {
+        const q = qNome.trim()
+        let active = true
+        const t = setTimeout(async () => {
+            try {
+                if (q.length < 2) { setResNome([]); return }
+                setLoadingNome(true)
+                const data = await buscarClientes("name", q, 10)
+                if (active) setResNome(data)
+            } catch (e: any) {
+                console.error(e)
+            } finally {
+                setLoadingNome(false)
+            }
+        }, 300)
+        return () => { active = false; clearTimeout(t) }
+    }, [qNome])
+
+    // fetch debounced (Telefone)
+    useEffect(() => {
+        const q = qTel.replace(/\D/g, "")
+        let active = true
+        const t = setTimeout(async () => {
+            try {
+                if (q.length < 3) { setResTel([]); return }
+                setLoadingTel(true)
+                const data = await buscarClientes("phone", q, 10)
+                if (active) setResTel(data)
+            } catch (e: any) {
+                console.error(e)
+            } finally {
+                setLoadingTel(false)
+            }
+        }, 300)
+        return () => { active = false; clearTimeout(t) }
+    }, [qTel])
+
+
+    // quando selecionar um cliente de QUALQUER autocomplete
+    const onPickCliente = (c: ClienteSearchResult) => {
+        const nome = c.nome ?? ""
+        const telefone = c.telefone ? formatPhone(c.telefone) : ""
+        const cidade = c.cidade_nome ?? ""
+        const bairro = c.bairro ?? ""
+        setClienteId(c.id)
+        setForm({ nome, telefone, cidade, bairro })
+        const snap = { nome, telefone, cidade, bairro }
+        setClienteSnap(snap)
+        localStorage.setItem("orcamento.clienteId", String(c.id))
+        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+        toast.success("Cliente associado.")
+    }
+
+
 
     const selectedTipoId =
         tiposObra.find((x) => x.tipo_obra === (tipoObra ?? ""))?.id ?? null
@@ -814,17 +1023,24 @@ useEffect(() => {
 
     const clearAll = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
+        setClienteId(null)
+        setClienteSnap({ nome: "", telefone: "", cidade: "", bairro: "" })
+        setQNome(""); setResNome([])
+        setQTel(""); setResTel([])
+        localStorage.removeItem("orcamento.clienteId")
+        localStorage.removeItem("orcamento.clienteSnap")
         setCityResetKey(k => k + 1)
         setObraResetKey(k => k + 1)
         setTipoObra(null)
         setDim({
-            largura: 1,
-            comprimento: 1,
+            largura: 0,
+            comprimento: 0,
             larguraMaior: 0,
             larguraMenor: 0,
             comprimentoMaior: 0,
             comprimentoMenor: 0,
         })
+
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 })
         setTelhaValores({})
@@ -840,7 +1056,14 @@ useEffect(() => {
     const clearEtapa1 = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
         setCityResetKey(k => k + 1)
+        setClienteId(null)
+        setClienteSnap({ nome: "", telefone: "", cidade: "", bairro: "" })
+        setQNome(""); setResNome([])
+        setQTel(""); setResTel([])
+        localStorage.removeItem("orcamento.clienteId")
+        localStorage.removeItem("orcamento.clienteSnap")
     }
+
 
     /* ===================================================================
      *                         Cálculo (Etapa 2)
@@ -1139,22 +1362,43 @@ useEffect(() => {
      * =================================================================== */
     useEffect(() => {
         if (isEdit || typeof window === "undefined") return
+
+        // 1) draft da tela
         const raw = localStorage.getItem(STORAGE_KEY)
-        if (!raw) return
-        try {
-            const d = JSON.parse(raw)
-            setForm(d.form ?? form)
-            setTipoObra(d.tipoObra ?? null)
-            setDim(d.dim ?? dim)
-            setMateriais(d.materiais ?? materiais)
-            setTotEdit(d.totEdit ?? totEdit)
-            setTelhaValores(d.telhaValores ?? telhaValores)
-            setTitulo(d.titulo ?? "")
-        } catch {
-            // se JSON quebrado, ignora
+        if (raw) {
+            try {
+                const d = JSON.parse(raw)
+                setForm(d.form ?? form)
+                setTipoObra(d.tipoObra ?? null)
+                setDim(d.dim ?? dim)
+                setMateriais(d.materiais ?? materiais)
+                setTotEdit(d.totEdit ?? totEdit)
+                setTelhaValores(d.telhaValores ?? telhaValores)
+                setTitulo(d.titulo ?? "")
+            } catch { }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+
+        // 2) associação do cliente
+        const idRaw = localStorage.getItem("orcamento.clienteId")
+        const snapRaw = localStorage.getItem("orcamento.clienteSnap")
+        const idNum = Number(idRaw)
+        if (Number.isFinite(idNum)) setClienteId(idNum)
+        if (snapRaw) {
+            try { setClienteSnap(JSON.parse(snapRaw)) } catch { }
+        }
     }, [isEdit])
+
+
+    useEffect(() => {
+        if (clienteId == null) return
+        localStorage.setItem("orcamento.clienteId", String(clienteId))
+    }, [clienteId])
+
+    useEffect(() => {
+        if (!clienteSnap) return
+        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(clienteSnap))
+    }, [clienteSnap])
+
 
     useEffect(() => {
         if (isEdit || typeof window === "undefined") return
@@ -1191,6 +1435,9 @@ useEffect(() => {
             scrollToField(FIELD_IDS[valid.missing])
             return
         }
+
+        // ——— NOVO: exige cliente associado ———
+        if (mode === "create" && !ensureClienteAssociado()) return
 
         try {
             setLoadingPDF(true)
@@ -1231,7 +1478,13 @@ useEffect(() => {
                         await updateOrcamentoAPI(orcamentoId, payload)
 
                     } else {
-                        await salvarOrcamentoAPI({
+                        // exige cliente associado
+                        if (!ensureClienteAssociado()) {
+                            setLoadingSave(false)
+                            return
+                        }
+                        const payloadCreate = {
+                            clienteId: Number(clienteId),
                             cliente: form,
                             parametros: { tipoObra: tipoObra ?? "", ...dim },
                             materiais,
@@ -1239,9 +1492,12 @@ useEffect(() => {
                             telhaValores: telhaValoresAtual,
                             links: { slideUrl: slide, pdfUrl: pdf },
                             titulo: snap,
-                        })
+                        }
+                        console.log("payload create", payloadCreate)
+                        await salvarOrcamentoAPI(payloadCreate)
 
                     }
+
 
                     toast.success("Orçamento salvo automaticamente.")
                     setModalSucessoAberto(true)
@@ -1462,15 +1718,120 @@ useEffect(() => {
                 </CardHeader>
 
                 <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1">
+                    <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
                         <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
-                        <Input id={FIELD_IDS.nome} name="nome" placeholder="Ex.: João Luiz" value={form.nome} onChange={onFormChange} />
+                        <Input
+                            id={FIELD_IDS.nome}
+                            name="nome"
+                            placeholder="Ex.: João Luiz"
+                            autoComplete="off"
+                            value={form.nome}
+                            onChange={(e) => {
+                                onFormChange(e)
+                                setQNome(e.target.value) // dispara busca
+                            }}
+                        />
+                        {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+                                <Command shouldFilter={false}>
+                                    <CommandList>
+                                        {loadingNome && (
+                                            <CommandItem disabled>
+                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                Buscando…
+                                            </CommandItem>
+                                        )}
+
+                                        {!loadingNome && resNome.length > 0 && (
+                                            <CommandGroup heading="Clientes">
+                                                {resNome.map((c) => (
+                                                    <CommandItem
+                                                        key={c.id}
+                                                        value={String(c.id)}
+                                                        onSelect={() => {
+                                                            onPickCliente(c)
+                                                            setQNome("")        // fecha dropdown do Nome
+                                                            setResNome([])
+                                                        }}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{c.nome}</span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                            </span>
+                                                        </div>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        )}
+
+                                        {!loadingNome && resNome.length === 0 && (
+                                            <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                                        )}
+                                    </CommandList>
+                                </Command>
+                            </div>
+                        )}
+
                     </div>
 
-                    <div className="flex flex-col gap-1">
+                    <div ref={telBoxRef} className="flex flex-col gap-1 relative">
                         <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
-                        <Input id={FIELD_IDS.telefone} name="telefone" placeholder="Ex.: (85) 98765-4321" value={form.telefone} onChange={onFormChange} />
+                        <Input
+                            id={FIELD_IDS.telefone}
+                            name="telefone"
+                            placeholder="Ex.: (85) 98765-4321"
+                            autoComplete="off"
+                            value={form.telefone}
+                            onChange={(e) => {
+                                onFormChange(e)           // mantém máscara/estado atual
+                                setQTel(e.target.value)   // dispara busca
+                            }}
+                        />
+                        {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
+                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+                                <Command shouldFilter={false}>
+                                    <CommandList>
+                                        {loadingTel && (
+                                            <CommandItem disabled>
+                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                Buscando…
+                                            </CommandItem>
+                                        )}
+
+                                        {!loadingTel && resTel.length > 0 && (
+                                            <CommandGroup heading="Clientes">
+                                                {resTel.map((c) => (
+                                                    <CommandItem
+                                                        key={c.id}
+                                                        value={String(c.id)}
+                                                        onSelect={() => {
+                                                            onPickCliente(c)
+                                                            setQTel("")         // fecha dropdown do Telefone
+                                                            setResTel([])
+                                                        }}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span className="font-medium">{c.nome}</span>
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                            </span>
+                                                        </div>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        )}
+
+                                        {!loadingTel && resTel.length === 0 && (
+                                            <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                                        )}
+                                    </CommandList>
+                                </Command>
+                            </div>
+                        )}
+
                     </div>
+
 
                     <div className="flex flex-col gap-1">
                         <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
@@ -1497,7 +1858,58 @@ useEffect(() => {
                         <Input id={FIELD_IDS.bairro} name="bairro" placeholder="Ex.: Meireles" value={form.bairro} onChange={onFormChange} />
                     </div>
                 </CardContent>
+
+                {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
+                <div className="p-4 pt-0 flex justify-end">
+                    <Button
+                        id={FIELD_IDS.cadastrarCliente}
+                        className={`min-w-[180px] ${clienteId && !clienteDirty ? "text-emerald-600 dark:text-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed" : ""
+                            }`}
+                        variant={clienteId ? "secondary" : "default"}
+                        disabled={!!clienteId && !clienteDirty}
+                        onClick={async () => {
+                            try {
+                                if (clienteId && !clienteDirty) {
+                                    toast.message("Cliente já associado.")
+                                    return
+                                }
+                                const { id, associado } = await criarOuAssociarCliente(form, cidades)
+                                setClienteId(id)
+                                const snap = { ...form }
+                                snap.telefone = formatPhone(snap.telefone)
+                                setClienteSnap(snap)
+                                toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
+                            } catch (e: any) {
+                                toast.error(e?.message ?? "Falha ao cadastrar/associar cliente.")
+                                scrollToField(FIELD_IDS.nome)
+                            }
+                        }}
+                        title={
+                            clienteId
+                                ? (clienteDirty ? "Aplicar alterações no cliente (em breve)" : "Cliente já associado")
+                                : "Cadastrar/associar cliente"
+                        }
+                    >
+                        {clienteId ? (
+                            clienteDirty ? (
+                                <>
+                                    <UserCheck className="h-4 w-4 mr-1" />
+                                    Editar cliente
+                                </>
+                            ) : (
+                                "Cliente associado"
+                            )
+                        ) : (
+                            <>
+                                <UserPlus className="h-4 w-4 mr-1" />
+                                Cadastrar cliente
+                            </>
+                        )}
+                    </Button>
+                </div>
+
             </Card>
+
 
             {/* ---------------------------------------------------------------
        *                          ETAPA 2
@@ -2207,20 +2619,27 @@ useEffect(() => {
                                     // CREATE: manter comportamento existente
                                     if (modalMode === "salvar" && !isEdit) {
                                         try {
+                                            if (!ensureClienteAssociado()) return
                                             setLoadingSave(true)
                                             const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-                                            await salvarRascunhoAPI({
+                                            const payloadRascunho = {
+                                                clienteId: Number(clienteId),
                                                 cliente: form,
                                                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                 materiais,
                                                 totais: totEdit,
                                                 telhaValores: telhaValoresAtual,
                                                 titulo: tituloTemporario,
-                                            })
+                                            }
+                                            console.log("payload create (rascunho)", payloadRascunho)
+                                            await salvarRascunhoAPI(payloadRascunho)
+
 
                                             toast.success("Rascunho salvo com sucesso!")
                                             setModalSucessoAberto(true)
                                         } catch (err: unknown) {
+                                            // ...
+
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar rascunho"
                                             toast.error(msg)
                                         } finally {
@@ -2251,11 +2670,13 @@ useEffect(() => {
                                     // EDIT: salvar cópia (INSERT novo)
                                     if (modalMode === "salvar_copia" && isEdit) {
                                         try {
+                                            if (!ensureClienteAssociado()) return
                                             setLoadingSave(true)
                                             // se não tiver links, gravamos como rascunho; se tiver, como definitivo
                                             if (links.slide || links.pdf) {
                                                 const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
                                                 await salvarOrcamentoAPI({
+                                                    clienteId: Number(clienteId),          // <— NOVO
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
@@ -2268,6 +2689,7 @@ useEffect(() => {
                                             } else {
                                                 const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
                                                 await salvarRascunhoAPI({
+                                                    clienteId: Number(clienteId),          // <— NOVO
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
@@ -2279,6 +2701,8 @@ useEffect(() => {
                                             }
 
                                         } catch (err: unknown) {
+                                            // ...
+
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar cópia"
                                             toast.error(msg)
                                         } finally {
@@ -2310,8 +2734,6 @@ useEffect(() => {
                 slideUrl={links.slide}
                 clearAll={clearAll}
             />
-
-
         </PageLayout>
     )
 }

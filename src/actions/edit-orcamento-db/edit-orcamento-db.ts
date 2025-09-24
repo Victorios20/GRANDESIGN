@@ -321,17 +321,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
       })
       if (!atual) throw new Error("Orçamento não encontrado.")
 
-      // 2) Resolver cidade por nome (pode ser null)
-      let cidadeId: number | null = null
-      const cidadeNome = cleanText(input.cliente.cidade)
-      if (cidadeNome) {
-        const cidade = await tx.cidades.findFirst({
-          where: { nome: cidadeNome },
-          select: { id: true },
-        })
-        if (!cidade) throw new Error("Cidade não encontrada.")
-        cidadeId = cidade.id
-      }
+
 
       // 3) Resolver tipo de obra (aceita id ou nome)
       let tipoObraId: number | null = null
@@ -353,22 +343,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           if (!row?.[0]?.id) throw new Error("Tipo de obra não encontrado.")
           tipoObraId = row[0].id
         }
-      }
-
-
-      // 4) Atualizar cliente
-      try {
-        await tx.cliente.update({
-          where: { id: atual.cliente_id },
-          data: {
-            nome: cleanText(input.cliente.nome),
-            telefone: cleanText(input.cliente.telefone),
-            bairro: cleanText(input.cliente.bairro),
-            cidade_id: cidadeId,
-          },
-        })
-      } catch {
-        throw new Error("Erro ao atualizar cliente.")
       }
 
       // 5) Atualizar orçamento (dimensões só se !== undefined)

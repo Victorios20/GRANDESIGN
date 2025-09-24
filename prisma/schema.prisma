@@ -21,11 +21,15 @@ model cliente {
   telefone  String?     @db.VarChar(20)
   bairro    String?     @db.VarChar(100)
   cidade_id Int?
+  cpf       String?     @db.VarChar(11)
   cidades   cidades?    @relation(fields: [cidade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   orcamento orcamento[]
 
   @@index([cidade_id], map: "idx_cliente_cidade_id")
+  @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
 }
+
+
 
 model componentes {
   id   Int    @id @default(autoincrement())

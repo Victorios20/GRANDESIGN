@@ -11,14 +11,17 @@ import { prisma } from "@/lib/prisma"
  * AppError (códigos e contexto)
  * - Não altera funcionalidade nem contratos; só enriquece erros.
  * ================================================================ */
-type AppErrorCode =
+export type AppErrorCode =
   | "DUPLICATE_TITLE"
+  | "CHECK_DUPLICATE_FAILED"
   | "CITY_NOT_FOUND"
   | "TYPE_NOT_FOUND"
   | "INSERT_ORCAMENTO_FAILED"
   | "INSERT_MATERIAL_FAILED"
   | "INSERT_PAGAMENTO_FAILED"
-  | "CHECK_DUPLICATE_FAILED"
+  | "CLIENT_ID_REQUIRED"
+  | "CLIENT_NOT_FOUND"
+
 
 class AppError extends Error {
   code: AppErrorCode
@@ -297,18 +300,30 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
       throw new AppError("CHECK_DUPLICATE_FAILED", "Erro ao verificar título existente.", "check-duplicate")
     }
 
-    // 2) Cidade (obrigatória)
-    if (!nomeCidade) throw new AppError("CITY_NOT_FOUND", "Cidade não encontrada", "resolve-cidade")
-    const cidadeId = await getCidadeIdByNome(tx, nomeCidade)
-    if (!cidadeId) throw new AppError("CITY_NOT_FOUND", "Cidade não encontrada", "resolve-cidade", { nomeCidade })
+       // 2) Cliente (obrigatório — deve vir selecionado/associado)
+    const clienteIdPayload = Number((params as any).clienteId)
+    if (!Number.isFinite(clienteIdPayload)) {
+      throw new AppError(
+        "CLIENT_ID_REQUIRED",
+        "Selecione ou cadastre um cliente antes de salvar.",
+        "resolve-cliente"
+      )
+    }
 
-    // 3) Cliente
-    const clienteId = await insertCliente(tx, {
-      nome: cleanText(params.cliente.nome),
-      telefone: cleanText(params.cliente.telefone),
-      bairro: cleanText(params.cliente.bairro),
-      cidade_id: cidadeId,
-    })
+    // valida existência do cliente
+    const chkCliente = (await tx.$queryRaw`
+      SELECT id FROM cliente WHERE id = ${clienteIdPayload} LIMIT 1
+    `) as Array<{ id: number }>
+    const clienteId = chkCliente?.[0]?.id ?? null
+    if (!clienteId) {
+      throw new AppError(
+        "CLIENT_NOT_FOUND",
+        "Cliente não encontrado.",
+        "resolve-cliente",
+        { clienteId: clienteIdPayload }
+      )
+    }
+
 
     // 4) Tipo de obra (obrigatório)
 
@@ -538,16 +553,30 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
   const nomeCidade = cleanText(params.cliente.cidade ?? "")
 
   return await prisma.$transaction(async (tx) => {
-    // 1) Cidade (opcional)
-    const cidadeId = nomeCidade ? await getCidadeIdByNome(tx, nomeCidade) : null
+        // 1) Cliente (obrigatório — rascunho também precisa ter cliente associado)
+    const clienteIdPayload = Number((params as any).clienteId)
+    if (!Number.isFinite(clienteIdPayload)) {
+      throw new AppError(
+        "CLIENT_ID_REQUIRED",
+        "Selecione ou cadastre um cliente antes de salvar o rascunho.",
+        "resolve-cliente"
+      )
+    }
 
-    // 2) Cliente
-    const clienteId = await insertCliente(tx, {
-      nome: cleanText(params.cliente.nome),
-      telefone: cleanText(params.cliente.telefone),
-      bairro: cleanText(params.cliente.bairro),
-      cidade_id: cidadeId,
-    })
+    // valida existência do cliente
+    const chkCliente = (await tx.$queryRaw`
+      SELECT id FROM cliente WHERE id = ${clienteIdPayload} LIMIT 1
+    `) as Array<{ id: number }>
+    const clienteId = chkCliente?.[0]?.id ?? null
+    if (!clienteId) {
+      throw new AppError(
+        "CLIENT_NOT_FOUND",
+        "Cliente não encontrado para o rascunho.",
+        "resolve-cliente",
+        { clienteId: clienteIdPayload }
+      )
+    }
+
 
     // 3) Tipo de obra (opcional)
     const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
