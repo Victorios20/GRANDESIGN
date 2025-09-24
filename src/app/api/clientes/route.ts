@@ -2,13 +2,14 @@
 import { NextResponse } from "next/server"
 import {
   criarClienteBasico,
-  buscarClientesPorNome,
 } from "@/actions/clientes-db/clientes-db"
+import { getClienteIdByNomeUnaccent } from "@/actions/clientes-db/clientes-db"
 
 export const runtime = "nodejs"
 
 function onlyDigits(s?: string | null) {
-  return s ? String(s).replace(/\D/g, "") : null
+  const v = String(s ?? "").replace(/\D/g, "")
+  return v ? v : null
 }
 function clean(s?: string | null) {
   return s ? String(s).trim() : ""
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
     // Campos opcionais
     const telefone = onlyDigits(body?.telefone)
     const bairro = clean(body?.bairro) || null
-    const cpf = onlyDigits(body?.cpf) // hoje não vem da tela, mas deixamos suportado
+    const cpf = onlyDigits(body?.cpf)
     const cidade_id =
       typeof body?.cidade_id === "number"
         ? body.cidade_id
@@ -37,55 +38,72 @@ export async function POST(req: Request) {
         ? Number(body.cidade_id)
         : null
 
-    // Cria cliente (DB já tem trava de nome "a partir de agora")
+    // Cria cliente (db já trava duplicidade por índice parcial)
     const created = await criarClienteBasico({
       nome,
-      telefone: telefone ?? null,
+      telefone, // já é null quando vazio
       bairro,
       cidade_id,
-      cpf: cpf ?? null,
+      cpf,      // já é null quando vazio
     })
 
     return NextResponse.json(created, { status: 201 })
   } catch (e: any) {
-    // Se o DB sinalizar duplicidade de nome, tentamos retornar também o id do existente
+    // 409 vindo da action com id do existente
     if (e?.code === "NOME_DUPLICADO") {
-      try {
-        const lista = await buscarClientesPorNome(e?.nome ?? e?.message ?? "", 10)
-        const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ")
-        const alvo = norm(e?.nome ?? e?.message ?? "")
-        const existente =
-          lista?.find((c: any) => norm(c?.nome ?? "") === alvo) ?? lista?.[0]
-        if (existente?.id) {
-          return NextResponse.json(
-            {
-              error: "Cliente já existe. Associado ao existente.",
-              code: "NOME_DUPLICADO",
-              id: existente.id,
-            },
-            { status: 409 }
-          )
-        }
-      } catch {
-        /* ignore lookup fallback */
+      if (e?.clienteId) {
+        return NextResponse.json(
+          {
+            error: "Cliente já existe. Associado ao existente.",
+            code: "NOME_DUPLICADO",
+            id: e.clienteId,
+          },
+          { status: 409 }
+        )
       }
-      return NextResponse.json(
-        { error: "Cliente já existe.", code: "NOME_DUPLICADO" },
-        { status: 409 }
-      )
+      // fallback: tenta obter o id pelo nome (sem acento/caixa)
+      try {
+        const bodyClone = await req.clone().json().catch(() => ({} as any))
+        const nomeClone = clean(bodyClone?.nome)
+        const existenteId = await getClienteIdByNomeUnaccent(nomeClone)
+        return NextResponse.json(
+          {
+            error: "Cliente já existe.",
+            code: "NOME_DUPLICADO",
+            id: existenteId ?? null,
+          },
+          { status: 409 }
+        )
+      } catch {
+        return NextResponse.json(
+          { error: "Cliente já existe.", code: "NOME_DUPLICADO" },
+          { status: 409 }
+        )
+      }
     }
 
-    // Outros erros conhecidos opcionais
-    if (e?.code === "ERRO_VALIDACAO") {
-      return NextResponse.json(
-        { error: e?.message ?? "Falha de validação", code: "ERRO_VALIDACAO" },
-        { status: 400 }
-      )
+    // Fallback para duplicidade direto do Prisma (se escapar da action)
+    if (e?.code === "P2002") {
+      try {
+        const bodyClone = await req.clone().json().catch(() => ({} as any))
+        const nomeClone = clean(bodyClone?.nome)
+        const existenteId = await getClienteIdByNomeUnaccent(nomeClone)
+        return NextResponse.json(
+          { error: "Nome duplicado.", code: "NOME_DUPLICADO", id: existenteId ?? null },
+          { status: 409 }
+        )
+      } catch {
+        return NextResponse.json(
+          { error: "Nome duplicado.", code: "NOME_DUPLICADO" },
+          { status: 409 }
+        )
+      }
     }
 
+    // Outros erros
     console.error("POST /api/clientes error:", e)
     return NextResponse.json(
-      { error: "Falha ao cadastrar cliente" },
+      { error: "Falha ao cadastrar cliente", code: "ERRO_INTERNO" },
       { status: 500 }
     )
   }

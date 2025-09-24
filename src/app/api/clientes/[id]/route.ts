@@ -97,13 +97,32 @@ export async function PUT(
       )
     }
 
-    // Violação de unicidade (nosso índice parcial de nome "a partir de agora")
     if (code === "P2002") {
-      return NextResponse.json(
-        { error: "Já existe cliente com este nome", code: "NOME_DUPLICADO" },
-        { status: 409 }
-      )
+      try {
+        const body = await req.clone().json().catch(() => ({} as any))
+        const novoNome = (body?.nome ?? "").trim()
+
+        const rows = await prisma.$queryRaw<{ id: number }[]>`
+      SELECT id
+      FROM public.cliente
+      WHERE immutable_unaccent(lower(nome)) = immutable_unaccent(lower(${novoNome}))
+      ORDER BY id DESC
+      LIMIT 1
+    `
+        const existenteId = rows?.[0]?.id ?? null
+
+        return NextResponse.json(
+          { error: "Já existe cliente com este nome", code: "NOME_DUPLICADO", id: existenteId },
+          { status: 409 }
+        )
+      } catch {
+        return NextResponse.json(
+          { error: "Já existe cliente com este nome", code: "NOME_DUPLICADO" },
+          { status: 409 }
+        )
+      }
     }
+
 
     console.error("PUT /api/clientes/[id] error:", e)
     return NextResponse.json(

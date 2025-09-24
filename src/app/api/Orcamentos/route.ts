@@ -39,8 +39,11 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
       ? err.message
       : "Erro ao salvar orçamento"
   let status = 500
+
   if (code === "DUPLICATE_TITLE") status = 409
   else if (code === "CITY_NOT_FOUND" || code === "TYPE_NOT_FOUND") status = 404
+  else if (code === "CLIENT_NOT_FOUND") status = 404
+  else if (code === "CLIENT_ID_REQUIRED") status = 422
   else if (code === "CHECK_DUPLICATE_FAILED") status = 500
   else if (
     code === "INSERT_ORCAMENTO_FAILED" ||
@@ -54,6 +57,7 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
     else if (msg.includes("Cidade não encontrada")) status = 404
     else if (msg.includes("Tipo de obra não encontrado")) status = 404
   }
+
   return {
     status,
     body: { error: message, code, step, details, requestId },
@@ -114,6 +118,7 @@ export async function POST(req: Request) {
       res.headers.set("X-Request-Id", requestId)
       return res
     }
+
     const cliente = body?.cliente ?? {}
     if (!cliente?.cidade) {
       const res = NextResponse.json<ApiErrorShape>(
@@ -123,6 +128,7 @@ export async function POST(req: Request) {
       res.headers.set("X-Request-Id", requestId)
       return res
     }
+
     const parametros = body?.parametros ?? {}
     if (!parametros?.tipoObra) {
       const res = NextResponse.json<ApiErrorShape>(
@@ -132,6 +138,7 @@ export async function POST(req: Request) {
       res.headers.set("X-Request-Id", requestId)
       return res
     }
+
     const links = body?.links ?? {}
     if (!links?.slideUrl || !links?.pdfUrl) {
       const res = NextResponse.json<ApiErrorShape>(
@@ -141,9 +148,16 @@ export async function POST(req: Request) {
       res.headers.set("X-Request-Id", requestId)
       return res
     }
+
+    // >>> NOVO: extrair e repassar clienteId (top-level)
+    const rawClienteId = body?.clienteId ?? body?.cliente_id ?? null
+    const clienteId = Number(rawClienteId)
+    // (não valide aqui; deixe a action validar e responder 422/404)
+
     const materiais = body?.materiais ?? {}
     const totais = body?.totais ?? {}
     const telhaValores = body?.telhaValores ?? {}
+
     const id = await salvarOrcamentoDB({
       titulo,
       cliente,
@@ -152,7 +166,10 @@ export async function POST(req: Request) {
       totais,
       telhaValores,
       links,
-    })
+      // >>> NOVO: isso resolve o CLIENT_ID_REQUIRED na action
+      clienteId,
+    } as any)
+
     const res = NextResponse.json({ id, requestId }, { status: 201 })
     res.headers.set("X-Request-Id", requestId)
     return res

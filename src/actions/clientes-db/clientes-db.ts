@@ -6,59 +6,53 @@ function onlyDigits(s?: string | null) {
 
 export async function buscarClientesPorNome(q: string, limit = 10) {
   const termo = (q || "").trim()
-  if (!termo) return []
-  const rows = await prisma.cliente.findMany({
-    where: { nome: { contains: termo, mode: "insensitive" } },
-    orderBy: { nome: "asc" },
-    take: Math.min(Math.max(limit, 1), 25),
-    select: {
-      id: true,
-      nome: true,
-      telefone: true,
-      bairro: true,
-      cidade_id: true,
-      cidades: { select: { nome: true } },
-      cpf: true
-    }
-  })
-  return rows.map(r => ({
-    id: r.id,
-    nome: r.nome,
-    telefone: r.telefone,
-    bairro: r.bairro,
-    cidade_id: r.cidade_id,
-    cidade_nome: r.cidades?.nome ?? null,
-    cpf: r.cpf ?? null
-  }))
+  if (termo.length < 2) return []
+
+  const rows = await prisma.$queryRaw<
+    { id: number; nome: string; telefone: string | null; bairro: string | null; cidade_id: number | null; cidade_nome: string | null; cpf: string | null }[]
+  >`
+    SELECT c.id,
+           c.nome,
+           c.telefone,
+           c.bairro,
+           c.cidade_id,
+           ci.nome AS cidade_nome,
+           c.cpf
+    FROM public.cliente c
+    LEFT JOIN public.cidades ci ON ci.id = c.cidade_id
+    WHERE immutable_unaccent(lower(c.nome)) LIKE '%' || immutable_unaccent(lower(${termo})) || '%'
+    ORDER BY similarity(immutable_unaccent(lower(c.nome)), immutable_unaccent(lower(${termo}))) DESC,
+             c.id DESC
+    LIMIT ${Math.min(Math.max(limit, 1), 25)}
+  `
+  return rows
 }
 
+
 export async function buscarClientesPorTelefone(q: string, limit = 10) {
-  const digits = onlyDigits(q)
-  if (!digits) return []
-  const rows = await prisma.cliente.findMany({
-    where: { telefone: { contains: digits } },
-    orderBy: { nome: "asc" },
-    take: Math.min(Math.max(limit, 1), 25),
-    select: {
-      id: true,
-      nome: true,
-      telefone: true,
-      bairro: true,
-      cidade_id: true,
-      cidades: { select: { nome: true } },
-      cpf: true
-    }
-  })
-  return rows.map(r => ({
-    id: r.id,
-    nome: r.nome,
-    telefone: r.telefone,
-    bairro: r.bairro,
-    cidade_id: r.cidade_id,
-    cidade_nome: r.cidades?.nome ?? null,
-    cpf: r.cpf ?? null
-  }))
+  const qDigits = onlyDigits(q)
+  if (!qDigits || qDigits.length < 3) return []
+
+  const rows = await prisma.$queryRaw<
+    { id: number; nome: string; telefone: string | null; bairro: string | null; cidade_id: number | null; cidade_nome: string | null; cpf: string | null }[]
+  >`
+    SELECT c.id,
+           c.nome,
+           c.telefone,
+           c.bairro,
+           c.cidade_id,
+           ci.nome AS cidade_nome,
+           c.cpf
+    FROM public.cliente c
+    LEFT JOIN public.cidades ci ON ci.id = c.cidade_id
+    WHERE regexp_replace(coalesce(c.telefone, ''), '\D', '', 'g') LIKE '%' || ${qDigits} || '%'
+    ORDER BY similarity(regexp_replace(coalesce(c.telefone, ''), '\D', '', 'g'), ${qDigits}) DESC,
+             c.id DESC
+    LIMIT ${Math.min(Math.max(limit, 1), 25)}
+  `
+  return rows
 }
+
 
 export async function criarClienteBasico(data: {
   nome: string
@@ -75,18 +69,16 @@ export async function criarClienteBasico(data: {
     throw err
   }
 
-  // checagem UX (o índice do banco garante de qualquer forma)
-  const existe = await prisma.cliente.findFirst({
-    where: { nome: { equals: nome, mode: "insensitive" } },
-    select: { id: true }
-  })
-  if (existe) {
+    // checagem UX com mesmo critério do índice (unaccent + lower)
+  const existenteId = await getClienteIdByNomeUnaccent(nome)
+  if (existenteId) {
     const err: any = new Error("Cliente já existe. Associado ao existente.")
     err.status = 409
     err.code = "NOME_DUPLICADO"
-    err.clienteId = existe.id
+    err.clienteId = existenteId
     throw err
   }
+
 
   const created = await prisma.cliente.create({
     data: {
@@ -106,4 +98,15 @@ export async function criarClienteBasico(data: {
     }
   })
   return created
+}
+
+
+export async function getClienteIdByNomeUnaccent(nome: string): Promise<number | null> {
+  const termo = String(nome ?? "").trim()
+  if (!termo) return null
+  const rows = await prisma.$queryRaw<{ id: number }[]>`
+    SELECT id FROM public.cliente
+    WHERE immutable_unaccent(lower(nome)) = immutable_unaccent(lower(${termo}))
+    ORDER BY id DESC LIMIT 1`
+  return rows?.[0]?.id ?? null
 }

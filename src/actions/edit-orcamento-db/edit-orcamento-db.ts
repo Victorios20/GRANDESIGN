@@ -18,6 +18,7 @@ export type UIMaterial = {
 export type GetOrcamentoResult = {
   id: number
   titulo: string
+  clienteId: number 
   cliente: {
     nome: string
     telefone: string
@@ -264,6 +265,7 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
     const res: GetOrcamentoResult = {
       id,
       titulo: data.orc.titulo ?? "",
+      clienteId: data.orc.cliente_id ?? 0,
       cliente: {
         nome: data.orc.cliente.nome ?? "",
         telefone: data.orc.cliente.telefone ?? "",

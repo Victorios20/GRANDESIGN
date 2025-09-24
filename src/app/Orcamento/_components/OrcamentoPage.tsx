@@ -126,15 +126,14 @@ type ClienteSearchResult = {
 
 export type InitialData = {
     id: number
+    /** ID do cliente já associado a este orçamento (vem da API de GET /Orcamentos/[id]) */
+    clienteId: number
     titulo: string
     cliente: { nome: string; telefone: string; bairro: string; cidade: string }
     parametros: {
         tipoObra: string
-        // Podem não existir (caso Coberta em L)
         largura?: number | null
         comprimento?: number | null
-
-        // Novos campos da Coberta em L (opcionais)
         larguraMaior?: number | null
         larguraMenor?: number | null
         comprimentoMaior?: number | null
@@ -150,9 +149,9 @@ export type InitialData = {
         empresaGD: number
     }
     telhaValores: Record<string, Pagto>
-    // aceitamos ambos os formatos
     links: { slide?: string; pdf?: string; slideUrl?: string | null; pdfUrl?: string | null }
 }
+
 
 type Catalogo = {
     madeiras: { nome: string; preco: number }[]
@@ -601,6 +600,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         orcamentoId = props.orcamentoId
         initialData = props.initialData
     }
+    const [isSavingClient, setIsSavingClient] = useState(false)
 
     // (opcional) manter uma variável mode se você usa em outros lugares
     const mode: "create" | "edit" = isEdit ? "edit" : "create"
@@ -924,11 +924,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }
     }
 
-
-
-
-
-
     /* ===================================================================
      *                    HIDRATAÇÃO inicial (modo EDIT)
      * =================================================================== */
@@ -938,21 +933,29 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         const slide = initialData.links.slide ?? initialData.links.slideUrl ?? undefined
         const pdf = initialData.links.pdf ?? initialData.links.pdfUrl ?? undefined
 
+        // Campos do cliente (formatar telefone p/ UI)
+        const nome = initialData.cliente.nome ?? ""
+        const telefone = formatPhone(initialData.cliente.telefone ?? "")
+        const bairro = initialData.cliente.bairro ?? ""
+        const cidade = initialData.cliente.cidade ?? ""
+
         setTitulo(initialData.titulo ?? "")
-        setForm({
-            nome: initialData.cliente.nome ?? "",
-            telefone: initialData.cliente.telefone ?? "",
-            bairro: initialData.cliente.bairro ?? "",
-            cidade: initialData.cliente.cidade ?? "",
-        })
+        setForm({ nome, telefone, bairro, cidade })
+
+        // >>> ASSOCIAÇÃO AO ENTRAR NO EDITAR <<<
+        setClienteId(initialData.clienteId ?? null)
+        const snap = { nome, telefone, cidade, bairro }
+        setClienteSnap(snap)
+
+        // (se quiser sobreviver a refresh durante o editar)
+        localStorage.setItem("orcamento.clienteId", String(initialData.clienteId ?? ""))
+        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+
         setTipoObra(initialData.parametros.tipoObra ?? null)
         setDim(prev => ({
             ...prev,
-            // se não existir no BD, caem para 0 no front
             largura: Number(initialData.parametros.largura ?? 0),
             comprimento: Number(initialData.parametros.comprimento ?? 0),
-
-            // Coberta em L — também caem para 0 quando ausentes
             larguraMaior: Number(initialData.parametros.larguraMaior ?? 0),
             larguraMenor: Number(initialData.parametros.larguraMenor ?? 0),
             comprimentoMaior: Number(initialData.parametros.comprimentoMaior ?? 0),
@@ -961,16 +964,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
         setMateriais(initialData.materiais)
         setTotEdit(initialData.totais)
-        setTelhaValores({ ...initialData.telhaValores }) // usamos como veio do BD
+        setTelhaValores({ ...initialData.telhaValores })
         setLinks({ slide, pdf })
 
-        // garantimos que o título ainda não está "confirmado" até o usuário interagir
         setTituloConfirmado(false)
         setTituloSnap("")
         setAutoTituloSnap("")
 
         setHydrated(true)
     }, [isEdit, initialData])
+
 
     /* ===================================================================
      *                         Handlers (Etapa 1)
@@ -1863,41 +1866,64 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 <div className="p-4 pt-0 flex justify-end">
                     <Button
                         id={FIELD_IDS.cadastrarCliente}
-                        className={`min-w-[180px] ${clienteId && !clienteDirty ? "text-emerald-600 dark:text-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed" : ""
-                            }`}
+                        className={[
+                            "min-w-[200px]",
+                            clienteId && !clienteDirty && !isSavingClient
+                                ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
+                                : "",
+                        ].join(" ")}
                         variant={clienteId ? "secondary" : "default"}
-                        disabled={!!clienteId && !clienteDirty}
+                        disabled={isSavingClient || (!!clienteId && !clienteDirty)}
+                        aria-busy={isSavingClient ? "true" : "false"}
+                        aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
                         onClick={async () => {
+                            if (clienteId && !clienteDirty) {
+                                toast.message("Cliente já associado.")
+                                return
+                            }
+                            setIsSavingClient(true)
                             try {
-                                if (clienteId && !clienteDirty) {
-                                    toast.message("Cliente já associado.")
-                                    return
-                                }
                                 const { id, associado } = await criarOuAssociarCliente(form, cidades)
                                 setClienteId(id)
-                                const snap = { ...form }
-                                snap.telefone = formatPhone(snap.telefone)
+                                const snap = {
+                                    nome: form.nome.trim(),
+                                    telefone: formatPhone(form.telefone),
+                                    cidade: form.cidade.trim(),
+                                    bairro: (form.bairro ?? "").trim(),
+                                }
                                 setClienteSnap(snap)
+                                localStorage.setItem("orcamento.clienteId", String(id))
+                                localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
                                 toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
                             } catch (e: any) {
                                 toast.error(e?.message ?? "Falha ao cadastrar/associar cliente.")
                                 scrollToField(FIELD_IDS.nome)
+                            } finally {
+                                setIsSavingClient(false)
                             }
                         }}
                         title={
                             clienteId
-                                ? (clienteDirty ? "Aplicar alterações no cliente (em breve)" : "Cliente já associado")
+                                ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
                                 : "Cadastrar/associar cliente"
                         }
                     >
-                        {clienteId ? (
+                        {isSavingClient ? (
+                            <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
+                            </>
+                        ) : clienteId ? (
                             clienteDirty ? (
                                 <>
-                                    <UserCheck className="h-4 w-4 mr-1" />
+                                    <UserPlus className="h-4 w-4 mr-1" />
                                     Editar cliente
                                 </>
                             ) : (
-                                "Cliente associado"
+                                <>
+                                    <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
+                                    <span className="text-emerald-600">Cliente associado</span>
+                                </>
                             )
                         ) : (
                             <>

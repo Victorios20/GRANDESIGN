@@ -13,11 +13,6 @@ import { getOrcamentoById, type GetOrcamentoResult } from "@/actions/edit-orcame
 export const revalidate = 300
 
 function toInitialData(data: GetOrcamentoResult): InitialData {
-  // Normalizações exigidas pelo componente:
-  // - cliente.cidade: string (null -> "")
-  // - materiais.*[].componente: string (null -> "")
-  // - materiais.*[].tamanho: string|number (null -> "")
-  // - materiais.*[].frete: number|undefined (null -> undefined)
   const mapMat = (arr: GetOrcamentoResult["materiais"]["madeiras"]) =>
     arr.map((m) => ({
       id: m.id ?? 0,
@@ -25,18 +20,22 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
       componente: (m.componente ?? "") || "",
       quantidade: m.quantidade ?? 0,
       preco: m.preco ?? 0,
-      tamanho: m.tamanho == null ? "" : m.tamanho, // string|number
+      tamanho: m.tamanho == null ? "" : m.tamanho,
       frete: m.frete == null ? undefined : m.frete,
     }))
 
   return {
     id: data.id,
+
+    // 👇 Novo: garante que o componente receba o id do cliente já associado
+    clienteId: (data as any).clienteId ?? data.clienteId ?? 0,
+
     titulo: data.titulo ?? "",
     cliente: {
       nome: data.cliente?.nome ?? "",
       telefone: data.cliente?.telefone ?? "",
       bairro: data.cliente?.bairro ?? "",
-      cidade: data.cliente?.cidade ?? "", // ← crucial (sem null)
+      cidade: data.cliente?.cidade ?? "",
     },
     parametros: {
       tipoObra: data.parametros?.tipoObra ?? "",
@@ -64,12 +63,12 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
     links: {
       slideUrl: data.links?.slideUrl ?? null,
       pdfUrl: data.links?.pdfUrl ?? null,
-      // os dois abaixo são opcionais no componente
       slide: undefined,
       pdf: undefined,
     },
   }
 }
+
 
 export default async function Page(context: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await context.params
