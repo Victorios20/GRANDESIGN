@@ -395,6 +395,44 @@ async function criarOuAssociarCliente(
     throw new Error(msg)
 }
 
+async function editarCliente(
+  id: number,
+  form: { nome: string; telefone: string; bairro: string; cidade: string },
+  cidades: { id: number; nome: string }[],
+): Promise<{ id: number }> {
+  const nome = form.nome.trim()
+  if (!nome) throw new Error("Informe o nome do cliente.")
+  const cidadeId = cidades.find(c => c.nome === form.cidade)?.id ?? null
+  const telefoneRaw = form.telefone?.replace(/\D/g, "") || null
+  const bairro = form.bairro?.trim() || null
+
+  const r = await fetch(`/api/clientes/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome, telefone: telefoneRaw, bairro, cidade_id: cidadeId }),
+  })
+
+  if (r.status === 200) {
+    const j = await r.json()
+    return { id: Number(j?.id ?? id) }
+  }
+
+  if (r.status === 409) {
+    let msg = "Já existe cliente com este nome."
+    try {
+      const j = await r.json()
+      msg = j?.error || msg
+    } catch {}
+    throw new Error(msg)
+  }
+
+  let msg = `Falha ao atualizar cliente (${r.status})`
+  try {
+    const j = await r.json()
+    if (j?.error) msg = j.error
+  } catch {}
+  throw new Error(msg)
+}
 
 
 // Cores mais fortes por ID
@@ -1872,7 +1910,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
                                 : "",
                         ].join(" ")}
-                        variant={clienteId ? "secondary" : "default"}
+                        variant={clienteId ? "secondary" : "outline"}
                         disabled={isSavingClient || (!!clienteId && !clienteDirty)}
                         aria-busy={isSavingClient ? "true" : "false"}
                         aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
@@ -1883,25 +1921,39 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             }
                             setIsSavingClient(true)
                             try {
-                                const { id, associado } = await criarOuAssociarCliente(form, cidades)
-                                setClienteId(id)
-                                const snap = {
-                                    nome: form.nome.trim(),
-                                    telefone: formatPhone(form.telefone),
-                                    cidade: form.cidade.trim(),
-                                    bairro: (form.bairro ?? "").trim(),
+                                if (clienteId && clienteDirty) {
+                                    await editarCliente(clienteId, form, cidades)
+                                    const snap = {
+                                        nome: form.nome.trim(),
+                                        telefone: formatPhone(form.telefone),
+                                        cidade: form.cidade.trim(),
+                                        bairro: (form.bairro ?? "").trim(),
+                                    }
+                                    setClienteSnap(snap)
+                                    localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+                                    toast.success("Cliente atualizado com sucesso!")
+                                } else {
+                                    const { id, associado } = await criarOuAssociarCliente(form, cidades)
+                                    setClienteId(id)
+                                    const snap = {
+                                        nome: form.nome.trim(),
+                                        telefone: formatPhone(form.telefone),
+                                        cidade: form.cidade.trim(),
+                                        bairro: (form.bairro ?? "").trim(),
+                                    }
+                                    setClienteSnap(snap)
+                                    localStorage.setItem("orcamento.clienteId", String(id))
+                                    localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+                                    toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
                                 }
-                                setClienteSnap(snap)
-                                localStorage.setItem("orcamento.clienteId", String(id))
-                                localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-                                toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
                             } catch (e: any) {
-                                toast.error(e?.message ?? "Falha ao cadastrar/associar cliente.")
+                                toast.error(e?.message ?? "Falha ao salvar cliente.")
                                 scrollToField(FIELD_IDS.nome)
                             } finally {
                                 setIsSavingClient(false)
                             }
                         }}
+
                         title={
                             clienteId
                                 ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")

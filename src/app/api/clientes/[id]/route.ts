@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
 
+type Ctx = { params: Promise<{ id: string }> }
+
 function onlyDigits(s?: string | null) {
   return s ? String(s).replace(/\D/g, "") : null
 }
@@ -13,10 +15,12 @@ function clean(s?: string | null) {
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: Ctx
 ) {
+  let novoNomeCache: string | null = null
   try {
-    const idNum = Number(params?.id)
+    const { id } = await params
+    const idNum = Number(id)
     if (!Number.isFinite(idNum) || idNum <= 0) {
       return NextResponse.json(
         { error: "ID inválido", code: "VALIDACAO" },
@@ -26,7 +30,6 @@ export async function PUT(
 
     const body = await req.json().catch(() => ({} as any))
 
-    // Atualiza só os campos enviados
     const data: Record<string, any> = {}
 
     if (typeof body?.nome === "string") {
@@ -38,6 +41,7 @@ export async function PUT(
         )
       }
       data.nome = nome
+      novoNomeCache = nome
     }
 
     if (typeof body?.telefone === "string") {
@@ -86,10 +90,8 @@ export async function PUT(
 
     return NextResponse.json(updated, { status: 200 })
   } catch (e: any) {
-    // Prisma v6: checar codes diretamente
     const code = e?.code as string | undefined
 
-    // Registro não encontrado
     if (code === "P2025") {
       return NextResponse.json(
         { error: "Cliente não encontrado", code: "CLIENT_NOT_FOUND" },
@@ -99,8 +101,7 @@ export async function PUT(
 
     if (code === "P2002") {
       try {
-        const body = await req.clone().json().catch(() => ({} as any))
-        const novoNome = (body?.nome ?? "").trim()
+        const novoNome = (novoNomeCache ?? "").trim()
 
         const rows = await prisma.$queryRaw<{ id: number }[]>`
       SELECT id
@@ -122,7 +123,6 @@ export async function PUT(
         )
       }
     }
-
 
     console.error("PUT /api/clientes/[id] error:", e)
     return NextResponse.json(
