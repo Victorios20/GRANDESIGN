@@ -429,133 +429,141 @@ function TabelaMateriais({
   }
 
 
-  return (
+return (
+  <Card className="w-full border shadow-sm rounded-2xl">
+    <CardHeader className="flex items-center justify-between bg-bege-header rounded-t-2xl">
+      <CardTitle className="text-lg font-semibold text-marromEscuro">
+        {isMadeiraTabela && fornecedorSelObj ? `Madeiras — ${fornecedorSelObj.nome}` : title}
+      </CardTitle>
+      <div className="flex items-center gap-2">
+        {isMadeiraTabela && (
+          <Select
+            value={fornecedorSel ? String(fornecedorSel) : ""}
+            onValueChange={(v) => setFornecedorSel(Number(v))}
+          >
+            <SelectTrigger className="h-9 w-56 bg-white">
+              <SelectValue placeholder="Selecione o fornecedor" />
+            </SelectTrigger>
+            <SelectContent>
+              {fornecedores.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>
+                  {f.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
-    <Card className="w-full border shadow-sm rounded-2xl">
-      <CardHeader className="flex items-center justify-between bg-bege-header rounded-t-2xl">
-        <CardTitle className="text-lg font-semibold text-marromEscuro">
-          {isMadeiraTabela && fornecedorSelObj ? `Madeiras — ${fornecedorSelObj.nome}` : title}
-        </CardTitle>
-        <div className="flex items-center gap-2">
-          {isMadeiraTabela && (
-            <Select
-              value={fornecedorSel ? String(fornecedorSel) : ""}
-              onValueChange={(v) => setFornecedorSel(Number(v))}
-            >
-              <SelectTrigger className="h-9 w-56 bg-white">
-                <SelectValue placeholder="Selecione o fornecedor" />
-              </SelectTrigger>
-              <SelectContent>
-                {fornecedores.map((f) => (
-                  <SelectItem key={f.id} value={String(f.id)}>
-                    {f.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        {!adding && (
+          <Button
+            size="sm"
+            onClick={startAdd}
+            disabled={editingId !== null || addingSaving || isSaving || (isMadeiraTabela && !fornecedorSel)}
+            title="Adicionar"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Adicionar
+          </Button>
+        )}
+      </div>
+    </CardHeader>
 
-          {!adding ? (
-            <Button
-              size="sm"
-              onClick={startAdd}
-              disabled={editingId !== null || addingSaving || isSaving || (isMadeiraTabela && !fornecedorSel)}
-              title="Adicionar"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2" ref={addRef}>
-              <Input
-                className="h-9 w-48"
-                placeholder="Nome"
-                value={novoNome}
-                onChange={(e) => setNovoNome(e.target.value)}
-                disabled={addingSaving}
-              />
-              <Input
-                className="h-9 w-36"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={novoPreco}
-                onChange={(e) => setNovoPreco(e.target.value)}
-                disabled={addingSaving}
-              />
-              <Button
-                size="sm"
-                onClick={saveAdd}
-                title="Salvar novo"
-                disabled={addingSaving}
-                aria-busy={addingSaving}
-              >
-                {addingSaving ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4 mr-2" />
-                )}
-                Salvar
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={cancelAdd}
-                title="Cancelar"
-                disabled={addingSaving}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardHeader>
+    <CardContent className="overflow-x-auto rounded-b-2xl">
+      <Table className="rounded-xl overflow-hidden">
+        <TableHeader>
+          <TableRow className="bg-bege">
+            <TableHead className="w-2/5">Nome</TableHead>
+            <TableHead className="w-1/5">Preço (R$)</TableHead>
+            <TableHead className="w-[140px] text-center">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
 
-
-      <CardContent className="overflow-x-auto rounded-b-2xl">
-        <Table className="rounded-xl overflow-hidden">
-          <TableHeader>
-            <TableRow className="bg-bege">
-              <TableHead className="w-2/5">Nome</TableHead>
-              <TableHead className="w-1/5">Preço (R$)</TableHead>
-              <TableHead className="w-1/5 text-center">Ações</TableHead>
+        <TableBody>
+          {adding && (
+            <TableRow ref={addRef as any} className="bg-white/60">
+              <TableCell>
+                <Input
+                  autoFocus
+                  className="h-9"
+                  placeholder="Nome do material"
+                  value={novoNome}
+                  onChange={(e) => setNovoNome(e.target.value)}
+                  disabled={addingSaving}
+                />
+              </TableCell>
+              <TableCell>
+                <Input
+                  className="h-9"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={novoPreco}
+                  onChange={(e) => setNovoPreco(e.target.value)}
+                  disabled={addingSaving}
+                />
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center justify-center gap-2 min-w-[140px] overflow-visible">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={saveAdd}
+                    disabled={addingSaving}
+                    aria-busy={addingSaving}
+                    aria-label="Salvar"
+                    title="Salvar"
+                  >
+                    {addingSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={cancelAdd}
+                    disabled={addingSaving}
+                    aria-label="Cancelar"
+                    title="Cancelar"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
+                </div>
+              </TableCell>
             </TableRow>
-          </TableHeader>
+          )}
 
-          <TableBody>
-            {items.map((row) => {
-              const isRowEditing = row.id === editingId
-              const isDeleting = deletingId === row.id
-              return (
-                <TableRow key={row.id}>
-                  <TableCell>
-                    {isRowEditing ? (
-                      <Input
-                        value={nomeInput}
-                        onChange={(e) => setNomeInput(e.target.value)}
-                        disabled={isSaving}
-                        autoFocus
-                        placeholder="Nome do material"
-                      />
-                    ) : (
-                      row.nome
-                    )}
-                  </TableCell>
+          {items.map((row) => {
+            const isRowEditing = row.id === editingId
+            const isDeleting = deletingId === row.id
+            return (
+              <TableRow key={row.id}>
+                <TableCell>
+                  {isRowEditing ? (
+                    <Input
+                      value={nomeInput}
+                      onChange={(e) => setNomeInput(e.target.value)}
+                      disabled={isSaving}
+                      autoFocus
+                      placeholder="Nome do material"
+                    />
+                  ) : (
+                    row.nome
+                  )}
+                </TableCell>
 
-                  <TableCell>
-                    {isRowEditing ? (
-                      <Input
-                        inputMode="decimal"
-                        value={precoInput}
-                        onChange={(e) => setPrecoInput(e.target.value)}
-                        disabled={isSaving}
-                        placeholder="0,00"
-                      />
-                    ) : (
-                      moeda(row.preco)
-                    )}
-                  </TableCell>
+                <TableCell>
+                  {isRowEditing ? (
+                    <Input
+                      inputMode="decimal"
+                      value={precoInput}
+                      onChange={(e) => setPrecoInput(e.target.value)}
+                      disabled={isSaving}
+                      placeholder="0,00"
+                    />
+                  ) : (
+                    moeda(row.preco)
+                  )}
+                </TableCell>
 
-                  <TableCell className="flex justify-center gap-2">
+                <TableCell>
+                  <div className="flex items-center justify-center gap-2 min-w-[140px] overflow-visible">
                     {isRowEditing ? (
                       <>
                         <Button
@@ -567,13 +575,8 @@ function TabelaMateriais({
                           aria-label="Salvar"
                           title="Salvar"
                         >
-                          {isSaving ? (
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          ) : (
-                            <Save className="w-5 h-5" />
-                          )}
+                          {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                         </Button>
-
                         <Button
                           variant="ghost"
                           size="icon"
@@ -597,8 +600,6 @@ function TabelaMateriais({
                         >
                           <Edit className="w-5 h-5" />
                         </Button>
-
-
                         <Button
                           variant="ghost"
                           size="icon"
@@ -609,49 +610,45 @@ function TabelaMateriais({
                         >
                           <Trash2 className="w-5 h-5 text-red-600" />
                         </Button>
-
-
                       </>
                     )}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
-          </TableBody>
-        </Table>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
 
-        <Toaster richColors position="top-right" />
-      </CardContent>
+      <Toaster richColors position="top-right" />
+    </CardContent>
 
-      {editingRow && (
-        <div className="px-6 pb-4 text-sm text-muted-foreground">
-          Editando: <span className="font-medium">{editingRow.nome}</span>
-        </div>
-      )}
+    {editingRow && (
+      <div className="px-6 pb-4 text-sm text-muted-foreground">
+        Editando: <span className="font-medium">{editingRow.nome}</span>
+      </div>
+    )}
 
-      <ConfirmDeleteModal
-        open={confirmOpen}
-        onClose={() => {
-          if (!confirmLoading) {
-            setConfirmOpen(false)
-            setToDelete(null)
-          }
-        }}
-        onConfirm={confirmDelete}
-        loading={confirmLoading}
-        title="Excluir material"
-        message={
-          toDelete
-            ? `Tem certeza que deseja excluir "${toDelete.nome}"? Essa ação não pode ser desfeita.`
-            : "Tem certeza que deseja excluir este item?"
+    <ConfirmDeleteModal
+      open={confirmOpen}
+      onClose={() => {
+        if (!confirmLoading) {
+          setConfirmOpen(false)
+          setToDelete(null)
         }
-      />
+      }}
+      onConfirm={confirmDelete}
+      loading={confirmLoading}
+      title="Excluir material"
+      message={
+        toDelete
+          ? `Tem certeza que deseja excluir "${toDelete.nome}"? Essa ação não pode ser desfeita.`
+          : "Tem certeza que deseja excluir este item?"
+      }
+    />
+  </Card>
+)
 
-
-    </Card>
-
-
-  )
 }
 
 /* ============================

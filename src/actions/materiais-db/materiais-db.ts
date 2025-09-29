@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma"
 
-
 export type Material = Awaited<ReturnType<typeof prisma.materiais.findMany>>[number]
 export type Madeira = Material
 
@@ -15,20 +14,14 @@ export async function listarMadeirasPorFornecedor(fornecedorId: number): Promise
   })
 }
 
-export async function buscarMadeirasParaSelector(fornecedorId: number, query?: string): Promise<Madeira[]> {
+export async function buscarMadeirasParaSelector(fornecedorId: number, q: string): Promise<Madeira[]> {
   return prisma.materiais.findMany({
     where: {
       tipo: "madeira",
       fornecedorId,
-      descricao: query ? { contains: query, mode: "insensitive" } : undefined,
+      descricao: { contains: q, mode: "insensitive" },
     },
     orderBy: { descricao: "asc" },
-  })
-}
-
-export async function obterMadeiraPorDescricaoEFornecedor(descricao: string, fornecedorId: number): Promise<Madeira | null> {
-  return prisma.materiais.findFirst({
-    where: { tipo: "madeira", fornecedorId, descricao },
   })
 }
 
@@ -37,124 +30,109 @@ export async function criarMadeira(data: {
   preco_unitario: number
   unidade_de_medida?: string | null
   fornecedorId: number
-}): Promise<Madeira> {
-  try {
-    return await prisma.materiais.create({
-      data: {
-        descricao: data.descricao,
-        tipo: "madeira",
-        preco_unitario: data.preco_unitario as any,
-        unidade_de_medida: data.unidade_de_medida ?? undefined,
-        fornecedorId: data.fornecedorId,
-      } as any,
-    })
-  } catch (e: any) {
-    if (e?.code === "P2002") {
-      throw new Error("Já existe uma madeira com essa descrição para este fornecedor.")
-    }
-    throw e
-  }
+}) {
+  const descricao = String(data.descricao || "").trim()
+  const preco = Number(data.preco_unitario)
+  const unidade = typeof data.unidade_de_medida === "string" && data.unidade_de_medida.trim() ? data.unidade_de_medida.trim() : "un"
+  const fornecedorId = Number(data.fornecedorId)
+  if (!descricao) throw new Error("Descricao obrigatória")
+  if (!Number.isFinite(preco) || preco < 0) throw new Error("preco_unitario inválido")
+  if (!Number.isFinite(fornecedorId) || fornecedorId <= 0) throw new Error("fornecedorId inválido")
+  return prisma.materiais.create({
+    data: {
+      descricao,
+      tipo: "madeira",
+      preco_unitario: preco,
+      unidade_de_medida: unidade,
+      fornecedorId,
+    },
+    select: { id: true },
+  })
 }
 
-export async function atualizarMadeira(
-  id: number,
-  data: {
-    descricao?: string
-    preco_unitario?: number
-    unidade_de_medida?: string | null
-    fornecedorId?: number
-  }
-): Promise<Madeira> {
-  const updateData: any = {}
-  if (data.descricao !== undefined) updateData.descricao = data.descricao
-  if (data.preco_unitario !== undefined) updateData.preco_unitario = data.preco_unitario as any
-  if (data.unidade_de_medida !== undefined) updateData.unidade_de_medida = data.unidade_de_medida
-  if (data.fornecedorId !== undefined) updateData.fornecedorId = data.fornecedorId
-  try {
-    return await prisma.materiais.update({
-      where: { id },
-      data: updateData as any,
-    })
-  } catch (e: any) {
-    if (e?.code === "P2002") {
-      throw new Error("Já existe uma madeira com essa descrição para este fornecedor.")
-    }
-    throw e
-  }
-}
-
-export async function removerMadeira(id: number): Promise<void> {
-  await prisma.materiais.delete({
-    where: { id },
+export async function criarMaterialGenerico(data: {
+  descricao: string
+  tipo: "geral" | "telha"
+  preco_unitario: number
+  unidade_de_medida?: string | null
+}) {
+  const descricao = String(data.descricao || "").trim()
+  const tipo = String(data.tipo || "")
+  const preco = Number(data.preco_unitario)
+  const unidade = typeof data.unidade_de_medida === "string" && data.unidade_de_medida.trim() ? data.unidade_de_medida.trim() : "un"
+  if (!descricao) throw new Error("Descricao obrigatória")
+  if (!["geral", "telha"].includes(tipo)) throw new Error("tipo inválido")
+  if (!Number.isFinite(preco) || preco < 0) throw new Error("preco_unitario inválido")
+  return prisma.materiais.create({
+    data: {
+      descricao,
+      tipo,
+      preco_unitario: preco,
+      unidade_de_medida: unidade,
+    },
+    select: { id: true },
   })
 }
 
 export async function criarMaterial(data: {
   descricao: string
+  tipo: "geral" | "madeira" | "telha"
   preco_unitario: number
   unidade_de_medida?: string | null
-  tipo: "madeira" | "geral" | "telha"
   fornecedorId?: number | null
-}): Promise<Material> {
-  if (isMadeira(data.tipo) && (data.fornecedorId === null || data.fornecedorId === undefined)) {
-    throw new Error("Fornecedor é obrigatório para madeiras.")
-  }
-  const payload: any = {
-    descricao: data.descricao,
-    tipo: data.tipo,
-    preco_unitario: data.preco_unitario as any,
-    unidade_de_medida: data.unidade_de_medida ?? undefined,
-    fornecedorId: isMadeira(data.tipo) ? (data.fornecedorId as number) : null,
-  }
-  try {
-    return await prisma.materiais.create({ data: payload })
-  } catch (e: any) {
-    if (e?.code === "P2002") {
-      throw new Error(isMadeira(data.tipo) ? "Já existe uma madeira com essa descrição para este fornecedor." : "Já existe um material com essa descrição.")
+}) {
+  if (isMadeira(data.tipo)) {
+    if (!Number.isFinite(Number(data.fornecedorId)) || Number(data.fornecedorId) <= 0) {
+      throw new Error("fornecedorId inválido")
     }
-    throw e
-  }
-}
-
-export async function atualizarMaterial(
-  id: number,
-  data: {
-    descricao?: string
-    preco_unitario?: number
-    unidade_de_medida?: string | null
-    tipo?: "madeira" | "geral" | "telha"
-    fornecedorId?: number | null
-}): Promise<Material> {
-  const registro = await prisma.materiais.findUnique({ where: { id } })
-  if (!registro) {
-    throw new Error("Material não encontrado.")
-  }
-  const tipoDestino = data.tipo ?? registro.tipo
-  if (isMadeira(tipoDestino) && (data.fornecedorId === null || data.fornecedorId === undefined) && registro.fornecedorId === null) {
-    throw new Error("Fornecedor é obrigatório para madeiras.")
-  }
-  const updateData: any = {}
-  if (data.descricao !== undefined) updateData.descricao = data.descricao
-  if (data.preco_unitario !== undefined) updateData.preco_unitario = data.preco_unitario as any
-  if (data.unidade_de_medida !== undefined) updateData.unidade_de_medida = data.unidade_de_medida
-  if (data.tipo !== undefined) updateData.tipo = data.tipo
-  updateData.fornecedorId = isMadeira(tipoDestino) ? (data.fornecedorId ?? registro.fornecedorId) : null
-  try {
-    return await prisma.materiais.update({
-      where: { id },
-      data: updateData as any,
+    return criarMadeira({
+      descricao: data.descricao,
+      preco_unitario: data.preco_unitario,
+      unidade_de_medida: data.unidade_de_medida,
+      fornecedorId: Number(data.fornecedorId),
     })
-  } catch (e: any) {
-    if (e?.code === "P2002") {
-      throw new Error(isMadeira(tipoDestino) ? "Já existe uma madeira com essa descrição para este fornecedor." : "Já existe um material com essa descrição.")
-    }
-    throw e
   }
+  return criarMaterialGenerico({
+    descricao: data.descricao,
+    tipo: data.tipo as "geral" | "telha",
+    preco_unitario: data.preco_unitario,
+    unidade_de_medida: data.unidade_de_medida ?? undefined,
+  })
 }
 
-export async function removerMaterial(id: number): Promise<void> {
-  await prisma.materiais.delete({
+export async function atualizarMaterial(id: number, data: {
+  descricao?: string
+  preco_unitario?: number
+  unidade_de_medida?: string | null
+  fornecedorId?: number | null
+}) {
+  const payload: any = {}
+  if (typeof data.descricao === "string") {
+    const d = data.descricao.trim()
+    if (!d) throw new Error("Descricao obrigatória")
+    payload.descricao = d
+  }
+  if (data.preco_unitario !== undefined) {
+    const p = Number(data.preco_unitario)
+    if (!Number.isFinite(p) || p < 0) throw new Error("preco_unitario inválido")
+    payload.preco_unitario = p
+  }
+  if (data.unidade_de_medida !== undefined) {
+    payload.unidade_de_medida =
+      typeof data.unidade_de_medida === "string" && data.unidade_de_medida.trim()
+        ? data.unidade_de_medida.trim()
+        : "un"
+  }
+  if (data.fornecedorId !== undefined && data.fornecedorId !== null) {
+    const f = Number(data.fornecedorId)
+    if (Number.isFinite(f) && f > 0) {
+      payload.fornecedorId = f
+    }
+  }
+  return prisma.materiais.update({
     where: { id },
+    data: payload,
+    select: { id: true },
   })
 }
 
@@ -171,3 +149,14 @@ export async function listarMateriaisGerais(): Promise<Material[]> {
     orderBy: { descricao: "asc" },
   })
 }
+
+export async function removerMaterial(id: number) {
+  return prisma.materiais.delete({
+    where: { id },
+    select: { id: true },
+  })
+}
+
+// compat com imports antigos:
+export const atualizarMadeira = atualizarMaterial
+export const removerMadeira = removerMaterial
