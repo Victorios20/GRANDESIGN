@@ -12,6 +12,7 @@ import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { Edit, ArrowUpRight, Hammer } from "lucide-react"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { ShinyButton } from "@/components/ui/shiny-button"
+
 export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: DetalheVM; detailUrl: string }) {
   const fmtBRL = (n: unknown) => {
     const v = typeof n === "number" ? n : Number(n)
@@ -22,7 +23,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const fmtDim = (v: number | null | undefined) =>
     typeof v === "number" && isFinite(v) && v > 0 ? `${v.toLocaleString("pt-BR")} m` : "-"
 
-  // Agrupar materiais como no modal
   const materiaisGroup = useMemo(() => {
     const base: Record<"madeira" | "geral" | "telha", DetalheVM["materiais"]> = { madeira: [], geral: [], telha: [] }
     for (const item of detalhe.materiais) base[item.tipo].push(item as any)
@@ -33,18 +33,28 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const slideUrl = detalhe.links.slideUrl ?? ""
   const pdfUrl = detalhe.links.pdfUrl ?? ""
 
+  const isRetangular =
+    detalhe?.dimensoes?.largura != null && detalhe?.dimensoes?.comprimento != null
+
   return (
-    // para:
     <PageLayout
+      headerActions={
+        <>
+          <ShinyButton onClick={() => console.log("Lançar obra | orcamentoId=", detalhe.id)} />
+          <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
+            <Link href={editHref}>
+              <Edit className="h-4 w-4 mr-2" />
+              Editar
+            </Link>
+          </Button>
+        </>
+      }
       links={[
         { label: "Home", href: "/" },
-        { label: "Detalhar Orçamento", href: `/orcamento/detalhes/${detalhe.id}` }, // ou sem href se preferir não clicável
+        { label: "Detalhar Orçamento", href: `/orcamento/detalhes/${detalhe.id}` },
       ]}
     >
-
-
       <div className="container mx-auto space-y-8">
-        {/* Cabeçalho (como o título do modal) */}
         <Card className="border-0 shadow-none">
           <CardHeader className="pb-1">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -54,20 +64,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
                 </CardTitle>
                 <CopyLinkButton value={detailUrl} label="Copiar link da página" />
               </div>
-
-              <div className="flex items-center gap-2">
-                {/* Novo botão: Lançar obra (outline verde) */}
-                <ShinyButton onClick={() => console.log("Lançar obra | orcamentoId=", detalhe.id)} />
-
-
-                {/* Botão Editar (igual ao modal) */}
-                <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
-                  <Link href={editHref}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Editar
-                  </Link>
-                </Button>
-              </div>
             </div>
 
             <CardDescription className="mt-1">
@@ -76,21 +72,49 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           </CardHeader>
         </Card>
 
-        {/* Dados do Cliente */}
-        <Card>
-          <CardHeader><CardTitle>Dados do Cliente</CardTitle></CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <p><b>Nome:</b> {safeCell(detalhe.cliente.nome)}</p>
-            <p><b>Telefone:</b> {safeCell(detalhe.cliente.telefone)}</p>
-            <p><b>Cidade:</b> {safeCell(detalhe.cliente.cidade)}</p>
-            <p><b>Bairro:</b> {safeCell(detalhe.cliente.bairro)}</p>
-            <p><b>Tipo de Obra:</b> {safeCell(detalhe.tipoObra)}</p>
-            <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
-            <p><b>Comprimento:</b> {fmtDim(detalhe.dimensoes.comprimento)}</p>
-          </CardContent>
-        </Card>
+        {/* Dados do Cliente + Obra (lado a lado e alturas iguais) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          {/* Dados do Cliente */}
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle>Dados do Cliente</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm grow">
+              <p><b>Nome:</b> {safeCell(detalhe.cliente.nome)}</p>
+              <p><b>Telefone:</b> {safeCell(detalhe.cliente.telefone)}</p>
+              <p><b>Bairro:</b> {safeCell(detalhe.cliente.bairro)}</p>
+              <p><b>Cidade:</b> {safeCell(detalhe.cliente.cidade)}</p>
+            </CardContent>
+          </Card>
 
-        {/* Materiais (Madeiras / Materiais Gerais / Telhas) */}
+          {/* Obra */}
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle>Dados da Obra</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1 text-sm grow">
+              <p><b>Tipo de obra:</b> {safeCell(detalhe.tipoObra)}</p>
+
+              {isRetangular ? (
+                <>
+                  <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
+                  <p><b>Comprimento:</b> {fmtDim(detalhe.dimensoes.comprimento)}</p>
+                </>
+              ) : (
+                <>
+                  <p><b>Largura (maior):</b> {fmtDim(detalhe.dimensoes.larguraMaior ?? (detalhe as any).dimensoes.largura_maior)}</p>
+                  <p><b>Largura (menor):</b> {fmtDim(detalhe.dimensoes.larguraMenor ?? (detalhe as any).dimensoes.largura_menor)}</p>
+                  <p><b>Comprimento (maior):</b> {fmtDim(detalhe.dimensoes.comprimentoMaior ?? (detalhe as any).dimensoes.comprimento_maior)}</p>
+                  <p><b>Comprimento (menor):</b> {fmtDim(detalhe.dimensoes.comprimentoMenor ?? (detalhe as any).dimensoes.comprimento_menor)}</p>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+
+
+
         {(["madeira", "geral", "telha"] as const).map((tipo) => {
           const linhas = materiaisGroup[tipo]
           if (!linhas.length) return null
@@ -185,7 +209,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           )
         })}
 
-        {/* Totais + Valores fixos (Telhas) */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <Card>
             <CardHeader><CardTitle>Totais por Categoria</CardTitle></CardHeader>
@@ -253,7 +276,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           </Card>
         </div>
 
-        {/* Links da Proposta (como no modal) */}
         <Card>
           <CardHeader className="p-4">
             <CardTitle className="text-lg">Links da Proposta</CardTitle>
@@ -263,7 +285,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           </CardHeader>
 
           <CardContent className="p-4 space-y-5">
-            {/* Slide */}
             <div className="grid gap-2">
               <label className="text-sm">Link do Slide</label>
               <div className="flex gap-2">
@@ -283,7 +304,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
               </div>
             </div>
 
-            {/* PDF */}
             <div className="grid gap-2">
               <label className="text-sm">Link do PDF</label>
               <div className="flex gap-2">
@@ -306,6 +326,5 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
         </Card>
       </div>
     </PageLayout>
-
   )
 }

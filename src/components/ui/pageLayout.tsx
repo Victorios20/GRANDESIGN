@@ -15,9 +15,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 type PageLayoutProps = PropsWithChildren<{
   links?: { href: string; label: string }[]
   backgroundImage?: boolean
+  headerActions?: React.ReactNode
 }>
 
-export function PageLayout({ children, links, backgroundImage = false }: PageLayoutProps) {
+export function PageLayout({ children, links, backgroundImage = false, headerActions }: PageLayoutProps) {
   const pathname = usePathname() || "/"
 
   const autoBreadcrumbs =
@@ -39,7 +40,7 @@ export function PageLayout({ children, links, backgroundImage = false }: PageLay
 
   return (
     <SidebarProvider>
-      <InnerLayout breadcrumbs={autoBreadcrumbs} backgroundImage={backgroundImage}>
+      <InnerLayout breadcrumbs={autoBreadcrumbs} backgroundImage={backgroundImage} headerActions={headerActions}>
         {children}
       </InnerLayout>
     </SidebarProvider>
@@ -50,8 +51,14 @@ function InnerLayout({
   children,
   breadcrumbs,
   backgroundImage,
-}: PropsWithChildren<{ breadcrumbs: { href: string; label: string }[]; backgroundImage?: boolean }>) {
+  headerActions,
+}: PropsWithChildren<{
+  breadcrumbs: { href: string; label: string }[]
+  backgroundImage?: boolean
+  headerActions?: React.ReactNode
+}>) {
   const { toggleSidebar } = useSidebar()
+  const hasActions = !!headerActions && React.Children.count(headerActions) > 0
 
   return (
     <div className="flex h-screen w-full bg-bege-pagina">
@@ -120,26 +127,32 @@ function InnerLayout({
             </div>
           </div>
 
-          {/* Header direito com título e avatar REDUZIDOS */}
+          {/* Header direito: ações customizadas OU nome+logo padrão */}
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-            <div className="hidden md:block">
-              <h2 className="text-base md:text-lg text-marromEscuro font-bold bg-gradient-to-r from-marromEscuro to-marromEscuro/80 bg-clip-text tracking-wide">
-                GRANDESIGN
-              </h2>
-            </div>
+            {hasActions ? (
+              <div className="flex items-center gap-2">{headerActions}</div>
+            ) : (
+              <>
+                <div className="hidden md:block">
+                  <h2 className="text-base md:text-lg text-marromEscuro font-bold bg-gradient-to-r from-marromEscuro to-marromEscuro/80 bg-clip-text tracking-wide">
+                    GRANDESIGN
+                  </h2>
+                </div>
 
-            <div className="relative">
-              <Avatar className="h-8 w-8 md:h-10 md:w-10 shadow-md hover:shadow-lg transition-all duration-300 border-0 ring-0">
-                <AvatarImage
-                  src="/favicon.ico"
-                  alt="Logo Grandesign"
-                  className="object-cover p-0.5 bg-gradient-to-br from-white to-bege rounded-full"
-                />
-                <AvatarFallback className="bg-gradient-to-br from-marromClaro to-bege text-marromEscuro font-bold text-sm border-0">
-                  GD
-                </AvatarFallback>
-              </Avatar>
-            </div>
+                <div className="relative">
+                  <Avatar className="h-8 w-8 md:h-10 md:w-10 shadow-md hover:shadow-lg transition-all duration-300 border-0 ring-0">
+                    <AvatarImage
+                      src="/favicon.ico"
+                      alt="Logo Grandesign"
+                      className="object-cover p-0.5 bg-gradient-to-br from-white to-bege rounded-full"
+                    />
+                    <AvatarFallback className="bg-gradient-to-br from-marromClaro to-bege text-marromEscuro font-bold text-sm border-0">
+                      GD
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </>
+            )}
           </div>
         </header>
 

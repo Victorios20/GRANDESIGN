@@ -396,42 +396,42 @@ async function criarOuAssociarCliente(
 }
 
 async function editarCliente(
-  id: number,
-  form: { nome: string; telefone: string; bairro: string; cidade: string },
-  cidades: { id: number; nome: string }[],
+    id: number,
+    form: { nome: string; telefone: string; bairro: string; cidade: string },
+    cidades: { id: number; nome: string }[],
 ): Promise<{ id: number }> {
-  const nome = form.nome.trim()
-  if (!nome) throw new Error("Informe o nome do cliente.")
-  const cidadeId = cidades.find(c => c.nome === form.cidade)?.id ?? null
-  const telefoneRaw = form.telefone?.replace(/\D/g, "") || null
-  const bairro = form.bairro?.trim() || null
+    const nome = form.nome.trim()
+    if (!nome) throw new Error("Informe o nome do cliente.")
+    const cidadeId = cidades.find(c => c.nome === form.cidade)?.id ?? null
+    const telefoneRaw = form.telefone?.replace(/\D/g, "") || null
+    const bairro = form.bairro?.trim() || null
 
-  const r = await fetch(`/api/clientes/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome, telefone: telefoneRaw, bairro, cidade_id: cidadeId }),
-  })
+    const r = await fetch(`/api/clientes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome, telefone: telefoneRaw, bairro, cidade_id: cidadeId }),
+    })
 
-  if (r.status === 200) {
-    const j = await r.json()
-    return { id: Number(j?.id ?? id) }
-  }
+    if (r.status === 200) {
+        const j = await r.json()
+        return { id: Number(j?.id ?? id) }
+    }
 
-  if (r.status === 409) {
-    let msg = "Já existe cliente com este nome."
+    if (r.status === 409) {
+        let msg = "Já existe cliente com este nome."
+        try {
+            const j = await r.json()
+            msg = j?.error || msg
+        } catch { }
+        throw new Error(msg)
+    }
+
+    let msg = `Falha ao atualizar cliente (${r.status})`
     try {
-      const j = await r.json()
-      msg = j?.error || msg
-    } catch {}
+        const j = await r.json()
+        if (j?.error) msg = j.error
+    } catch { }
     throw new Error(msg)
-  }
-
-  let msg = `Falha ao atualizar cliente (${r.status})`
-  try {
-    const j = await r.json()
-    if (j?.error) msg = j.error
-  } catch {}
-  throw new Error(msg)
 }
 
 
@@ -695,17 +695,14 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setCidades(cidadesProp ?? [])
     }, [catalogoProp, componentesProp, tiposObraProp, cidadesProp])
 
-    // carregar fornecedores + seleção inicial
+    // carregar fornecedores SEM seleção inicial (sempre vazio)
     useEffect(() => {
         ; (async () => {
             try {
                 const lista = await getFornecedores()
                 setFornecedores(lista)
-                const fromLS = Number(localStorage.getItem("gd.fornecedorSelecionado") || "")
-                const preferido =
-                    (Number.isFinite(fromLS) && lista.some(f => f.id === fromLS)) ? fromLS :
-                        (lista.find(f => f.nome.toLowerCase() === "shopping da madeira")?.id ?? lista[0]?.id)
-                setFornecedorSel(preferido ?? null)
+                try { localStorage.removeItem("gd.fornecedorSelecionado") } catch { }
+                setFornecedorSel(null)
             } catch (e: any) {
                 toast.error(e?.message ?? "Falha ao carregar fornecedores")
             }
@@ -713,10 +710,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }, [])
 
 
-    // ao trocar fornecedor → buscar madeiras
+    // ao trocar fornecedor → buscar madeiras (sem gravar em localStorage)
     useEffect(() => {
         if (!fornecedorSel) return
-        localStorage.setItem("gd.fornecedorSelecionado", String(fornecedorSel))
             ; (async () => {
                 try {
                     const list = await getMadeirasByFornecedor(fornecedorSel)
@@ -726,6 +722,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 }
             })()
     }, [fornecedorSel])
+
 
     // ATUALIZAR preços na tabela de MADEIRAS quando fornecedor/catalogo mudarem
     useEffect(() => {
@@ -896,7 +893,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }, [qTel])
 
 
-    // quando selecionar um cliente de QUALQUER autocomplete
     const onPickCliente = (c: ClienteSearchResult) => {
         const nome = c.nome ?? ""
         const telefone = c.telefone ? formatPhone(c.telefone) : ""
@@ -906,10 +902,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setForm({ nome, telefone, cidade, bairro })
         const snap = { nome, telefone, cidade, bairro }
         setClienteSnap(snap)
-        localStorage.setItem("orcamento.clienteId", String(c.id))
-        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
         toast.success("Cliente associado.")
     }
+
 
 
 
@@ -1070,18 +1065,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setQTel(""); setResTel([])
         localStorage.removeItem("orcamento.clienteId")
         localStorage.removeItem("orcamento.clienteSnap")
+        try { localStorage.removeItem("gd.fornecedorSelecionado") } catch { }
+        setFornecedorSel(null)
         setCityResetKey(k => k + 1)
         setObraResetKey(k => k + 1)
         setTipoObra(null)
-        setDim({
-            largura: 0,
-            comprimento: 0,
-            larguraMaior: 0,
-            larguraMenor: 0,
-            comprimentoMaior: 0,
-            comprimentoMenor: 0,
-        })
-
+        setDim({ largura: 0, comprimento: 0, larguraMaior: 0, larguraMenor: 0, comprimentoMaior: 0, comprimentoMenor: 0 })
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
         setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 })
         setTelhaValores({})
@@ -1093,6 +1082,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setLinks({})
         if (!isEdit) localStorage.removeItem(STORAGE_KEY)
     }
+
 
     const clearEtapa1 = () => {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
@@ -1404,7 +1394,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     useEffect(() => {
         if (isEdit || typeof window === "undefined") return
 
-        // 1) draft da tela
         const raw = localStorage.getItem(STORAGE_KEY)
         if (raw) {
             try {
@@ -1416,41 +1405,33 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 setTotEdit(d.totEdit ?? totEdit)
                 setTelhaValores(d.telhaValores ?? telhaValores)
                 setTitulo(d.titulo ?? "")
-            } catch { }
-        }
 
-        // 2) associação do cliente
-        const idRaw = localStorage.getItem("orcamento.clienteId")
-        const snapRaw = localStorage.getItem("orcamento.clienteSnap")
-        const idNum = Number(idRaw)
-        if (Number.isFinite(idNum)) setClienteId(idNum)
-        if (snapRaw) {
-            try { setClienteSnap(JSON.parse(snapRaw)) } catch { }
+                if (Number.isFinite(Number(d?.clienteId))) setClienteId(Number(d.clienteId))
+                if (d?.clienteSnap) setClienteSnap(d.clienteSnap)
+            } catch { }
+        } else {
+            localStorage.removeItem("orcamento.clienteId")
+            localStorage.removeItem("orcamento.clienteSnap")
         }
     }, [isEdit])
 
 
-    useEffect(() => {
-        if (clienteId == null) return
-        localStorage.setItem("orcamento.clienteId", String(clienteId))
-    }, [clienteId])
-
-    useEffect(() => {
-        if (!clienteSnap) return
-        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(clienteSnap))
-    }, [clienteSnap])
-
 
     useEffect(() => {
         if (isEdit || typeof window === "undefined") return
-        const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores, titulo }
+        const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores, titulo, clienteId, clienteSnap }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
-    }, [isEdit, form, tipoObra, dim, materiais, totEdit, telhaValores, titulo])
+    }, [isEdit, form, tipoObra, dim, materiais, totEdit, telhaValores, titulo, clienteId, clienteSnap])
+
 
     /* ===================================================================
      *                         Handlers (Fluxos)
      * =================================================================== */
     const handleCalcular = () => {
+        if (!fornecedorSel) {
+            toast.error("Selecione um fornecedor antes de calcular.")
+            return
+        }
         const res = validateCalcular(form, tipoObra, isCobertaL, dim)
         if (!res.ok) {
             toast.warning(res.msg)
@@ -1459,6 +1440,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }
         calcular()
     }
+
 
 
 
@@ -1693,9 +1675,38 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         <PageLayout
             links={[
                 { label: "Home", href: "/" },
-                { label: pageTitle, href: isEdit && orcamentoId ? `/Orcamento/edit/${orcamentoId}` : "/Orcamento/new" },
+                { label: isEdit ? "Editar Orçamento" : "Gerar Orçamento", href: isEdit && orcamentoId ? `/Orcamento/edit/${orcamentoId}` : "/Orcamento/new" },
             ]}
+            headerActions={
+                <>
+                    {isEdit && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 min-w-[130px]"
+                            onClick={abrirModalSalvarCopia}
+                            disabled={loadingSave || loadingPDF}
+                            title="Cria um novo orçamento a partir deste"
+                        >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Salvar Cópia
+                        </Button>
+                    )}
+
+                    <Button
+                        size="sm"
+                        className="h-8 min-w-[150px] bg-bege text-marromEscuro hover:bg-bege/80"
+                        onClick={abrirModalSalvar}
+                        disabled={loadingSave || loadingPDF}
+                        title={isEdit ? "Atualizar este orçamento" : "Salvar novo orçamento como rascunho"}
+                    >
+                        <Save className="h-4 w-4 mr-1" />
+                        {isEdit ? "Salvar Edição" : "Salvar Orçamento"}
+                    </Button>
+                </>
+            }
         >
+
             <Toaster position="top-right" richColors closeButton />
 
             {/* ---------------------------------------------------------------
@@ -2088,7 +2099,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             </Select>
                         </div>
 
-                        <Button onClick={handleCalcular} disabled={loadingCalc || !fornecedorSel} className="min-w-[132px]">
+                        <Button onClick={handleCalcular} disabled={loadingCalc} className="min-w-[132px]">
                             {loadingCalc ? (
                                 <>
                                     <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Calculando…
@@ -2639,30 +2650,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 <Button variant="secondary" onClick={() => router.push("/")}>
                     Voltar
                 </Button>
-                <div className="flex gap-2">
-                    {isEdit && (
-                        <Button
-                            variant="outline"
-                            onClick={abrirModalSalvarCopia}
-                            disabled={loadingSave || loadingPDF}
-                            className="min-w-[130px]"
-                            title="Cria um novo orçamento a partir do que está na tela"
-                        >
-                            <Copy className="h-4 w-4 mr-1" />
-                            Salvar Cópia
-                        </Button>
-                    )}
-
-                    <Button variant="outline" disabled={loadingSave || loadingPDF} onClick={abrirModalSalvar} className="min-w-[110px]">
-                        {loadingSave ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Salvando…
-                            </>
-                        ) : (
-                            "Salvar"
-                        )}
-                    </Button>
-                </div>
             </div>
 
             {/* Modal de título / salvar / gerar / salvar_copia */}
