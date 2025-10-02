@@ -211,18 +211,22 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <Card>
-            <CardHeader><CardTitle>Totais por Categoria</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>Totais por Categoria</CardTitle>
+            </CardHeader>
             <CardContent className="p-4">
               <Table>
                 <TableBody>
-                  {([
-                    ["Madeiras", detalhe.totais.madeiras],
-                    ["Materiais", detalhe.totais.materiais],
-                    ["Comissão", detalhe.totais.comissao],
-                    ["Empresa PS", detalhe.totais.empresaPS],
-                    ["Empresa GD", detalhe.totais.empresaGD],
-                    ["Frete", detalhe.totais.frete],
-                  ] as const).map(([lab, v]) => (
+                  {(
+                    [
+                      ["Madeiras", detalhe.totais.madeiras],
+                      ["Materiais Gerais", detalhe.totais.materiais],
+                      ["Comissão", detalhe.totais.comissao],
+                      ["Frete", detalhe.totais.frete],
+                      ["Empresa PS", detalhe.totais.empresaPS],
+                      ["Empresa GD", detalhe.totais.empresaGD],
+                    ] as const
+                  ).map(([lab, v]) => (
                     <TableRow key={lab}>
                       <TableCell>{lab}</TableCell>
                       <TableCell className="text-right">{fmtBRL(v)}</TableCell>
@@ -230,12 +234,15 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
                   ))}
                   <TableRow className="font-semibold border-t-2">
                     <TableCell>Total Geral</TableCell>
-                    <TableCell className="text-right">{fmtBRL(detalhe.totais.totalGeral)}</TableCell>
+                    <TableCell className="text-right">
+                      {fmtBRL(detalhe.totais.totalGeral)}
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
             </CardContent>
           </Card>
+
 
           <Card className="rounded-2xl shadow-sm">
             <CardHeader className="p-3 bg-bege/30 border-b border-bege">

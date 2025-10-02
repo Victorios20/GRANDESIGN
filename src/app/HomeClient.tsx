@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { format, parseISO } from "date-fns"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
@@ -42,9 +43,10 @@ const BEGE = "#E8C99A"
 const MARROM = "#8B5E3C"
 
 export default function HomeClient({ initial }: { initial: InitialData }) {
-  // filtros
+  const router = useRouter()
+
   const [nome, setNome] = useState("")
-  const [searchInput, setSearchInput] = useState("") // para debounce do toolbar search
+  const [searchInput, setSearchInput] = useState("")
   const [bairro, setBairro] = useState<string>("")
   const [dataIni, setDataIni] = useState<Date | undefined>()
   const [dataFim, setDataFim] = useState<Date | undefined>()
@@ -52,29 +54,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [cidadeId, setCidadeId] = useState<number | null>(null)
   const [tipoObraId, setTipoObraId] = useState<number | null>(null)
 
-  // ordenação
   const [orderBy, setOrderBy] = useState<string | undefined>(undefined)
   const [orderDir, setOrderDir] = useState<"asc" | "desc" | undefined>(undefined)
 
-  // selects auxiliares
   const [cidadesOpts, setCidadesOpts] = useState<{ id: number; label: string }[]>([])
   const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
   const availableFields = useMemo(
     () =>
-    ([
-      { id: "q", label: "Nome ou Título", type: "text" },
-      { id: "telefone", label: "Telefone", type: "text" },
-      { id: "bairro", label: "Bairro", type: "text" },
-      { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
-      { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
-      { id: "dateField", label: "Campo de data", type: "segmented" },
-      { id: "dateRange", label: "Período", type: "dateRange" },
-      { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
-    ] as const),
+      ([
+        { id: "q", label: "Nome ou Título", type: "text" },
+        { id: "telefone", label: "Telefone", type: "text" },
+        { id: "bairro", label: "Bairro", type: "text" },
+        { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
+        { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
+        { id: "dateField", label: "Campo de data", type: "segmented" },
+        { id: "dateRange", label: "Período", type: "dateRange" },
+        { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
+      ] as const),
     [cidadesOpts, tiposOpts]
   )
 
-  // persistência de campos visíveis no filtro
   const PERSIST_KEY = "gd.historico.filtros.campos.v1"
   const DEFAULT_FIELDS: FieldId[] = ["q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"]
 
@@ -89,80 +88,71 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     }
   })
 
-  // dados da tabela
   const [orcamentos, setOrcamentos] = useState<OrcamentoTabela[]>(initial.dados ?? [])
   const [total, setTotal] = useState<number>(initial.total ?? 0)
   const [loadingTabela, setLoadingTabela] = useState(false)
 
-  // paginação
   const [page, setPage] = useState(0)
   const [perPage, setPerPage] = useState(20)
 
-  // limpar página ao mudar termo de busca (apenas quando confirmar via debounce)
   useEffect(() => {
     if (nome.trim() && page !== 0) setPage(0)
   }, [nome])
 
-  // salvar campos visíveis do filtro
   useEffect(() => {
     try {
       localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
-    } catch { }
+    } catch {}
   }, [selectedFields])
 
-  // carregar selects e primeira consulta
   useEffect(() => {
-    listarBairros().catch(() => { })
+    listarBairros().catch(() => {})
 
-      ; (async () => {
-        try {
-          const [rc, rt] = await Promise.all([
-            fetch(`/api/cidades?page=1&pageSize=100`).then((r) => r.json()),
-            fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json()),
-          ])
+    ;(async () => {
+      try {
+        const [rc, rt] = await Promise.all([
+          fetch(`/api/cidades?page=1&pageSize=100`).then((r) => r.json()),
+          fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json()),
+        ])
 
-          function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
-            const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
-            if (!Array.isArray(arr)) return []
-            return arr
-              .map((x: any) => {
-                const id = Number(x?.id)
-                if (!Number.isFinite(id)) return null
-                const label =
-                  labelKeys.map((k) => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
-                  (typeof x?.label === "string" ? x.label : null) ??
-                  (typeof x?.nome === "string" ? x.nome : null) ??
-                  (typeof x?.descricao === "string" ? x.descricao : null) ??
-                  (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
-                  ""
-                const lab = String(label).trim()
-                if (!lab) return null
-                return { id, label: lab }
-              })
-              .filter(Boolean) as { id: number; label: string }[]
-          }
-          setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
-          setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
-        } catch { }
-      })()
+        function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
+          const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
+          if (!Array.isArray(arr)) return []
+          return arr
+            .map((x: any) => {
+              const id = Number(x?.id)
+              if (!Number.isFinite(id)) return null
+              const label =
+                labelKeys.map((k) => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
+                (typeof x?.label === "string" ? x.label : null) ??
+                (typeof x?.nome === "string" ? x.nome : null) ??
+                (typeof x?.descricao === "string" ? x.descricao : null) ??
+                (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
+                ""
+              const lab = String(label).trim()
+              if (!lab) return null
+              return { id, label: lab }
+            })
+            .filter(Boolean) as { id: number; label: string }[]
+        }
+        setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
+        setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
+      } catch {}
+    })()
 
     consultar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // debounce da busca do toolbar (espera parar de digitar)
   useEffect(() => {
     const t = setTimeout(() => {
       setNome(searchInput)
       setPage(0)
-    }, 450) // ~0.45s de debounce
+    }, 450)
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // reagir às mudanças dos filtros/ordenacao/paginação
   useEffect(() => {
     consultar()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nome, bairro, telefone, cidadeId, tipoObraId, dataIni, dataFim, page, perPage, orderBy, orderDir])
 
   async function consultar() {
@@ -183,7 +173,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (orderBy) qs.set("orderBy", orderBy)
     if (orderDir) qs.set("orderDir", orderDir)
 
-    // use o caminho em minúsculo da rota que criamos
     const res = await fetch(`/api/Orcamentos/table-search?${qs.toString()}`, { cache: "no-store" })
     if (!res.ok) {
       setOrcamentos([])
@@ -264,7 +253,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       label: "Telefone",
       options: {
         sort: false,
-        searchable: false, // não participa da lupa, mas mantém visual
+        searchable: false,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.clienteTelefone),
       },
     },
@@ -273,7 +262,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       label: "Valor",
       options: {
         sort: false,
-        searchable: false, // idem
+        searchable: false,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.valorFormatado as any),
       },
     },
@@ -282,54 +271,73 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       label: "Ações",
       options: {
         sort: false,
-        searchable: false, // idem
+        searchable: false,
         filter: false,
         customBodyRender: (_val, tableMeta) => {
           const o = rows[tableMeta.rowIndex] as OrcRow
           return (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-marromEscuro hover:bg-marromClaro/20"
-                  aria-label="Ações"
+            <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} className="flex justify-end">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-marromEscuro hover:bg-marromClaro/20"
+                    aria-label="Ações"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <EllipsisVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <EllipsisVertical className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={async () => {
-                    const link = `https://app.grandesignce.com.br/gerar-orcamento/edit/${(o as any).id}`
-                    try {
-                      await navigator.clipboard.writeText(link)
-                      toast.success("Link copiado!")
-                    } catch {
-                      toast.error("Não foi possível copiar o link.")
-                    }
-                  }}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copiar link de edição
-                </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onClick={async () => {
+                      const link = `https://app.grandesignce.com.br/Orcamento/detalhes/${(o as any).id}`
+                      try {
+                        await navigator.clipboard.writeText(link)
+                        toast.success("Link copiado!")
+                      } catch {
+                        toast.error("Não foi possível copiar o link.")
+                      }
+                    }}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copiar link de visualização
+                  </DropdownMenuItem>
 
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href={`/Orcamento/edit/${(o as any).id}`} title="Editar orçamento">
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Editar orçamento
-                  </Link>
-                </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link
+                      href={`/Orcamento/edit/${(o as any).id}`}
+                      title="Editar orçamento"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Editar orçamento
+                    </Link>
+                  </DropdownMenuItem>
 
-                <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href={`/Orcamento/detalhes/${(o as any).id}`} title="Visualizar detalhes">
-                    <Eye className="mr-2 h-4 w-4" />
-                    Visualizar detalhes
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link
+                      href={`/Orcamento/detalhes/${(o as any).id}`}
+                      title="Visualizar detalhes"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Visualizar detalhes
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           )
         },
       },
@@ -339,7 +347,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const options: MUIDataTableOptions = {
     search: true,
     filter: false,
-    print: false, // botão de imprimir nativo
+    print: false,
     download: true,
     viewColumns: true,
     responsive: "standard",
@@ -358,10 +366,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         setPage(0)
       }
       if (action === "search") {
-        // usa debounce
         const q = tableState.searchText || ""
         setSearchInput(q)
-        // não chama consultar aqui; o debounce fará isso
       }
       if (action === "sort") {
         const s = tableState.sortOrder
@@ -375,16 +381,22 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         }
       }
     },
-    textLabels: {
-      body: { noMatch: "Nenhum registro encontrado", toolTip: "Ordenar" },
-      pagination: { next: "Próxima Página", previous: "Página Anterior", rowsPerPage: "Linhas por página:", displayRows: "de" },
-      toolbar: { search: "Buscar", downloadCsv: "Baixar CSV", print: "Imprimir", viewColumns: "Colunas", filterTable: "Filtrar" },
-      viewColumns: { title: "Mostrar Colunas", titleAria: "Mostrar/Esconder Colunas" },
-      selectedRows: { text: "linha(s) selecionada(s)", delete: "Excluir", deleteAria: "Excluir Linhas Selecionadas" },
-    },
     sort: true,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
+    onRowClick: (_rowData, meta) => {
+      const id = (rows[meta.dataIndex] as any)?.id
+      if (id != null) router.push(`/Orcamento/detalhes/${id}`)
+    },
+    setRowProps: (_row, dataIndex) => {
+      return {
+        onMouseDown: (e: any) => {
+          const el = e.target as HTMLElement
+          if (el.closest("[data-no-row-nav]")) e.stopPropagation()
+        },
+        className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
+      }
+    },
   }
 
   const theme = useMemo(
@@ -400,7 +412,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             styleOverrides: {
               head: {
                 backgroundColor: BEGE,
-                height: 36,                 // ↓ altura da linha do cabeçalho
+                height: 36,
               },
             },
           },
@@ -410,7 +422,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 backgroundColor: BEGE,
                 color: MARROM,
                 fontWeight: 700,
-                paddingTop: 6,              // ↓ menos padding vertical
+                paddingTop: 6,
                 paddingBottom: 6,
                 lineHeight: 1.1,
                 whiteSpace: "nowrap",
@@ -520,12 +532,10 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
               <ThemeProvider theme={theme}>
                 <GlobalStyles
                   styles={{
-                    // Cabeçalho bege
                     ".MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head, .MUIDataTableHeadCell-fixedHeader": {
                       backgroundColor: BEGE + " !important",
                       color: MARROM + " !important",
                     },
-                    // Ícones/topbar marrom
                     ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
                       color: MARROM + " !important",
                     },
@@ -535,11 +545,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     ".MUIDataTableToolbar-iconActive .MuiSvgIcon-root": {
                       color: MARROM + " !important",
                     },
-                    // Títulos do menu de colunas
                     ".MUIDataTableViewCol-title, .MUIDataTableViewCol-label": {
                       color: MARROM + " !important",
                     },
-                    // Setinha de ordenação sempre visível no hover/ativa
                     ".MuiTableSortLabel-root:hover .MuiTableSortLabel-icon": {
                       opacity: 1,
                     },
