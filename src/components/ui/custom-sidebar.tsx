@@ -157,7 +157,7 @@ export function CustomSidebar() {
                 <SidebarMenuItem>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link href="/Orcamento/new">
+                      <Link href="/orcamento/new">
                         <SidebarMenuButton
                           isActive={false}
                           className={cn(
@@ -165,7 +165,7 @@ export function CustomSidebar() {
                             "hover:bg-black/5 transition-all duration-200"
                           )}
                         >
-                          <PlusIcon className={iconClass(isActive("/Orcamento/new"))} />
+                          <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
 
                           {isOpen && (
                             <motion.span

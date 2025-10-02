@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      { source: "/gerar-orcamento/:path*", destination: "/Orcamento/:path*", permanent: true },
+      { source: "/gerar-orcamento/:path*", destination: "/orcamento/:path*", permanent: true },
     ];
   },
 };

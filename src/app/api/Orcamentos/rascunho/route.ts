@@ -17,15 +17,21 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   const step = typeof err?.step === "string" ? err.step : undefined
   const details = err?.details
 
-  const message = typeof err?.message === "string" && err.message.trim().length > 0
-    ? err.message
-    : "Erro ao salvar rascunho"
+  const message =
+    typeof err?.message === "string" && err.message.trim().length > 0
+      ? err.message
+      : "Erro ao salvar rascunho"
 
   let status = 500
-  if (code === "INSERT_ORCAMENTO_FAILED" || code === "INSERT_MATERIAL_FAILED" || code === "INSERT_PAGAMENTO_FAILED") status = 500
-  // rascunho não obriga cidade/tipo/links — não mapeamos 404/409 aqui
-  // Fallback por substring (caso a camada DB retorne mensagens antigas)
-  else {
+  if (code === "CLIENT_ID_REQUIRED") status = 422
+  else if (code === "CLIENT_NOT_FOUND") status = 404
+  else if (
+    code === "INSERT_ORCAMENTO_FAILED" ||
+    code === "INSERT_MATERIAL_FAILED" ||
+    code === "INSERT_PAGAMENTO_FAILED"
+  ) {
+    status = 500
+  } else {
     const msg = String(message)
     if (msg.includes("Já existe um orçamento com esse título")) status = 409
     else if (msg.includes("Cidade não encontrada")) status = 404
@@ -44,16 +50,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    // Rascunho mantém regra atual: apenas título obrigatório
     const titulo = (body?.titulo ?? "").trim()
     if (!titulo) {
       const res = NextResponse.json<ApiErrorShape>(
         { error: "Título é obrigatório.", code: "MISSING_TITLE", requestId },
-        { status: 400 },
+        { status: 400 }
       )
       res.headers.set("X-Request-Id", requestId)
       return res
     }
+
+    const rawClienteId = body?.clienteId ?? body?.cliente_id ?? null
+    const clienteId = Number(rawClienteId)
 
     const cliente = body?.cliente ?? {}
     const parametros = body?.parametros ?? {}
@@ -68,7 +76,8 @@ export async function POST(req: Request) {
       materiais,
       totais,
       telhaValores,
-    })
+      clienteId,
+    } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })
     res.headers.set("X-Request-Id", requestId)

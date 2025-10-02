@@ -29,7 +29,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
     return base
   }, [detalhe.materiais])
 
-  const editHref = `/Orcamento/edit/${detalhe.id}`
+  const editHref = `/orcamento/edit/${detalhe.id}`
   const slideUrl = detalhe.links.slideUrl ?? ""
   const pdfUrl = detalhe.links.pdfUrl ?? ""
 

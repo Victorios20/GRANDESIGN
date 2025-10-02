@@ -299,7 +299,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                   <DropdownMenuItem
                     className="cursor-pointer"
                     onClick={async () => {
-                      const link = `https://app.grandesignce.com.br/Orcamento/detalhes/${(o as any).id}`
+                      const link = `https://app.grandesignce.com.br/orcamento/detalhes/${(o as any).id}`
                       try {
                         await navigator.clipboard.writeText(link)
                         toast.success("Link copiado!")
@@ -314,7 +314,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link
-                      href={`/Orcamento/edit/${(o as any).id}`}
+                      href={`/orcamento/edit/${(o as any).id}`}
                       title="Editar orçamento"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -326,7 +326,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
                   <DropdownMenuItem asChild className="cursor-pointer">
                     <Link
-                      href={`/Orcamento/detalhes/${(o as any).id}`}
+                      href={`/orcamento/detalhes/${(o as any).id}`}
                       title="Visualizar detalhes"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -386,7 +386,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
     onRowClick: (_rowData, meta) => {
       const id = (rows[meta.dataIndex] as any)?.id
-      if (id != null) router.push(`/Orcamento/detalhes/${id}`)
+      if (id != null) router.push(`/orcamento/detalhes/${id}`)
     },
     setRowProps: (_row, dataIndex) => {
       return {
@@ -472,7 +472,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     <PageLayout>
       <TooltipProvider>
         <Toaster richColors closeButton />
-        <Link href="/Orcamento/new" className="block mb-8">
+        <Link href="/orcamento/new" className="block mb-8">
           <BigShinyButton />
         </Link>
 
@@ -513,7 +513,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 <CardTitle className="text-2xl text-marromEscuro">Orçamentos</CardTitle>
                 <CardDescription className="text-marromClaro">Tabela com os orçamentos dos clientes.</CardDescription>
               </div>
-              <Link href="/Orcamento/new">
+              <Link href="/orcamento/new">
                 <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
                   Gerar Novo
                 </InteractiveHoverButton>

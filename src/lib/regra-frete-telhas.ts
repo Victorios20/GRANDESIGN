@@ -1,5 +1,5 @@
 // src/utils/regra-frete-telhas.ts
-import type { Material } from "@/app/Orcamento/_components/OrcamentoPage";
+import type { Material } from "@/app/orcamento/_components/OrcamentoPage";
 import type { Cidade } from "@/actions/cidades-db/cidades-db";
 
 const CIDADES_ESPECIAIS = new Set<number>([11, 6]); // Pacajus=11, Horizonte=6
