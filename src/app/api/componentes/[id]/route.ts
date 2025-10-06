@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import {
   atualizarComponenteDB,
   deletarComponenteDB,
@@ -10,6 +12,11 @@ export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id } = await context.params
   const compId = Number(id)
   if (!Number.isFinite(compId)) {
@@ -31,6 +38,11 @@ export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id } = await context.params
   const compId = Number(id)
   if (!Number.isFinite(compId)) {

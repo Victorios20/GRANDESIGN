@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { atualizarMaterial, removerMaterial } from "@/actions/materiais-db/materiais-db"
 
 export const runtime = "nodejs"
@@ -7,6 +9,11 @@ export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id } = await context.params
   const materialId = Number(id)
   if (!Number.isFinite(materialId) || materialId <= 0) {
@@ -27,7 +34,6 @@ export async function PATCH(
   const unidade =
     body?.unidade_de_medida !== undefined ? String(body.unidade_de_medida) : undefined
 
-  // fornecedorId é opcional; só será aplicado na action se for > 0 e se fizer sentido (madeira)
   const fornecedorIdRaw = body?.fornecedorId
   const fornecedorId =
     fornecedorIdRaw !== undefined ? Number(fornecedorIdRaw) : undefined
@@ -57,6 +63,11 @@ export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id } = await context.params
   const materialId = Number(id)
   if (!Number.isFinite(materialId) || materialId <= 0) {

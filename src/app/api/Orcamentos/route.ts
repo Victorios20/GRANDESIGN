@@ -1,4 +1,6 @@
 import { NextResponse, NextRequest } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { salvarOrcamentoDB } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 import { buscarOrcamentosDB } from "@/actions/historico-orcamento-db/historico-orcamento-db"
 
@@ -65,6 +67,11 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
 }
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
 
@@ -92,20 +99,27 @@ export async function GET(req: Request) {
       ordenarData,
     })
 
-    return NextResponse.json({
-      dados: result.dados,
-      total: result.total,
-      page,
-      perPage,
-      pageCount: Math.max(1, Math.ceil(result.total / perPage)),
-    }, { status: 200 })
+    return NextResponse.json(
+      {
+        dados: result.dados,
+        total: result.total,
+        page,
+        perPage,
+        pageCount: Math.max(1, Math.ceil(result.total / perPage)),
+      },
+      { status: 200 }
+    )
   } catch (err) {
     return NextResponse.json({ error: "Erro ao buscar orçamentos" }, { status: 500 })
   }
 }
 
-
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const requestId = crypto.randomUUID()
   try {
     const body = await req.json()
@@ -149,10 +163,8 @@ export async function POST(req: Request) {
       return res
     }
 
-    // >>> NOVO: extrair e repassar clienteId (top-level)
     const rawClienteId = body?.clienteId ?? body?.cliente_id ?? null
     const clienteId = Number(rawClienteId)
-    // (não valide aqui; deixe a action validar e responder 422/404)
 
     const materiais = body?.materiais ?? {}
     const totais = body?.totais ?? {}
@@ -166,7 +178,6 @@ export async function POST(req: Request) {
       totais,
       telhaValores,
       links,
-      // >>> NOVO: isso resolve o CLIENT_ID_REQUIRED na action
       clienteId,
     } as any)
 

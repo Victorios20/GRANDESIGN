@@ -1,14 +1,23 @@
 // src/app/api/materiais/ByDescricoes/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { getMateriaisByDescricoesServer } from "@/actions/calcular-materiais/calcularMateriais-db.server"
 
 export const runtime = "nodejs"
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const body = await req.json().catch(() => ({} as any))
     const descricoes = Array.isArray(body?.descricoes)
-      ? (body.descricoes as unknown[]).map((x) => (typeof x === "string" ? x : "")).filter(Boolean)
+      ? (body.descricoes as unknown[])
+          .map((x) => (typeof x === "string" ? x : ""))
+          .filter(Boolean)
       : []
     if (descricoes.length === 0) return NextResponse.json([], { status: 200 })
 

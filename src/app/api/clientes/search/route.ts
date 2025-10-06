@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { buscarClientesPorNome, buscarClientesPorTelefone } from "@/actions/clientes-db/clientes-db"
 
 export const runtime = "nodejs"
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
 

@@ -1,5 +1,7 @@
 // src/app/api/clientes/[id]/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -17,6 +19,11 @@ export async function PUT(
   req: Request,
   { params }: Ctx
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   let novoNomeCache: string | null = null
   try {
     const { id } = await params

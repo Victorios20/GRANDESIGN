@@ -1,17 +1,22 @@
 // src/app/api/Orcamentos/[id]/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { getOrcamentoById, updateOrcamento } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
-// >>> melhorias de runtime/caching (não interferem no PUT)
-export const runtime = "nodejs"          // evita intermitência do Edge
-export const dynamic = "force-dynamic"   // garante execução dinâmica
-export const revalidate = 0              // sem cache estático do Next
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
-// GET /api/Orcamentos/[id]
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id: idStr } = await context.params
   const id = Number(idStr)
   if (!Number.isFinite(id)) {
@@ -21,25 +26,27 @@ export async function GET(
   try {
     const data = await getOrcamentoById(id)
     if (!data) return NextResponse.json({ error: "não encontrado" }, { status: 404 })
-    // cache privado curtinho: reabrir o mesmo modal fica mais rápido
     return NextResponse.json(data, {
       status: 200,
       headers: { "Cache-Control": "private, max-age=60" },
     })
   } catch (err: any) {
     console.error("GET /api/Orcamentos/[id] erro:", err)
-    // mantém sua semântica anterior
     const msg = String(err?.message ?? "")
     const status = /n(ã|a)o encontrado|not found/i.test(msg) ? 404 : 500
     return NextResponse.json({ error: msg || "erro interno" }, { status })
   }
 }
 
-// PUT /api/Orcamentos/[id]
 export async function PUT(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { id: idStr } = await context.params
   const id = Number(idStr)
   if (!Number.isFinite(id)) {
@@ -56,8 +63,6 @@ export async function PUT(
     return NextResponse.json({ error: "payload vazio", code: "VALIDACAO" }, { status: 422 })
   }
 
-  // ⚠️ editar NÃO mexe em cliente; descartamos quaisquer campos de cliente
-  // (se a action já ignora, beleza; isso aqui é só uma rede de segurança)
   const { cliente, clienteId, cliente_id, ...safeBody } = body
 
   try {
@@ -67,7 +72,6 @@ export async function PUT(
     const code = typeof err?.code === "string" ? err.code : undefined
     const msg = String(err?.message ?? "")
 
-    // ▶ mapeamento por code (preferência)
     if (code === "ORCAMENTO_NOT_FOUND" || code === "CLIENT_NOT_FOUND") {
       return NextResponse.json({ error: "não encontrado", code }, { status: 404 })
     }
@@ -79,7 +83,6 @@ export async function PUT(
       return NextResponse.json({ error: "erro interno", code }, { status: 500 })
     }
 
-    // ▶ fallback antigo por mensagem (se a action não setou code)
     if (/\bn(ã|a)o encontrado\b|not found/i.test(msg)) {
       return NextResponse.json({ error: "não encontrado" }, { status: 404 })
     }
@@ -91,4 +94,3 @@ export async function PUT(
     return NextResponse.json({ error: "erro interno" }, { status: 500 })
   }
 }
-

@@ -12,8 +12,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon } from 'lucide-react'
-
+import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon, Loader2 } from 'lucide-react'
 
 import Link from "next/link"
 import Image from "next/image"
@@ -23,6 +22,7 @@ import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
+import { signOut } from "next-auth/react"
 
 const APP_VERSION = "1.4.5"
 
@@ -31,6 +31,7 @@ export function CustomSidebar() {
 
   const pathname = usePathname()
   const [editarAberto, setEditarAberto] = useState(true)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   const isActive = (href: string) => pathname.startsWith(href)
 
@@ -76,6 +77,15 @@ export function CustomSidebar() {
         duration: 0.2,
       },
     },
+  }
+
+  async function handleLogout() {
+    try {
+      setLoggingOut(true)
+      await signOut({ callbackUrl: "/login", redirect: true })
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   return (
@@ -237,7 +247,7 @@ export function CustomSidebar() {
                   <TooltipTrigger asChild>
                     <SidebarGroupLabel
                       className={cn(
-                        "cursor-pointer flex items-center transition-all duration-200",
+                        "cursor-pointer flex items-center transition-all duração-200",
                         isOpen ? "justify-between px-3 py-2" : "justify-center py-2"
                       )}
                       onClick={() => setEditarAberto(!editarAberto)}
@@ -320,20 +330,26 @@ export function CustomSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2 hover:bg-transparent">
-        {/* Botão Sair (mantido) */}
+        {/* Botão Sair */}
         <SidebarMenu>
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    onClick={() => console.log("Logout")}
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    aria-busy={loggingOut}
                     className={cn(
                       isOpen ? "justify-start" : "justify-center",
                       "hover:bg-transparent transition-all duration-200"
                     )}
                   >
-                    <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
+                    {loggingOut ? (
+                      <Loader2 className="size-5 animate-spin" />
+                    ) : (
+                      <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
+                    )}
                     {isOpen && (
                       <motion.span
                         initial={{ opacity: 0 }}
@@ -342,13 +358,13 @@ export function CustomSidebar() {
                         transition={{ duration: 0.2 }}
                         className="ml-2"
                       >
-                        Sair
+                        {loggingOut ? "Saindo..." : "Sair"}
                       </motion.span>
                     )}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </TooltipTrigger>
-              {!isOpen && <TooltipContent side="right">Sair</TooltipContent>}
+              {!isOpen && <TooltipContent side="right">{loggingOut ? "Saindo..." : "Sair"}</TooltipContent>}
             </Tooltip>
           </TooltipProvider>
         </SidebarMenu>

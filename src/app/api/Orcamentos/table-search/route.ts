@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { listarOrcamentosTableSearch } from "@/actions/orcamentos-table-search/orcamentos-table-search"
 
 function getParam(url: URL, k: string) {
@@ -7,9 +9,13 @@ function getParam(url: URL, k: string) {
 }
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const url = new URL(req.url)
   const search = getParam(url, "search") || undefined
-  
   const page = Number(getParam(url, "page") || "1")
   const perPage = Number(getParam(url, "perPage") || "20")
   const orderBy = getParam(url, "orderBy") || undefined

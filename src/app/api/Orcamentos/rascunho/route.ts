@@ -1,5 +1,7 @@
 // app/api/orcamentos/rascunho/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { salvarRascunhoOrcamentoDB } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 
 export const dynamic = "force-dynamic"
@@ -16,12 +18,10 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   const code = typeof err?.code === "string" ? err.code : undefined
   const step = typeof err?.step === "string" ? err.step : undefined
   const details = err?.details
-
   const message =
     typeof err?.message === "string" && err.message.trim().length > 0
       ? err.message
       : "Erro ao salvar rascunho"
-
   let status = 500
   if (code === "CLIENT_ID_REQUIRED") status = 422
   else if (code === "CLIENT_NOT_FOUND") status = 404
@@ -37,7 +37,6 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
     else if (msg.includes("Cidade não encontrada")) status = 404
     else if (msg.includes("Tipo de obra não encontrado")) status = 404
   }
-
   return {
     status,
     body: { error: message, code, step, details, requestId },
@@ -45,11 +44,14 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
 }
 
 export async function POST(req: Request) {
-  const requestId = crypto.randomUUID()
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
 
+  const requestId = crypto.randomUUID()
   try {
     const body = await req.json()
-
     const titulo = (body?.titulo ?? "").trim()
     if (!titulo) {
       const res = NextResponse.json<ApiErrorShape>(

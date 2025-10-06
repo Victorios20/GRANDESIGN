@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import {
   listarMadeirasPorFornecedor,
   buscarMadeirasParaSelector,
@@ -8,6 +10,11 @@ import {
 export const runtime = "nodejs"
 
 export async function GET(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const fornecedorIdParam = searchParams.get("fornecedorId")
   const q = searchParams.get("q") || undefined
@@ -27,6 +34,11 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   const body = await req.json().catch(() => ({} as any))
 
   const descricao = typeof body?.descricao === "string" ? body.descricao.trim() : ""

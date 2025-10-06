@@ -1,5 +1,7 @@
 // src/app/api/clientes/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import {
   criarClienteBasico,
 } from "@/actions/clientes-db/clientes-db"
@@ -16,6 +18,11 @@ function clean(s?: string | null) {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const body = await req.json().catch(() => ({} as any))
 

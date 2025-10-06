@@ -1,5 +1,7 @@
 // src/app/api/materiais/ByIds/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { getMateriaisByIdsServer } from "@/actions/calcular-materiais/calcularMateriais-db.server"
 
 export const runtime = "nodejs"
@@ -20,6 +22,11 @@ function parseIds(input: unknown): number[] {
 }
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
   try {
     const body = await req.json().catch(() => ({} as any))
 

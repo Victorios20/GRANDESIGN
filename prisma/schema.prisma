@@ -29,8 +29,6 @@ model cliente {
   @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
 }
 
-
-
 model componentes {
   id   Int    @id @default(autoincrement())
   nome String @unique
@@ -53,17 +51,16 @@ model materiais {
   fornecedor        fornecedores?    @relation(fields: [fornecedorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   receitas_fixas    receitas_fixas[]
 
+  @@unique([descricao, fornecedorId], map: "ux_materiais_desc_fornecedor")
   @@index([tipo])
   @@index([fornecedorId])
-  @@unique([descricao, fornecedorId], map: "ux_materiais_desc_fornecedor")
 }
 
 model fornecedores {
-  id         Int          @id @default(autoincrement())
-  nome       String       @unique @db.VarChar(120)
-  materiais  materiais[]
+  id        Int         @id @default(autoincrement())
+  nome      String      @unique @db.VarChar(120)
+  materiais materiais[]
 }
-
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
@@ -89,6 +86,12 @@ model orcamento {
   comprimento_menor       Decimal?  @db.Decimal(10, 2)
   comprimento_maior       Decimal?  @db.Decimal(10, 2)
 
+  created_by Int?
+  updated_by Int?
+
+  createdBy User? @relation("OrcamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("OrcamentoUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
   cliente             cliente               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   tipo_obra           tipo_obra?            @relation(fields: [tipo_obra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   orcamento_material  orcamento_material[]
@@ -96,6 +99,8 @@ model orcamento {
 
   @@index([data_criacao(sort: Desc)], map: "idx_orcamento_data_criacao")
   @@index([data_ultima_alteracao(sort: Desc)], map: "idx_orcamento_data_ultima_alteracao")
+  @@index([created_by], map: "idx_orcamento_created_by")
+  @@index([updated_by], map: "idx_orcamento_updated_by")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -141,4 +146,80 @@ model tipo_obra {
   id        Int         @id(map: "produto_pkey") @default(autoincrement())
   tipo_obra String
   orcamento orcamento[]
+}
+
+model User {
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(150)
+  email         String   @unique @db.VarChar(150)
+  password_hash String
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  roles UserRole[]
+
+  orcamentosCriados     orcamento[] @relation("OrcamentoCreatedBy")
+  orcamentosAtualizados orcamento[] @relation("OrcamentoUpdatedBy")
+
+  auditLogs           AuditLog[] // <<< novo (back-relation)
+  passwordResetTokens PasswordResetToken[] // <<< novo (back-relation)
+
+  @@map("users")
+}
+
+model Role {
+  id    Int        @id @default(autoincrement())
+  name  String     @unique @db.VarChar(50) // ex: 'ADMIN', 'DEV', 'VENDEDOR'
+  label String     @db.VarChar(100) // ex: 'Administrador'
+  users UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  user_id Int
+  role_id Int
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+  @@index([user_id])
+  @@index([role_id])
+  @@map("user_roles")
+}
+
+model PasswordResetToken {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token      String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("password_reset_tokens")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  user_id    Int? // null = ação de sistema
+  action     String   @db.VarChar(60) // ex: 'ORCAMENTO_CREATE'
+  entity     String   @db.VarChar(60) // ex: 'orcamento'
+  entity_id  Int?
+  detail     Json?
+  ip         String?  @db.VarChar(64)
+  user_agent String?
+  created_at DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([entity, entity_id])
+  @@index([user_id, created_at])
+  @@index([created_at])
+  @@map("audit_log")
 }
