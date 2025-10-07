@@ -7,7 +7,7 @@ async function fetchJSON<T>(url: string, init?: RequestInit) {
 
   // No SSR, precisamos enviar os cookies da sessão para passar pelo middleware/API protegida
   if (typeof window === "undefined") {
-    const cookieHeader = cookies().toString()
+    const cookieHeader = (await cookies()).toString() // <<— AQUI: await cookies()
     reqInit.headers = { ...(reqInit.headers || {}), cookie: cookieHeader }
   }
 
@@ -17,13 +17,11 @@ async function fetchJSON<T>(url: string, init?: RequestInit) {
 }
 
 export default async function Page() {
-  // Mantemos o await porque no seu setup headers() está como Promise
-  const hdrs = await headers()
+  const hdrs = await headers() // já está aguardando, ok
   const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host") ?? "localhost:3000"
   const proto = hdrs.get("x-forwarded-proto") ?? "http"
   const base = `${proto}://${host}`
 
-  // mesmas rotas do cliente, agora com cookies no SSR
   const [listaBairros, lista] = await Promise.all([
     fetchJSON<string[]>(`${base}/api/bairros`),
     fetchJSON<{ dados: any[]; total: number }>(`${base}/api/Orcamentos?perPage=10&ordenarData=desc`),

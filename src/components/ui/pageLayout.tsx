@@ -4,9 +4,9 @@ import React, { type PropsWithChildren } from "react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { ChevronRight, PanelLeft } from "lucide-react"
+import { SessionProvider } from "next-auth/react"
 
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
 import { CustomSidebar } from "@/components/ui/custom-sidebar"
 import { Button } from "@/components/ui/button"
@@ -39,11 +39,13 @@ export function PageLayout({ children, links, backgroundImage = false, headerAct
     })()
 
   return (
-    <SidebarProvider>
-      <InnerLayout breadcrumbs={autoBreadcrumbs} backgroundImage={backgroundImage} headerActions={headerActions}>
-        {children}
-      </InnerLayout>
-    </SidebarProvider>
+    <SessionProvider>
+      <SidebarProvider>
+        <InnerLayout breadcrumbs={autoBreadcrumbs} backgroundImage={backgroundImage} headerActions={headerActions}>
+          {children}
+        </InnerLayout>
+      </SidebarProvider>
+    </SessionProvider>
   )
 }
 
@@ -77,7 +79,6 @@ function InnerLayout({
           </div>
         )}
 
-        {/* HEADER REDUZIDO */}
         <header className="flex h-14 md:h-16 items-center justify-between bg-bege-header px-4 md:px-6 shadow-header z-10 border-b border-marromClaro/20">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <Button
@@ -119,7 +120,6 @@ function InnerLayout({
               </Breadcrumb>
             </div>
 
-            {/* Mobile breadcrumb - apenas página atual */}
             <div className="sm:hidden flex-1 min-w-0">
               <h1 className="font-semibold text-marromEscuro text-base truncate">
                 {breadcrumbs[breadcrumbs.length - 1]?.label}
@@ -127,7 +127,6 @@ function InnerLayout({
             </div>
           </div>
 
-          {/* Header direito: ações customizadas OU nome+logo padrão */}
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
             {hasActions ? (
               <div className="flex items-center gap-2">{headerActions}</div>
@@ -156,7 +155,6 @@ function InnerLayout({
           </div>
         </header>
 
-        {/* Mobile breadcrumb completo REDUZIDO */}
         <div className="sm:hidden px-4 py-1.5 bg-bege-header/50 border-b border-marromClaro/10">
           <Breadcrumb className="flex items-center gap-1 text-xs text-marromEscuro">
             {breadcrumbs.map((crumb, idx) => {
@@ -187,7 +185,6 @@ function InnerLayout({
           </Breadcrumb>
         </div>
 
-        {/* MAIN COM ESPAÇO TOTAL - SÓ REDUZ NO TABLET */}
         <main className="flex-1 overflow-auto p-6 md:p-4 lg:p-6 relative z-10 w-full">
           <div className="w-full">{children}</div>
         </main>

@@ -92,13 +92,20 @@ export default function LoginPage() {
     });
 
     if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}));
-      const msg = data?.error || "Não foi possível criar sua conta.";
-      setErrRegister(msg);
-      toast.error(msg);
-      setLoading(false);
-      return;
+      let msg = "Não foi possível criar sua conta."
+      try {
+        const data = await resp.json()
+        if (resp.status === 401) msg = "Cadastro público está bloqueado. Fale com o administrador."
+        else if (resp.status === 409) msg = "Já existe uma conta com este e-mail."
+        else if (resp.status === 422 || resp.status === 400) msg = data?.error ?? "Dados inválidos. Corrija e tente novamente."
+        else if (data?.error) msg = data.error
+      } catch { }
+      setErrRegister(msg)
+      toast.error(msg)
+      setLoading(false)
+      return
     }
+
 
     toast.success("Conta criada! Entrando…");
 

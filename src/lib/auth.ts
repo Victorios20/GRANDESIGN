@@ -15,25 +15,48 @@ export const authOptions: NextAuthOptions = {
         const pass = String(c?.password || "");
         const u = await prisma.user.findUnique({
           where: { email },
-          include: { roles: { include: { role: true } } },
+          include: { roles: { include: { role: true } } }, // user.roles -> userRole pivot + role
         });
         if (!u || !u.is_active || !u.password_hash) return null;
         const ok = await compareHash(pass, u.password_hash);
         if (!ok) return null;
-        const roles = u.roles.map(r => r.role.name);
+
+        const roles = u.roles.map(r => r.role.name); // ["VISITANTE"] ou ["ADMIN", ...]
         return { id: String(u.id), name: u.name, email: u.email, roles } as any;
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) { (token as any).uid = (user as any).id; (token as any).roles = (user as any).roles || []; }
+      if (user) {
+        (token as any).uid = (user as any).id;
+        (token as any).roles = (user as any).roles || [];
+        return token;
+      }
+
+      // Reforço: se o token não tem roles (ou está vazio), tenta carregar 1x do banco
+      if (!(token as any).roles || (Array.isArray((token as any).roles) && (token as any).roles.length === 0)) {
+        if (token?.email) {
+          const u = await prisma.user.findUnique({
+            where: { email: token.email },
+            include: { roles: { include: { role: true } } },
+          });
+          (token as any).roles = u ? u.roles.map(r => r.role.name) : [];
+          (token as any).uid = (token as any).uid ?? (u ? String(u.id) : undefined);
+        } else {
+          (token as any).roles = [];
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
-      if (session.user) { (session.user as any).id = (token as any).uid; (session.user as any).roles = (token as any).roles || []; }
+      if (session.user) {
+        (session.user as any).id = (token as any).uid;
+        (session.user as any).roles = (token as any).roles || [];
+      }
       return session;
     },
   },
-  secret: process.env.AUTH_SECRET,
+  secret: process.env.AUTH_SECRET, // ou NEXTAUTH_SECRET, mantenha consistente com o middleware
 };

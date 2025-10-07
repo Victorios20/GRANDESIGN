@@ -12,22 +12,23 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon, Loader2 } from 'lucide-react'
+import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon, Loader2, Users2 } from "lucide-react"
 
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 
 const APP_VERSION = "1.4.5"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()
+  const { data: session, status } = useSession()
 
   const pathname = usePathname()
   const [editarAberto, setEditarAberto] = useState(true)
@@ -37,46 +38,30 @@ export function CustomSidebar() {
 
   // Efeito para fechar automaticamente o menu "Editar" quando a sidebar estiver fechada
   useEffect(() => {
-    if (!isOpen) {
-      setEditarAberto(false)
-    }
+    if (!isOpen) setEditarAberto(false)
   }, [isOpen])
 
   const iconClass = (active: boolean) =>
     cn("size-5 transition-all duration-300", active && "text-primary scale-110")
 
-  // Variantes de animação para os itens do menu
+  // Animações
   const menuItemVariants = {
     hidden: { opacity: 0, x: -20 },
     visible: (i: number) => ({
       opacity: 1,
       x: 0,
-      transition: {
-        delay: i * 0.05,
-        duration: 0.3,
-      },
+      transition: { delay: i * 0.05, duration: 0.3 },
     }),
   }
 
-  // Variantes para o submenu
   const submenuVariants = {
     hidden: { opacity: 0, height: 0 },
     visible: {
       opacity: 1,
       height: "auto",
-      transition: {
-        duration: 0.3,
-        when: "beforeChildren",
-        staggerChildren: 0.05,
-      },
+      transition: { duration: 0.3, when: "beforeChildren", staggerChildren: 0.05 },
     },
-    exit: {
-      opacity: 0,
-      height: 0,
-      transition: {
-        duration: 0.2,
-      },
-    },
+    exit: { opacity: 0, height: 0, transition: { duration: 0.2 } },
   }
 
   async function handleLogout() {
@@ -88,14 +73,21 @@ export function CustomSidebar() {
     }
   }
 
+  // ----- Lógica de permissão (ADMIN/DEV podem ver /admin/users) -----
+  const rolesUpper = useMemo(() => {
+    const rs = (session?.user as any)?.roles ?? []
+    return Array.isArray(rs) ? rs.map((r: any) => String(r).toUpperCase()) : []
+  }, [session])
+
+  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
+  // visitante e vendedor não verão o item; middleware já garante o gate da rota
+
   return (
     <motion.aside
       initial={{ width: isOpen ? 240 : 80 }}
       animate={{ width: isOpen ? 240 : 80 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className={cn(
-        "h-screen bg-sidebar border-r border-zinc-200 transition-all flex flex-col"
-      )}
+      className={cn("h-screen bg-sidebar border-r border-zinc-200 transition-all flex flex-col")}
     >
       <SidebarHeader className="justify-center px-4 py-4">
         <motion.div
@@ -137,20 +129,11 @@ export function CustomSidebar() {
                       <Link href="/">
                         <SidebarMenuButton
                           isActive={false}
-                          className={cn(
-                            isOpen ? "justify-start" : "justify-center",
-                            "hover:bg-black/5 transition-all duration-200"
-                          )}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                         >
                           <HomeIcon className={iconClass(isActive("/"))} />
                           {isOpen && (
-                            <motion.span
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="ml-2"
-                            >
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                               Home
                             </motion.span>
                           )}
@@ -170,21 +153,11 @@ export function CustomSidebar() {
                       <Link href="/orcamento/new">
                         <SidebarMenuButton
                           isActive={false}
-                          className={cn(
-                            isOpen ? "justify-start" : "justify-center",
-                            "hover:bg-black/5 transition-all duration-200"
-                          )}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                         >
                           <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
-
                           {isOpen && (
-                            <motion.span
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="ml-2"
-                            >
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                               Gerar Orçamento
                             </motion.span>
                           )}
@@ -204,20 +177,11 @@ export function CustomSidebar() {
                       <Link href="/">
                         <SidebarMenuButton
                           isActive={false}
-                          className={cn(
-                            isOpen ? "justify-start" : "justify-center",
-                            "hover:bg-black/5 transition-all duration-200"
-                          )}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                         >
                           <ClockIcon className={iconClass(isActive("/"))} />
                           {isOpen && (
-                            <motion.span
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="ml-2"
-                            >
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                               Histórico Orçamento
                             </motion.span>
                           )}
@@ -228,49 +192,58 @@ export function CustomSidebar() {
                   </Tooltip>
                 </SidebarMenuItem>
               </motion.div>
+
+              {/* ----- Painel de Usuários (Admin) — visível apenas para ADMIN/DEV ----- */}
+              {canSeeAdmin && (
+                <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <SidebarMenuItem>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Link href="/admin/users">
+                          <SidebarMenuButton
+                            isActive={false}
+                            className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                          >
+                            <Users2 className={iconClass(isActive("/admin/users"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Painel de Usuários
+                              </motion.span>
+                            )}
+                          </SidebarMenuButton>
+                        </Link>
+                      </TooltipTrigger>
+                      {!isOpen && <TooltipContent side="right">Painel de Usuários</TooltipContent>}
+                    </Tooltip>
+                  </SidebarMenuItem>
+                </motion.div>
+              )}
             </AnimatePresence>
           </TooltipProvider>
 
-          {/* Separador com animação */}
-          <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="h-px w-full bg-black opacity-10 my-1 origin-left"
-          />
+          {/* Separador */}
+          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="h-px w-full bg-black opacity-10 my-1 origin-left" />
 
           {/* Seção Editar */}
           <SidebarGroup>
-            <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
+            <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <SidebarGroupLabel
-                      className={cn(
-                        "cursor-pointer flex items-center transition-all duração-200",
-                        isOpen ? "justify-between px-3 py-2" : "justify-center py-2"
-                      )}
+                      className={cn("cursor-pointer flex items-center transition-all duração-200", isOpen ? "justify-between px-3 py-2" : "justify-center py-2")}
                       onClick={() => setEditarAberto(!editarAberto)}
                     >
                       <div className="flex items-center">
                         <EditIcon className="size-5 transition-all duration-300" />
                         {isOpen && (
-                          <motion.span
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="ml-2"
-                          >
+                          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                             Editar
                           </motion.span>
                         )}
                       </div>
                       {isOpen && (
-                        <motion.div
-                          animate={{ rotate: editarAberto ? 180 : 0 }}
-                          transition={{ duration: 0.3 }}
-                        >
+                        <motion.div animate={{ rotate: editarAberto ? 180 : 0 }} transition={{ duration: 0.3 }}>
                           <ChevronDown className="ml-auto transition-transform" />
                         </motion.div>
                       )}
@@ -294,20 +267,11 @@ export function CustomSidebar() {
                                 <Link href="/editar/materia-prima">
                                   <SidebarMenuButton
                                     isActive={false}
-                                    className={cn(
-                                      isOpen ? "justify-start" : "justify-center",
-                                      "hover:bg-black/5 transition-all duration-200"
-                                    )}
+                                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                                   >
                                     <PackageIcon className={iconClass(isActive("/editar/materia-prima"))} />
                                     {isOpen && (
-                                      <motion.span
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="ml-2"
-                                      >
+                                      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                                         Matéria-Prima
                                       </motion.span>
                                     )}
@@ -321,7 +285,6 @@ export function CustomSidebar() {
                       </TooltipProvider>
                     </SidebarMenu>
                   </SidebarGroupContent>
-
                 </motion.div>
               )}
             </AnimatePresence>
@@ -340,10 +303,7 @@ export function CustomSidebar() {
                     onClick={handleLogout}
                     disabled={loggingOut}
                     aria-busy={loggingOut}
-                    className={cn(
-                      isOpen ? "justify-start" : "justify-center",
-                      "hover:bg-transparent transition-all duration-200"
-                    )}
+                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-transparent transition-all duration-200")}
                   >
                     {loggingOut ? (
                       <Loader2 className="size-5 animate-spin" />
@@ -351,13 +311,7 @@ export function CustomSidebar() {
                       <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
                     )}
                     {isOpen && (
-                      <motion.span
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="ml-2"
-                      >
+                      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                         {loggingOut ? "Saindo..." : "Sair"}
                       </motion.span>
                     )}
@@ -371,9 +325,7 @@ export function CustomSidebar() {
 
         {/* Versão */}
         <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
-          <span className="text-marromEscuro text-xs font-medium select-none">
-            Versão {APP_VERSION}
-          </span>
+          <span className="text-marromEscuro text-xs font-medium select-none">Versão {APP_VERSION}</span>
         </div>
       </SidebarFooter>
     </motion.aside>
