@@ -123,7 +123,7 @@ export default function LoginPage() {
           {/* Logo and Brand */}
           <div className="flex items-center gap-3">
             <Image src="/images/logo.png" alt="Logo GRANDESIGN" width={48} height={48} className="object-contain" />
-            <span className="text-2xl font-semibold tracking-tight text-bege">GRANDESIGN</span>
+            <span className="text-2xl font-semibold tracking-tight text-marromEscuro">GRANDESIGN</span>
           </div>
 
           {/* Card with Forms */}
@@ -286,7 +286,7 @@ export default function LoginPage() {
 
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Ao criar sua conta, você será cadastrado com a função padrão de{" "}
-                      <span className="font-medium text-foreground">VENDEDOR</span>.
+                      <span className="font-medium text-foreground">VISITANTE</span>.
                     </p>
 
                     {errRegister ? <p className="text-sm text-red-600">{errRegister}</p> : null}

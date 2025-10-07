@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       },
     });
 
-    const roleName = isAdmin && role ? String(role) : "VENDEDOR";
+    const roleName = isAdmin && role ? String(role) : "VISITANTE";
     const roleRow = await prisma.role.findUnique({ where: { name: roleName } });
     if (roleRow) {
       await prisma.userRole.create({
