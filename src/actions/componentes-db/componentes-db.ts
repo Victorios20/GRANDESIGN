@@ -7,7 +7,7 @@
 ------------------------------------------------------------------- */
 
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@/generated/prisma"
+import type { Prisma } from "@prisma/client"
 
 export interface Componente {
   id: number

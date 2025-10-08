@@ -199,7 +199,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   }
 
   const safeCell = (v: string | number | null | undefined) => (v == null || v === "" ? "-" : v)
-  const strDate = (iso?: string) => (iso ? format(parseISO(iso), "dd/MM/yyyy HH:mm") : "-")
+  const strDate = (s?: string) => {
+  if (!s) return "-"
+  const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (naive) {
+    const [, Y, M, D, hh, mm] = naive
+    return `${D}/${M}/${Y} ${hh}:${mm}`
+  }
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return s
+  return d.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).replace(",", "")
+}
+
 
   const rows: OrcRow[] = useMemo(
     () =>

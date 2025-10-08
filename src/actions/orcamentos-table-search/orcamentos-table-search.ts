@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma"
-import type { Prisma } from "@/generated/prisma"
 type OrderDir = "asc" | "desc"
 
 const ORDER_MAP: Record<string, any> = {
@@ -115,7 +114,8 @@ const rows = await prisma.$queryRaw<Array<{
   cidade_nome: string | null
   cliente_telefone: string | null
   tipo_obra: string | null
-  data_ultima_alteracao: Date | null
+  data_ultima_alteracao: string | null
+  data_criacao: string | null
   totais_madeiras_preco: number | null
   totais_materiais_preco: number | null
   totais_frete_preco: number | null
@@ -131,7 +131,8 @@ const rows = await prisma.$queryRaw<Array<{
     ci.nome AS cidade_nome,
     c.telefone AS cliente_telefone,
     to2.tipo_obra AS tipo_obra,
-    o.data_ultima_alteracao,
+    to_char(o.data_ultima_alteracao, 'YYYY-MM-DD"T"HH24:MI:SS') AS data_ultima_alteracao,
+    to_char(o.data_criacao,          'YYYY-MM-DD"T"HH24:MI:SS') AS data_criacao,
     o.totais_madeiras_preco,
     o.totais_materiais_preco,
     o.totais_frete_preco,
@@ -139,6 +140,7 @@ const rows = await prisma.$queryRaw<Array<{
     o.totais_empresa_ps_preco,
     o.totais_empresa_gd_preco
   FROM orcamento o
+
   JOIN cliente c ON c.id = o.cliente_id
   LEFT JOIN cidades ci ON ci.id = c.cidade_id
   LEFT JOIN tipo_obra to2 ON to2.id = o.tipo_obra_id
@@ -184,14 +186,15 @@ const dados = rows.map((r) => {
     titulo: r.titulo ?? null,
     cliente: r.cliente_nome ?? null,
     bairro: r.bairro ?? null,
-    dataISO: r.data_ultima_alteracao ? new Date(r.data_ultima_alteracao).toISOString() : null,
-    data_ultima_alteracao: r.data_ultima_alteracao ? new Date(r.data_ultima_alteracao).toISOString() : null,
+    dataISO: r.data_ultima_alteracao ?? null,
+    data_ultima_alteracao: r.data_ultima_alteracao ?? null,
     valorFormatado: formatBRL(valor),
     tipoObra: r.tipo_obra ?? null,
     cidade: r.cidade_nome ?? null,
     clienteTelefone: r.cliente_telefone ?? null
   }
 })
+
 
 return { dados, total }
 
