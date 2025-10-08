@@ -64,9 +64,10 @@ export async function PUT(
   }
 
   const { cliente, clienteId, cliente_id, ...safeBody } = body
+  const actorUserId = Number((session.user as any).id)
 
   try {
-    const updatedId = await updateOrcamento(id, safeBody)
+    const updatedId = await updateOrcamento(id, { ...safeBody, actorUserId })
     return NextResponse.json({ id: updatedId ?? id }, { status: 200 })
   } catch (err: any) {
     const code = typeof err?.code === "string" ? err.code : undefined

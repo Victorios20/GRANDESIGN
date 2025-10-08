@@ -22,6 +22,15 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const safeCell = (v: string | number | null | undefined) => (v == null || v === "" ? "-" : v)
   const fmtDim = (v: number | null | undefined) =>
     typeof v === "number" && isFinite(v) && v > 0 ? `${v.toLocaleString("pt-BR")} m` : "-"
+  const fmtDate = (d: any) => {
+  if (!d) return "—"
+  const s = String(d)
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (!m) return s
+  const [, Y, M, D, hh, mm] = m
+  return `${D}/${M}/${Y} ${hh}:${mm}`
+}
+
 
   const materiaisGroup = useMemo(() => {
     const base: Record<"madeira" | "geral" | "telha", DetalheVM["materiais"]> = { madeira: [], geral: [], telha: [] }
@@ -35,6 +44,11 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
 
   const isRetangular =
     detalhe?.dimensoes?.largura != null && detalhe?.dimensoes?.comprimento != null
+
+  const createdEmail = (detalhe as any)?.createdBy?.email ?? "—"
+  const updatedEmail = (detalhe as any)?.updatedBy?.email ?? "—"
+  const dataCriacao = (detalhe as any)?.dataCriacao ?? null
+  const dataUltimaAlteracao = (detalhe as any)?.dataUltimaAlteracao ?? null
 
   return (
     <PageLayout
@@ -72,9 +86,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           </CardHeader>
         </Card>
 
-        {/* Dados do Cliente + Obra (lado a lado e alturas iguais) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-          {/* Dados do Cliente */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           <Card className="h-full flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle>Dados do Cliente</CardTitle>
@@ -87,14 +99,12 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
             </CardContent>
           </Card>
 
-          {/* Obra */}
           <Card className="h-full flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle>Dados da Obra</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1 text-sm grow">
               <p><b>Tipo de obra:</b> {safeCell(detalhe.tipoObra)}</p>
-
               {isRetangular ? (
                 <>
                   <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
@@ -110,10 +120,19 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
               )}
             </CardContent>
           </Card>
+
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle>Auditoria</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm grow">
+              <p><b>Criado por:</b> {createdEmail}</p>
+              <p><b>Criado em:</b> {fmtDate(dataCriacao)}</p>
+              <p><b>Última edição por:</b> {updatedEmail}</p>
+              <p><b>Última edição em:</b> {fmtDate(dataUltimaAlteracao)}</p>
+            </CardContent>
+          </Card>
         </div>
-
-
-
 
         {(["madeira", "geral", "telha"] as const).map((tipo) => {
           const linhas = materiaisGroup[tipo]
@@ -242,7 +261,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
               </Table>
             </CardContent>
           </Card>
-
 
           <Card className="rounded-2xl shadow-sm">
             <CardHeader className="p-3 bg-bege/30 border-b border-bege">

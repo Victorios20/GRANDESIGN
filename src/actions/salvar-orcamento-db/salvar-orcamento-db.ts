@@ -102,8 +102,10 @@ export type SalvarOrcamentoParams = {
   }
   totais: TotaisInput
   telhaValores: TelhaValoresInput
-  links: LinksInput // definitivo exige links
+  links: LinksInput
   titulo: string
+  actorUserId: number
+  clienteId: number
 }
 
 export type SalvarRascunhoParams = {
@@ -117,7 +119,10 @@ export type SalvarRascunhoParams = {
   totais: TotaisInput
   telhaValores: TelhaValoresInput
   titulo: string
+  clienteId: number
+  actorUserId: number
 }
+
 
 /* ================================================================
  * Helpers internos
@@ -211,6 +216,8 @@ async function insertOrcamento(
     link_slide: string | null
     link_pdf: string | null
     titulo: string
+    created_by: number
+    updated_by: number
   }
 ): Promise<number> {
   const rows = (await tx.$queryRaw`
@@ -219,19 +226,20 @@ async function insertOrcamento(
       totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
       totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
       largura, comprimento, largura_maior, largura_menor, comprimento_maior, comprimento_menor,
-      link_slide, link_pdf, titulo
+      link_slide, link_pdf, titulo, created_by, updated_by
     ) VALUES (
       ${data.cliente_id}, ${data.tipo_obra_id},
       ${data.totais_madeiras_preco}, ${data.totais_materiais_preco}, ${data.totais_comissao_preco},
       ${data.totais_empresa_ps_preco}, ${data.totais_empresa_gd_preco}, ${data.totais_frete_preco},
       ${data.largura}, ${data.comprimento}, ${data.largura_maior}, ${data.largura_menor}, ${data.comprimento_maior}, ${data.comprimento_menor},
-      ${data.link_slide}, ${data.link_pdf}, ${data.titulo}
+      ${data.link_slide}, ${data.link_pdf}, ${data.titulo}, ${data.created_by}, ${data.updated_by}
     )
     RETURNING id
   `) as Array<{ id: number }>
   if (!rows?.[0]?.id) throw new Error("Erro ao salvar orçamento")
   return rows[0].id
 }
+
 
 async function insertMaterial(
   tx: any,
@@ -300,7 +308,7 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
       throw new AppError("CHECK_DUPLICATE_FAILED", "Erro ao verificar título existente.", "check-duplicate")
     }
 
-       // 2) Cliente (obrigatório — deve vir selecionado/associado)
+    // 2) Cliente (obrigatório — deve vir selecionado/associado)
     const clienteIdPayload = Number((params as any).clienteId)
     if (!Number.isFinite(clienteIdPayload)) {
       throw new AppError(
@@ -359,10 +367,13 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
         largura_menor: params.parametros.larguraMenor ?? null,
         comprimento_maior: params.parametros.comprimentoMaior ?? null,
         comprimento_menor: params.parametros.comprimentoMenor ?? null,
-        link_slide: params.links?.slideUrl ?? null,
-        link_pdf: params.links?.pdfUrl ?? null,
+        link_slide: params.links.slideUrl,
+        link_pdf: params.links.pdfUrl,
         titulo: tituloLimpo,
+        created_by: params.actorUserId,
+        updated_by: params.actorUserId,
       })
+
     } catch (err: any) {
       logError("insert-orcamento failed", { titulo: tituloLimpo, clienteId, tipoObraId, err: String(err?.message ?? err) })
       throw new AppError("INSERT_ORCAMENTO_FAILED", "Erro ao salvar orçamento", "insert-orcamento")
@@ -553,7 +564,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
   const nomeCidade = cleanText(params.cliente.cidade ?? "")
 
   return await prisma.$transaction(async (tx) => {
-        // 1) Cliente (obrigatório — rascunho também precisa ter cliente associado)
+    // 1) Cliente (obrigatório — rascunho também precisa ter cliente associado)
     const clienteIdPayload = Number((params as any).clienteId)
     if (!Number.isFinite(clienteIdPayload)) {
       throw new AppError(
@@ -603,7 +614,10 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
         link_slide: null,
         link_pdf: null,
         titulo: tituloLimpo,
+        created_by: params.actorUserId,
+        updated_by: params.actorUserId,
       })
+
     } catch (err: any) {
       logError("insert-orcamento failed", { titulo: tituloLimpo, clienteId, tipoObraId: null, err: String(err?.message ?? err) })
       throw new AppError("INSERT_ORCAMENTO_FAILED", "Erro ao salvar orçamento", "insert-orcamento")

@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -70,7 +69,8 @@ model orcamento {
   tipo_obra_id            Int?
   link_slide              String?   @db.VarChar(255)
   data_criacao            DateTime? @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
-  data_ultima_alteracao   DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @updatedAt @map("data_ultima_alteracao") @db.Timestamp(6)
+  data_ultima_alteracao   DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @map("data_ultima_alteracao") @db.Timestamp(6)
+
   totais_madeiras_preco   Decimal   @default(0.00) @db.Decimal(10, 2)
   totais_materiais_preco  Decimal   @default(0.00) @db.Decimal(10, 2)
   totais_comissao_preco   Decimal   @default(0.00) @db.Decimal(10, 2)

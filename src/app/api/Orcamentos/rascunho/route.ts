@@ -71,6 +71,8 @@ export async function POST(req: Request) {
     const totais = body?.totais ?? {}
     const telhaValores = body?.telhaValores ?? {}
 
+    const actorUserId = Number((session.user as any).id)
+
     const id = await salvarRascunhoOrcamentoDB({
       titulo,
       cliente,
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
       totais,
       telhaValores,
       clienteId,
+      actorUserId,
     } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })
@@ -92,3 +95,4 @@ export async function POST(req: Request) {
     return res
   }
 }
+

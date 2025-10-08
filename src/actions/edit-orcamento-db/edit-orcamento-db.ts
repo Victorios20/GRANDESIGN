@@ -23,10 +23,10 @@ export type GetOrcamentoResult = {
     nome: string
     telefone: string
     bairro: string
-    cidade: string | null // por nome
+    cidade: string | null
   }
   parametros: {
-    tipoObra: string | null // por nome
+    tipoObra: string | null
     largura: number | null
     comprimento: number | null
     larguraMaior: number | null
@@ -51,13 +51,17 @@ export type GetOrcamentoResult = {
     slideUrl: string | null
     pdfUrl: string | null
   }
-  // dinâmico: chaves = nomes das telhas
   telhaValores: Record<string, { pix: number; x10: number; x18: number }>
+  dataCriacao: Date | null
+  dataUltimaAlteracao: Date
+  createdBy: { id: number; name: string; email: string } | null
+  updatedBy: { id: number; name: string; email: string } | null
 }
+
 
 export type UpdateOrcamentoInput = {
   titulo: string
-  cliente: { nome: string; telefone: string; bairro: string; cidade: string | null } // cidade por nome
+  cliente: { nome: string; telefone: string; bairro: string; cidade: string | null }
   parametros: {
     tipoObraId?: number | null
     tipoObra: string | null
@@ -100,9 +104,10 @@ export type UpdateOrcamentoInput = {
     empresaGD: number | string
   }
   links: { slideUrl: string | null; pdfUrl: string | null }
-  // dinâmico (qualquer descrição de telha)
   telhaValores: Record<string, { pix: number | string; x10: number | string; x18: number | string }>
+  actorUserId: number
 }
+
 
 /* ------------------------- utilidades numéricas ------------------------- */
 
@@ -174,24 +179,22 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
           include: {
             cliente: {
               include: {
-                // era "cidade: true" → CORRETO:
                 cidades: true,
               },
             },
-            // mantém:
             tipo_obra: true,
+            createdBy: { select: { id: true, name: true, email: true } },
+            updatedBy: { select: { id: true, name: true, email: true } },
           },
         })
 
         if (!orc) throw new Error("Orçamento não encontrado.")
 
-        // materiais
         const mats = await tx.orcamento_material.findMany({
           where: { orcamento_id: id },
           orderBy: { id: "asc" },
         })
 
-        // pagamentos (dinâmico por telha)
         const pays = await tx.orcamento_pagamento.findMany({
           where: { orcamento_id: id },
           orderBy: [{ tipo_telhas: "asc" }, { metodo_pagamento: "asc" }],
@@ -228,7 +231,6 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
           frete: 0,
         })
       } else {
-        // telha
         telhas.push({
           ...base,
           tamanho: null,
@@ -237,11 +239,8 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
       }
     })
 
-    // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas)
-    // reconstruir telhaValores a partir dos pagamentos (por tipo_telhas) + UNIÃO com materiais (Etapa 2)
     const telhaValores: GetOrcamentoResult["telhaValores"] = {}
 
-    // 1) Pivot dos pagamentos → { [tipoTelha]: { pix, x10, x18 } }
     for (const p of data.pays) {
       const key = cleanText(p.tipo_telhas) || "Telha"
       const uiKey = uiMetodoKey(p.metodo_pagamento)
@@ -250,8 +249,6 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
       telhaValores[key][uiKey] += nonNeg(p.valor)
     }
 
-    // 2) UNIÃO com os nomes usados na Etapa 2 (materiais tipo "telha")
-    //    -> garante que telhas sem pagamento ainda apareçam com {0,0,0}
     for (const m of data.mats) {
       if (m.tipo === "telha") {
         const nome = cleanText(m.descricao)
@@ -260,7 +257,6 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         }
       }
     }
-
 
     const res: GetOrcamentoResult = {
       id,
@@ -298,12 +294,15 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         slideUrl: data.orc.link_slide ?? null,
         pdfUrl: data.orc.link_pdf ?? null,
       },
-      telhaValores, // pode ser {}
+      telhaValores,
+      dataCriacao: data.orc.data_criacao ?? null,
+      dataUltimaAlteracao: data.orc.data_ultima_alteracao,
+      createdBy: data.orc.createdBy ? { id: data.orc.createdBy.id, name: data.orc.createdBy.name, email: data.orc.createdBy.email } : null,
+      updatedBy: data.orc.updatedBy ? { id: data.orc.updatedBy.id, name: data.orc.updatedBy.name, email: data.orc.updatedBy.email } : null,
     }
 
     return res
   } catch (err: any) {
-    // mantém mensagem existente
     if (typeof err?.message === "string") {
       if (err.message.includes("Orçamento não encontrado")) throw err
     }
@@ -311,21 +310,18 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
   }
 }
 
+
 /* ========================= UPDATE (editar orçamento) ========================= */
 
 export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): Promise<void> {
   await prisma.$transaction(
     async (tx) => {
-      // 1) Checar existência e obter cliente_id
       const atual = await tx.orcamento.findUnique({
         where: { id },
         select: { id: true, cliente_id: true },
       })
       if (!atual) throw new Error("Orçamento não encontrado.")
 
-
-
-      // 3) Resolver tipo de obra (aceita id ou nome)
       let tipoObraId: number | null = null
       const tipoObraIdPayload = Number((input.parametros as any)?.tipoObraId)
       if (Number.isFinite(tipoObraIdPayload)) {
@@ -347,7 +343,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         }
       }
 
-      // 5) Atualizar orçamento (dimensões só se !== undefined)
       const dimUpdate: Record<string, number | null | undefined> = {}
       const {
         largura,
@@ -379,15 +374,14 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             totais_frete_preco: nonNeg(input.totais.frete),
             link_slide: input.links.slideUrl ?? null,
             link_pdf: input.links.pdfUrl ?? null,
-            ...dimUpdate
+            ...dimUpdate,
+            updated_by: input.actorUserId,
           },
         })
       } catch {
-
         throw new Error("Erro ao atualizar orçamento.")
       }
 
-      // 6) Materiais: delete → createMany (madeira, geral, telha)
       try {
         await tx.orcamento_material.deleteMany({ where: { orcamento_id: id } })
       } catch {
@@ -406,7 +400,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         total: number
       }> = []
 
-      // madeiras
       for (const m of input.materiais.madeiras ?? []) {
         const quantidade = nonNeg(m.quantidade)
         const preco = nonNeg(m.preco)
@@ -425,7 +418,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         })
       }
 
-      // materiais gerais
       for (const m of input.materiais.materiaisGerais ?? []) {
         const quantidade = nonNeg(m.quantidade)
         const preco = nonNeg(m.preco)
@@ -434,7 +426,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           orcamento_id: id,
           tipo: "geral",
           descricao: cleanText(m.nome),
-          componente: null, // mantém comportamento do arquivo original
+          componente: null,
           quantidade,
           preco_unitario: preco,
           tamanho: null,
@@ -443,7 +435,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         })
       }
 
-      // telhas (dinâmico; detalhe no nome/descrição)
       for (const m of input.materiais.telhas ?? []) {
         const quantidade = nonNeg(m.quantidade)
         const preco = nonNeg(m.preco)
@@ -470,7 +461,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         throw new Error("Erro ao salvar materiais.")
       }
 
-      // 7) Pagamentos (dinâmico por telha): delete → createMany
       try {
         await tx.orcamento_pagamento.deleteMany({ where: { orcamento_id: id } })
       } catch {
@@ -486,8 +476,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
 
       for (const [tipoTelhaBruto, valores] of Object.entries(input.telhaValores ?? {})) {
         const tipoTelha = cleanText(tipoTelhaBruto)
-        if (!tipoTelha) continue // ignora chave vazia
-        // sempre 3 métodos no UPDATE (paridade com comportamento atual)
+        if (!tipoTelha) continue
         paysToCreate.push({
           orcamento_id: id,
           tipo_telhas: tipoTelha,
