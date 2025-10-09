@@ -2,8 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from "react"
-
-
+import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import {
     Trash,
@@ -620,7 +619,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     const router = useRouter()
 
-    // narrowing correto em cima de props.mode
+    const { data: session } = useSession()
+    const currentUserId = session?.user?.id ? Number(session.user.id) : -1
+
     const isEdit = props.mode === "edit"
 
     // props comuns (existem em ambos os ramos)
@@ -1615,43 +1616,45 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
         const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
 
-        return {
-            titulo,
-            cliente: { ...form },
-            parametros, // <<— agora vai o objeto ajustado
-            materiais: {
-                madeiras: materiais.madeiras.map(m => ({
-                    nome: m.nome,
-                    componente: m.componente ?? "",
-                    quantidade: toPos(m.quantidade),
-                    preco: toPos(m.preco),
-                    tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
-                    frete: null,
-                })),
-                materiaisGerais: materiais.materiaisGerais.map(m => ({
-                    nome: m.nome,
-                    componente: "",
-                    quantidade: toPos(m.quantidade),
-                    preco: toPos(m.preco),
-                    tamanho: null,
-                    frete: null,
-                })),
-                telhas: materiais.telhas.map(m => ({
-                    nome: m.nome,
-                    componente: "",
-                    quantidade: toPos(m.quantidade),
-                    preco: toPos(m.preco),
-                    tamanho: null,
-                    frete: m.frete != null ? toPos(m.frete) : 0,
-                })),
-            },
-            totais: { ...totEdit },
-            telhaValores: telhaValoresAtual,
-            links: {
-                slideUrl: links.slide ?? null,
-                pdfUrl: links.pdf ?? null,
-            },
-        }
+        
+    return {
+        titulo,
+        cliente: { ...form },
+        parametros,
+        materiais: {
+            madeiras: materiais.madeiras.map(m => ({
+                nome: m.nome,
+                componente: m.componente ?? "",
+                quantidade: toPos(m.quantidade),
+                preco: toPos(m.preco),
+                tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
+                frete: null,
+            })),
+            materiaisGerais: materiais.materiaisGerais.map(m => ({
+                nome: m.nome,
+                componente: "",
+                quantidade: toPos(m.quantidade),
+                preco: toPos(m.preco),
+                tamanho: null,
+                frete: null,
+            })),
+            telhas: materiais.telhas.map(m => ({
+                nome: m.nome,
+                componente: "",
+                quantidade: toPos(m.quantidade),
+                preco: toPos(m.preco),
+                tamanho: null,
+                frete: m.frete != null ? toPos(m.frete) : 0,
+            })),
+        },
+        totais: { ...totEdit },
+        telhaValores: telhaValoresAtual,
+        links: {
+            slideUrl: links.slide ?? null,
+            pdfUrl: links.pdf ?? null,
+        },
+        actorUserId: currentUserId,
+    }
     }
 
 
