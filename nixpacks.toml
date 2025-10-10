@@ -1,14 +1,15 @@
 # nixpacks.toml
-
 [variables]
 NIXPACKS_NODE_VERSION = "20"
 
+# Se seu build realmente precisa dessas envs,
+# o Nixpacks vai lê-las do arquivo .env que o EasyPanel gera (passo 3).
+
 [phases.install]
-# Garante devDependencies durante o build
-cmd = "npm ci --include=dev"
+cmd = "npm ci"
 
 [phases.build]
-# Gera Prisma e compila o Next
+# Gera o client do Prisma antes de compilar o Next
 cmd = "npx prisma generate && npm run build"
 
 [start]
