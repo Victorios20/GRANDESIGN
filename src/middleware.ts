@@ -13,7 +13,6 @@ function isPublicAsset(pathname: string) {
   )
 }
 
-// APIs públicas da Home (somente GET)
 function isHomePublicApi(req: NextRequest) {
   const pathname = req.nextUrl.pathname.toLowerCase()
   const method = req.method?.toUpperCase()
@@ -21,7 +20,6 @@ function isHomePublicApi(req: NextRequest) {
   return pathname === "/api/bairros" || pathname === "/api/orcamentos"
 }
 
-// util para normalizar roles -> UPPERCASE
 function rolesUpper(token: unknown): string[] {
   const raw = (token as any)?.roles ?? []
   return Array.isArray(raw) ? raw.map((r) => String(r).toUpperCase()) : []
@@ -29,6 +27,11 @@ function rolesUpper(token: unknown): string[] {
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl
+
+  // 🚩 NOVO: bypass para SSR interno (helper)
+  if (req.headers.get("x-internal-ssr") === "1") {
+    return NextResponse.next()
+  }
 
   // Assets e páginas públicas
   if (isPublicAsset(pathname)) return NextResponse.next()
@@ -45,14 +48,13 @@ export async function middleware(req: NextRequest) {
   // APIs da Home liberadas (GET /api/bairros e GET /api/orcamentos)
   if (isHomePublicApi(req)) return NextResponse.next()
 
-  // Auth
+  // --- Auth ---
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
   const token = await getToken({ req, secret })
 
   const isApi = pathname.startsWith("/api/")
   const isLogin = pathname === "/login"
 
-  // Sem token
   if (!token) {
     if (isApi) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
@@ -67,13 +69,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Com token: verificar roles
   const roles = rolesUpper(token)
   const isVisitor = roles.includes("VISITANTE")
   const isAdminOrDev = roles.includes("ADMIN") || roles.includes("DEV")
   const isVendedor = roles.includes("VENDEDOR")
 
-  // Usuário logado não acessa /login
   if (isLogin) {
     const url = req.nextUrl.clone()
     url.pathname = "/"
@@ -81,7 +81,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Visitante: só Home e APIs públicas da Home (+ POST /api/users)
   if (isVisitor) {
     if (isApi) {
       const p = pathname.toLowerCase()
@@ -101,7 +100,6 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Painel admin: só ADMIN e DEV
   if (pathname.startsWith("/admin")) {
     if (!isAdminOrDev) {
       const url = req.nextUrl.clone()
@@ -111,10 +109,6 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // Fora do /admin:
-  // - ADMIN e DEV: liberado
-  // - VENDEDOR: liberado
-  // (apenas VISITANTE já foi tratado acima)
   return NextResponse.next()
 }
 
