@@ -33,7 +33,6 @@ type GetOrcamentoResult = {
   updatedBy: { id: number; name: string; email: string } | null
 }
 
-
 export type DetalheVM = {
   id: number
   titulo: string | null
@@ -47,7 +46,15 @@ export type DetalheVM = {
     comprimentoMenor: number | null
     comprimentoMaior: number | null
   }
-  materiais: Array<{ tipo: "madeira" | "geral" | "telha"; nome: string; componente?: string | null; quantidade: number; tamanho?: number | null; precoUnit: number; frete?: number | null }>
+  materiais: Array<{
+    tipo: "madeira" | "geral" | "telha"
+    nome: string
+    componente?: string | null
+    quantidade: number
+    tamanho?: number | null
+    precoUnit: number
+    frete?: number | null
+  }>
   totais: { madeiras: number; materiais: number; comissao: number; empresaPS: number; empresaGD: number; frete: number; totalGeral: number }
   links: { slideUrl: string | null; pdfUrl: string | null }
   telhaValores: Record<string, { pix?: number; "10×"?: number; "18×"?: number }>
@@ -56,7 +63,6 @@ export type DetalheVM = {
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
 }
-
 
 function normalize(dto: GetOrcamentoResult): DetalheVM {
   const materiais: DetalheVM["materiais"] = [
@@ -124,33 +130,34 @@ function normalize(dto: GetOrcamentoResult): DetalheVM {
   }
 }
 
-
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id: idStr } = await params
-  const id = Number(idStr)
+export default async function Page({ params }: { params: { id: string } }) {
+  const id = Number(params.id)
   if (!Number.isFinite(id)) notFound()
 
   const h = await nextHeaders()
-  const proto = h.get("x-forwarded-proto") ?? "http"
-  const host = h.get("host") ?? "localhost:3000"
-  const base = `${proto}://${host}`
-
   const cookie = h.get("cookie") ?? ""
 
-  const res = await fetch(`${base}/api/Orcamentos/${id}`, {
+
+  const res = await fetch(`/api/Orcamentos/${id}`, {
     cache: "no-store",
     headers: { cookie },
+    credentials: "include",
+    redirect: "manual",
   })
 
+  if (res.status === 401 || res.status === 302 || res.status === 307 || res.status === 308) {
+    return <div>Você precisa estar autenticado para ver os detalhes.</div>
+  }
   if (!res.ok) {
-    if (res.status === 401) {
-      return <div>Você precisa estar autenticado para ver os detalhes.</div>
-    }
     notFound()
   }
 
   const data = (await res.json()) as GetOrcamentoResult
-  const detailUrl = `${base}/orcamento/detalhes/${id}`
+
+
+  const proto = h.get("x-forwarded-proto") ?? "http"
+  const host = h.get("host") ?? "localhost:3000"
+  const detailUrl = `${proto}://${host}/orcamento/detalhes/${id}`
 
   const vm = normalize(data)
   return <DetalheOrcamento detalhe={vm} detailUrl={detailUrl} />
