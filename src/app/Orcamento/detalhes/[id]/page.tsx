@@ -130,26 +130,15 @@ function normalize(dto: GetOrcamentoResult): DetalheVM {
   }
 }
 
-type ParamSync = { params: { id: string } }
-type ParamAsync = { params: Promise<{ id: string }> }
-
-export default async function Page(input: ParamSync | ParamAsync) {
-  let idStr: string
-  const pAny: any = (input as any).params
-  if (typeof pAny?.then === "function") {
-    const awaited = await (pAny as Promise<{ id: string }>)
-    idStr = awaited.id
-  } else {
-    idStr = (pAny as { id: string }).id
-  }
-
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await params
   const id = Number(idStr)
   if (!Number.isFinite(id)) notFound()
 
   const h = await nextHeaders()
   const cookie = h.get("cookie") ?? ""
 
-  // URL absoluta para o Node runtime aceitar sem base implícita
+  // Monta base absoluta (funciona em localhost e homolog/produção)
   const proto = h.get("x-forwarded-proto") ?? "http"
   const host  = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base  = `${proto}://${host}`
@@ -169,7 +158,6 @@ export default async function Page(input: ParamSync | ParamAsync) {
   }
 
   const data = (await res.json()) as GetOrcamentoResult
-
   const detailUrl = `${base}/orcamento/detalhes/${id}`
 
   const vm = normalize(data)
