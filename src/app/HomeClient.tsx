@@ -490,7 +490,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   return (
     <PageLayout>
       <TooltipProvider>
-        <Toaster richColors closeButton />
         <Link href="/orcamento/new" className="block mb-8">
           <BigShinyButton />
         </Link>

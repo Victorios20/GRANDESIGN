@@ -4,7 +4,7 @@ import React, { type PropsWithChildren } from "react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { ChevronRight, PanelLeft } from "lucide-react"
-
+import { Toaster } from "sonner"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
@@ -76,6 +76,7 @@ function InnerLayout({
             />
           </div>
         )}
+        <Toaster position="top-right" duration={10000} closeButton richColors offset={80} />
 
         {/* HEADER REDUZIDO */}
         <header className="flex h-14 md:h-16 items-center justify-between bg-bege-header px-4 md:px-6 shadow-header z-10 border-b border-marromClaro/20">

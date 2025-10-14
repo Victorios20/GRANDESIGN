@@ -620,7 +620,7 @@ return (
         </TableBody>
       </Table>
 
-      <Toaster richColors position="top-right" />
+
     </CardContent>
 
     {editingRow && (
@@ -922,7 +922,7 @@ function TabelaComponentes({
           </TableBody>
         </Table>
 
-        <Toaster richColors position="top-right" />
+
       </CardContent>
 
       {editingRow && (

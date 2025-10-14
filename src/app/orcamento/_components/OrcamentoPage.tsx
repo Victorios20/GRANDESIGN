@@ -1710,7 +1710,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             }
         >
 
-            <Toaster position="top-right" richColors closeButton />
 
             {/* ---------------------------------------------------------------
        *                          Cabeçalho

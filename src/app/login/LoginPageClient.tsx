@@ -122,7 +122,6 @@ export default function LoginPageClient() {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      <Toaster richColors position="top-right" closeButton />
       <div className="flex-1 lg:w-[40%] flex items-center justify-center p-6 lg:p-12 bg-background">
         <div className="w-full max-w-md space-y-8">
           <div className="flex items-center gap-3">
