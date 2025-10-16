@@ -1,7 +1,6 @@
 "use client";
-
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { toast, Toaster } from "sonner";
@@ -9,9 +8,10 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff } from "lucide-react";
+
+const LS_KEY_KEEP_LOGGED = "gd_keep_logged";
 
 export default function LoginPageClient() {
   const router = useRouter();
@@ -20,25 +20,31 @@ export default function LoginPageClient() {
 
   const [loading, setLoading] = useState(false);
   const [errLogin, setErrLogin] = useState<string | null>(null);
-  const [errRegister, setErrRegister] = useState<string | null>(null);
-
   const [showPwdLogin, setShowPwdLogin] = useState(false);
-  const [showPwdReg, setShowPwdReg] = useState(false);
-  const [showPwdRegConf, setShowPwdRegConf] = useState(false);
+  const [keepLogged, setKeepLogged] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LS_KEY_KEEP_LOGGED);
+      setKeepLogged(saved === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function onSubmitLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setErrLogin(null);
     setLoading(true);
+
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") || "").trim().toLowerCase();
     const password = String(form.get("password") || "");
-    const remember = form.get("remember") ? true : false;
 
     const res = await signIn("credentials", {
       email,
       password,
-      remember,
+      remember: keepLogged,
       redirect: false,
       callbackUrl,
     });
@@ -51,77 +57,19 @@ export default function LoginPageClient() {
       return;
     }
 
+    try {
+      localStorage.setItem(LS_KEY_KEEP_LOGGED, keepLogged ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+
     toast.success("Bem-vindo! Redirecionando…");
-    router.push(res.url || callbackUrl);
-  }
-
-  async function onSubmitRegister(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrRegister(null);
-    setLoading(true);
-
-    const form = new FormData(e.currentTarget);
-    const name = String(form.get("name") || "").trim();
-    const email = String(form.get("email") || "").trim().toLowerCase();
-    const password = String(form.get("password") || "");
-    const confirmPassword = String(form.get("confirmPassword") || "");
-
-    if (!name || !email || !password) {
-      setErrRegister("Preencha todos os campos.");
-      toast.error("Preencha todos os campos.");
-      setLoading(false);
-      return;
-    }
-    if (password !== confirmPassword) {
-      setErrRegister("As senhas não conferem.");
-      toast.error("As senhas não conferem.");
-      setLoading(false);
-      return;
-    }
-    if (password.length < 8) {
-      setErrRegister("A senha deve ter pelo menos 8 caracteres.");
-      toast.error("A senha deve ter pelo menos 8 caracteres.");
-      setLoading(false);
-      return;
-    }
-
-    const resp = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
-    });
-
-    if (!resp.ok) {
-      let msg = "Não foi possível criar sua conta."
-      try {
-        const data = await resp.json()
-        if (resp.status === 401) msg = "Cadastro público está bloqueado. Fale com o administrador."
-        else if (resp.status === 409) msg = "Já existe uma conta com este e-mail."
-        else if (resp.status === 422 || resp.status === 400) msg = data?.error ?? "Dados inválidos. Corrija e tente novamente."
-        else if (data?.error) msg = data.error
-      } catch { }
-      setErrRegister(msg)
-      toast.error(msg)
-      setLoading(false)
-      return
-    }
-
-    toast.success("Conta criada! Entrando…");
-
-    const res = await signIn("credentials", { email, password, redirect: false, callbackUrl });
-    setLoading(false);
-
-    if (!res || res.error) {
-      setErrRegister("Conta criada, mas houve erro ao entrar. Tente fazer login.");
-      toast.error("Conta criada, mas houve erro ao entrar. Faça login.");
-      return;
-    }
-
     router.push(res.url || callbackUrl);
   }
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
+      <Toaster richColors position="top-right" />
       <div className="flex-1 lg:w-[40%] flex items-center justify-center p-6 lg:p-12 bg-background">
         <div className="w-full max-w-md space-y-8">
           <div className="flex items-center gap-3">
@@ -138,171 +86,85 @@ export default function LoginPageClient() {
             </CardHeader>
 
             <CardContent>
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">Entrar</TabsTrigger>
-                  <TabsTrigger value="register">Cadastrar</TabsTrigger>
-                </TabsList>
+              <form data-testid="login-form" className="space-y-4" onSubmit={onSubmitLogin}>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    required
+                    className="h-11"
+                    autoComplete="email"
+                    onInvalid={() => toast.info("Informe um e-mail válido.")}
+                  />
+                </div>
 
-                <TabsContent value="login">
-                  <form data-testid="login-form" className="space-y-4" onSubmit={onSubmitLogin}>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">E-mail</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        required
-                        className="h-11"
-                        autoComplete="email"
-                        onInvalid={() => toast.info("Informe um e-mail válido.")}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Senha</Label>
-                      <div className="relative">
-                        <Input
-                          id="password"
-                          name="password"
-                          type={showPwdLogin ? "text" : "password"}
-                          placeholder="••••••••"
-                          required
-                          className="h-11 pr-10"
-                          autoComplete="current-password"
-                        />
-                        <button
-                          type="button"
-                          aria-label={showPwdLogin ? "Ocultar senha" : "Mostrar senha"}
-                          aria-pressed={showPwdLogin}
-                          onClick={() => setShowPwdLogin((v) => !v)}
-                          className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
-                        >
-                          {showPwdLogin ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Checkbox id="remember" name="remember" />
-                        <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
-                          Manter conectado
-                        </Label>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          toast.info("Recuperação de senha em breve. Fale com o suporte para redefinir por enquanto.")
-                        }
-                        className="text-sm text-muted-foreground underline underline-offset-2 hover:opacity-80"
-                      >
-                        Esqueci minha senha
-                      </button>
-                    </div>
-
-                    {errLogin ? <p className="text-sm text-red-600">{errLogin}</p> : null}
-
-                    <Button
-                      type="submit"
-                      data-testid="login-submit"
-                      className="w-full h-11 text-base font-medium"
-                      disabled={loading}
-                      variant="success"
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      name="password"
+                      type={showPwdLogin ? "text" : "password"}
+                      placeholder="••••••••"
+                      required
+                      className="h-11 pr-10"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPwdLogin ? "Ocultar senha" : "Mostrar senha"}
+                      aria-pressed={showPwdLogin}
+                      onClick={() => setShowPwdLogin((v) => !v)}
+                      className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
                     >
-                      {loading ? "Entrando..." : "Entrar"}
-                    </Button>
-                  </form>
-                </TabsContent>
+                      {showPwdLogin ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                </div>
 
-                <TabsContent value="register">
-                  <form data-testid="register-form" className="space-y-4" onSubmit={onSubmitRegister}>
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Nome</Label>
-                      <Input id="name" name="name" type="text" placeholder="Seu nome completo" required className="h-11" />
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="remember"
+                      checked={keepLogged}
+                      onCheckedChange={(v) => setKeepLogged(v === true)}
+                      aria-describedby="remember-help"
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal cursor-pointer">
+                      Manter conectado
+                    </Label>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      toast.info("Recuperação de senha em breve. Fale com o suporte para redefinir por enquanto.")
+                    }
+                    className="text-sm text-muted-foreground underline underline-offset-2 hover:opacity-80"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="reg_email">E-mail</Label>
-                      <Input
-                        id="reg_email"
-                        name="email"
-                        type="email"
-                        placeholder="seu@email.com"
-                        required
-                        className="h-11"
-                        autoComplete="email"
-                      />
-                    </div>
+                {/* opcional: dica de duração */}
+                <p id="remember-help" className="text-xs text-muted-foreground">
+                  Marcado: sessão de 7 dias. Desmarcado: 12 horas.
+                </p>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="reg_password">Senha</Label>
-                      <div className="relative">
-                        <Input
-                          id="reg_password"
-                          name="password"
-                          type={showPwdReg ? "text" : "password"}
-                          placeholder="••••••••"
-                          required
-                          className="h-11 pr-10"
-                          autoComplete="new-password"
-                        />
-                        <button
-                          type="button"
-                          aria-label={showPwdReg ? "Ocultar senha" : "Mostrar senha"}
-                          aria-pressed={showPwdReg}
-                          onClick={() => setShowPwdReg((v) => !v)}
-                          className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
-                        >
-                          {showPwdReg ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
+                {errLogin ? <p className="text-sm text-red-600">{errLogin}</p> : null}
 
-                    <div className="space-y-2">
-                      <Label htmlFor="reg_confirm">Confirmar senha</Label>
-                      <div className="relative">
-                        <Input
-                          id="reg_confirm"
-                          name="confirmPassword"
-                          type={showPwdRegConf ? "text" : "password"}
-                          placeholder="••••••••"
-                          required
-                          className="h-11 pr-10"
-                          autoComplete="new-password"
-                        />
-                        <button
-                          type="button"
-                          aria-label={showPwdRegConf ? "Ocultar senha" : "Mostrar senha"}
-                          aria-pressed={showPwdRegConf}
-                          onClick={() => setShowPwdRegConf((v) => !v)}
-                          className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
-                        >
-                          {showPwdRegConf ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Ao criar sua conta, você será cadastrado com a função padrão de{" "}
-                      <span className="font-medium text-foreground">VISITANTE</span>.
-                    </p>
-
-                    {errRegister ? <p className="text-sm text-red-600">{errRegister}</p> : null}
-
-                    <Button
-                      type="submit"
-                      data-testid="register-submit"
-                      className="w-full h-11 text-base font-medium"
-                      disabled={loading}
-                      variant="success"
-                    >
-                      {loading ? "Criando..." : "Criar conta"}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
+                <Button
+                  type="submit"
+                  data-testid="login-submit"
+                  className="w-full h-11 text-base font-medium"
+                  disabled={loading}
+                  variant="success"
+                >
+                  {loading ? "Entrando..." : "Entrar"}
+                </Button>
+              </form>
             </CardContent>
 
             <CardFooter>

@@ -3,26 +3,40 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import { compareHash } from "./bcrypt";
 
+const SECONDS_12H = 60 * 60 * 12;
+const SECONDS_7D = 60 * 60 * 24 * 7;
+
+function parseRemember(v: unknown): boolean {
+  const s = String(v ?? "").toLowerCase();
+  return s === "true" || s === "on" || s === "1" || s === "yes";
+}
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 90, updateAge: 60 * 60 * 24 * 7 },
+  session: { strategy: "jwt", maxAge: SECONDS_7D },
+  jwt: { maxAge: SECONDS_7D },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
       name: "email-senha",
-      credentials: { email: { label: "E-mail", type: "text" }, password: { label: "Senha", type: "password" } },
+      credentials: {
+        email: { label: "E-mail", type: "text" },
+        password: { label: "Senha", type: "password" },
+        remember: { label: "Manter-me conectado", type: "text" }
+      },
       async authorize(c) {
         const email = String(c?.email || "").trim().toLowerCase();
         const pass = String(c?.password || "");
+        const remember = parseRemember((c as any)?.remember);
         const u = await prisma.user.findUnique({
           where: { email },
-          include: { roles: { include: { role: true } } }, // user.roles -> userRole pivot + role
+          include: { roles: { include: { role: true } } }
         });
         if (!u || !u.is_active || !u.password_hash) return null;
         const ok = await compareHash(pass, u.password_hash);
         if (!ok) return null;
 
-        const roles = u.roles.map(r => r.role.name); // ["VISITANTE"] ou ["ADMIN", ...]
-        return { id: String(u.id), name: u.name, email: u.email, roles } as any;
+        const roles = u.roles.map(r => r.role.name);
+        return { id: String(u.id), name: u.name, email: u.email, roles, remember } as any;
       },
     }),
   ],
@@ -31,10 +45,12 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         (token as any).uid = (user as any).id;
         (token as any).roles = (user as any).roles || [];
+        const remember = (user as any).remember === true;
+        const ttl = remember ? SECONDS_7D : SECONDS_12H;
+        (token as any).exp = Math.floor(Date.now() / 1000) + ttl;
         return token;
       }
 
-      // Reforço: se o token não tem roles (ou está vazio), tenta carregar 1x do banco
       if (!(token as any).roles || (Array.isArray((token as any).roles) && (token as any).roles.length === 0)) {
         if (token?.email) {
           const u = await prisma.user.findUnique({
@@ -58,5 +74,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.AUTH_SECRET, // ou NEXTAUTH_SECRET, mantenha consistente com o middleware
+  secret: process.env.AUTH_SECRET,
 };

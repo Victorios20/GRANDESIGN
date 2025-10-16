@@ -1,15 +1,13 @@
-"use client"
+"use client";
 
-// Client Component (UI + interações)
-// Caminho: src/app/admin/users/_componentes/users-table.tsx
-import * as React from "react"
-import { useMemo, useState, useEffect } from "react"
-import { toast } from "sonner"
-import { format } from "date-fns"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
+import * as React from "react";
+import { useMemo, useState, useEffect } from "react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -18,117 +16,113 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Mail, User2, RefreshCw } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/table";
+import { Mail, User2, RefreshCw, UserPlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import UserCreateCard from "./user-create-card";
 
 type UserRow = {
-  id: number
-  name: string
-  email: string
-  is_active: boolean
-  roles: string[]
-  created_at: string
-}
+  id: number;
+  name: string;
+  email: string;
+  is_active: boolean;
+  roles: string[];
+  created_at: string;
+};
 
 type RoleItem = {
-  id: number
-  name: "ADMIN" | "DEV" | "VENDEDOR" | "VISITANTE" | (string & {})
-  label: string
-}
+  id: number;
+  name: "ADMIN" | "DEV" | "VENDEDOR" | "VISITANTE" | (string & {});
+  label: string;
+};
 
 type Props = {
-  initialUsers: UserRow[]
-  allRoles: RoleItem[]
-}
+  initialUsers: UserRow[];
+  allRoles: RoleItem[];
+};
 
 export default function UsersTable({ initialUsers, allRoles }: Props) {
-  const [q, setQ] = useState("")
-  const [rows, setRows] = useState<UserRow[]>(initialUsers)
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<UserRow[]>(initialUsers);
 
-  // trava global de UI durante qualquer request
-  const [pageBusy, setPageBusy] = useState(false)
-  const [busyUserId, setBusyUserId] = useState<number | null>(null)
+  const [pageBusy, setPageBusy] = useState(false);
+  const [busyUserId, setBusyUserId] = useState<number | null>(null);
+
+  const [openCreateTop, setOpenCreateTop] = useState(false);
 
   useEffect(() => {
-    setRows(initialUsers)
-  }, [initialUsers])
+    setRows(initialUsers);
+  }, [initialUsers]);
 
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase()
-    if (!needle) return rows
-    return rows.filter((r) =>
-      [r.email, r.name].some((v) => String(v || "").toLowerCase().includes(needle))
-    )
-  }, [q, rows])
+    const needle = q.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((r) => [r.email, r.name].some((v) => String(v || "").toLowerCase().includes(needle)));
+  }, [q, rows]);
 
   function copy(text: string) {
     navigator.clipboard.writeText(text)
       .then(() => toast.success("Copiado!"))
-      .catch(() => toast.error("Falha ao copiar."))
+      .catch(() => toast.error("Falha ao copiar."));
   }
 
   async function handleToggleActive(user: UserRow, value: boolean) {
-    setPageBusy(true)
-    setBusyUserId(user.id)
-    const prev = user.is_active
+    setPageBusy(true);
+    setBusyUserId(user.id);
+    const prev = user.is_active;
 
-    // otimista
-    setRows((old) => old.map((r) => (r.id === user.id ? { ...r, is_active: value } : r)))
+    setRows((old) => old.map((r) => (r.id === user.id ? { ...r, is_active: value } : r)));
     try {
       const res = await fetch(`/api/admin/users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: value }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success("Status atualizado.")
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Status atualizado.");
     } catch {
-      // reverte
-      setRows((old) => old.map((r) => (r.id === user.id ? { ...r, is_active: prev } : r)))
-      toast.error("Falha ao atualizar status.")
+      setRows((old) => old.map((r) => (r.id === user.id ? { ...r, is_active: prev } : r)));
+      toast.error("Falha ao atualizar status.");
     } finally {
-      setBusyUserId(null)
-      setPageBusy(false)
+      setBusyUserId(null);
+      setPageBusy(false);
     }
   }
 
   async function handleChangeRole(user: UserRow, newRole: string) {
-    const current = user.roles[0] || ""
-    if (newRole === current) return
+    const current = user.roles[0] || "";
+    if (newRole === current) return;
 
-    setPageBusy(true)
-    setBusyUserId(user.id)
+    setPageBusy(true);
+    setBusyUserId(user.id);
 
-    // otimista: aplica role única
     setRows((old) =>
       old.map((r) => (r.id === user.id ? { ...r, roles: newRole ? [newRole] : [] } : r))
-    )
+    );
 
     try {
       const res = await fetch(`/api/admin/users/${user.id}/roles`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ roles: newRole ? [newRole] : [] }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success("Role atualizada.")
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Role atualizada.");
     } catch {
-      // reverte
       setRows((old) =>
         old.map((r) => (r.id === user.id ? { ...r, roles: current ? [current] : [] } : r))
-      )
-      toast.error("Falha ao atualizar role.")
+      );
+      toast.error("Falha ao atualizar role.");
     } finally {
-      setBusyUserId(null)
-      setPageBusy(false)
+      setBusyUserId(null);
+      setPageBusy(false);
     }
   }
 
   function RoleSelect({ user }: { user: UserRow }) {
-    const current = user.roles[0] || ""
-
+    const current = user.roles[0] || "";
     return (
       <Select
         value={current}
@@ -149,19 +143,36 @@ export default function UsersTable({ initialUsers, allRoles }: Props) {
           ))}
         </SelectContent>
       </Select>
-    )
+    );
   }
 
   return (
     <div className={cn("mx-auto w-full space-y-4", pageBusy && "pointer-events-none opacity-90")} aria-busy={pageBusy}>
-      {/* CARD 1 — Cabeçalho da área (max-width reduzido) */}
       <header className="mx-auto w-full max-w-[1500px] bg-bege-header shadow-header border border-marromClaro/40 rounded-xl px-4 sm:px-6 py-4">
-        <h1 className="text-2xl font-bold text-marromEscuro">Usuários</h1>
-        <p className="text-sm text-marromClaro">Gerencie permissões e status de acesso do sistema.</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-marromEscuro">Usuários</h1>
+            <p className="text-sm text-marromClaro">Gerencie permissões e status de acesso do sistema.</p>
+          </div>
+
+          <Dialog open={openCreateTop} onOpenChange={setOpenCreateTop}>
+            <DialogTrigger asChild>
+              <Button variant="success" className="h-9" disabled={pageBusy}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Cadastrar
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[28rem] w-auto bg-transparent p-0 border-none shadow-none">
+              <DialogHeader className="hidden">
+                <DialogTitle />
+                <DialogDescription />
+              </DialogHeader>
+              <UserCreateCard allRoles={allRoles} onCreated={() => setOpenCreateTop(false)} />
+            </DialogContent>
+          </Dialog>
+        </div>
       </header>
 
-
-      {/* CARD 2 — Lista + Filtro + Tabela no MESMO card (mesmo max-width do card acima) */}
       <Card className="mx-auto w-full max-w-[1500px] border-marromClaro/40">
         <CardHeader className="pb-3">
           <div className="flex items-end justify-between gap-3">
@@ -184,7 +195,6 @@ export default function UsersTable({ initialUsers, allRoles }: Props) {
         </CardHeader>
 
         <CardContent className="p-0">
-          {/* wrapper com bordas arredondadas e borda externa para a tabela */}
           <div className="m-4 rounded-lg border border-marromClaro/40 overflow-hidden">
             <Table>
               <TableCaption className="text-marromClaro px-4">
@@ -201,8 +211,8 @@ export default function UsersTable({ initialUsers, allRoles }: Props) {
               </TableHeader>
               <TableBody>
                 {filtered.map((user) => {
-                  const createdAt = format(new Date(user.created_at), "dd/MM/yyyy HH:mm")
-                  const rowBusy = busyUserId === user.id
+                  const createdAt = format(new Date(user.created_at), "dd/MM/yyyy HH:mm");
+                  const rowBusy = busyUserId === user.id;
                   return (
                     <TableRow key={user.id} className={cn("hover:bg-marromClaro/20", rowBusy && "opacity-70")}>
                       <TableCell className="max-w-[240px] px-4">
@@ -246,7 +256,7 @@ export default function UsersTable({ initialUsers, allRoles }: Props) {
                         {createdAt}
                       </TableCell>
                     </TableRow>
-                  )
+                  );
                 })}
 
                 {filtered.length === 0 && (
@@ -270,5 +280,5 @@ export default function UsersTable({ initialUsers, allRoles }: Props) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

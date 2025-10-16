@@ -9,7 +9,7 @@ export async function PATCH(req: Request, context: any) {
   const can = session?.user?.roles?.some((r: string) => r === "ADMIN" || r === "DEV")
   if (!can) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 })
 
-  const id = Number(context?.params?.id)
+  const { id } = await context.params;
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 })
   }

@@ -6,7 +6,8 @@ import { authOptions } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    let session = null as any;
+    // sessão (para saber se pode aplicar role arbitrária)
+    let session: any = null;
     try {
       session = await getServerSession(authOptions);
     } catch {}
@@ -21,11 +22,11 @@ export async function POST(req: Request) {
     const nameOk = String(body.name ?? "").trim();
     const emailNorm = String(body.email ?? "").trim().toLowerCase();
     const pass = String(body.password ?? "");
+    const requestedRole = body.role ? String(body.role).trim().toUpperCase() : null;
 
     if (!nameOk || !emailNorm || !pass) {
       return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
     }
-
     if (pass.length < 8) {
       return NextResponse.json({ error: "A senha deve ter pelo menos 8 caracteres." }, { status: 400 });
     }
@@ -35,31 +36,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "E-mail já cadastrado." }, { status: 409 });
     }
 
+    // resolve a role final:
+    // - se ADMIN e veio role -> usa a pedida (se existir)
+    // - se não -> VISITANTE
+    let finalRoleName = "VISITANTE";
+    if (isAdmin && requestedRole) {
+      const roleRow = await prisma.role.findUnique({ where: { name: requestedRole } });
+      if (!roleRow) {
+        return NextResponse.json({ error: "Role informada é inválida." }, { status: 422 });
+      }
+      finalRoleName = requestedRole;
+    }
+
     const password_hash = await hashPassword(pass);
 
-    const user = await prisma.user.create({
-      data: {
-        name: nameOk,
-        email: emailNorm,
-        password_hash,
-        is_active: true,
-      },
-    });
-
-    const roleName = isAdmin && body.role ? String(body.role).toUpperCase() : "VISITANTE";
-    const roleRow = await prisma.role.findUnique({ where: { name: roleName } });
-
-    if (roleRow) {
-      await prisma.userRole.create({
-        data: { user_id: user.id, role_id: roleRow.id },
+    // cria usuário + vincula role em transação
+    const result = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          name: nameOk,
+          email: emailNorm,
+          password_hash,
+          is_active: true,
+        },
       });
-    }
+
+      const roleRow = await tx.role.findUnique({ where: { name: finalRoleName } });
+      if (roleRow) {
+        await tx.userRole.create({
+          data: { user_id: user.id, role_id: roleRow.id },
+        });
+      }
+
+      return { user, role: roleRow ? finalRoleName : null };
+    });
 
     return NextResponse.json(
       {
         message: "Conta criada com sucesso.",
-        user: { id: user.id, name: user.name, email: user.email },
-        role: roleRow ? roleName : null,
+        id: result.user.id,
+        user: { id: result.user.id, name: result.user.name, email: result.user.email },
+        role_aplicada: result.role,
       },
       { status: 201 }
     );
