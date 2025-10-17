@@ -24,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSidebar } from "@/components/ui/sidebar"
 import { signOut, useSession } from "next-auth/react"
 
-const APP_VERSION = "1.4.5"
+const APP_VERSION = "1.5.0"
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()

@@ -54,6 +54,7 @@ import {
     SelectContent,
     SelectItem,
 } from "@/components/ui/select"
+import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 import {
     Table,
     TableBody,
@@ -1193,13 +1194,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         tamanho: "",
     })
 
-    // reseta o <Select> de inclusão após cada escolha
-    const [addResetKey, setAddResetKey] = useState<Record<Categoria, number>>({
-        madeiras: 0,
-        materiaisGerais: 0,
-        telhas: 0,
-    })
-
     const startEdit = (c: Categoria, m: Material) => {
         setEdit({ cat: c, id: m.id })
         setEditData({
@@ -1616,45 +1610,45 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
         const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
 
-        
-    return {
-        titulo,
-        cliente: { ...form },
-        parametros,
-        materiais: {
-            madeiras: materiais.madeiras.map(m => ({
-                nome: m.nome,
-                componente: m.componente ?? "",
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
-                frete: null,
-            })),
-            materiaisGerais: materiais.materiaisGerais.map(m => ({
-                nome: m.nome,
-                componente: "",
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho: null,
-                frete: null,
-            })),
-            telhas: materiais.telhas.map(m => ({
-                nome: m.nome,
-                componente: "",
-                quantidade: toPos(m.quantidade),
-                preco: toPos(m.preco),
-                tamanho: null,
-                frete: m.frete != null ? toPos(m.frete) : 0,
-            })),
-        },
-        totais: { ...totEdit },
-        telhaValores: telhaValoresAtual,
-        links: {
-            slideUrl: links.slide ?? null,
-            pdfUrl: links.pdf ?? null,
-        },
-        actorUserId: currentUserId,
-    }
+
+        return {
+            titulo,
+            cliente: { ...form },
+            parametros,
+            materiais: {
+                madeiras: materiais.madeiras.map(m => ({
+                    nome: m.nome,
+                    componente: m.componente ?? "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: m.tamanho !== undefined && m.tamanho !== null && m.tamanho !== "" ? toPos(m.tamanho) : null,
+                    frete: null,
+                })),
+                materiaisGerais: materiais.materiaisGerais.map(m => ({
+                    nome: m.nome,
+                    componente: "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: null,
+                    frete: null,
+                })),
+                telhas: materiais.telhas.map(m => ({
+                    nome: m.nome,
+                    componente: "",
+                    quantidade: toPos(m.quantidade),
+                    preco: toPos(m.preco),
+                    tamanho: null,
+                    frete: m.frete != null ? toPos(m.frete) : 0,
+                })),
+            },
+            totais: { ...totEdit },
+            telhaValores: telhaValoresAtual,
+            links: {
+                slideUrl: links.slide ?? null,
+                pdfUrl: links.pdf ?? null,
+            },
+            actorUserId: currentUserId,
+        }
     }
 
 
@@ -2132,26 +2126,22 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 </span>
 
                                 <div className="flex items-center gap-2">
-                                    <Select
-                                        key={addResetKey[cat]}
-                                        onValueChange={v => {
-                                            addMaterial(cat, v)
-                                            setAddResetKey(s => ({ ...s, [cat]: s[cat] + 1 }))
-                                        }}
+                                    <ComboboxAdd
+                                        buttonText="+ Adicionar"
+                                        placeholder="Buscar item..."
+                                        widthClass="w-52"
                                         disabled={cat === "madeiras" && !fornecedorSel}
-                                    >
-                                        <SelectTrigger className="w-52 h-8 text-xs bg-white">
-                                            <SelectValue placeholder="+ Adicionar" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="vazio">(linha vazia)</SelectItem>
-                                            {(cat === "madeiras" ? catalogoMadeiras : catalogo[cat]).map(o => (
-                                                <SelectItem key={o.nome} value={o.nome}>
-                                                    {o.nome}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        showEmptyOption
+                                        emptyLabel="(linha vazia)"
+                                        items={(cat === "madeiras" ? catalogoMadeiras : catalogo[cat]).map(o => ({
+                                            value: o.nome,
+                                            label: o.nome,
+                                        }))}
+                                        onSelect={(v) => {
+                                            addMaterial(cat, v)
+                                        }}
+                                    />
+
                                 </div>
 
                             </div>
