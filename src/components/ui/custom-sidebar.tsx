@@ -23,8 +23,16 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 import { signOut, useSession } from "next-auth/react"
+import versionInfo from "@/../version.json"
 
-const APP_VERSION = "1.5.0"
+function formatPtBR(dateIso: string) {
+  try {
+    const d = new Date(dateIso)
+    return new Intl.DateTimeFormat("pt-BR").format(d)
+  } catch {
+    return "-"
+  }
+}
 
 export function CustomSidebar() {
   const { open: isOpen } = useSidebar()
@@ -36,7 +44,6 @@ export function CustomSidebar() {
 
   const isActive = (href: string) => pathname.startsWith(href)
 
-  // Efeito para fechar automaticamente o menu "Editar" quando a sidebar estiver fechada
   useEffect(() => {
     if (!isOpen) setEditarAberto(false)
   }, [isOpen])
@@ -44,7 +51,6 @@ export function CustomSidebar() {
   const iconClass = (active: boolean) =>
     cn("size-5 transition-all duration-300", active && "text-primary scale-110")
 
-  // Animações
   const menuItemVariants = {
     hidden: { opacity: 0, x: -20 },
     visible: (i: number) => ({
@@ -73,14 +79,12 @@ export function CustomSidebar() {
     }
   }
 
-  // ----- Lógica de permissão (ADMIN/DEV podem ver /admin/users) -----
   const rolesUpper = useMemo(() => {
     const rs = (session?.user as any)?.roles ?? []
     return Array.isArray(rs) ? rs.map((r: any) => String(r).toUpperCase()) : []
   }, [session])
 
   const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
-  // visitante e vendedor não verão o item; middleware já garante o gate da rota
 
   return (
     <motion.aside
@@ -121,7 +125,6 @@ export function CustomSidebar() {
         <SidebarMenu>
           <TooltipProvider delayDuration={300}>
             <AnimatePresence>
-              {/* Home */}
               <motion.div custom={0} initial="hidden" animate="visible" variants={menuItemVariants}>
                 <SidebarMenuItem>
                   <Tooltip>
@@ -145,7 +148,6 @@ export function CustomSidebar() {
                 </SidebarMenuItem>
               </motion.div>
 
-              {/* Gerar Orçamento */}
               <motion.div custom={1} initial="hidden" animate="visible" variants={menuItemVariants}>
                 <SidebarMenuItem>
                   <Tooltip>
@@ -169,7 +171,6 @@ export function CustomSidebar() {
                 </SidebarMenuItem>
               </motion.div>
 
-              {/* Histórico Orçamento */}
               <motion.div custom={2} initial="hidden" animate="visible" variants={menuItemVariants}>
                 <SidebarMenuItem>
                   <Tooltip>
@@ -193,7 +194,6 @@ export function CustomSidebar() {
                 </SidebarMenuItem>
               </motion.div>
 
-              {/* ----- Painel de Usuários (Admin) — visível apenas para ADMIN/DEV ----- */}
               {canSeeAdmin && (
                 <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
                   <SidebarMenuItem>
@@ -202,7 +202,7 @@ export function CustomSidebar() {
                         <Link href="/admin/users">
                           <SidebarMenuButton
                             isActive={false}
-                            className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                            className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duração-200")}
                           >
                             <Users2 className={iconClass(isActive("/admin/users"))} />
                             {isOpen && (
@@ -221,10 +221,8 @@ export function CustomSidebar() {
             </AnimatePresence>
           </TooltipProvider>
 
-          {/* Separador */}
           <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="h-px w-full bg-black opacity-10 my-1 origin-left" />
 
-          {/* Seção Editar */}
           <SidebarGroup>
             <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
               <TooltipProvider delayDuration={300}>
@@ -293,7 +291,6 @@ export function CustomSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-2 hover:bg-transparent">
-        {/* Botão Sair */}
         <SidebarMenu>
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -323,9 +320,10 @@ export function CustomSidebar() {
           </TooltipProvider>
         </SidebarMenu>
 
-        {/* Versão */}
         <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
-          <span className="text-marromEscuro text-xs font-medium select-none">Versão {APP_VERSION}</span>
+          <span className="text-marromEscuro text-xs font-medium select-none">
+            Versão {versionInfo.version} | {formatPtBR(versionInfo.releasedAt)}
+          </span>
         </div>
       </SidebarFooter>
     </motion.aside>
