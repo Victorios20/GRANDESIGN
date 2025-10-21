@@ -1883,23 +1883,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
                     <div className="flex flex-col gap-1">
                         <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
-                        <Select
-                            key={cityResetKey}
-                            value={form.cidade || undefined}
-                            onValueChange={(v: string) => setForm(prev => ({ ...prev, cidade: v }))}
-                        >
-                            <SelectTrigger id={FIELD_IDS.cidade} className="w-full">
-                                <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {cidades.map(c => (
-                                    <SelectItem key={c.id} value={c.nome}>
-                                        {c.nome}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <ComboboxAdd
+                            buttonText={form.cidade?.trim() || "Selecione"}
+                            placeholder="Buscar cidade..."
+                            widthClass="w-full"
+                            items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
+                            onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
+                            showEmptyOption={false}
+                        />
                     </div>
+
 
                     <div className="flex flex-col gap-1">
                         <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
@@ -2035,6 +2028,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             </Select>
                         </div>
 
+
+
                         {isCobertaL ? (
                             ([
                                 ["larguraMaior", "Largura maior"],
@@ -2078,22 +2073,17 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
                         <div className="flex flex-col gap-1">
                             <Label>Fornecedor</Label>
-                            <Select
-                                value={fornecedorSel ? String(fornecedorSel) : ""}
-                                onValueChange={(v) => setFornecedorSel(Number(v))}
-                            >
-                                <SelectTrigger className="w-56">
-                                    <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {fornecedores.map((f) => (
-                                        <SelectItem key={f.id} value={String(f.id)}>
-                                            {f.nome}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <ComboboxAdd
+                                buttonText={fornecedorSelObj?.nome || "Selecione"}
+                                placeholder="Buscar fornecedor..."
+                                widthClass="w-56"
+                                disabled={!fornecedores.length}
+                                items={fornecedores.map(f => ({ value: String(f.id), label: f.nome }))}
+                                onSelect={(v) => setFornecedorSel(Number(v))}
+                                showEmptyOption={false}
+                            />
                         </div>
+
 
                         <Button onClick={handleCalcular} disabled={loadingCalc} className="min-w-[132px]">
                             {loadingCalc ? (
@@ -2192,53 +2182,39 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                             {/* Componente */}
                                                             <TableCell>
                                                                 {ed ? (
-                                                                    <Select
-                                                                        value={editData.componente || ""}
-                                                                        onValueChange={v => setEditData(d => ({ ...d, componente: v }))}
-                                                                    >
-                                                                        <SelectTrigger className="h-8">
-                                                                            <SelectValue placeholder="Selecione" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {componentes.map(c => (
-                                                                                <SelectItem key={c.id} value={c.nome}>
-                                                                                    {c.nome}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
+                                                                    <ComboboxAdd
+                                                                        buttonText={editData.componente?.trim() || "Selecione"}
+                                                                        placeholder="Buscar componente..."
+                                                                        widthClass="w-[220px]"
+                                                                        items={componentes.map(c => ({ value: c.nome, label: c.nome }))}
+                                                                        onSelect={(v) => setEditData(d => ({ ...d, componente: v }))}
+                                                                        showEmptyOption={false}
+                                                                    />
                                                                 ) : (
                                                                     m.componente
                                                                 )}
                                                             </TableCell>
 
+
                                                             {/* Madeira */}
                                                             <TableCell>
                                                                 {ed ? (
-                                                                    <Select
-                                                                        value={editData.nome || ""}
-                                                                        onValueChange={v => {
-                                                                            const source = catalogoMadeiras
-                                                                            const ref = source.find(o => o.nome === v)
+                                                                    <ComboboxAdd
+                                                                        buttonText={editData.nome?.trim() || "Selecione"}
+                                                                        placeholder="Buscar madeira..."
+                                                                        widthClass="w-[260px]"
+                                                                        items={catalogoMadeiras.map(o => ({ value: o.nome, label: o.nome }))}
+                                                                        onSelect={(v) => {
+                                                                            const ref = catalogoMadeiras.find(x => x.nome === v)
                                                                             setEditData(d => ({ ...d, nome: v, preco: ref ? ref.preco : d.preco }))
                                                                         }}
-                                                                    >
-                                                                        <SelectTrigger className="h-8">
-                                                                            <SelectValue placeholder="Selecione" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {catalogoMadeiras.map(o => (
-                                                                                <SelectItem key={o.nome} value={o.nome}>
-                                                                                    {o.nome}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-
+                                                                        showEmptyOption={false}
+                                                                    />
                                                                 ) : (
                                                                     m.nome
                                                                 )}
                                                             </TableCell>
+
 
                                                             {/* Quantidade */}
                                                             <TableCell className="text-right">
@@ -2289,33 +2265,22 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                             {/* Descrição (Materiais Gerais / Telhas) */}
                                                             <TableCell>
                                                                 {ed ? (
-                                                                    <Select
-                                                                        value={editData.nome || ""}
-                                                                        onValueChange={(v) => {
-                                                                            const ref = catalogo[cat].find(o => o.nome === v)
-                                                                            setEditData(d => ({
-                                                                                ...d,
-                                                                                nome: v,
-                                                                                // ao escolher o item, já trazemos o preço do catálogo
-                                                                                preco: ref ? ref.preco : d.preco,
-                                                                            }))
+                                                                    <ComboboxAdd
+                                                                        buttonText={editData.nome?.trim() || "Selecione"}
+                                                                        placeholder="Buscar item..."
+                                                                        widthClass="w-[260px]"
+                                                                        items={catalogo[cat].map(o => ({ value: o.nome, label: o.nome }))}
+                                                                        onSelect={(v) => {
+                                                                            const ref = catalogo[cat].find(x => x.nome === v)
+                                                                            setEditData(d => ({ ...d, nome: v, preco: ref ? ref.preco : d.preco }))
                                                                         }}
-                                                                    >
-                                                                        <SelectTrigger className="h-8">
-                                                                            <SelectValue placeholder="Selecione" />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            {catalogo[cat].map(o => (
-                                                                                <SelectItem key={o.nome} value={o.nome}>
-                                                                                    {o.nome}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
+                                                                        showEmptyOption={false}
+                                                                    />
                                                                 ) : (
                                                                     m.nome
                                                                 )}
                                                             </TableCell>
+
 
                                                             {/* Quantidade */}
                                                             <TableCell className="text-right">
