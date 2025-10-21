@@ -2622,7 +2622,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
                         <div className="flex justify-end gap-2 pt-4">
                             <Button
-                                variant="secondary"
+                                variant="outline"
                                 onClick={() => {
                                     setShowModal(false)
                                     setModalMode(null)
@@ -2633,6 +2633,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             </Button>
 
                             <Button
+                                variant="success"
                                 onClick={async () => {
                                     if (!tituloTemporario.trim()) return
                                     setTitulo(tituloTemporario)
