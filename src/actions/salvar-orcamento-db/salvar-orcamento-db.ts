@@ -569,7 +569,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
     if (!Number.isFinite(clienteIdPayload)) {
       throw new AppError(
         "CLIENT_ID_REQUIRED",
-        "Selecione ou cadastre um cliente antes de salvar o rascunho.",
+        "Falha ao salvar rascunho: selecione um cliente.",
         "resolve-cliente"
       )
     }
@@ -582,12 +582,30 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
     if (!clienteId) {
       throw new AppError(
         "CLIENT_NOT_FOUND",
-        "Cliente não encontrado para o rascunho.",
+        "Falha ao salvar rascunho: cliente não encontrado.",
         "resolve-cliente",
         { clienteId: clienteIdPayload }
       )
     }
 
+    // 2) Título duplicado (apenas se vier com conteúdo — rota já valida vazio)
+    try {
+      const dup = (await tx.$queryRaw`
+        SELECT id FROM orcamento WHERE titulo = ${tituloLimpo} LIMIT 1
+      `) as Array<{ id: number }>
+      if (dup?.[0]?.id) {
+        throw new AppError(
+          "DUPLICATE_TITLE",
+          "Falha ao salvar rascunho: título já existe.",
+          "check-duplicate",
+          { titulo: tituloLimpo }
+        )
+      }
+    } catch (err: any) {
+      if (err instanceof AppError && err.code === "DUPLICATE_TITLE") throw err
+      logError("check-duplicate failed", { titulo: tituloLimpo, err: String(err?.message ?? err) })
+      throw new AppError("CHECK_DUPLICATE_FAILED", "Falha ao salvar rascunho: erro ao verificar título.", "check-duplicate")
+    }
 
     // 3) Tipo de obra (opcional)
     const tipoObraNome = cleanText(params.parametros.tipoObra ?? "")
@@ -620,7 +638,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
 
     } catch (err: any) {
       logError("insert-orcamento failed", { titulo: tituloLimpo, clienteId, tipoObraId: null, err: String(err?.message ?? err) })
-      throw new AppError("INSERT_ORCAMENTO_FAILED", "Erro ao salvar orçamento", "insert-orcamento")
+      throw new AppError("INSERT_ORCAMENTO_FAILED", "Falha ao salvar rascunho.", "insert-orcamento")
     }
 
     // 5) Materiais (se houver)
@@ -645,7 +663,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
         })
       } catch (err: any) {
         logError("insert-material failed", { tipo: "madeira", err: String(err?.message ?? err), material: m })
-        throw new AppError("INSERT_MATERIAL_FAILED", "Erro ao inserir material (madeira).", "insert-material", { tipo: "madeira" })
+        throw new AppError("INSERT_MATERIAL_FAILED", "Falha ao salvar rascunho (madeira).", "insert-material", { tipo: "madeira" })
       }
     }
 
@@ -667,7 +685,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
         })
       } catch (err: any) {
         logError("insert-material failed", { tipo: "geral", err: String(err?.message ?? err), material: m })
-        throw new AppError("INSERT_MATERIAL_FAILED", "Erro ao inserir material (geral).", "insert-material", { tipo: "geral" })
+        throw new AppError("INSERT_MATERIAL_FAILED", "Falha ao salvar rascunho (material geral).", "insert-material", { tipo: "geral" })
       }
     }
 
@@ -703,17 +721,15 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
         })
         throw new AppError(
           "INSERT_MATERIAL_FAILED",
-          "Erro ao inserir material (telha).",
+          "Falha ao salvar rascunho (telha).",
           "insert-material",
           {
             tipo: "telha",
-            // Detalhes a mais pro toast/log
             descricao: cleanText(m.nome),
             quantidade,
             preco_unitario: preco,
             frete: freteV,
             total,
-            // opcional: ecoar a mensagem SQL original (ajuda MUITO)
             dbMessage: String(err?.message ?? ""),
           }
         )
@@ -751,8 +767,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
             valor: v18,
           })
         } catch (err: any) {
-          // mantém seus logs/tratativas
-          throw new AppError("INSERT_PAGAMENTO_FAILED", "Erro ao inserir pagamento.", "insert-pagamento")
+          throw new AppError("INSERT_PAGAMENTO_FAILED", "Falha ao salvar rascunho (pagamentos).", "insert-pagamento")
         }
       }
     }
@@ -760,8 +775,8 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
     return orcamentoId
   },
     {
-      timeout: 120_000, // 120s de inatividade tolerada entre queries
-      maxWait: 20_000,  // 20s aguardando alocar a transação
-      // isolationLevel: 'ReadCommitted', // (opcional) se quiser fixar o nível
+      timeout: 120_000,
+      maxWait: 20_000,
     })
 }
+

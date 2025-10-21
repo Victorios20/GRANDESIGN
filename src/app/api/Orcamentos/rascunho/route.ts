@@ -18,30 +18,54 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   const code = typeof err?.code === "string" ? err.code : undefined
   const step = typeof err?.step === "string" ? err.step : undefined
   const details = err?.details
-  const message =
+
+  // Mensagens curtas, em PT-BR, priorizando clareza para o usuário
+  const friendlyByCode: Record<string, string> = {
+    DUPLICATE_TITLE: "Falha ao salvar rascunho: título já existe.",
+    CLIENT_ID_REQUIRED: "Falha ao salvar rascunho: selecione um cliente.",
+    CLIENT_NOT_FOUND: "Falha ao salvar rascunho: cliente não encontrado.",
+    CHECK_DUPLICATE_FAILED: "Falha ao salvar rascunho: erro ao verificar título.",
+    INSERT_ORCAMENTO_FAILED: "Falha ao salvar rascunho.",
+    INSERT_MATERIAL_FAILED: "Falha ao salvar rascunho (materiais).",
+    INSERT_PAGAMENTO_FAILED: "Falha ao salvar rascunho (pagamentos).",
+    TYPE_NOT_FOUND: "Falha ao salvar rascunho: tipo de obra não encontrado.",
+    CITY_NOT_FOUND: "Falha ao salvar rascunho: cidade não encontrada.",
+  }
+
+  const defaultMsg = "Falha ao salvar rascunho."
+  const rawMessage =
     typeof err?.message === "string" && err.message.trim().length > 0
-      ? err.message
-      : "Erro ao salvar rascunho"
+      ? err.message.trim()
+      : defaultMsg
+
+  const message = code && friendlyByCode[code] ? friendlyByCode[code] : rawMessage
+
   let status = 500
   if (code === "CLIENT_ID_REQUIRED") status = 422
   else if (code === "CLIENT_NOT_FOUND") status = 404
+  else if (code === "DUPLICATE_TITLE") status = 409
+  else if (code === "TYPE_NOT_FOUND" || code === "CITY_NOT_FOUND") status = 404
   else if (
     code === "INSERT_ORCAMENTO_FAILED" ||
     code === "INSERT_MATERIAL_FAILED" ||
-    code === "INSERT_PAGAMENTO_FAILED"
+    code === "INSERT_PAGAMENTO_FAILED" ||
+    code === "CHECK_DUPLICATE_FAILED"
   ) {
     status = 500
   } else {
-    const msg = String(message)
-    if (msg.includes("Já existe um orçamento com esse título")) status = 409
-    else if (msg.includes("Cidade não encontrada")) status = 404
+    // Backward-compat: heurísticas pela mensagem
+    const msg = String(rawMessage)
+    if (msg.includes("título já existe")) status = 409
     else if (msg.includes("Tipo de obra não encontrado")) status = 404
+    else if (msg.includes("Cidade não encontrada")) status = 404
   }
+
   return {
     status,
     body: { error: message, code, step, details, requestId },
   }
 }
+
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)

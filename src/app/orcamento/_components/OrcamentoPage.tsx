@@ -248,30 +248,22 @@ async function postJSON<T>(url: string, data: unknown): Promise<T> {
     const isJson = r.headers.get("content-type")?.includes("application/json")
 
     if (!r.ok) {
-        let extra = ""
+        let msg = `Falha ao salvar (${r.status})`
         if (isJson) {
             try {
                 const j = (await r.json()) as ApiErrorShape
-                const parts = [
-                    j?.error,
-                    j?.code ? `(${j.code})` : "",
-                    j?.step ? `@${j.step}` : "",
-                    j?.requestId ? `id:${j.requestId}` : "",
-                ].filter(Boolean)
-                extra = parts.length ? `: ${parts.join(" ")}` : ""
-                // log estruturado p/ DevTools
+                if (j?.error) msg = j.error // usa mensagem amigável do backend
                 console.error("[API ERROR]", { url, status: r.status, ...j })
-            } catch {
-                // fallback silencioso
-            }
+            } catch { /* ignore */ }
         } else {
-            try { extra = `: ${await r.text()}` } catch { }
+            try { msg = `Falha ao salvar (${r.status}): ${(await r.text()) || "Erro"}` } catch { /* ignore */ }
         }
-        throw new Error(`Falha ao salvar (${r.status})${extra}`)
+        throw new Error(msg)
     }
 
     return (isJson ? r.json() : (null as unknown)) as Promise<T>
 }
+
 
 async function putJSON<T>(url: string, data: unknown): Promise<T> {
     const r = await fetch(url, {
