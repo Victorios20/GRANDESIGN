@@ -2614,7 +2614,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
                         <div className="flex justify-end gap-2 pt-4">
                             <Button
-                                variant="outline"
+                                variant="secondary"
                                 onClick={() => {
                                     setShowModal(false)
                                     setModalMode(null)
