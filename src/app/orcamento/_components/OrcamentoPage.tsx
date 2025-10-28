@@ -1044,10 +1044,11 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }
 
     const gerarTituloAutomatico = () => {
-        const sanitize = (text: string) => text.trim().toLowerCase().replace(/\s+/g, " ").replace(/,/g, "")
+        const sanitize = (text: string) => text.trim().replace(/\s+/g, " ").replace(/,/g, "")
         if (!form.nome && !form.bairro && !tipoObra) return ""
         return `${sanitize(form.nome)} ${sanitize(form.bairro)} ${sanitize(tipoObra ?? "")}`.trim()
     }
+
 
     const STORAGE_KEY = "orcamento-draft"
 
@@ -2727,12 +2728,14 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                     }
 
                                     if (modalMode === "gerar") {
-                                        const snap = normalize(tituloTemporario)
+                                        const rawTitle = tituloTemporario.trim().replace(/\s+/g, " ")
+                                        const normForCompare = normalize(rawTitle)        // só para comparar mudanças
                                         setTituloConfirmado(true)
-                                        setTituloSnap(snap)
+                                        setTituloSnap(normForCompare)
                                         setAutoTituloSnap(normalize(gerarTituloAutomatico()))
-                                        await handleGerarProposta(snap)
+                                        await handleGerarProposta(rawTitle)              // salva com caixa original
                                     }
+
                                 }}
                                 disabled={!tituloTemporario.trim() || loadingSave || loadingPDF}
                             >

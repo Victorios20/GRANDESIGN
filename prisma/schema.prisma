@@ -289,37 +289,37 @@ model pedido_compra {
   obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
   // TELHA
-  orcamento_telha Decimal            @db.Decimal(10, 2)
-  previsao_telha  DateTime           @db.Date
-  status_telha    PedidoStatusPadrao
-  area_telha      Decimal            @db.Decimal(10, 2)
+  orcamento_telha Decimal            @default(0) @db.Decimal(10, 2)
+  previsao_telha  DateTime?          @db.Date
+  status_telha    PedidoStatusPadrao @default(PENDENTE)
+  area_telha      Decimal            @default(0) @db.Decimal(10, 2)
 
   // MADEIRA
-  orcamento_madeira     Decimal            @db.Decimal(10, 2)
-  previsao_madeira      DateTime           @db.Date
-  status_madeira        PedidoStatusPadrao
-  fornecedor_madeira_id Int
-  fornecedor_madeira    fornecedores       @relation("FornecedorMadeira", fields: [fornecedor_madeira_id], references: [id])
+  orcamento_madeira     Decimal            @default(0) @db.Decimal(10, 2)
+  previsao_madeira      DateTime?          @db.Date
+  status_madeira        PedidoStatusPadrao @default(PENDENTE)
+  fornecedor_madeira_id Int?
+  fornecedor_madeira    fornecedores?      @relation("FornecedorMadeira", fields: [fornecedor_madeira_id], references: [id], onDelete: SetNull)
 
   // MATERIAIS
-  materiais_status PedidoStatusMateriais
+  materiais_status PedidoStatusMateriais @default(PENDENTE)
 
   // ANDAIMES
-  andaimes_status        PedidoStatusAndaimes
-  andaimes_fornecedor_id Int
-  andaimes_fornecedor    fornecedores         @relation("FornecedorAndaimes", fields: [andaimes_fornecedor_id], references: [id])
+  andaimes_status        PedidoStatusAndaimes @default(PENDENTE)
+  andaimes_fornecedor_id Int?
+  andaimes_fornecedor    fornecedores?        @relation("FornecedorAndaimes", fields: [andaimes_fornecedor_id], references: [id], onDelete: SetNull)
 
-  // LINKS 1–1 (obrigatórios e únicos)
-  pedido_telha_id     Int @unique
-  pedido_madeira_id   Int @unique
-  pedido_materiais_id Int @unique
-  pedido_andaimes_id  Int @unique
+  // LINKS 1–1 (opcionais e únicos)
+  pedido_telha_id     Int? @unique
+  pedido_madeira_id   Int? @unique
+  pedido_materiais_id Int? @unique
+  pedido_andaimes_id  Int? @unique
 
   // Relações 1–1 nomeadas (back-fields nos itens)
-  pedido_telha_link     pedido_telha     @relation("PC_to_PT_Link", fields: [pedido_telha_id], references: [id])
-  pedido_madeira_link   pedido_madeira   @relation("PC_to_PM_Link", fields: [pedido_madeira_id], references: [id])
-  pedido_materiais_link pedido_materiais @relation("PC_to_PMat_Link", fields: [pedido_materiais_id], references: [id])
-  pedido_andaimes_link  pedido_andaimes  @relation("PC_to_PA_Link", fields: [pedido_andaimes_id], references: [id])
+  pedido_telha_link     pedido_telha?     @relation("PC_to_PT_Link", fields: [pedido_telha_id], references: [id])
+  pedido_madeira_link   pedido_madeira?   @relation("PC_to_PM_Link", fields: [pedido_madeira_id], references: [id])
+  pedido_materiais_link pedido_materiais? @relation("PC_to_PMat_Link", fields: [pedido_materiais_id], references: [id])
+  pedido_andaimes_link  pedido_andaimes?  @relation("PC_to_PA_Link", fields: [pedido_andaimes_id], references: [id])
 
   // Coleções 1–N — caem se o pedido cair
   pedido_telha_itens     pedido_telha[]     @relation("PC_to_PT_Items")
