@@ -1,4 +1,3 @@
-// src/app/api/Orcamentos/[id]/route.ts
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -12,11 +11,6 @@ export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
   const { id: idStr } = await context.params
   const id = Number(idStr)
   if (!Number.isFinite(id)) {
