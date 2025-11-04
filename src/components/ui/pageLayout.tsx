@@ -16,13 +16,20 @@ type PageLayoutProps = PropsWithChildren<{
   links?: { href: string; label: string }[]
   backgroundImage?: boolean
   headerActions?: React.ReactNode
+  title?: string
 }>
 
-export function PageLayout({ children, links, backgroundImage = false, headerActions }: PageLayoutProps) {
+export function PageLayout({
+  children,
+  links,
+  backgroundImage = false,
+  headerActions,
+  title,
+}: PageLayoutProps) {
   const pathname = usePathname() || "/"
 
-  const autoBreadcrumbs =
-    links ||
+  const baseBreadcrumbs =
+    links ??
     (() => {
       const segments = pathname.split("/").filter((seg) => seg.length > 0)
       return [
@@ -38,9 +45,15 @@ export function PageLayout({ children, links, backgroundImage = false, headerAct
       ]
     })()
 
+  const breadcrumbs = title ? [...baseBreadcrumbs, { label: title, href: pathname }] : baseBreadcrumbs
+
   return (
     <SidebarProvider>
-      <InnerLayout breadcrumbs={autoBreadcrumbs} backgroundImage={backgroundImage} headerActions={headerActions}>
+      <InnerLayout
+        breadcrumbs={breadcrumbs}
+        backgroundImage={backgroundImage}
+        headerActions={headerActions}
+      >
         {children}
       </InnerLayout>
     </SidebarProvider>

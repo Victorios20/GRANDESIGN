@@ -2,6 +2,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useMemo } from "react"
 import type { DetalheVM } from "./page"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
@@ -14,6 +15,7 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { ShinyButton } from "@/components/ui/shiny-button"
 
 export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: DetalheVM; detailUrl: string }) {
+  const router = useRouter()
   const fmtBRL = (n: unknown) => {
     const v = typeof n === "number" ? n : Number(n)
     const safe = Number.isFinite(v) ? v : 0
@@ -54,7 +56,8 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
     <PageLayout
       headerActions={
         <>
-          <ShinyButton onClick={() => console.log("Lançar obra | orcamentoId=", detalhe.id)} />
+          <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)} />
+
           <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
             <Link href={editHref}>
               <Edit className="h-4 w-4 mr-2" />

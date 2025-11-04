@@ -96,8 +96,13 @@
 }
 
 .bg-green {
+  background-color: #376139;
+}
+
+.bg-cinza {
   background-color: #f4f4f4;
 }
+
 
 .text-green {
   color: #376139;

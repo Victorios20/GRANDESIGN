@@ -1,10 +1,43 @@
 // src/app/Orcamento/detalhes/[id]/page.tsx
+import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
 import DetalheOrcamento from "./DetalheOrcamento"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
+
+// título da aba dinâmico: "orçamento - {título}"
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+  try {
+    const { id } = await params
+    const numId = Number(id)
+    if (!Number.isFinite(numId)) return { title: "orçamento" }
+
+    const h = await nextHeaders()
+    const cookie = h.get("cookie") ?? ""
+    const proto = h.get("x-forwarded-proto") ?? "http"
+    const host  = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
+    const base  = `${proto}://${host}`
+
+    const res = await fetch(`${base}/api/Orcamentos/${numId}`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+      redirect: "manual",
+    })
+
+    if (!res.ok) return { title: "orçamento" }
+
+    const data = (await res.json()) as { titulo?: string | null }
+    const titulo = (data?.titulo || "").trim()
+    return { title: titulo ? `orçamento - ${titulo}` : "orçamento" }
+  } catch {
+    return { title: "orçamento" }
+  }
+}
 
 type GetOrcamentoResult = {
   id: number
