@@ -5,13 +5,14 @@ import { notFound } from "next/navigation"
 import ObrasPage from "@/app/obras/ObrasPage"
 import type { ObraDetalheDTO, ObraInfosVM, GetOrcamentoResult } from "@/app/obras/lib/types"
 
+// catálogos/combos (SSR)
+import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
+import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
+
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-// Título da aba (opcional por página)
-export const metadata: Metadata = {
-  title: "Obras · Detalhe",
-}
+export const metadata: Metadata = { title: "Obras · Detalhe" }
 
 type Option = { value: string; label: string }
 
@@ -26,18 +27,13 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base = `${proto}://${host}`
 
-  // Obra + Tipos (e, se existir, orcamento → telhas)
-  const [resObra, resTipos] = await Promise.all([
-    fetch(`${base}/api/obras/${obraId}/detalhado`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
-    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
+  // Obra + Tipos + Catálogos (componentes, materiais, telhas)
+  const [resObra, resTipos, componentes, geraisDB, telhasDB] = await Promise.all([
+    fetch(`${base}/api/obras/${obraId}/detalhado`, { cache: "no-store", headers: { cookie }, credentials: "include" }),
+    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, { cache: "no-store", headers: { cookie }, credentials: "include" }),
+    listarComponentesDB(),
+    listarMateriaisGerais(),
+    listarTelhas(),
   ])
   if (!resObra.ok) notFound()
 
@@ -92,6 +88,13 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     observacoes: dto.dadosObra?.observacoes ?? null,
   }
 
+  // Catálogo para comboboxes do Pedido de Compra (edição inline)
+  const catalogo = {
+    madeiras: [], // carregadas no client por fornecedor selecionado
+    materiaisGerais: geraisDB.map(m => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+    telhas: telhasDB.map(m => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+  }
+
   return (
     <ObrasPage
       mode="view"
@@ -99,6 +102,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
+      catalogo={catalogo}
+      componentes={componentes}
     />
   )
 }

@@ -25,12 +25,23 @@ const toNum = (v: any) => {
   return Number.isFinite(n) ? n : 0
 }
 
+type CatalogoItem = { nome: string; preco?: number }
+type Catalogo = {
+  madeiras: CatalogoItem[]
+  materiaisGerais: CatalogoItem[]
+  telhas: CatalogoItem[]
+}
+
+type Componente = { id?: number; nome?: string; descricao?: string; categoria?: string } | any
+
 type Props = {
   value: PedidoCompraVM
   onChange: (patch: Partial<PedidoCompraVM>) => void
   isEditing: boolean
   telhaSelecionada?: string | null
   telhaUnidades?: number | null
+  catalogo?: Catalogo
+  componentes?: Componente[]
 }
 
 const PADRAO: PedidoStatusPadrao[] = ["Pendente", "Aguardando pagamento", "Pedido feito", "Entregue"]
@@ -81,7 +92,6 @@ function DateField({
   )
 }
 
-// helpers para tolerar formatos diferentes de itens
 function nomeDoItemTelha(it: any): string {
   const n = (it?.descricao ?? it?.nome ?? "").toString().trim()
   return n
@@ -103,15 +113,48 @@ export default function PedidoCompra({
   isEditing,
   telhaSelecionada,
   telhaUnidades,
+  catalogo,
+  componentes,
 }: Props) {
-  // Filtra itens de telha da telhaSelecionada
+  const materiaisOptions = useMemo(
+    () => (catalogo?.materiaisGerais ?? []).map((m) => ({ value: m.nome, label: m.nome })),
+    [catalogo?.materiaisGerais]
+  )
+  const madeirasOptions = useMemo(
+    () => (catalogo?.madeiras ?? []).map((m) => ({ value: m.nome, label: m.nome })),
+    [catalogo?.madeiras]
+  )
+  const componentesOptions = useMemo(
+    () =>
+      (componentes ?? []).map((c: any) => {
+        const nome = (c?.nome ?? c?.descricao ?? "").toString()
+        return { value: nome, label: nome }
+      }),
+    [componentes]
+  )
+
+// preço por material (nome -> preço)
+const precoMateriaisMap = useMemo(() => {
+  const entries: Array<[string, number]> = (catalogo?.materiaisGerais ?? [])
+    .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
+    .filter(([k]) => k.length > 0)
+  return new Map<string, number>(entries)
+}, [catalogo?.materiaisGerais])
+
+// preço por madeira (nome -> preço)
+const precoMadeirasMap = useMemo(() => {
+  const entries: Array<[string, number]> = (catalogo?.madeiras ?? [])
+    .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
+    .filter(([k]) => k.length > 0)
+  return new Map<string, number>(entries)
+}, [catalogo?.madeiras])
+
   const telhaItensSelecionados = useMemo(() => {
     const alvo = (telhaSelecionada ?? "").toString().trim()
     if (!alvo) return []
     return (value.telha?.itens ?? []).filter((it: any) => nomeDoItemTelha(it) === alvo)
   }, [value.telha?.itens, telhaSelecionada])
 
-  // Unidades de telha (prop > soma dos itens filtrados > soma de todos)
   const totalTelhaUn = useMemo(() => {
     if (typeof telhaUnidades === "number") return telhaUnidades
     const somaSelecionada = telhaItensSelecionados.reduce((s, it: any) => s + Number(it?.quantidade ?? 0), 0)
@@ -119,7 +162,6 @@ export default function PedidoCompra({
     return (value.telha?.itens || []).reduce((s, it: any) => s + Number(it?.quantidade ?? 0), 0)
   }, [value.telha?.itens, telhaUnidades, telhaItensSelecionados])
 
-  // Orçamento derivado (sempre por cálculo): soma dos itens da telha selecionada
   const orcamentoTelhaDerivado = useMemo(() => {
     if (!telhaSelecionada) return 0
     const itens = telhaItensSelecionados
@@ -127,20 +169,17 @@ export default function PedidoCompra({
     return itens.reduce((s, it: any) => s + totalItemTelha(it), 0)
   }, [telhaItensSelecionados, telhaSelecionada])
 
-  // Helpers de patch
   const patchTelha = (p: any) => onChange({ telha: { ...value.telha, ...p } })
   const patchMadeira = (p: any) => onChange({ madeira: { ...value.madeira, ...p } })
   const patchMateriais = (p: any) => onChange({ materiais: { ...value.materiais, ...p } })
   const patchAndaimes = (p: any) => onChange({ andaimes: { ...value.andaimes, ...p } })
 
-  // Valor exibido no campo "Orçamento" (prioriza value.telha.orcamento; se vazio, usa o derivado)
   const orcamentoTelhaExibido = useMemo(() => {
     const v = value.telha?.orcamento
     if (typeof v === "number" && Number.isFinite(v) && v >= 0) return v
     return orcamentoTelhaDerivado
   }, [value.telha?.orcamento, orcamentoTelhaDerivado])
 
-  // ======= handlers de adicionar linha =======
   const addLinhaMadeira = () => {
     if (!isEditing) return
     const itens = [...(value.madeira?.itens ?? [])]
@@ -183,7 +222,6 @@ export default function PedidoCompra({
     patchAndaimes({ itens })
   }
 
-  // ======= handlers de remover linha =======
   const removeLinhaMadeira = (idx: number) => {
     if (!isEditing) return
     const itens = [...(value.madeira?.itens ?? [])]
@@ -205,19 +243,25 @@ export default function PedidoCompra({
     patchAndaimes({ itens })
   }
 
+  const recalcTotal = (precoUnitario?: number, quantidade?: number, total?: number) => {
+    const hasPU = typeof precoUnitario === "number" && Number.isFinite(precoUnitario)
+    const hasQ = typeof quantidade === "number" && Number.isFinite(quantidade)
+    if (hasPU && hasQ) return toNum(precoUnitario) * toNum(quantidade)
+    return typeof total === "number" ? total : 0
+  }
+
   return (
     <Card className="rounded-2xl shadow-md bg-white border-0 mt-6">
       <CardContent className="p-6">
-        {/* ===== GRID PRINCIPAL: 2 colunas no lg — esquerda (Telhas, Materiais, Andaimes) | direita (Madeiras) ===== */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* COLUNA ESQUERDA: Telhas, Materiais, Andaimes */}
           <div className="flex flex-col gap-10">
-            {/* TELHAS */}
+
+            {/* TELHAS — layout compacto, 3 linhas, gaps pequenos */}
             <section>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-2 mb-1">
                 <h3 className="text-2xl font-semibold text-green m-0">Telhas</h3>
                 {isEditing ? (
-                  <div className="rounded-xl w-[220px]">
+                  <div className="rounded-xl w-[200px]">
                     <ComboboxAdd
                       widthClass="w-full"
                       placeholder="Selecionar status…"
@@ -225,6 +269,7 @@ export default function PedidoCompra({
                       items={PADRAO.map((s) => ({ value: s, label: s }))}
                       onSelect={(s) => patchTelha({ status: s as PedidoStatusPadrao })}
                       showEmptyOption={false}
+                      colorVariant="gray-brown"
                     />
                   </div>
                 ) : (
@@ -232,28 +277,29 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              {/* Orçamento & Previsão */}
-              <div className="flex items-center gap-6 flex-wrap mb-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-black">Orçamento</Label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      className={input + " w-[160px]"}
-                      value={Number(orcamentoTelhaExibido ?? 0)}
-                      onChange={(e) => patchTelha({ orcamento: Number(e.target.value || 0) })}
-                    />
-                  ) : (
-                    <span className="font-medium">
-                      <Money value={orcamentoTelhaExibido} />
-                    </span>
-                  )}
-                </div>
+              {/* grid fixo com 4 colunas estreitas: label | campo | label | campo */}
+              <div className="grid grid-cols-[auto,140px,auto,140px] sm:grid-cols-[auto,160px,auto,160px] items-center gap-x-3 gap-y-2">
 
-                <div className="flex items-center gap-2">
-                  <Label className="text-black">Previsão</Label>
+                {/* Linha 1: Orçamento | Previsão */}
+                <Label className="text-black">Orçamento</Label>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    className={input}
+                    value={Number(orcamentoTelhaExibido ?? 0)}
+                    onChange={(e) => patchTelha({ orcamento: Number(e.target.value || 0) })}
+                  />
+                ) : (
+                  <span className="font-medium"><Money value={orcamentoTelhaExibido} /></span>
+                )}
+
+                <Label className="text-black">Previsão</Label>
+                <div className="w-[140px] sm:w-[160px]">
                   {isEditing ? (
-                    <DateField iso={value.telha?.previsao ?? null} onChange={(iso) => patchTelha({ previsao: iso })} />
+                    <DateField
+                      iso={value.telha?.previsao ?? null}
+                      onChange={(iso) => patchTelha({ previsao: iso })}
+                    />
                   ) : (
                     <span className="font-medium">
                       {value.telha?.previsao
@@ -262,53 +308,46 @@ export default function PedidoCompra({
                     </span>
                   )}
                 </div>
-              </div>
 
-              {/* Telha selecionada + Unidades + Área (compacto lado a lado) */}
-              <div className="flex flex-wrap items-end gap-2 sm:gap-3">
-                {/* Telha */}
-                <div className="min-w-0">
-                  <Label className="text-black mb-1 block">Telha</Label>
-                  <div className="font-semibold text-black">{telhaSelecionada || "—"}</div>
-                </div>
+                {/* Linha 2: Telha | Unidades */}
+                <Label className="text-black">Telha</Label>
+                <div className="font-semibold text-black truncate">{telhaSelecionada || "—"}</div>
 
-                {/* Unidades */}
-                <div className="w-[120px] sm:w-[130px]">
-                  <Label className="text-black mb-1 block">Unidades</Label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      className={input}
-                      value={(value.telha as any)?.unidades ?? totalTelhaUn ?? 0}
-                      onChange={(e) => patchTelha({ unidades: Number(e.target.value || 0) } as any)}
-                    />
-                  ) : (
-                    <div className="font-semibold text-black">
-                      {totalTelhaUn ? `${totalTelhaUn} unidades` : "—"}
-                    </div>
-                  )}
-                </div>
+                <Label className="text-black">Unidades</Label>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    className={input}
+                    value={(value.telha as any)?.unidades ?? totalTelhaUn ?? 0}
+                    onChange={(e) => patchTelha({ unidades: Number(e.target.value || 0) } as any)}
+                  />
+                ) : (
+                  <div className="font-semibold text-black">
+                    {totalTelhaUn ? `${totalTelhaUn} unidades` : "—"}
+                  </div>
+                )}
 
-                {/* Área */}
-                <div className="w-[120px] sm:w-[130px]">
-                  <Label className="text-black mb-1 block">Área (m²)</Label>
-                  {isEditing ? (
-                    <Input
-                      type="number"
-                      className={input}
-                      value={value.telha?.area ?? 0}
-                      onChange={(e) => patchTelha({ area: Number(e.target.value || 0) })}
-                    />
-                  ) : (
-                    <div className="font-semibold text-black">
-                      {typeof value.telha?.area === "number" ? `${value.telha?.area} m²` : "—"}
-                    </div>
-                  )}
-                </div>
+                {/* Linha 3: Área (m²) | placeholders para manter alinhamento */}
+                <Label className="text-black">Área (m²)</Label>
+                {isEditing ? (
+                  <Input
+                    type="number"
+                    className={input}
+                    value={value.telha?.area ?? 0}
+                    onChange={(e) => patchTelha({ area: Number(e.target.value || 0) })}
+                  />
+                ) : (
+                  <div className="font-semibold text-black">
+                    {typeof value.telha?.area === "number" ? `${value.telha?.area} m²` : "—"}
+                  </div>
+                )}
+                <span />
+                <span />
               </div>
             </section>
 
-            {/* MATERIAIS */}
+
+
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Materiais</h3>
@@ -351,9 +390,9 @@ export default function PedidoCompra({
                   const qtd = toNum(it?.quantidade)
                   const total = it?.total != null ? toNum(it.total) : precoUnitario * qtd
 
-                  const patchItem = (field: "descricao" | "quantidade" | "total", v: string | number) => {
+                  const patchItem = (fields: Partial<typeof it>) => {
                     const itens = [...(value.materiais?.itens || [])]
-                    itens[idx] = { ...it, [field]: v }
+                    itens[idx] = { ...it, ...fields }
                     patchMateriais({ itens })
                   }
 
@@ -361,9 +400,36 @@ export default function PedidoCompra({
                     <div key={it?.id ?? idx} className="contents">
                       {isEditing ? (
                         <>
-                          <Input className={input} value={descricao} onChange={(e) => patchItem("descricao", e.target.value)} />
-                          <Input type="number" className={input} value={Number(it.quantidade ?? 0)} onChange={(e) => patchItem("quantidade", Number(e.target.value || 0))} />
-                          <Input type="number" className={input} value={Number(total)} onChange={(e) => patchItem("total", Number(e.target.value || 0))} />
+                          <div className="min-w-0">
+                            <ComboboxAdd
+                              widthClass="w-full"
+                              placeholder="Selecionar material…"
+                              buttonText={descricao || "Selecionar material…"}
+                              items={materiaisOptions}
+                              colorVariant="gray-green"
+                              onSelect={(val) => {
+                                const novoPU = toNum(precoMateriaisMap.get(val))
+                                const novoTotal = recalcTotal(novoPU, qtd, total)
+                                patchItem({ descricao: val, precoUnitario: novoPU, total: novoTotal })
+                              }}
+                            />
+                          </div>
+                          <Input
+                            type="number"
+                            className={input}
+                            value={Number(qtd)}
+                            onChange={(e) => {
+                              const novaQtd = Number(e.target.value || 0)
+                              const novoTotal = recalcTotal(precoUnitario, novaQtd, total)
+                              patchItem({ quantidade: novaQtd, total: novoTotal })
+                            }}
+                          />
+                          <Input
+                            type="number"
+                            className={input}
+                            value={Number(total)}
+                            onChange={(e) => patchItem({ total: Number(e.target.value || 0) })}
+                          />
                           <div className="flex items-center">
                             <Button
                               type="button"
@@ -380,7 +446,7 @@ export default function PedidoCompra({
                       ) : (
                         <>
                           <div className="font-medium text-black">{descricao || "—"}</div>
-                          <div className="font-medium text-black">{it.quantidade ?? "—"}</div>
+                          <div className="font-medium text-black">{qtd || "—"}</div>
                           <div className="font-medium text-black">
                             <Money value={Number(total)} />
                           </div>
@@ -393,7 +459,6 @@ export default function PedidoCompra({
               </div>
             </section>
 
-            {/* ANDAIMES */}
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Andaimes</h3>
@@ -412,7 +477,7 @@ export default function PedidoCompra({
                     <Button
                       type="button"
                       size="icon"
-                      className="h-8 w-8 bg-white text-green hover:bg-green/90"
+                      className="h-8 w-8 bg-green text-white hover:bg-green/90"
                       onClick={addLinhaAndaimes}
                       title="Adicionar linha"
                     >
@@ -445,8 +510,19 @@ export default function PedidoCompra({
                       {isEditing ? (
                         <>
                           <Input className={input} value={descricao} onChange={(e) => patchItem("descricao", e.target.value)} />
-                          <Input type="number" className={input} value={Number(it.quantidade ?? 0)} onChange={(e) => patchItem("quantidade", Number(e.target.value || 0))} />
-                          <Input type="number" className={input} value={Number(total)} onChange={(e) => patchItem("total", Number(e.target.value || 0))} />
+                          <Input
+                            type="number"
+                            className={input}
+                            value={Number(it.quantidade ?? 0)}
+                            onChange={(e) => patchItem("quantidade", Number(e.target.value || 0))}
+                          />
+                          <Input
+                            type="number"
+                            className={input}
+                            value={Number(total)}
+                            onChange={(e) => patchItem({} as any, Number(e.target.value || 0))}
+                            onBlur={(e) => patchItem("total", Number(e.currentTarget.value || 0))}
+                          />
                           <div className="flex items-center">
                             <Button
                               type="button"
@@ -477,7 +553,6 @@ export default function PedidoCompra({
             </section>
           </div>
 
-          {/* COLUNA DIREITA: Madeiras */}
           <div>
             <section>
               <div className="flex items-center gap-3 mb-2">
@@ -509,7 +584,6 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              {/* Orçamento & Previsão */}
               <div className="flex items-center gap-6 flex-wrap mb-4">
                 <div className="flex items-center gap-2">
                   <Label className="text-black">Orçamento</Label>
@@ -541,7 +615,6 @@ export default function PedidoCompra({
                 </div>
               </div>
 
-              {/* Grid leve (componente/madeira/qtd/tamanho) */}
               <div className="grid grid-cols-5 gap-x-6 gap-y-3 mt-4">
                 <div className="col-span-1 text-black/60">Componente</div>
                 <div className="col-span-1 text-black/60">Madeira</div>
@@ -551,9 +624,13 @@ export default function PedidoCompra({
 
                 {(value.madeira?.itens || []).map((it: any, idx: number) => {
                   const madeiraNome = it?.madeiraNome ?? it?.nome ?? ""
-                  const patchItem = (field: "componente" | "madeiraNome" | "quantidade" | "tamanho", v: string | number) => {
+                  const pu = toNum(it?.precoUnitario)
+                  const qtd = toNum(it?.quantidade)
+                  const total = it?.total != null ? toNum(it.total) : recalcTotal(pu, qtd, undefined)
+
+                  const patchItem = (fields: Partial<typeof it>) => {
                     const itens = [...(value.madeira?.itens || [])]
-                    itens[idx] = { ...it, [field]: v }
+                    itens[idx] = { ...it, ...fields }
                     patchMadeira({ itens })
                   }
 
@@ -561,10 +638,49 @@ export default function PedidoCompra({
                     <div key={it?.id ?? idx} className="contents">
                       {isEditing ? (
                         <>
-                          <Input className={input} value={it.componente ?? ""} onChange={(e) => patchItem("componente", e.target.value)} />
-                          <Input className={input} value={madeiraNome} onChange={(e) => patchItem("madeiraNome", e.target.value)} />
-                          <Input type="number" className={input} value={Number(it.quantidade ?? 0)} onChange={(e) => patchItem("quantidade", Number(e.target.value || 0))} />
-                          <Input className={input} value={String(it.tamanho ?? "")} onChange={(e) => patchItem("tamanho", e.target.value)} />
+                          <div className="min-w-0">
+                            <ComboboxAdd
+                              widthClass="w-full"
+                              placeholder="Selecionar componente…"
+                              buttonText={(it.componente ?? "").toString() || "Selecionar componente…"}
+                              items={componentesOptions}
+                              colorVariant="gray-green"
+                              onSelect={(v) => patchItem({ componente: v })}
+                            />
+                          </div>
+
+                          <div className="min-w-0">
+                            <ComboboxAdd
+                              widthClass="w-full"
+                              placeholder="Selecionar madeira…"
+                              buttonText={madeiraNome || "Selecionar madeira…"}
+                              items={madeirasOptions}
+                              colorVariant="gray-green"
+                              onSelect={(val) => {
+                                const novoPU = toNum(precoMadeirasMap.get(val))
+                                const novoTotal = recalcTotal(novoPU, qtd, total)
+                                patchItem({ madeiraNome: val, descricao: val, precoUnitario: novoPU, total: novoTotal })
+                              }}
+                            />
+                          </div>
+
+                          <Input
+                            type="number"
+                            className={input}
+                            value={Number(qtd)}
+                            onChange={(e) => {
+                              const novaQtd = Number(e.target.value || 0)
+                              const novoTotal = recalcTotal(pu, novaQtd, total)
+                              patchItem({ quantidade: novaQtd, total: novoTotal })
+                            }}
+                          />
+
+                          <Input
+                            className={input}
+                            value={String(it.tamanho ?? "")}
+                            onChange={(e) => patchItem({ tamanho: e.target.value })}
+                          />
+
                           <div className="flex items-center">
                             <Button
                               type="button"
@@ -582,7 +698,7 @@ export default function PedidoCompra({
                         <>
                           <div className="font-medium text-black">{it.componente || "—"}</div>
                           <div className="font-medium text-black">{madeiraNome || "—"}</div>
-                          <div className="font-medium text-black">{it.quantidade ?? "—"}</div>
+                          <div className="font-medium text-black">{qtd || "—"}</div>
                           <div className="font-medium text-black">{it.tamanho ?? "—"}</div>
                           <div />
                         </>

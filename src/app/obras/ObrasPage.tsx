@@ -23,6 +23,17 @@ import { createObra, updateObra } from "./lib/api"
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
 
+/** Tipos leves só para transporte do catálogo vindo do SSR */
+type CatalogoItem = { nome: string; preco: number }
+type Catalogo = {
+  madeiras: CatalogoItem[]
+  materiaisGerais: CatalogoItem[]
+  telhas: CatalogoItem[]
+}
+
+/** Estrutura livre para os componentes (lista de componentes de madeira) */
+type Componente = { id?: number; nome: string; categoria?: string } | any
+
 type Props = {
   mode: "new" | "view"
   obraId?: number
@@ -32,6 +43,10 @@ type Props = {
   telhaOptions: Option[]
   /** pré-preenchimento vindo do orçamento/obra (SSR) */
   pedidoInit?: Partial<PedidoCompraVM>
+  /** NOVO: catálogos carregados no server e injetados no client para os combobox das 3 tabelas */
+  catalogo?: Catalogo
+  /** NOVO: lista de componentes (ex.: para associar em madeiras) */
+  componentes?: Componente[]
 }
 
 /* ================= helpers ================= */
@@ -41,7 +56,6 @@ const toNum = (v: any) => {
 }
 const nomeTelha = (it: any): string => ((it?.descricao ?? it?.nome ?? "") + "").trim()
 const totalItemTelha = (it: any): number => {
-  // no client, telha.itens já vem normalizado (precoUnitario/total), mas mantemos tolerância
   const qtd = toNum(it?.quantidade)
   const precoUnitario = toNum(it?.precoUnitario ?? it?.preco)
   const total = it?.total != null ? toNum(it.total) : precoUnitario * qtd + toNum(it?.frete)
@@ -110,6 +124,9 @@ export default function ObrasPage({
   tiposObraOptions,
   telhaOptions,
   pedidoInit,
+  /** NOVO: vindo do SSR */
+  catalogo,
+  componentes,
 }: Props) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
@@ -117,6 +134,17 @@ export default function ObrasPage({
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
   const [pedido, setPedido] = useState<PedidoCompraVM>(() => hydratePedido(pedidoInit))
+
+  /** Fallbacks seguros para evitar undefined em renders iniciais */
+  const catalogoSafe: Catalogo = useMemo(
+    () => ({
+      madeiras: catalogo?.madeiras ?? [],
+      materiaisGerais: catalogo?.materiaisGerais ?? [],
+      telhas: catalogo?.telhas ?? [],
+    }),
+    [catalogo]
+  )
+  const componentesSafe: Componente[] = useMemo(() => componentes ?? [], [componentes])
 
   const patchInfos = (p: Partial<VM>) => setVm((d) => ({ ...d, ...p }))
   const patchPedido = (p: Partial<PedidoCompraVM>) => setPedido((d) => ({ ...d, ...p }))
@@ -144,33 +172,18 @@ export default function ObrasPage({
     [telhaItensSelecionados]
   )
 
-  // Sincroniza o orçamento/unidades de telha no estado "pedido" quando a seleção ou itens mudarem
   useEffect(() => {
-    const atual = {
-      orcamento: toNum(pedido.telha?.orcamento),
-      unidades: toNum((pedido.telha as any)?.unidades),
-    }
-    const desejado = {
-      orcamento: telhaOrcamentoDerivado,
-      unidades: telhaUnidades,
-    }
-
-    if (atual.orcamento !== desejado.orcamento || atual.unidades !== desejado.unidades) {
-      patchPedido({
-        telha: {
-          ...pedido.telha,
-          orcamento: desejado.orcamento,
-          ...(desejado.unidades ? { unidades: desejado.unidades } : {}),
-        } as any,
-      })
+    const atualOrcamento = toNum(pedido.telha?.orcamento)
+    const desejadoOrcamento = toNum(telhaOrcamentoDerivado)
+    if (atualOrcamento !== desejadoOrcamento) {
+      patchPedido({ telha: { ...pedido.telha, orcamento: desejadoOrcamento } })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [telhaOrcamentoDerivado, telhaUnidades])
+  }, [telhaOrcamentoDerivado])
 
   async function onSave() {
     try {
       setSaving(true)
-
       if (mode === "new") {
         if (!orcamentoId) {
           toast.error("Orçamento não informado.")
@@ -205,7 +218,6 @@ export default function ObrasPage({
             status: vm.status,
             observacoes: vm.observacoes ?? undefined,
           },
-          // pedido de compra / imagens: endpoints específicos (fases seguintes)
         }
         await updateObra(obraId, upd)
         toast.success("Obra atualizada.")
@@ -288,6 +300,9 @@ export default function ObrasPage({
         isEditing={isEditing}
         telhaSelecionada={vm.telhaEscolhida || null}
         telhaUnidades={telhaUnidades}
+        /** NOVO: dados para popular os combobox das 3 tabelas */
+        catalogo={catalogoSafe}
+        componentes={componentesSafe}
       />
     </PageLayout>
   )

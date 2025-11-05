@@ -78,6 +78,7 @@ export default function InfosGerais({
                   placeholder="Buscar tipo…"
                   buttonText={value.tipoObra || "Selecione"}
                   items={tiposObraOptions}
+                  colorVariant="gray-green"
                   onSelect={(val) => onChange({ tipoObra: val })}
                   showEmptyOption={false}
                 />
@@ -131,6 +132,7 @@ export default function InfosGerais({
                     placeholder={telhaOptions.length ? "Selecionar telha…" : "Sem telhas no orçamento"}
                     buttonText={value.telhaEscolhida || telhaOptions[0]?.label || "Selecione"}
                     items={telhaOptions}
+                    colorVariant="gray-green"
                     onSelect={(val) => onChange({ telhaEscolhida: val })}
                     showEmptyOption={false}
                   />
@@ -149,6 +151,7 @@ export default function InfosGerais({
                     placeholder="Buscar status..."
                     widthClass="w-full"
                     items={STATUS.map((s) => ({ value: s, label: s }))}
+                    colorVariant="gray-green"
                     onSelect={(s) => onChange({ status: s as ObraStatus })}
                     showEmptyOption={false}
                   />

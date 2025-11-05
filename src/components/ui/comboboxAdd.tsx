@@ -16,6 +16,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 export type ComboItem = { value: string; label: string }
 
+/**
+ * Variantes de cor do botão/trigger do combobox:
+ * - "white-brown" (default): bg branco + texto marrom-escuro
+ * - "gray-green": bg-cinza + texto verde
+ * - "gray-brown": bg-cinza + texto marrom-escuro
+ * - "white-green": bg branco + texto verde
+ */
+type ColorVariant = "white-brown" | "gray-green" | "gray-brown" | "white-green"
+
 type Props = {
   items: ComboItem[]
   placeholder?: string
@@ -25,6 +34,17 @@ type Props = {
   onSelect: (value: string) => void
   showEmptyOption?: boolean
   emptyLabel?: string
+  /** Controla as cores do botão gatilho (default: "white-brown"). */
+  colorVariant?: ColorVariant
+  /** Permite sobrescrever classes do botão, se precisar. */
+  buttonClassName?: string
+}
+
+const variantToClasses: Record<ColorVariant, string> = {
+  "white-brown": "bg-white text-marromEscuro",
+  "gray-green": "bg-cinza text-green",
+  "gray-brown": "bg-cinza text-marromEscuro",
+  "white-green": "bg-white text-green",
 }
 
 export function ComboboxAdd({
@@ -36,6 +56,8 @@ export function ComboboxAdd({
   onSelect,
   showEmptyOption = true,
   emptyLabel = "(linha vazia)",
+  colorVariant = "white-brown",
+  buttonClassName,
 }: Props) {
   const [open, setOpen] = React.useState(false)
   const [value, setValue] = React.useState<string>("")
@@ -47,13 +69,20 @@ export function ComboboxAdd({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn(widthClass, "h-8 text-xs justify-between bg-white")}
           disabled={disabled}
+          className={cn(
+            widthClass,
+            "h-8 text-xs justify-between rounded-xl border-0 px-3",
+            "focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none",
+            variantToClasses[colorVariant],
+            buttonClassName
+          )}
         >
           {buttonText}
           <ChevronsUpDown className="opacity-50 h-4 w-4" />
         </Button>
       </PopoverTrigger>
+
       <PopoverContent className={cn(widthClass, "p-0")}>
         <Command>
           <CommandInput placeholder={placeholder} className="h-9" />
