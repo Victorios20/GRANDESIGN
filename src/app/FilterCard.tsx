@@ -9,10 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Edit, Trash2 } from "lucide-react"
-import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { cn } from "@/lib/utils"
 import { Checkbox } from "@/components/ui/checkbox"
 import { AnimatePresence, motion, type MotionProps } from "motion/react"
+import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
 
 export type Option = { id: number; label: string }
 
@@ -74,6 +74,7 @@ export default function FilterCard(props: FilterCardProps) {
 
   const [openEdit, setOpenEdit] = useState(false)
 
+  // salva seleção de campos visíveis
   useEffect(() => {
     if (!persistKey) return
     try {
@@ -83,6 +84,7 @@ export default function FilterCard(props: FilterCardProps) {
     } catch {}
   }, [persistKey, selectedFields])
 
+  // restaura seleção de campos visíveis
   useEffect(() => {
     if (!persistKey) return
     try {
@@ -109,6 +111,14 @@ export default function FilterCard(props: FilterCardProps) {
     onChange({ ...value, ...patch })
   }
 
+  // evita o bug de UTC: "YYYY-MM-DD" -> Date local
+  function ymdToLocalDate(ymd?: string) {
+    if (!ymd) return undefined
+    const [y, m, d] = ymd.split("-").map(Number)
+    return new Date(y, (m ?? 1) - 1, d ?? 1)
+  }
+
+  // formata para "YYYY-MM-DD" em horário local
   function toYMD(d?: Date) {
     if (!d) return undefined
     const y = d.getFullYear()
@@ -117,8 +127,8 @@ export default function FilterCard(props: FilterCardProps) {
     return `${y}-${m}-${day}`
   }
 
-  const fromDate = value.ini ? new Date(value.ini) : undefined
-  const toDate = value.fim ? new Date(value.fim) : undefined
+  const fromDate = ymdToLocalDate(value.ini)
+  const toDate = ymdToLocalDate(value.fim)
 
   const smooth: MotionProps = {
     initial: { opacity: 0, scale: 0.98, y: 4 },
@@ -198,7 +208,11 @@ export default function FilterCard(props: FilterCardProps) {
               if (meta.type === "text" && (id === "q" || id === "telefone" || id === "bairro")) {
                 const val = id === "q" ? value.q ?? "" : id === "telefone" ? value.telefone ?? "" : value.bairro ?? ""
                 const setVal =
-                  id === "q" ? (v: string) => set({ q: v }) : id === "telefone" ? (v: string) => set({ telefone: v }) : (v: string) => set({ bairro: v })
+                  id === "q"
+                    ? (v: string) => set({ q: v })
+                    : id === "telefone"
+                      ? (v: string) => set({ telefone: v })
+                      : (v: string) => set({ bairro: v })
                 const width = id === "q" ? "w-[280px]" : "w-[200px]"
                 const placeholder =
                   id === "q"
@@ -291,17 +305,17 @@ export default function FilterCard(props: FilterCardProps) {
 
               if (id === "dateRange" && meta.type === "dateRange") {
                 return (
-                  <motion.div key={id} layout {...smooth} className="flex flex-col gap-1 w-[240px]">
+                  <motion.div key={id} layout {...smooth} className="flex flex-col gap-1 w-[260px]">
                     <Label className="text-sm font-medium text-marromEscuro">Período da última atualização</Label>
-                    <DateRangePicker
+                    <SmartDateRangePicker
                       className="w-[240px]"
                       range={{ from: fromDate, to: toDate }}
-                      onChange={(range) => {
+                      onChange={(r) =>
                         set({
-                          ini: toYMD(range?.from),
-                          fim: toYMD(range?.to),
+                          ini: toYMD(r?.from),
+                          fim: toYMD(r?.to),
                         })
-                      }}
+                      }
                     />
                   </motion.div>
                 )
