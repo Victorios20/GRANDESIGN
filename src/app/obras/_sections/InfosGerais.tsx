@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { toast } from "sonner"
-import { Copy } from "lucide-react"
+import { Copy, Hammer, User, MapPin } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -64,7 +64,10 @@ export default function InfosGerais({
       {/* CARD 1 — Tipo de obra */}
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
-          <h3 className="text-lg font-semibold text-green mb-4">Tipo de obra</h3>
+          <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">
+            <Hammer className="h-5 w-5 text-green" />
+            Tipo de obra
+          </h3>
 
           <div className="flex flex-col gap-1 mb-4">
             <Label className="text-black">Tipo de obra</Label>
@@ -162,7 +165,10 @@ export default function InfosGerais({
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-green">Cliente</h3>
+            <h3 className="text-lg font-semibold text-green flex items-center gap-2">
+              <User className="h-5 w-5 text-green" />
+              Cliente
+            </h3>
             {!isEditing && value.cliente?.nome && (
               <Button variant="ghost" size="icon" onClick={() => copia(value.cliente!.nome!, "Cliente")}>
                 <Copy className="h-4 w-4" />
@@ -217,7 +223,10 @@ export default function InfosGerais({
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-green">Endereço</h3>
+            <h3 className="text-lg font-semibold text-green flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-green" />
+              Endereço
+            </h3>
             {!isEditing && value.endereco?.logradouro && (
               <Button variant="ghost" size="icon" onClick={() => copia(value.endereco!.logradouro, "Endereço")}>
                 <Copy className="h-4 w-4" />

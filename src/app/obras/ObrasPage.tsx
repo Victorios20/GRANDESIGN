@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Save, Pencil, X } from "lucide-react"
@@ -9,21 +9,46 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 
 import InfosGerais from "./_sections/InfosGerais"
-import type { ObraInfosVM, CreateObraPayload, UpdateObraPayload } from "./lib/types"
+import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
+import PedidoCompra from "./_sections/PedidoCompra"
+
+import type {
+  ObraInfosVM,
+  CreateObraPayload,
+  UpdateObraPayload,
+  PedidoCompraVM,
+} from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
 
 type Option = { value: string; label: string }
+type VM = ObraInfosVM & { imagens?: ImgItem[] }
 
 type Props = {
   mode: "new" | "view"
   obraId?: number
   orcamentoId?: number
-  initial: Partial<ObraInfosVM>
+  initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }
   tiposObraOptions: Option[]
   telhaOptions: Option[]
+  /** pré-preenchimento vindo do orçamento/obra (SSR) */
+  pedidoInit?: Partial<PedidoCompraVM>
 }
 
-function hydrate(initial: Partial<ObraInfosVM>): ObraInfosVM {
+/* ================= helpers ================= */
+const toNum = (v: any) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+const nomeTelha = (it: any): string => ((it?.descricao ?? it?.nome ?? "") + "").trim()
+const totalItemTelha = (it: any): number => {
+  // no client, telha.itens já vem normalizado (precoUnitario/total), mas mantemos tolerância
+  const qtd = toNum(it?.quantidade)
+  const precoUnitario = toNum(it?.precoUnitario ?? it?.preco)
+  const total = it?.total != null ? toNum(it.total) : precoUnitario * qtd + toNum(it?.frete)
+  return total
+}
+
+function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): VM {
   return {
     titulo: initial.titulo ?? undefined,
     tipoObra: initial.tipoObra ?? "",
@@ -45,6 +70,35 @@ function hydrate(initial: Partial<ObraInfosVM>): ObraInfosVM {
       mapsUrl: initial.endereco?.mapsUrl ?? "",
     },
     observacoes: initial.observacoes ?? null,
+    imagens: initial.imagens ?? [],
+  }
+}
+
+function hydratePedido(initial?: Partial<PedidoCompraVM>): PedidoCompraVM {
+  return {
+    telha: {
+      status: initial?.telha?.status ?? "Pendente",
+      previsao: initial?.telha?.previsao ?? null,
+      orcamento: initial?.telha?.orcamento ?? 0,
+      area: initial?.telha?.area ?? 0,
+      itens: initial?.telha?.itens ?? [],
+    },
+    madeira: {
+      status: initial?.madeira?.status ?? "Pendente",
+      previsao: initial?.madeira?.previsao ?? null,
+      fornecedorId: initial?.madeira?.fornecedorId ?? null,
+      itens: initial?.madeira?.itens ?? [],
+      orcamento: Number(initial?.madeira?.orcamento ?? 0),
+    },
+    materiais: {
+      status: initial?.materiais?.status ?? "Pendente",
+      itens: initial?.materiais?.itens ?? [],
+    },
+    andaimes: {
+      status: initial?.andaimes?.status ?? "Pendente",
+      fornecedorId: initial?.andaimes?.fornecedorId ?? null,
+      itens: initial?.andaimes?.itens ?? [],
+    },
   }
 }
 
@@ -55,19 +109,63 @@ export default function ObrasPage({
   initial,
   tiposObraOptions,
   telhaOptions,
+  pedidoInit,
 }: Props) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
   const [saving, setSaving] = useState(false)
-  const [vm, setVm] = useState<ObraInfosVM>(() => hydrate(initial))
 
-  const patch = (p: Partial<ObraInfosVM>) => setVm((d) => ({ ...d, ...p }))
+  const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
+  const [pedido, setPedido] = useState<PedidoCompraVM>(() => hydratePedido(pedidoInit))
+
+  const patchInfos = (p: Partial<VM>) => setVm((d) => ({ ...d, ...p }))
+  const patchPedido = (p: Partial<PedidoCompraVM>) => setPedido((d) => ({ ...d, ...p }))
 
   const tituloTopo = useMemo(() => {
     const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : vm.titulo || "Obra"
     const cidade = vm?.endereco?.cidade ? ` [${vm.endereco.cidade}]` : ""
     return `${base}${cidade}`
   }, [vm])
+
+  /* ======= derivar telha (filtrada pela telhaEscolhida) ======= */
+  const telhaItensSelecionados = useMemo(() => {
+    const alvo = (vm.telhaEscolhida ?? "").trim()
+    if (!alvo) return []
+    return (pedido.telha?.itens ?? []).filter((it: any) => nomeTelha(it) === alvo)
+  }, [pedido.telha?.itens, vm.telhaEscolhida])
+
+  const telhaUnidades = useMemo(
+    () => telhaItensSelecionados.reduce((s, it) => s + toNum(it?.quantidade), 0),
+    [telhaItensSelecionados]
+  )
+
+  const telhaOrcamentoDerivado = useMemo(
+    () => telhaItensSelecionados.reduce((s, it) => s + totalItemTelha(it), 0),
+    [telhaItensSelecionados]
+  )
+
+  // Sincroniza o orçamento/unidades de telha no estado "pedido" quando a seleção ou itens mudarem
+  useEffect(() => {
+    const atual = {
+      orcamento: toNum(pedido.telha?.orcamento),
+      unidades: toNum((pedido.telha as any)?.unidades),
+    }
+    const desejado = {
+      orcamento: telhaOrcamentoDerivado,
+      unidades: telhaUnidades,
+    }
+
+    if (atual.orcamento !== desejado.orcamento || atual.unidades !== desejado.unidades) {
+      patchPedido({
+        telha: {
+          ...pedido.telha,
+          orcamento: desejado.orcamento,
+          ...(desejado.unidades ? { unidades: desejado.unidades } : {}),
+        } as any,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telhaOrcamentoDerivado, telhaUnidades])
 
   async function onSave() {
     try {
@@ -107,6 +205,7 @@ export default function ObrasPage({
             status: vm.status,
             observacoes: vm.observacoes ?? undefined,
           },
+          // pedido de compra / imagens: endpoints específicos (fases seguintes)
         }
         await updateObra(obraId, upd)
         toast.success("Obra atualizada.")
@@ -120,7 +219,8 @@ export default function ObrasPage({
   }
 
   function onCancel() {
-    setVm(hydrate(initial))
+    setVm(hydrateInfos(initial))
+    setPedido(hydratePedido(pedidoInit))
     setIsEditing(false)
   }
 
@@ -150,7 +250,7 @@ export default function ObrasPage({
               </Button>
               <Button
                 size="sm"
-                className="h-8 min-w-[110px] bg-green text-white hover:bg-bege/90"
+                className="h-8 min-w-[110px] bg-green text-white hover:bg-green/80"
                 onClick={onSave}
                 disabled={saving}
               >
@@ -162,12 +262,32 @@ export default function ObrasPage({
         </div>
       }
     >
+      {/* Card 1 — Informações Gerais */}
       <InfosGerais
         value={vm}
-        onChange={patch}
+        onChange={patchInfos}
         isEditing={isEditing}
         tiposObraOptions={tiposObraOptions}
         telhaOptions={telhaOptions}
+      />
+
+      {/* Card 2 — Observações & Imagens */}
+      <div className="mt-6">
+        <ObsImagens
+          observacoes={vm.observacoes}
+          imagens={vm.imagens ?? []}
+          isEditing={isEditing}
+          onChange={patchInfos}
+        />
+      </div>
+
+      {/* Card 3 — Pedido de Compra (Telhas, Madeiras, Materiais, Andaimes) */}
+      <PedidoCompra
+        value={pedido}
+        onChange={patchPedido}
+        isEditing={isEditing}
+        telhaSelecionada={vm.telhaEscolhida || null}
+        telhaUnidades={telhaUnidades}
       />
     </PageLayout>
   )

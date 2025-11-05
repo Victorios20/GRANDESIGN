@@ -274,11 +274,19 @@ export type ObraInfosVM = {
 export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
 
 export type PedidoCompraVM = {
-  telha: { status: PedidoStatusPadrao; previsao: string | null; orcamento: number; area: number; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
+  telha: {
+    status: PedidoStatusPadrao
+    previsao: string | null
+    orcamento: number
+    area: number
+    itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
+  }
   madeira: {
     status: PedidoStatusPadrao
     previsao: string | null
     fornecedorId?: number | null
+    /** orçamento total de madeiras vindo do orçamento (backend) */
+    orcamento?: number
     itens: Array<{ id?: number; componente: string; madeiraNome: string; descricao: string; quantidade: number; tamanho: number; precoUnitario: number; total: number }>
   }
   materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }

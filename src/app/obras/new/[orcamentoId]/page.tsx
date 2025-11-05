@@ -3,17 +3,23 @@ import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
 import ObrasPage from "@/app/obras/ObrasPage"
-import type { GetOrcamentoResult, ObraInfosVM } from "@/app/obras/lib/types"
+import type { GetOrcamentoResult, ObraInfosVM, PedidoCompraVM } from "@/app/obras/lib/types"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-// Título da aba (opcional por página)
 export const metadata: Metadata = {
   title: "Obras · Criar",
 }
 
 type Option = { value: string; label: string }
+
+// helpers server-side
+const toNum = (v: any) => {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+const nomeTelha = (it: any): string => ((it?.descricao ?? it?.nome ?? "") + "").trim()
 
 export default async function ObraCreatePage({
   params,
@@ -57,8 +63,11 @@ export default async function ObraCreatePage({
       }).filter(Boolean)
     : []
 
+  // opções de telha a partir do orçamento
   const telhaOptions: Option[] = Array.from(
-    new Set((orc?.materiais?.telhas ?? []).map((t: any) => String(t?.nome ?? "").trim()).filter(Boolean))
+    new Set((orc?.materiais?.telhas ?? [])
+      .map((t: any) => String((t?.nome ?? t?.descricao ?? "")).trim())
+      .filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
   const initial: Partial<ObraInfosVM> = {
@@ -82,6 +91,90 @@ export default async function ObraCreatePage({
     },
   }
 
+  // ===== pré-preenchimento do Pedido de Compra (SSR) =====
+  const selTelha = (initial.telhaEscolhida ?? "").trim()
+  const telhaItensRaw = (orc?.materiais?.telhas ?? []) as any[]
+
+  // normaliza TODOS os itens de telha para o tipo rígido do front
+  const telhaItens: NonNullable<PedidoCompraVM["telha"]>["itens"] = telhaItensRaw.map((t: any, idx: number) => {
+    const descricao = nomeTelha(t)
+    const quantidade = toNum(t?.quantidade)
+    const precoUnitario = toNum(t?.preco)
+    const frete = toNum(t?.frete)
+    const total = precoUnitario * quantidade + frete
+    return { id: idx, descricao, quantidade, precoUnitario, total }
+  })
+
+  const telhaItensSelecionados = selTelha
+    ? telhaItens.filter((it) => it.descricao === selTelha)
+    : []
+
+  const telhaUnidades = telhaItensSelecionados.reduce((s, it) => s + toNum(it?.quantidade), 0)
+  const telhaOrcamento = telhaItensSelecionados.reduce((s, it) => s + toNum(it?.total), 0)
+
+  // ===== mapear ITENS DE MADEIRA (tipagem rígida exigida pelo front) =====
+  const madeiraItens: NonNullable<PedidoCompraVM["madeira"]>["itens"] = (orc?.materiais?.madeiras ?? []).map((m: any, idx: number) => {
+    const nome = String(m?.nome ?? "").trim()
+    const componente = String(m?.componente ?? "").trim()
+    const quantidade = toNum(m?.quantidade)
+    const precoUnitario = toNum(m?.preco)
+    const tamanho = toNum(m?.tamanho)
+    const total = precoUnitario * quantidade
+    return {
+      id: idx,
+      componente,
+      madeiraNome: nome,
+      descricao: nome,
+      quantidade,
+      tamanho,
+      precoUnitario,
+      total,
+    }
+  })
+
+  // ===== mapear ITENS DE MATERIAIS GERAIS (tipagem rígida exigida pelo front) =====
+  const materiaisItens: NonNullable<PedidoCompraVM["materiais"]>["itens"] = (orc?.materiais?.materiaisGerais ?? []).map((g: any, idx: number) => {
+    const descricao = String(g?.nome ?? "").trim()
+    const quantidade = toNum(g?.quantidade)
+    const precoUnitario = toNum(g?.preco)
+    const total = precoUnitario * quantidade
+    return {
+      id: idx,
+      descricao,
+      quantidade,
+      precoUnitario,
+      total,
+    }
+  })
+
+  const pedidoInit: Partial<PedidoCompraVM> = {
+    telha: {
+      status: "Pendente",
+      previsao: null,
+      orcamento: telhaOrcamento,
+      area: 0,
+      itens: telhaItens,
+      // @ts-expect-error campo auxiliar para a UI; o client pode recalcular
+      unidades: telhaUnidades,
+    },
+    madeira: {
+      status: "Pendente",
+      previsao: null,
+      fornecedorId: null,
+      itens: madeiraItens,
+      orcamento: Number(orc?.totais?.madeiras ?? 0),
+    },
+    materiais: {
+      status: "Pendente",
+      itens: materiaisItens,
+    },
+    andaimes: {
+      status: "Pendente",
+      fornecedorId: null,
+      itens: [],
+    },
+  }
+
   return (
     <ObrasPage
       mode="new"
@@ -89,6 +182,7 @@ export default async function ObraCreatePage({
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
+      pedidoInit={pedidoInit}
     />
   )
 }
