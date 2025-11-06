@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { cn } from "@/lib/utils"
 
 import type {
   PedidoCompraVM,
@@ -56,14 +57,17 @@ function Money({ value }: { value?: number }) {
   return <span>{value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 }
 
+// aceita className para manter mesma largura dos inputs
 function DateField({
   iso,
   onChange,
   disabled,
+  className,
 }: {
   iso: string | null | undefined
   onChange: (iso: string | null) => void
   disabled?: boolean
+  className?: string
 }) {
   const date = iso ? new Date(iso) : undefined
   return (
@@ -72,7 +76,10 @@ function DateField({
         <Button
           type="button"
           variant="outline"
-          className="h-9 rounded-xl bg-cinza border-0 pr-3 pl-2 text-left font-normal"
+          className={cn(
+            "h-9 rounded-xl bg-cinza border-0 pr-3 pl-2 text-left font-normal",
+            className
+          )}
           disabled={disabled}
         >
           <CalendarDays className="mr-2 h-4 w-4" />
@@ -133,21 +140,21 @@ export default function PedidoCompra({
     [componentes]
   )
 
-// preço por material (nome -> preço)
-const precoMateriaisMap = useMemo(() => {
-  const entries: Array<[string, number]> = (catalogo?.materiaisGerais ?? [])
-    .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
-    .filter(([k]) => k.length > 0)
-  return new Map<string, number>(entries)
-}, [catalogo?.materiaisGerais])
+  // preço por material (nome -> preço)
+  const precoMateriaisMap = useMemo(() => {
+    const entries: Array<[string, number]> = (catalogo?.materiaisGerais ?? [])
+      .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
+      .filter(([k]) => k.length > 0)
+    return new Map<string, number>(entries)
+  }, [catalogo?.materiaisGerais])
 
-// preço por madeira (nome -> preço)
-const precoMadeirasMap = useMemo(() => {
-  const entries: Array<[string, number]> = (catalogo?.madeiras ?? [])
-    .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
-    .filter(([k]) => k.length > 0)
-  return new Map<string, number>(entries)
-}, [catalogo?.madeiras])
+  // preço por madeira (nome -> preço)
+  const precoMadeirasMap = useMemo(() => {
+    const entries: Array<[string, number]> = (catalogo?.madeiras ?? [])
+      .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
+      .filter(([k]) => k.length > 0)
+    return new Map<string, number>(entries)
+  }, [catalogo?.madeiras])
 
   const telhaItensSelecionados = useMemo(() => {
     const alvo = (telhaSelecionada ?? "").toString().trim()
@@ -255,10 +262,9 @@ const precoMadeirasMap = useMemo(() => {
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="flex flex-col gap-10">
-
-            {/* TELHAS — layout compacto, 3 linhas, gaps pequenos */}
+            {/* TELHAS — colunas com label+valor lado a lado, inputs pequenos */}
             <section>
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Telhas</h3>
                 {isEditing ? (
                   <div className="rounded-xl w-[200px]">
@@ -277,31 +283,42 @@ const precoMadeirasMap = useMemo(() => {
                 )}
               </div>
 
-              {/* grid fixo com 4 colunas estreitas: label | campo | label | campo */}
-              <div className="grid grid-cols-[auto,140px,auto,140px] sm:grid-cols-[auto,160px,auto,160px] items-center gap-x-3 gap-y-2">
+              {/* 2 colunas; cada coluna contém: Label + Campo coladinhos */}
+              <div
+                className="
+      grid grid-cols-1 sm:grid-cols-2
+      gap-x-1 sm:gap-x-0  /* ↓ distância ENTRE COLUNAS reduzida ao mínimo */
+      gap-y-2
+      sm:w-[520px]
+    "
+              >
+                {/* Linha 1 — Orçamento | Previsão */}
+                <div className="flex items-center gap-0.5"> {/* ↓ label x input mais colados */}
+                  <Label className="text-black shrink-0 w-24">Orçamento</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      className={cn(input, "w-36")}
+                      value={Number(orcamentoTelhaExibido ?? 0)}
+                      onChange={(e) => patchTelha({ orcamento: Number(e.target.value || 0) })}
+                    />
+                  ) : (
+                    <span className="font-medium inline-block w-36">
+                      <Money value={orcamentoTelhaExibido} />
+                    </span>
+                  )}
+                </div>
 
-                {/* Linha 1: Orçamento | Previsão */}
-                <Label className="text-black">Orçamento</Label>
-                {isEditing ? (
-                  <Input
-                    type="number"
-                    className={input}
-                    value={Number(orcamentoTelhaExibido ?? 0)}
-                    onChange={(e) => patchTelha({ orcamento: Number(e.target.value || 0) })}
-                  />
-                ) : (
-                  <span className="font-medium"><Money value={orcamentoTelhaExibido} /></span>
-                )}
-
-                <Label className="text-black">Previsão</Label>
-                <div className="w-[140px] sm:w-[160px]">
+                <div className="flex items-center gap-0.5"> {/* ↓ label x input mais colados */}
+                  <Label className="text-black shrink-0 w-24">Previsão</Label>
                   {isEditing ? (
                     <DateField
                       iso={value.telha?.previsao ?? null}
                       onChange={(iso) => patchTelha({ previsao: iso })}
+                      className="w-36"
                     />
                   ) : (
-                    <span className="font-medium">
+                    <span className="font-medium inline-block w-36">
                       {value.telha?.previsao
                         ? format(new Date(value.telha.previsao), "dd/MM/yyyy", { locale: ptBR })
                         : "—"}
@@ -309,45 +326,52 @@ const precoMadeirasMap = useMemo(() => {
                   )}
                 </div>
 
-                {/* Linha 2: Telha | Unidades */}
-                <Label className="text-black">Telha</Label>
-                <div className="font-semibold text-black truncate">{telhaSelecionada || "—"}</div>
+                {/* Linha 2 — Telha | Unidades */}
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Telha</Label>
+                  <span className="font-semibold text-black inline-block w-36 truncate">
+                    {telhaSelecionada || "—"}
+                  </span>
+                </div>
 
-                <Label className="text-black">Unidades</Label>
-                {isEditing ? (
-                  <Input
-                    type="number"
-                    className={input}
-                    value={(value.telha as any)?.unidades ?? totalTelhaUn ?? 0}
-                    onChange={(e) => patchTelha({ unidades: Number(e.target.value || 0) } as any)}
-                  />
-                ) : (
-                  <div className="font-semibold text-black">
-                    {totalTelhaUn ? `${totalTelhaUn} unidades` : "—"}
-                  </div>
-                )}
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Unidades</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      className={cn(input, "w-36")}
+                      value={(value.telha as any)?.unidades ?? totalTelhaUn ?? 0}
+                      onChange={(e) => patchTelha({ unidades: Number(e.target.value || 0) } as any)}
+                    />
+                  ) : (
+                    <span className="font-semibold inline-block w-36">
+                      {totalTelhaUn ? totalTelhaUn : "—"}
+                    </span>
+                  )}
+                </div>
 
-                {/* Linha 3: Área (m²) | placeholders para manter alinhamento */}
-                <Label className="text-black">Área (m²)</Label>
-                {isEditing ? (
-                  <Input
-                    type="number"
-                    className={input}
-                    value={value.telha?.area ?? 0}
-                    onChange={(e) => patchTelha({ area: Number(e.target.value || 0) })}
-                  />
-                ) : (
-                  <div className="font-semibold text-black">
-                    {typeof value.telha?.area === "number" ? `${value.telha?.area} m²` : "—"}
-                  </div>
-                )}
-                <span />
-                <span />
+                {/* Linha 3 — Área (m²) | vazio */}
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Área (m²)</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      className={cn(input, "w-36")}
+                      value={value.telha?.area ?? 0}
+                      onChange={(e) => patchTelha({ area: Number(e.target.value || 0) })}
+                    />
+                  ) : (
+                    <span className="font-semibold inline-block w-36">
+                      {typeof value.telha?.area === "number" ? value.telha?.area : "—"}
+                    </span>
+                  )}
+                </div>
+                <div />
               </div>
             </section>
 
 
-
+            {/* MATERIAIS */}
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Materiais</h3>
@@ -459,6 +483,7 @@ const precoMadeirasMap = useMemo(() => {
               </div>
             </section>
 
+            {/* ANDAIMES */}
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Andaimes</h3>
@@ -553,6 +578,7 @@ const precoMadeirasMap = useMemo(() => {
             </section>
           </div>
 
+          {/* COLUNA DIREITA — Madeiras */}
           <div>
             <section>
               <div className="flex items-center gap-3 mb-2">
