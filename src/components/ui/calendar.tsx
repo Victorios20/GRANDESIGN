@@ -7,12 +7,40 @@ import { DayPicker } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
+// mesmas variantes do ComboboxAdd
+type ColorVariant = "white-brown" | "gray-green" | "gray-brown" | "white-green"
+
+// classes utilitárias por variante (nav buttons e textos)
+const variantToBtnClasses: Record<ColorVariant, string> = {
+  "white-brown":
+    "bg-white text-marromEscuro border-marromEscuro/30 hover:bg-marromEscuro/5",
+  "gray-green":
+    "bg-cinza text-green border-green/30 hover:bg-green/5",
+  "gray-brown":
+    "bg-cinza text-marromEscuro border-marromEscuro/30 hover:bg-marromEscuro/5",
+  "white-green":
+    "bg-white text-green border-green/30 hover:bg-green/5",
+}
+
+const variantToCaptionClasses: Record<ColorVariant, string> = {
+  "white-brown": "text-marromEscuro",
+  "gray-green": "text-green",
+  "gray-brown": "text-marromEscuro",
+  "white-green": "text-green",
+}
+
+type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+  /** Variante de cor (default: "white-brown"). */
+  colorVariant?: ColorVariant
+}
+
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
+  colorVariant = "white-brown",
   ...props
-}: React.ComponentProps<typeof DayPicker>) {
+}: CalendarProps) {
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -21,11 +49,16 @@ function Calendar({
         months: "flex flex-col sm:flex-row gap-2",
         month: "flex flex-col gap-4",
         caption: "flex justify-center pt-1 relative items-center w-full",
-        caption_label: "text-sm font-medium",
+        caption_label: cn(
+          "text-sm font-medium",
+          variantToCaptionClasses[colorVariant]
+        ),
         nav: "flex items-center gap-1",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "size-7 bg-transparent p-0 opacity-50 hover:opacity-100"
+          "size-7 p-0 opacity-90 hover:opacity-100",
+          // aplica a paleta escolhida nos botões de navegação do calendário
+          variantToBtnClasses[colorVariant]
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",

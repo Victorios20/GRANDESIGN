@@ -1,10 +1,12 @@
-import { NextResponse, NextRequest } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { salvarOrcamentoDB } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 import { buscarOrcamentosDB } from "@/actions/historico-orcamento-db/historico-orcamento-db"
 
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
+export const revalidate = 0
 
 function parsePage(input: string | null): number | undefined {
   if (!input) return undefined
@@ -66,12 +68,10 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   }
 }
 
+// -------------------------------
+// GET público (lista de orçamentos)
+// -------------------------------
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
   try {
     const { searchParams } = new URL(req.url)
 
@@ -107,13 +107,19 @@ export async function GET(req: Request) {
         perPage,
         pageCount: Math.max(1, Math.ceil(result.total / perPage)),
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { "Cache-Control": "private, max-age=60" },
+      }
     )
   } catch (err) {
     return NextResponse.json({ error: "Erro ao buscar orçamentos" }, { status: 500 })
   }
 }
 
+// -------------------------------
+// POST (continua com auth)
+// -------------------------------
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) {

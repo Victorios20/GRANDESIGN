@@ -34,6 +34,7 @@ type Catalogo = {
 }
 
 type Componente = { id?: number; nome?: string; descricao?: string; categoria?: string } | any
+type Option = { value: string; label: string }
 
 type Props = {
   value: PedidoCompraVM
@@ -43,6 +44,8 @@ type Props = {
   telhaUnidades?: number | null
   catalogo?: Catalogo
   componentes?: Componente[]
+  fornecedoresMadeiraOptions?: Option[]
+  fornecedoresAndaimesOptions?: Option[]
 }
 
 const PADRAO: PedidoStatusPadrao[] = ["Pendente", "Aguardando pagamento", "Pedido feito", "Entregue"]
@@ -52,12 +55,16 @@ const ANDAIMES: PedidoStatusAndaimes[] = ["Pendente", "Pedido feito", "Entregue"
 const input =
   "h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
 
+// botão cinza com texto verde (gray-green)
+const inputGrayGreen =
+  "h-9 border border-green/40 bg-cinza text-green rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
+
 function Money({ value }: { value?: number }) {
   if (typeof value !== "number" || Number.isNaN(value)) return <span>—</span>
   return <span>{value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 }
 
-// aceita className para manter mesma largura dos inputs
+// DateField com visual gray-green
 function DateField({
   iso,
   onChange,
@@ -77,12 +84,13 @@ function DateField({
           type="button"
           variant="outline"
           className={cn(
-            "h-9 rounded-xl bg-cinza border-0 pr-3 pl-2 text-left font-normal",
+            inputGrayGreen,
+            "pr-3 pl-2 text-left font-normal",
             className
           )}
           disabled={disabled}
         >
-          <CalendarDays className="mr-2 h-4 w-4" />
+          <CalendarDays className="mr-2 h-4 w-4 text-green opacity-90" />
           {date ? format(date, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecionar data…</span>}
         </Button>
       </PopoverTrigger>
@@ -93,6 +101,7 @@ function DateField({
           onSelect={(d) => onChange(d ? d.toISOString() : null)}
           initialFocus
           locale={ptBR}
+          colorVariant="gray-green"
         />
       </PopoverContent>
     </Popover>
@@ -100,8 +109,7 @@ function DateField({
 }
 
 function nomeDoItemTelha(it: any): string {
-  const n = (it?.descricao ?? it?.nome ?? "").toString().trim()
-  return n
+  return (it?.descricao ?? it?.nome ?? "").toString().trim()
 }
 function totalItemTelha(it: any): number {
   const qtd = Number(it?.quantidade ?? 0)
@@ -122,6 +130,8 @@ export default function PedidoCompra({
   telhaUnidades,
   catalogo,
   componentes,
+  fornecedoresMadeiraOptions,
+  fornecedoresAndaimesOptions,
 }: Props) {
   const materiaisOptions = useMemo(
     () => (catalogo?.materiaisGerais ?? []).map((m) => ({ value: m.nome, label: m.nome })),
@@ -140,7 +150,6 @@ export default function PedidoCompra({
     [componentes]
   )
 
-  // preço por material (nome -> preço)
   const precoMateriaisMap = useMemo(() => {
     const entries: Array<[string, number]> = (catalogo?.materiaisGerais ?? [])
       .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
@@ -148,7 +157,6 @@ export default function PedidoCompra({
     return new Map<string, number>(entries)
   }, [catalogo?.materiaisGerais])
 
-  // preço por madeira (nome -> preço)
   const precoMadeirasMap = useMemo(() => {
     const entries: Array<[string, number]> = (catalogo?.madeiras ?? [])
       .map((m) => [String(m?.nome ?? ""), toNum(m?.preco)] as [string, number])
@@ -257,12 +265,25 @@ export default function PedidoCompra({
     return typeof total === "number" ? total : 0
   }
 
+  // --- Helpers para exibir o nome do fornecedor no botão do Combobox ---
+  const selectedMadeiraFornecedorLabel = useMemo(() => {
+    const id = value.madeira?.fornecedorId
+    if (id == null) return undefined
+    return (fornecedoresMadeiraOptions || []).find((o) => o.value === String(id))?.label
+  }, [value.madeira?.fornecedorId, fornecedoresMadeiraOptions])
+
+  const selectedAndaimesFornecedorLabel = useMemo(() => {
+    const id = value.andaimes?.fornecedorId
+    if (id == null) return undefined
+    return (fornecedoresAndaimesOptions || []).find((o) => o.value === String(id))?.label
+  }, [value.andaimes?.fornecedorId, fornecedoresAndaimesOptions])
+
   return (
     <Card className="rounded-2xl shadow-md bg-white border-0 mt-6">
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="flex flex-col gap-10">
-            {/* TELHAS — colunas com label+valor lado a lado, inputs pequenos */}
+            {/* TELHAS */}
             <section>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Telhas</h3>
@@ -275,7 +296,7 @@ export default function PedidoCompra({
                       items={PADRAO.map((s) => ({ value: s, label: s }))}
                       onSelect={(s) => patchTelha({ status: s as PedidoStatusPadrao })}
                       showEmptyOption={false}
-                      colorVariant="gray-brown"
+                      colorVariant="gray-green"
                     />
                   </div>
                 ) : (
@@ -283,18 +304,9 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              {/* 2 colunas; cada coluna contém: Label + Campo coladinhos */}
-              <div
-                className="
-      grid grid-cols-1 sm:grid-cols-2
-      gap-x-1 sm:gap-x-0  /* ↓ distância ENTRE COLUNAS reduzida ao mínimo */
-      gap-y-2
-      sm:w-[520px]
-    "
-              >
-                {/* Linha 1 — Orçamento | Previsão */}
-                <div className="flex items-center gap-0.5"> {/* ↓ label x input mais colados */}
-                  <Label className="text-black shrink-0 w-24">Orçamento</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-1 sm:gap-x-0 gap-y-2 sm:w-[520px]">
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Orçamento:</Label>
                   {isEditing ? (
                     <Input
                       type="number"
@@ -309,8 +321,8 @@ export default function PedidoCompra({
                   )}
                 </div>
 
-                <div className="flex items-center gap-0.5"> {/* ↓ label x input mais colados */}
-                  <Label className="text-black shrink-0 w-24">Previsão</Label>
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Previsão:</Label>
                   {isEditing ? (
                     <DateField
                       iso={value.telha?.previsao ?? null}
@@ -326,16 +338,15 @@ export default function PedidoCompra({
                   )}
                 </div>
 
-                {/* Linha 2 — Telha | Unidades */}
                 <div className="flex items-center gap-0.5">
-                  <Label className="text-black shrink-0 w-24">Telha</Label>
+                  <Label className="text-black shrink-0 w-24">Telha:</Label>
                   <span className="font-semibold text-black inline-block w-36 truncate">
                     {telhaSelecionada || "—"}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-0.5">
-                  <Label className="text-black shrink-0 w-24">Unidades</Label>
+                  <Label className="text-black shrink-0 w-24">Unidades:</Label>
                   {isEditing ? (
                     <Input
                       type="number"
@@ -350,9 +361,8 @@ export default function PedidoCompra({
                   )}
                 </div>
 
-                {/* Linha 3 — Área (m²) | vazio */}
                 <div className="flex items-center gap-0.5">
-                  <Label className="text-black shrink-0 w-24">Área (m²)</Label>
+                  <Label className="text-black shrink-0 w-24">Área (m²):</Label>
                   {isEditing ? (
                     <Input
                       type="number"
@@ -370,7 +380,6 @@ export default function PedidoCompra({
               </div>
             </section>
 
-
             {/* MATERIAIS */}
             <section>
               <div className="flex items-center gap-3 mb-2">
@@ -385,6 +394,7 @@ export default function PedidoCompra({
                         items={MATERIAIS.map((s) => ({ value: s, label: s }))}
                         onSelect={(s) => patchMateriais({ status: s as PedidoStatusMateriais })}
                         showEmptyOption={false}
+                        colorVariant="gray-green"
                       />
                     </div>
                     <Button
@@ -497,6 +507,7 @@ export default function PedidoCompra({
                         items={ANDAIMES.map((s) => ({ value: s, label: s }))}
                         onSelect={(s) => patchAndaimes({ status: s as PedidoStatusAndaimes })}
                         showEmptyOption={false}
+                        colorVariant="gray-green"
                       />
                     </div>
                     <Button
@@ -511,6 +522,28 @@ export default function PedidoCompra({
                   </>
                 ) : (
                   <span className="text-black/70">• {value.andaimes?.status || "—"}</span>
+                )}
+              </div>
+
+              {/* Fornecedor (label + campo) */}
+              <div className="flex items-center gap-0.5 mb-3 sm:w-[520px]">
+                <Label className="text-black shrink-0 w-24">Fornecedor:</Label>
+                {isEditing ? (
+                  <div className="w-36">
+                    <ComboboxAdd
+                      widthClass="w-full"
+                      placeholder="Selecionar…"
+                      buttonText={selectedAndaimesFornecedorLabel || "Selecione"}
+                      items={fornecedoresAndaimesOptions || []}
+                      colorVariant="gray-green"
+                      onSelect={(id) => patchAndaimes({ fornecedorId: Number(id) })}
+                      showEmptyOption={false}
+                    />
+                  </div>
+                ) : (
+                  <span className="font-medium inline-block w-36">
+                    {selectedAndaimesFornecedorLabel || "—"}
+                  </span>
                 )}
               </div>
 
@@ -545,8 +578,7 @@ export default function PedidoCompra({
                             type="number"
                             className={input}
                             value={Number(total)}
-                            onChange={(e) => patchItem({} as any, Number(e.target.value || 0))}
-                            onBlur={(e) => patchItem("total", Number(e.currentTarget.value || 0))}
+                            onChange={(e) => patchItem("total", Number(e.target.value || 0))}
                           />
                           <div className="flex items-center">
                             <Button
@@ -593,6 +625,7 @@ export default function PedidoCompra({
                         items={PADRAO.map((s) => ({ value: s, label: s }))}
                         onSelect={(s) => patchMadeira({ status: s as PedidoStatusPadrao })}
                         showEmptyOption={false}
+                        colorVariant="gray-green"
                       />
                     </div>
                     <Button
@@ -610,35 +643,62 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              <div className="flex items-center gap-6 flex-wrap mb-4">
-                <div className="flex items-center gap-2">
-                  <Label className="text-black">Orçamento</Label>
+              {/* Orçamento/Previsão alinhados */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-1 sm:gap-x-0 gap-y-2 sm:w-[520px] mb-2">
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Orçamento:</Label>
                   {isEditing ? (
                     <Input
                       type="number"
-                      className={input + " w-[160px]"}
+                      className={cn(input, "w-36")}
                       value={(value.madeira as any)?.orcamento ?? 0}
                       onChange={(e) => patchMadeira({ orcamento: Number(e.target.value || 0) } as any)}
                     />
                   ) : (
-                    <span className="font-medium">
+                    <span className="font-medium inline-block w-36">
                       <Money value={(value.madeira as any)?.orcamento} />
                     </span>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Label className="text-black">Previsão</Label>
+                <div className="flex items-center gap-0.5">
+                  <Label className="text-black shrink-0 w-24">Previsão:</Label>
                   {isEditing ? (
-                    <DateField iso={value.madeira?.previsao ?? null} onChange={(iso) => patchMadeira({ previsao: iso })} />
+                    <DateField
+                      iso={value.madeira?.previsao ?? null}
+                      onChange={(iso) => patchMadeira({ previsao: iso })}
+                      className="w-36"
+                    />
                   ) : (
-                    <span className="font-medium">
+                    <span className="font-medium inline-block w-36">
                       {value.madeira?.previsao
                         ? format(new Date(value.madeira.previsao), "dd/MM/yyyy", { locale: ptBR })
                         : "—"}
                     </span>
                   )}
                 </div>
+              </div>
+
+              {/* Fornecedor no padrão Telhas */}
+              <div className="flex items-center gap-0.5 mb-4 sm:w-[520px]">
+                <Label className="text-black shrink-0 w-24">Fornecedor:</Label>
+                {isEditing ? (
+                  <div className="w-36">
+                    <ComboboxAdd
+                      widthClass="w-full"
+                      placeholder="Selecionar…"
+                      buttonText={selectedMadeiraFornecedorLabel || "Selecione"}
+                      items={fornecedoresMadeiraOptions || []}
+                      colorVariant="gray-green"
+                      onSelect={(id) => patchMadeira({ fornecedorId: Number(id) })}
+                      showEmptyOption={false}
+                    />
+                  </div>
+                ) : (
+                  <span className="font-medium inline-block w-36">
+                    {selectedMadeiraFornecedorLabel || "—"}
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-5 gap-x-6 gap-y-3 mt-4">
@@ -734,6 +794,7 @@ export default function PedidoCompra({
                 })}
               </div>
             </section>
+
           </div>
         </div>
       </CardContent>

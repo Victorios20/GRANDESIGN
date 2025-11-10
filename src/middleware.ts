@@ -1,12 +1,20 @@
-// middleware.ts (alterado)
+// middleware.ts
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
-const PUBLIC_EXACT = ["/favicon.ico", "/robots.txt", "/sitemap.xml"] // "/" continua fora daqui
+const PUBLIC_EXACT = ["/favicon.ico", "/robots.txt", "/sitemap.xml"]
 const PUBLIC_PREFIX = ["/_next", "/assets", "/images", "/public"]
 
-const LOGIN_PATH = "/login" // troque para "/api/auth/signin" se você NÃO tiver página /login
+const LOGIN_PATH = "/login"
+
+// Só essas duas rotas GET são públicas (exatas, sem subrotas), case-insensitive
+function isExactPublicApiGet(req: NextRequest) {
+  if (req.method?.toUpperCase() !== "GET") return false
+  const lower = req.nextUrl.pathname.toLowerCase()
+  // /api/Orcamentos (com “O” maiúsculo) também passa por causa do toLowerCase()
+  return lower === "/api/bairros" || lower === "/api/orcamentos"
+}
 
 function isPublicAsset(pathname: string) {
   return (
@@ -16,17 +24,11 @@ function isPublicAsset(pathname: string) {
   )
 }
 
-function isHomePublicApi(req: NextRequest) {
-  const pathname = req.nextUrl.pathname.toLowerCase()
-  const method = req.method?.toUpperCase()
-  if (method !== "GET") return false
-  return pathname === "/api/bairros" || pathname === "/api/orcamentos"
-}
-
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl
+  const method = req.method?.toUpperCase()
 
-  // bypass do SSR helper
+  // bypass opcional p/ seu helper SSR (ssrJSON)
   if (req.headers.get("x-internal-ssr") === "1") {
     return NextResponse.next()
   }
@@ -37,20 +39,13 @@ export async function middleware(req: NextRequest) {
   // NextAuth (signin/callback etc) sempre liberado
   if (pathname.startsWith("/api/auth")) return NextResponse.next()
 
-  // cadastro público
-  if (pathname === "/api/users" && req.method === "POST") return NextResponse.next()
+  // exemplo de endpoint público POST (se precisar)
+  if (pathname === "/api/users" && method === "POST") return NextResponse.next()
 
-  // APIs públicas da Home
-  if (isHomePublicApi(req)) return NextResponse.next()
+  // ✅ Só estas duas APIs em GET são públicas
+  if (isExactPublicApiGet(req)) return NextResponse.next()
 
-  // 🔓 LIBERAÇÃO GERAL DE LEITURA:
-  // GET/HEAD/OPTIONS SEMPRE liberados (páginas e APIs)
-  const method = req.method?.toUpperCase()
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
-    return NextResponse.next()
-  }
-
-  // 🔐 para qualquer outro método (POST/PUT/PATCH/DELETE), exige auth
+  // ❌ Nada de “liberação geral de GET”. Daqui pra baixo tudo exige auth.
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
   const token = await getToken({ req, secret })
 
@@ -72,7 +67,8 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // ... (resto das regras de roles iguais às suas)
+  // se tiver regras de role, aplique aqui
+
   return NextResponse.next()
 }
 

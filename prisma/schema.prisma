@@ -462,6 +462,12 @@ model obras {
   forma_pagamento_quitacao  String?         @db.VarChar(30)
   status_pagamento_quitacao PagamentoStatus @default(PENDENTE)
 
+  // ANEXOS (para card Anexos)
+  link_slide_orcamento String? @db.VarChar(255) // espelho do orçamento (Proposta - slide)
+  link_pdf_orcamento   String? @db.VarChar(255) // espelho do orçamento (PDF da proposta)
+  link_contrato        String? @db.VarChar(255) // link do contrato da obra
+  link_ordem_servico   String? @db.VarChar(255) // link da OS (PDF/Drive/etc)
+
   // Auditoria
   created_by Int?
   updated_by Int?

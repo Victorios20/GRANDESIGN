@@ -7,31 +7,32 @@ import { Save, Pencil, X } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
-
+import { Card, CardContent } from "@/components/ui/card"
+import Anexos from "./_sections/Anexos"
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
 import PedidoCompra from "./_sections/PedidoCompra"
+import Financeiro, { type FinanceiroVM } from "./_sections/Financeiro"
+import Execucao, { type ExecucaoVM } from "./_sections/Execucao"
 
 import type {
   ObraInfosVM,
   CreateObraPayload,
   UpdateObraPayload,
   PedidoCompraVM,
+  OrdemServicoPayload,
 } from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
 
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
 
-/** Tipos leves só para transporte do catálogo vindo do SSR */
 type CatalogoItem = { nome: string; preco: number }
 type Catalogo = {
   madeiras: CatalogoItem[]
   materiaisGerais: CatalogoItem[]
   telhas: CatalogoItem[]
 }
-
-/** Estrutura livre para os componentes (lista de componentes de madeira) */
 type Componente = { id?: number; nome: string; categoria?: string } | any
 
 type Props = {
@@ -41,12 +42,30 @@ type Props = {
   initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }
   tiposObraOptions: Option[]
   telhaOptions: Option[]
-  /** pré-preenchimento vindo do orçamento/obra (SSR) */
   pedidoInit?: Partial<PedidoCompraVM>
-  /** NOVO: catálogos carregados no server e injetados no client para os combobox das 3 tabelas */
   catalogo?: Catalogo
-  /** NOVO: lista de componentes (ex.: para associar em madeiras) */
   componentes?: Componente[]
+  fornecedoresMadeiraOptions?: Option[]
+  fornecedoresAndaimesOptions?: Option[]
+
+  /** Financeiro inic.:
+   *  - create: pode vir só { maoDeObra }
+   *  - view/edit: pode vir completo
+   */
+  financeiroInit?: Partial<FinanceiroVM>
+
+  /** Execução:
+   *  - create: normalmente vazio (sem pré-preenchimento)
+   *  - view/edit: pode vir completo (equipe + datas)
+   */
+  execucaoInit?: {
+    equipeId?: number | null
+    dataPrevInicio?: string | null
+    dataPrevConclusao?: string | null
+  }
+
+  /** Opções do combobox de equipe (virá do SSR quando o endpoint existir) */
+  equipeOptions?: Option[]
 }
 
 /* ================= helpers ================= */
@@ -116,6 +135,41 @@ function hydratePedido(initial?: Partial<PedidoCompraVM>): PedidoCompraVM {
   }
 }
 
+function parseMaybeDate(s?: string | null): Date | null {
+  if (!s) return null
+  const d = new Date(s)
+  return Number.isFinite(d.getTime()) ? d : null
+}
+
+/** hidratação do Financeiro a partir do prop `financeiroInit` */
+function hydrateFinanceiro(fin?: Partial<FinanceiroVM>): FinanceiroVM {
+  return {
+    valorObra: fin?.valorObra ?? 0,
+    maoDeObra: fin?.maoDeObra ?? 0,
+    pagamento: {
+      entrada: {
+        valor: fin?.pagamento?.entrada?.valor ?? 0,
+        forma: fin?.pagamento?.entrada?.forma ?? null,
+        status: fin?.pagamento?.entrada?.status ?? null,
+      },
+      quitacao: {
+        valor: fin?.pagamento?.quitacao?.valor ?? 0,
+        forma: fin?.pagamento?.quitacao?.forma ?? null,
+        status: fin?.pagamento?.quitacao?.status ?? null,
+      },
+    },
+  }
+}
+
+/** hidratação do estado da Execução */
+function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
+  return {
+    equipeId: exec?.equipeId ?? null,
+    dataPrevInicio: parseMaybeDate(exec?.dataPrevInicio) ?? null,
+    dataPrevConclusao: parseMaybeDate(exec?.dataPrevConclusao) ?? null,
+  }
+}
+
 export default function ObrasPage({
   mode,
   obraId,
@@ -124,9 +178,13 @@ export default function ObrasPage({
   tiposObraOptions,
   telhaOptions,
   pedidoInit,
-  /** NOVO: vindo do SSR */
   catalogo,
   componentes,
+  fornecedoresMadeiraOptions,
+  fornecedoresAndaimesOptions,
+  financeiroInit,
+  execucaoInit,
+  equipeOptions = [],
 }: Props) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
@@ -134,8 +192,9 @@ export default function ObrasPage({
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
   const [pedido, setPedido] = useState<PedidoCompraVM>(() => hydratePedido(pedidoInit))
+  const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
+  const [exec, setExec] = useState<ExecucaoVM>(() => hydrateExecucao(execucaoInit))
 
-  /** Fallbacks seguros para evitar undefined em renders iniciais */
   const catalogoSafe: Catalogo = useMemo(
     () => ({
       madeiras: catalogo?.madeiras ?? [],
@@ -148,6 +207,8 @@ export default function ObrasPage({
 
   const patchInfos = (p: Partial<VM>) => setVm((d) => ({ ...d, ...p }))
   const patchPedido = (p: Partial<PedidoCompraVM>) => setPedido((d) => ({ ...d, ...p }))
+  const patchFinanceiro = (p: Partial<FinanceiroVM>) => setFin((d) => ({ ...d, ...p }))
+  const patchExecucao = (p: Partial<ExecucaoVM>) => setExec((d) => ({ ...d, ...p }))
 
   const tituloTopo = useMemo(() => {
     const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : vm.titulo || "Obra"
@@ -197,8 +258,9 @@ export default function ObrasPage({
           largura: vm.largura ?? 0,
           comprimento: vm.comprimento ?? 0,
           telha_escolhida: vm.telhaEscolhida || "",
-          valor_obra: 0,
-          valor_mao_de_obra: 0,
+          // se o backend do POST aceitar, já enviamos:
+          valor_obra: Number(fin.valorObra ?? 0),
+          valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
           observacoes: vm.observacoes ?? null,
           actorUserId: 0,
           clienteCpf: vm.cliente?.cpf ?? null,
@@ -207,6 +269,12 @@ export default function ObrasPage({
         toast.success("Obra criada.")
         router.push(`/obras/${r.obraId}`)
       } else if (obraId) {
+        const ordemServico: OrdemServicoPayload = {
+          equipe_id: exec.equipeId ?? undefined,
+          data_prev_inicio: exec.dataPrevInicio ?? undefined,
+          data_prev_conclusao: exec.dataPrevConclusao ?? undefined,
+        }
+
         const upd: UpdateObraPayload = {
           obra: {
             endereco_obra: vm.endereco.logradouro,
@@ -218,6 +286,17 @@ export default function ObrasPage({
             status: vm.status,
             observacoes: vm.observacoes ?? undefined,
           },
+          financeiro: {
+            valor_obra: Number(fin.valorObra ?? 0),
+            valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
+            pagamento_entrada: Number(fin.pagamento?.entrada?.valor ?? 0),
+            forma_pagamento_entrada: fin.pagamento?.entrada?.forma || "",
+            status_pagamento_entrada: fin.pagamento?.entrada?.status as any,
+            pagamento_quitacao: Number(fin.pagamento?.quitacao?.valor ?? 0),
+            forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma || "",
+            status_pagamento_quitacao: fin.pagamento?.quitacao?.status as any,
+          },
+          ordemServico,
         }
         await updateObra(obraId, upd)
         toast.success("Obra atualizada.")
@@ -233,6 +312,8 @@ export default function ObrasPage({
   function onCancel() {
     setVm(hydrateInfos(initial))
     setPedido(hydratePedido(pedidoInit))
+    setFin(hydrateFinanceiro(financeiroInit))
+    setExec(hydrateExecucao(execucaoInit))
     setIsEditing(false)
   }
 
@@ -293,17 +374,43 @@ export default function ObrasPage({
         />
       </div>
 
-      {/* Card 3 — Pedido de Compra (Telhas, Madeiras, Materiais, Andaimes) */}
+      {/* Card 3 — Pedido de Compra */}
       <PedidoCompra
         value={pedido}
         onChange={patchPedido}
         isEditing={isEditing}
         telhaSelecionada={vm.telhaEscolhida || null}
         telhaUnidades={telhaUnidades}
-        /** NOVO: dados para popular os combobox das 3 tabelas */
         catalogo={catalogoSafe}
         componentes={componentesSafe}
+        fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
+        fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       />
+
+      {/* Linha: Financeiro (2/3) + Execução (1/3) */}
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Financeiro
+          className="lg:col-span-2"
+          value={fin}
+          onChange={patchFinanceiro}
+          isEditing={isEditing}
+        />
+
+        <Execucao
+          className="lg:col-span-1"
+          value={exec}
+          onChange={patchExecucao}
+          isEditing={isEditing}
+          equipeOptions={equipeOptions}
+        />
+        <Anexos
+          mode={mode} // "new" | "view" | "edit"
+          orcamentoId={orcamentoId} // no create vem da rota [orcamentoId]; no view/edit pode vir do DTO se houver vínculo
+          propostaLink={/* link_slide do orçamento (create) ou da obra (view/edit) */}
+          contratoLink={/* apenas view/edit: do DTO da obra */}
+          ordemServicoLink={/* apenas view/edit: do DTO da obra, se existir */}
+        />
+      </div>
     </PageLayout>
   )
 }

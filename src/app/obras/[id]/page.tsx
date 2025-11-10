@@ -27,25 +27,54 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base = `${proto}://${host}`
 
-  // Obra + Tipos + Catálogos (componentes, materiais, telhas)
-  const [resObra, resTipos, componentes, geraisDB, telhasDB] = await Promise.all([
-    fetch(`${base}/api/obras/${obraId}/detalhado`, { cache: "no-store", headers: { cookie }, credentials: "include" }),
-    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, { cache: "no-store", headers: { cookie }, credentials: "include" }),
-    listarComponentesDB(),
-    listarMateriaisGerais(),
-    listarTelhas(),
-  ])
+  // Obra + Tipos + Catálogos + Fornecedores + Equipes
+  const [resObra, resTipos, componentes, geraisDB, telhasDB, resFornMadeira, resFornAndaimes, resEquipes] =
+    await Promise.all([
+      fetch(`${base}/api/obras/${obraId}/detalhado`, {
+        cache: "no-store",
+        headers: { cookie },
+        credentials: "include",
+      }),
+      fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
+        cache: "no-store",
+        headers: { cookie },
+        credentials: "include",
+      }),
+      listarComponentesDB(),
+      listarMateriaisGerais(),
+      listarTelhas(),
+      fetch(`${base}/api/fornecedores?tipo=madeira`, {
+        cache: "no-store",
+        headers: { cookie },
+        credentials: "include",
+      }),
+      fetch(`${base}/api/fornecedores?tipo=andaimes`, {
+        cache: "no-store",
+        headers: { cookie },
+        credentials: "include",
+      }),
+      fetch(`${base}/api/equipes?page=1&pageSize=200`, {
+        cache: "no-store",
+        headers: { cookie },
+        credentials: "include",
+      }),
+    ])
+
   if (!resObra.ok) notFound()
 
   const dto = (await resObra.json()) as ObraDetalheDTO
 
   const tiposRaw = await resTipos.json().catch(() => null)
-  const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
-    ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw).map((x: any) => {
-        const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
-        const lab = String(label).trim()
-        return lab ? { value: lab, label: lab } : null
-      }).filter(Boolean)
+  const tiposObraOptions: Option[] = Array.isArray(
+    tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw
+  )
+    ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
+        .map((x: any) => {
+          const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
+          const lab = String(label).trim()
+          return lab ? { value: lab, label: lab } : null
+        })
+        .filter(Boolean)
     : []
 
   // telhas: tentar via orçamento vinculado (se existir)
@@ -60,7 +89,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     if (resOrc.ok) {
       const orc = (await resOrc.json()) as GetOrcamentoResult
       telhaOptions = Array.from(
-        new Set((orc?.materiais?.telhas ?? []).map((t: any) => String(t?.nome ?? "").trim()).filter(Boolean))
+        new Set(
+          (orc?.materiais?.telhas ?? [])
+            .map((t: any) => String((t?.nome ?? t?.descricao ?? "")).trim())
+            .filter(Boolean)
+        )
       ).map((n) => ({ value: n, label: n }))
     }
   }
@@ -71,7 +104,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     largura: dto.dadosObra?.largura ?? 0,
     comprimento: dto.dadosObra?.comprimento ?? 0,
     telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
-    status: dto.dadosObra?.status as any,
+    status: (dto.dadosObra?.status as any),
     cliente: {
       nome: dto.cliente?.nome ?? "",
       telefone: dto.cliente?.telefone ?? "",
@@ -91,9 +124,43 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   // Catálogo para comboboxes do Pedido de Compra (edição inline)
   const catalogo = {
     madeiras: [], // carregadas no client por fornecedor selecionado
-    materiaisGerais: geraisDB.map(m => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
-    telhas: telhasDB.map(m => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+    materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+    telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
   }
+
+  // Fornecedores -> Options
+  const toOptions = (arr: any[]): Option[] =>
+    Array.isArray(arr)
+      ? arr
+          .map((f: any) => {
+            const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
+            const value = String(f?.id ?? f?.fornecedor_id ?? label)
+            return label ? { value, label } : null
+          })
+          .filter(Boolean) as Option[]
+      : []
+
+  const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
+  const fornecedoresAndaimesJson = await resFornAndaimes.json().catch(() => [])
+
+  const fornecedoresMadeiraOptions: Option[] = toOptions(
+    (fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson
+  )
+  const fornecedoresAndaimesOptions: Option[] = toOptions(
+    (fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson
+  )
+
+  // Equipes -> Options
+  const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
+  const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
+    ? equipesJson.data
+        .map((e: any) => {
+          const label = String(e?.nome ?? "").trim()
+          const value = String(e?.id ?? "")
+          return label ? { value, label } : null
+        })
+        .filter(Boolean)
+    : []
 
   return (
     <ObrasPage
@@ -104,6 +171,10 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       telhaOptions={telhaOptions}
       catalogo={catalogo}
       componentes={componentes}
+      fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
+      fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
+      equipeOptions={equipesOptions}
     />
+
   )
 }
