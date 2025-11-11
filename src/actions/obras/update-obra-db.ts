@@ -1,10 +1,11 @@
+// GRANDESIGN · src/actions/obras/update-obra-db.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 
 type Id = number | string
-type EnumString = string // ObraStatus | PagamentoStatus | PedidoStatus*
+type EnumString = string
 
 type ObraBasePayload = {
   endereco_obra?: string
@@ -65,12 +66,10 @@ type PedidoLinksPayload = {
 type PedidoItensUpsert = {
   id?: Id
   _delete?: boolean
-  // Telha
   descricao?: string
   quantidade?: number | string
   preco_unitario?: number | string
   total?: number | string
-  // Madeira extras
   componente?: string
   madeira_nome?: string
   tamanho?: number | string
@@ -122,12 +121,20 @@ type ImagensPayload = {
   list?: ImagemPayload[]
 }
 
+type AnexosPayload = {
+  contrato?: string | null
+  ordemServico?: string | null
+  propostaSlide?: string | null
+  propostaPdf?: string | null
+}
+
 export type UpdateObraPayload = {
   obra?: ObraBasePayload
   financeiro?: FinanceiroPayload
   pedidoCompra?: PedidoCompraPayload
   ordemServico?: OrdemServicoPayload
   imagens?: ImagensPayload
+  anexos?: AnexosPayload
 }
 
 function n(v: any) {
@@ -136,13 +143,17 @@ function n(v: any) {
   return Number.isNaN(num) ? undefined : num
 }
 
+function setNullableString(target: Record<string, any>, key: string, v: string | null | undefined) {
+  if (v === undefined) return
+  target[key] = v === null ? null : String(v).trim()
+}
+
 export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id) {
   const id = Number(obraId)
   if (!id || Number.isNaN(id)) {
     return { ok: false, status: 400, error: "OBRA_ID_INVALIDO" }
   }
 
-  // protege contra tentativa de troca de cliente/orcamento
   const hasForbidden =
     JSON.stringify(payload).match(/"cliente_id"|"orcamento_id"|"created_by"|"updated_by"/g)?.length ?? 0
   if (hasForbidden) {
@@ -162,7 +173,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     return { ok: false, status: 404, error: "OBRA_NAO_ENCONTRADA" }
   }
 
-  // monta dados da obra (checked input)
   const obraData: Prisma.obrasUpdateInput = {}
   if (userId) {
     obraData.updatedBy = { connect: { id: Number(userId) } }
@@ -177,6 +187,14 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     obraData.telha_escolhida = payload.obra.telha_escolhida ?? undefined
     obraData.status = payload.obra.status as any
     obraData.observacoes = payload.obra.observacoes ?? undefined
+  }
+
+  // Anexos (novos campos em obras): undefined = não altera; null = seta NULL; string = grava
+  if (payload.anexos) {
+    setNullableString(obraData, "link_contrato", payload.anexos.contrato)
+    setNullableString(obraData, "link_ordem_servico", payload.anexos.ordemServico)
+    setNullableString(obraData, "link_slide_orcamento", payload.anexos.propostaSlide)
+    setNullableString(obraData, "link_pdf_orcamento", payload.anexos.propostaPdf)
   }
 
   if (payload.financeiro) {
@@ -252,7 +270,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       if (os._delete) {
         obraData.ordem_servico = { delete: true }
       } else if (hasOS) {
-        // atualizar parcialmente a OS existente
         obraData.ordem_servico = {
           update: {
             ...(os.equipe_id !== undefined ? { equipe: { connect: { id: Number(os.equipe_id) } } } : {}),
@@ -261,7 +278,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           },
         }
       } else {
-        // criar OS somente se TODOS os obrigatórios vierem
         const canCreate =
           os.equipe_id !== undefined && !!os.data_prev_inicio && !!os.data_prev_conclusao
 
@@ -286,7 +302,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       const pc = payload.pedidoCompra
       const pcUpdate: Prisma.pedido_compraUpdateInput = {}
 
-      // campos simples
       pcUpdate.orcamento_telha = n(pc.orcamento_telha)
       pcUpdate.previsao_telha = pc.previsao_telha ? new Date(pc.previsao_telha) : undefined
       pcUpdate.status_telha = pc.status_telha as any
@@ -311,7 +326,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         pcUpdate.andaimes_fornecedor = { connect: { id: Number(pc.andaimes_fornecedor_id) } }
       }
 
-      // LINKS 1:1 — com vínculo ao head no create
       if (pc.links?.telha) {
         const l = pc.links.telha
         pcUpdate.pedido_telha_link = {
@@ -399,7 +413,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
       }
 
-      // ITENS 1:N
       const upsertArr = (arr?: PedidoItensUpsert[]) =>
         (arr ?? [])
           .filter(i => !i._delete && i.id)
@@ -470,7 +483,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
       }
 
-      // aplica direto no head (evita conflito de criação)
       await tx.pedido_compra.update({
         where: { id: pedidoCompraId },
         data: pcUpdate,
@@ -478,14 +490,12 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       })
     }
 
-    // 4) Atualiza OBRA com tudo que foi montado (obra + OS + imagens)
     await tx.obras.update({
       where: { id },
       data: obraData,
       select: { id: true },
     })
 
-    // 5) Auditoria
     await tx.auditLog.create({
       data: {
         user_id: userId ? Number(userId) : null,
@@ -496,7 +506,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       },
     })
 
-    // 6) retorno mínimo (tela reidrata com GET detalhar)
     return { id }
   })
 

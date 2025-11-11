@@ -1,140 +1,127 @@
 // src/app/api/obras/route.ts
-import { NextResponse } from "next/server"
+import { NextResponse, NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { criarObraComHeadPedidoCompra, ObraCreateError } from "@/actions/obras/create-obra-db"
 
+export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+export const revalidate = 0
 
-type ApiErrorShape = {
-  error: string
-  code?: string
-  step?: string
-  details?: any
-  requestId?: string
+type SessionLike =
+  | { user?: { id?: string | number | null } | null; userId?: string | number | null }
+  | null
+  | undefined
+
+function getActorId(session: SessionLike): number | null {
+  const raw = (session as any)?.user?.id ?? (session as any)?.userId
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
 }
 
-function mapErrorToHttp(err: any, requestId: string) {
-  let status = 500
-  const code: string | undefined = err?.code
-  const step: string | undefined = err?.step
-  const details = err?.details
-  const message =
-    typeof err?.message === "string" && err.message.trim().length > 0
-      ? err.message
-      : "Erro ao criar obra."
-
-  if (code === "PAYLOAD_INVALIDO") status = 400
-  else if (code === "ORCAMENTO_NAO_ENCONTRADO") status = 404
-  else if (code === "ORCAMENTO_JA_LANCADO") status = 409
-  else if (
-    code === "OBRA_CREATE_FAILED" ||
-    code === "PEDIDO_HEAD_CREATE_FAILED" ||
-    code === "PEDIDO_LINK_CREATE_FAILED" ||
-    code === "IMAGENS_CREATE_FAILED" ||
-    code === "ORCAMENTO_UPDATE_FAILED"
-  ) {
-    status = 500
-  } else {
-    // heurística para erros de unique (concorrência)
-    const msg = String(message)
-    if (msg.includes("já existe obra")) status = 409
-  }
-
-  return {
-    status,
-    body: { error: message, code, step, details, requestId } as ApiErrorShape,
-  }
+function json(resBody: any, status = 200, requestId?: string) {
+  const headers = new Headers({ "Content-Type": "application/json" })
+  if (requestId) headers.set("X-Request-Id", requestId)
+  return new NextResponse(JSON.stringify(resBody), { status, headers })
 }
 
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
-  const requestId = crypto.randomUUID()
+export async function POST(req: NextRequest) {
+  const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
   try {
-    const body = await req.json()
-
-    // shape esperado do payload
-    // {
-    //   orcamentoId: number,
-    //   obra: { ...campos obrigatórios do DB... },
-    //   imagens?: [{ url, ordem?, legenda? }]
-    // }
-    const orcamentoId = Number(body?.orcamentoId)
-    const obra = body?.obra ?? {}
-    const imagens = Array.isArray(body?.imagens) ? body.imagens : []
-
-    // validações rápidas (mantém o comportamento enxuto do backend)
-    if (!Number.isFinite(orcamentoId)) {
-      const res = NextResponse.json<ApiErrorShape>(
-        { error: "Parâmetro inválido: orcamentoId.", code: "PAYLOAD_INVALIDO", requestId },
-        { status: 400 }
-      )
-      res.headers.set("X-Request-Id", requestId)
-      return res
+    const session = (await getServerSession(authOptions as any)) as SessionLike
+    const actorId = getActorId(session)
+    if (!actorId) {
+      return json({ error: "unauthorized", requestId }, 401, requestId)
     }
 
-    const requiredStr = ["endereco_obra", "maps_url", "tipo_obra", "telha_escolhida"] as const
-    for (const k of requiredStr) {
-      if (!String(obra?.[k] ?? "").trim()) {
-        const res = NextResponse.json<ApiErrorShape>(
-          { error: `Campo obrigatório ausente: ${k}`, code: "PAYLOAD_INVALIDO", requestId },
-          { status: 400 }
+    let body: any
+    try {
+      body = await req.json()
+    } catch {
+      return json({ error: "INVALID_JSON", requestId }, 400, requestId)
+    }
+
+    // validações mínimas (evita 500 por payload vazio)
+    const reqStr = ["endereco_obra", "maps_url", "tipo_obra", "telha_escolhida"] as const
+    for (const k of reqStr) {
+      if (!String(body?.[k] ?? "").trim()) {
+        return json(
+          {
+            error: "PAYLOAD_INVALIDO",
+            code: "FIELD_REQUIRED",
+            step: "validate",
+            details: { field: k },
+            requestId,
+          },
+          400,
+          requestId
         )
-        res.headers.set("X-Request-Id", requestId)
-        return res
       }
     }
-    const requiredNum = ["largura", "comprimento", "valor_obra", "valor_mao_de_obra"] as const
-    for (const k of requiredNum) {
-      if (!Number.isFinite(Number(obra?.[k]))) {
-        const res = NextResponse.json<ApiErrorShape>(
-          { error: `Campo numérico inválido: ${k}`, code: "PAYLOAD_INVALIDO", requestId },
-          { status: 400 }
+    const reqNum = ["orcamentoId", "largura", "comprimento", "valor_obra", "valor_mao_de_obra"] as const
+    for (const k of reqNum) {
+      if (!Number.isFinite(Number(body?.[k]))) {
+        return json(
+          {
+            error: "PAYLOAD_INVALIDO",
+            code: "FIELD_INVALID_NUMBER",
+            step: "validate",
+            details: { field: k },
+            requestId,
+          },
+          400,
+          requestId
         )
-        res.headers.set("X-Request-Id", requestId)
-        return res
       }
     }
 
-    const actorUserId = Number((session.user as any)?.id)
     const result = await criarObraComHeadPedidoCompra({
-      orcamentoId,
-      endereco_obra: obra.endereco_obra,
-      maps_url: obra.maps_url,
-      tipo_obra: obra.tipo_obra,
-      largura: obra.largura,
-      comprimento: obra.comprimento,
-      telha_escolhida: obra.telha_escolhida,
-      valor_obra: obra.valor_obra,
-      valor_mao_de_obra: obra.valor_mao_de_obra,
-      observacoes: obra.observacoes ?? null,
-      equipe_id: obra.equipe_id ?? null,
-      imagens,
-      actorUserId,
-      // campos iniciais opcionais do head (se quiser mandar do front)
-      area_telha: obra.area_telha ?? undefined,
-      orcamento_telha: obra.orcamento_telha ?? undefined,
-      orcamento_madeira: obra.orcamento_madeira ?? undefined,
+      orcamentoId: Number(body.orcamentoId),
+      endereco_obra: String(body.endereco_obra),
+      maps_url: String(body.maps_url),
+      tipo_obra: String(body.tipo_obra),
+      largura: body.largura,
+      comprimento: body.comprimento,
+      telha_escolhida: String(body.telha_escolhida),
+      valor_obra: body.valor_obra,
+      valor_mao_de_obra: body.valor_mao_de_obra,
+      observacoes: body.observacoes ?? null,
+      equipe_id: body.equipe_id ?? null,
+      imagens: Array.isArray(body.imagens) ? body.imagens : undefined,
+      area_telha: body.area_telha,
+      orcamento_telha: body.orcamento_telha,
+      orcamento_madeira: body.orcamento_madeira,
+      clienteCpf: body.clienteCpf,
+      forceUpdateClienteCpf: !!body.forceUpdateClienteCpf,
+      actorUserId: actorId,
     })
 
-    const res = NextResponse.json(
-      {
-        ok: true,
-        ...result,
-        requestId,
-      },
-      { status: 201 }
-    )
-    res.headers.set("X-Request-Id", requestId)
-    return res
+    return json({ data: result, requestId }, 201, requestId)
   } catch (err: any) {
-    const { status, body } = mapErrorToHttp(err as ObraCreateError, requestId)
-    const res = NextResponse.json(body, { status })
-    res.headers.set("X-Request-Id", requestId)
-    return res
+    const requestId2 = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+    if (err instanceof ObraCreateError) {
+      const map: Record<string, number> = {
+        PAYLOAD_INVALIDO: 400,
+        ORCAMENTO_NAO_ENCONTRADO: 404,
+        ORCAMENTO_JA_LANCADO: 409,
+        CPF_INVALIDO: 400,
+        CLIENTE_CPF_JA_PREENCHIDO: 409,
+        CLIENTE_NAO_ENCONTRADO: 404,
+        PEDIDO_HEAD_CREATE_FAILED: 500,
+        PEDIDO_LINK_CREATE_FAILED: 500,
+        IMAGENS_CREATE_FAILED: 500,
+        ORCAMENTO_UPDATE_FAILED: 500,
+        OBRA_CREATE_FAILED: 500,
+        AUDIT_FAILED: 500,
+      }
+      const status = map[err.code] ?? 500
+      return json(
+        { error: err.message, code: err.code, step: err.step, details: err.details, requestId: requestId2 },
+        status,
+        requestId2
+      )
+    }
+    console.error("[POST /api/obras] unexpected", err)
+    return json({ error: "UNEXPECTED_ERROR", requestId: requestId2 }, 500, requestId2)
   }
 }

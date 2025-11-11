@@ -62,7 +62,9 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   if (!resObra.ok) notFound()
 
-  const dto = (await resObra.json()) as ObraDetalheDTO
+  const dtoJson = await resObra.json()
+  // rotas padronizadas retornam { data }
+  const dto = (dtoJson?.data ?? dtoJson) as ObraDetalheDTO
 
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(
@@ -162,6 +164,40 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
+  // ===== Anexos (VIEW/EDIT) =====
+  const isLocalhost = host.includes("localhost")
+  const orcamentoLink =
+    Number.isFinite(orcId) && orcId
+      ? `${proto}://${host}/orcamento/detalhes/${orcId}`
+      : ""
+
+  // Esses campos dependem do DTO já trazer anexos (obra) e, como fallback, do orçamento:
+  const propostaFromObra = (dto as any)?.anexos?.proposta ?? (dto as any)?.proposta ?? ""
+  const contratoFromObra = (dto as any)?.anexos?.contrato ?? (dto as any)?.contrato ?? ""
+  const osFromObra = (dto as any)?.anexos?.ordemServico ?? (dto as any)?.ordemServico ?? ""
+
+  // Fallback para proposta do orçamento (link_slide)
+let propostaFromOrcamento = ""
+if (Number.isFinite(orcId)) {
+  try {
+    const resOrc = await fetch(`${base}/api/Orcamentos/${orcId}`, { /* ... */ })
+    if (resOrc.ok) {
+      const orc = (await resOrc.json()) as GetOrcamentoResult
+      propostaFromOrcamento = String(orc?.links?.slideUrl ?? "").trim()
+    }
+  } catch {
+    // ignora
+  }
+}
+
+
+  const anexosInit = {
+    orcamento: orcamentoLink,
+    proposta: String(propostaFromObra || propostaFromOrcamento || ""),
+    contrato: String(contratoFromObra || ""),
+    ordemServico: String(osFromObra || ""),
+  }
+
   return (
     <ObrasPage
       mode="view"
@@ -174,7 +210,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       equipeOptions={equipesOptions}
+      anexosInit={anexosInit}
     />
-
   )
 }

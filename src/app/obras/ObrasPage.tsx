@@ -7,7 +7,6 @@ import { Save, Pencil, X } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import Anexos from "./_sections/Anexos"
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
@@ -66,6 +65,17 @@ type Props = {
 
   /** Opções do combobox de equipe (virá do SSR quando o endpoint existir) */
   equipeOptions?: Option[]
+
+  /** Links estáticos do card de Anexos (se vierem, o card usa exatamente estes valores).
+   *  - create: normalmente virá { orcamento, proposta }, contrato/ordemServico vazios
+   *  - view/edit: podem vir todos preenchidos
+   */
+  anexosInit?: {
+    orcamento?: string | null
+    proposta?: string | null
+    contrato?: string | null
+    ordemServico?: string | null
+  }
 }
 
 /* ================= helpers ================= */
@@ -185,6 +195,7 @@ export default function ObrasPage({
   financeiroInit,
   execucaoInit,
   equipeOptions = [],
+  anexosInit,
 }: Props) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
@@ -317,6 +328,21 @@ export default function ObrasPage({
     setIsEditing(false)
   }
 
+  // ====== LINKS para o card Anexos ======
+  const orcamentoLinkFinal = useMemo(() => {
+    // 1) preferir o que veio do SSR
+    if (anexosInit?.orcamento) return anexosInit.orcamento
+    // 2) fallback: se só temos o ID do orçamento (modo "new"), monta a URL local
+    if (typeof window !== "undefined" && orcamentoId) {
+      return `${window.location.origin}/orcamento/detalhes/${orcamentoId}`
+    }
+    return ""
+  }, [anexosInit?.orcamento, orcamentoId])
+
+  const propostaLinkFinal = anexosInit?.proposta ?? ""
+  const contratoLinkFinal = anexosInit?.contrato ?? ""
+  const ordemServicoLinkFinal = anexosInit?.ordemServico ?? ""
+
   return (
     <PageLayout
       links={[
@@ -403,12 +429,16 @@ export default function ObrasPage({
           isEditing={isEditing}
           equipeOptions={equipeOptions}
         />
+      </div>
+
+      {/* Card 4 — Anexos (sempre estático; largura total; ao final da página) */}
+      <div className="mt-6">
         <Anexos
-          mode={mode} // "new" | "view" | "edit"
-          orcamentoId={orcamentoId} // no create vem da rota [orcamentoId]; no view/edit pode vir do DTO se houver vínculo
-          propostaLink={/* link_slide do orçamento (create) ou da obra (view/edit) */}
-          contratoLink={/* apenas view/edit: do DTO da obra */}
-          ordemServicoLink={/* apenas view/edit: do DTO da obra, se existir */}
+          mode={mode}
+          orcamentoLink={orcamentoLinkFinal}
+          propostaLink={propostaLinkFinal}
+          contratoLink={contratoLinkFinal}
+          ordemServicoLink={ordemServicoLinkFinal}
         />
       </div>
     </PageLayout>

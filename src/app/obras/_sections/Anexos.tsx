@@ -2,21 +2,34 @@
 
 import { useMemo } from "react"
 import { toast } from "sonner"
-import { Paperclip, Clipboard, ExternalLink, FileText, FileSignature, FileSpreadsheet, ClipboardCheck } from "lucide-react"
+import {
+  Paperclip,
+  ExternalLink,
+  FileText,
+  FileSignature,
+  FileSpreadsheet,
+} from "lucide-react"
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import CopyLinkButton from "@/components/ui/CopyLinkButton"
 
 type Mode = "new" | "view" | "edit"
 
 type Props = {
   mode: Mode
+  /** Se vier pronto, usamos este link. Caso não venha, tentamos montar via `orcamentoId`. */
+  orcamentoLink?: string | null
+  /** Usado apenas como fallback para montar a URL do orçamento local. */
   orcamentoId?: number | null
-  propostaLink?: string | null // link_slide (pode vir do orçamento no create e da obra no view/edit)
-  contratoLink?: string | null // só aparece em view/edit
-  ordemServicoLink?: string | null // só aparece em view/edit
+  /** link da proposta (ex: slide) */
+  propostaLink?: string | null
+  /** só aparece em view/edit */
+  contratoLink?: string | null
+  /** só aparece em view/edit */
+  ordemServicoLink?: string | null
   className?: string
 }
 
@@ -28,16 +41,6 @@ type LinkFieldProps = {
 
 function LinkField({ label, value, icon: Icon }: LinkFieldProps) {
   const hasValue = Boolean(value && value.trim().length > 0)
-
-  const copyToClipboard = async () => {
-    if (!hasValue || !value) return
-    try {
-      await navigator.clipboard.writeText(value)
-      toast.success("Link copiado!")
-    } catch {
-      toast.error("Não foi possível copiar o link.")
-    }
-  }
 
   const goTo = () => {
     if (!hasValue || !value) return
@@ -62,20 +65,19 @@ function LinkField({ label, value, icon: Icon }: LinkFieldProps) {
           className="h-10 rounded-xl bg-cinza border-0 text-black disabled:opacity-100 disabled:cursor-default"
           placeholder="—"
         />
+
+        {/* Botão de copiar — verde com ícone branco */}
+        <CopyLinkButton
+          value={value ?? ""}
+          label={`Copiar ${label}`}
+          color="green"
+          className="h-10 w-10 rounded-xl"
+        />
+
+        {/* Abrir link — verde com ícone branco */}
         <Button
           type="button"
-          variant="secondary"
-          className="rounded-xl"
-          onClick={copyToClipboard}
-          disabled={!hasValue}
-          aria-label={`Copiar ${label}`}
-          title="Copiar"
-        >
-          {hasValue ? <Clipboard className="h-4 w-4" /> : <ClipboardCheck className="h-4 w-4 opacity-50" />}
-        </Button>
-        <Button
-          type="button"
-          className="rounded-xl bg-green text-white hover:bg-green/90"
+          className="h-10 w-10 p-0 rounded-xl bg-green text-white hover:bg-green/90"
           onClick={goTo}
           disabled={!hasValue}
           aria-label={`Abrir ${label}`}
@@ -90,6 +92,7 @@ function LinkField({ label, value, icon: Icon }: LinkFieldProps) {
 
 export default function Anexos({
   mode,
+  orcamentoLink,
   orcamentoId,
   propostaLink,
   contratoLink,
@@ -97,14 +100,20 @@ export default function Anexos({
   className,
 }: Props) {
   const orcamentoUrl = useMemo(() => {
+    // 1) Se já veio pronto, usa direto
+    if (orcamentoLink && orcamentoLink.trim()) return orcamentoLink.trim()
+
+    // 2) Fallback: montar pela rota local usando o ID
     if (!orcamentoId) return ""
     if (typeof window === "undefined") return ""
+
     const isLocal =
       window.location.hostname === "localhost" ||
       window.location.hostname === "127.0.0.1"
-    const base = isLocal ? "http://localhost:3000" : "https://dev.grandesignce.com.br"
+
+    const base = isLocal ? "http://localhost:3000" : `${window.location.origin}`
     return `${base}/orcamento/detalhes/${orcamentoId}`
-  }, [orcamentoId])
+  }, [orcamentoLink, orcamentoId])
 
   const showExtra = mode !== "new" // contrato & OS só em view/edit
 

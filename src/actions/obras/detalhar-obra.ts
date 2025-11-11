@@ -46,6 +46,13 @@ type ObraRow = Prisma.obrasGetPayload<{ include: typeof obraInclude }>
 export type ObraDetalheDTO = {
   id: number
   orcamento: { id: number } | null
+  anexos: {
+    orcamentoId: number | null
+    propostaSlide: string | null
+    propostaPdf: string | null
+    contrato: string | null
+    ordemServico: string | null
+  }
   cliente: {
     id: number
     nome: string
@@ -142,6 +149,14 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
   const dto: ObraDetalheDTO = {
     id: row.id,
     orcamento: row.orcamento ? { id: row.orcamento.id } : null,
+
+    anexos: {
+      orcamentoId: row.orcamento?.id ?? null,
+      propostaSlide: row.link_slide_orcamento ?? null,
+      propostaPdf: row.link_pdf_orcamento ?? null,
+      contrato: row.link_contrato ?? null,
+      ordemServico: row.link_ordem_servico ?? null,
+    },
 
     cliente: {
       id: row.cliente_id,

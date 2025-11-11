@@ -76,12 +76,12 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
     tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw
   )
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
-      .map((x: any) => {
-        const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
-        const lab = String(label).trim()
-        return lab ? { value: lab, label: lab } : null
-      })
-      .filter(Boolean)
+        .map((x: any) => {
+          const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
+          const lab = String(label).trim()
+          return lab ? { value: lab, label: lab } : null
+        })
+        .filter(Boolean)
     : []
 
   const telhaOptions: Option[] = Array.from(
@@ -173,12 +173,12 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const toOptions = (arr: any[]): Option[] =>
     Array.isArray(arr)
       ? arr
-        .map((f: any) => {
-          const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
-          const value = String(f?.id ?? f?.fornecedor_id ?? label)
-          return label ? { value, label } : null
-        })
-        .filter(Boolean) as Option[]
+          .map((f: any) => {
+            const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
+            const value = String(f?.id ?? f?.fornecedor_id ?? label)
+            return label ? { value, label } : null
+          })
+          .filter(Boolean) as Option[]
       : []
 
   const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
@@ -195,17 +195,27 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
     ? equipesJson.data
-      .map((e: any) => {
-        const label = String(e?.nome ?? "").trim()
-        const value = String(e?.id ?? "")
-        return label ? { value, label } : null
-      })
-      .filter(Boolean)
+        .map((e: any) => {
+          const label = String(e?.nome ?? "").trim()
+          const value = String(e?.id ?? "")
+          return label ? { value, label } : null
+        })
+        .filter(Boolean)
     : []
 
   // Financeiro: mão de obra = empresaPS
   const financeiroInit: Partial<FinanceiroVM> = {
     maoDeObra: Number(orc?.totais?.empresaPS ?? 0),
+  }
+
+  // ===== Anexos (CREATE) =====
+  const orcamentoLink = `${proto}://${host}/orcamento/detalhes/${id}`
+  const propostaLink = String(orc?.links?.slideUrl ?? "").trim()
+  const anexosInit = {
+    orcamento: orcamentoLink,
+    proposta: propostaLink,
+    contrato: "",      // só aparece em view/edit
+    ordemServico: "",  // só aparece em view/edit
   }
 
   return (
@@ -222,7 +232,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       financeiroInit={financeiroInit}
       equipeOptions={equipesOptions}
+      anexosInit={anexosInit}
     />
-
   )
 }

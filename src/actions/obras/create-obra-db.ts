@@ -1,12 +1,7 @@
 // src/actions/obras/create-obra-db.ts
-"use server"
-
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 
-/** =========================
- *  Erros de domínio (códigos)
- *  ========================= */
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
   | "ORCAMENTO_NAO_ENCONTRADO"
@@ -18,7 +13,7 @@ export type ObraCreateErrorCode =
   | "ORCAMENTO_UPDATE_FAILED"
   | "AUDIT_FAILED"
   | "CPF_INVALIDO"
-  | "CLIENTE_CPF_JA_PREENCHIDO" // conflito de CPF sem force
+  | "CLIENTE_CPF_JA_PREENCHIDO"
   | "CLIENTE_NAO_ENCONTRADO"
 
 export class ObraCreateError extends Error {
@@ -49,8 +44,6 @@ export type ImagemInput = { url: string; ordem?: number | null; legenda?: string
 
 export type CriarObraInput = {
   orcamentoId: number
-
-  // Campos obrigatórios de obras (no DB)
   endereco_obra: string
   maps_url: string
   tipo_obra: string
@@ -59,29 +52,17 @@ export type CriarObraInput = {
   telha_escolhida: string
   valor_obra: Decimalish
   valor_mao_de_obra: Decimalish
-
-  // Opcionais para início
   observacoes?: string | null
   equipe_id?: number | null
-
-  // Imagens opcionais
   imagens?: ImagemInput[]
-
-  // Auditoria
   actorUserId: number
-
-  // (Opcional) valores iniciais de pedido_compra head
-  // Se não vierem, ficam 0/default (modelo já tem @default)
   area_telha?: Decimalish
   orcamento_telha?: Decimalish
   orcamento_madeira?: Decimalish
-
-  // (Opcional) cadastro/atualização de CPF do cliente (na mesma transação)
   clienteCpf?: string | null
   forceUpdateClienteCpf?: boolean
 }
 
-/** Resultado resumido para o front redirecionar e iniciar edição */
 export type CriarObraResult = {
   obraId: number
   orcamentoId: number
@@ -95,7 +76,6 @@ export type CriarObraResult = {
 }
 
 export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promise<CriarObraResult> {
-  // validação mínima do payload (sem zod, para não introduzir deps)
   if (!Number.isFinite(Number(input?.orcamentoId))) {
     throw new ObraCreateError("PAYLOAD_INVALIDO", "orcamentoId inválido.", "validate")
   }
@@ -135,7 +115,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   } = input
 
   return await prisma.$transaction(async (tx) => {
-    // 1) Orçamento precisa existir e NÃO estar lançado
     const orc = await tx.orcamento.findUnique({
       where: { id: orcamentoId },
       include: { obra: true },
@@ -147,7 +126,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       throw new ObraCreateError("ORCAMENTO_JA_LANCADO", "Já existe obra para este orçamento.", "check-orcamento", { orcamentoId })
     }
 
-    // 1.1) (Opcional) Atualizar CPF do cliente no mesmo fluxo
     if (clienteCpf !== undefined && clienteCpf !== null && String(clienteCpf).trim() !== "") {
       const cpfDigits = onlyDigits(clienteCpf)
       if (cpfDigits.length !== 11) {
@@ -166,7 +144,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
       const atual = onlyDigits(cliente.cpf)
       if (!atual) {
-        // preencher pela primeira vez
         const updated = await tx.cliente.update({
           where: { id: cliente.id },
           data: { cpf: cpfDigits },
@@ -183,7 +160,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         })
       } else if (atual !== cpfDigits) {
         if (!forceUpdateClienteCpf) {
-          // sinaliza conflito ao front para confirmar
           throw new ObraCreateError(
             "CLIENTE_CPF_JA_PREENCHIDO",
             "Cliente já possui CPF cadastrado e diferente.",
@@ -208,7 +184,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
     }
 
-    // 2) Criar OBRA (cliente vem do orçamento para evitar spoof do front)
     let obraId = 0
     try {
       const obra = await tx.obras.create({
@@ -229,9 +204,11 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
           observacoes: (observacoes ?? "") || null,
 
+          link_slide_orcamento: (orc.link_slide ?? null) || null,
+          link_pdf_orcamento: (orc.link_pdf ?? null) || null,
+
           createdBy: { connect: { id: actorUserId } },
           updatedBy: { connect: { id: actorUserId } },
-          // status tem default, pagamentos tem default
         },
         select: { id: true },
       })
@@ -244,7 +221,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       throw new ObraCreateError("OBRA_CREATE_FAILED", "Erro ao criar a obra.", "create-obra", { err: msg })
     }
 
-    // 3) Criar HEAD do pedido_compra (com defaults)
     let pedidoCompraId = 0
     try {
       const head = await tx.pedido_compra.create({
@@ -263,7 +239,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     }
 
-    // 4) Criar os 4 itens “link” (placeholders) e depois atrelar no head
     let ptId = 0, pmId = 0, pmatId = 0, paId = 0
     try {
       const [pt, pm, pmat, pa] = await Promise.all([
@@ -332,7 +307,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     }
 
-    // 5) Imagens (se houver)
     if (Array.isArray(imagens) && imagens.length > 0) {
       try {
         await tx.obra_imagens.createMany({
@@ -350,7 +324,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
     }
 
-    // 6) Marcar orçamento como lançado
     try {
       await tx.orcamento.update({
         where: { id: orcamentoId },
@@ -366,7 +339,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     }
 
-    // 7) Auditoria (não quebra a transação em caso de falha; mas tentamos)
     try {
       await tx.auditLog.createMany({
         data: [
@@ -375,7 +347,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             action: "OBRA_CREATE",
             entity: "obras",
             entity_id: obraId,
-            detail: { orcamentoId },
+            detail: { orcamentoId, links: { slide: orc.link_slide ?? null, pdf: orc.link_pdf ?? null } },
           },
           {
             user_id: actorUserId,
@@ -395,7 +367,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     } catch (err) {
       console.error("[audit-log] create failed", err)
-      // não aborta a transação de negócio
     }
 
     return {
