@@ -71,21 +71,21 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
     patch({ pagamento: { ...value.pagamento, quitacao: { ...quitacao, ...p } } })
 
   return (
-    <Card className={cn("rounded-2xl shadow-md bg-white border-0", className)}>
+    <Card className={cn("rounded-2xl shadow-md bg-white border-0", className)} id="financeiro">
       <CardContent className="p-6">
         <h3 className="text-2xl font-semibold text-green mb-4 flex items-center gap-2">
           <Wallet className="h-6 w-6 text-green" />
           Financeiro
         </h3>
 
-        {/* items-stretch: mesma altura; esquerda centralizada verticalmente */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-          {/* Coluna esquerda centralizada verticalmente */}
+          {/* Coluna esquerda: totais */}
           <div className="lg:col-span-1 flex flex-col justify-center">
             <div className="flex items-center gap-0.5 mb-3 sm:w-[520px]">
-              <Label className="text-black shrink-0 w-32">Valor da obra</Label>
+              <Label htmlFor="fin.valorObra" className="text-black shrink-0 w-32">Valor da obra</Label>
               {isEditing ? (
                 <Input
+                  id="fin.valorObra"
                   type="number"
                   className={cn(inputBase, "w-40")}
                   value={Number(value.valorObra ?? 0)}
@@ -99,9 +99,10 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
             </div>
 
             <div className="flex items-center gap-0.5 sm:w-[520px]">
-              <Label className="text-black shrink-0 w-32">Mão de obra</Label>
+              <Label htmlFor="fin.maoDeObra" className="text-black shrink-0 w-32">Mão de obra</Label>
               {isEditing ? (
                 <Input
+                  id="fin.maoDeObra"
                   type="number"
                   className={cn(inputBase, "w-40")}
                   value={Number(value.maoDeObra ?? 0)}
@@ -127,9 +128,10 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                 {/* Entrada */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Entrada</Label>
+                    <Label htmlFor="fin.entrada.valor" className="text-black shrink-0 w-20">Entrada</Label>
                     {isEditing ? (
                       <Input
+                        id="fin.entrada.valor"
                         type="number"
                         className={cn(inputWhite, "w-40")}
                         value={Number(entrada.valor ?? 0)}
@@ -143,7 +145,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Forma</Label>
+                    <Label htmlFor="fin.entrada.forma" className="text-black shrink-0 w-20">Forma</Label>
+                    {/* Âncora invisível para foco/scroll */}
+                    <input id="fin.entrada.forma" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -162,7 +166,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Status</Label>
+                    <Label htmlFor="fin.entrada.status" className="text-black shrink-0 w-20">Status</Label>
+                    {/* Âncora invisível para foco/scroll */}
+                    <input id="fin.entrada.status" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -186,9 +192,10 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                 {/* Quitação */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Quitação</Label>
+                    <Label htmlFor="fin.quitacao.valor" className="text-black shrink-0 w-20">Quitação</Label>
                     {isEditing ? (
                       <Input
+                        id="fin.quitacao.valor"
                         type="number"
                         className={cn(inputWhite, "w-40")}
                         value={Number(quitacao.valor ?? 0)}
@@ -202,7 +209,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Forma</Label>
+                    <Label htmlFor="fin.quitacao.forma" className="text-black shrink-0 w-20">Forma</Label>
+                    {/* Âncora invisível para foco/scroll */}
+                    <input id="fin.quitacao.forma" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -221,7 +230,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label className="text-black shrink-0 w-20">Status</Label>
+                    <Label htmlFor="fin.quitacao.status" className="text-black shrink-0 w-20">Status</Label>
+                    {/* Âncora invisível para foco/scroll */}
+                    <input id="fin.quitacao.status" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -244,6 +255,7 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
               </div>
             </div>
           </div>
+          {/* fim pagamento */}
         </div>
       </CardContent>
     </Card>

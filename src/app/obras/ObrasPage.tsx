@@ -63,13 +63,10 @@ type Props = {
     dataPrevConclusao?: string | null
   }
 
-  /** Opções do combobox de equipe (virá do SSR quando o endpoint existir) */
+  /** Opções do combobox de equipe (SSR) */
   equipeOptions?: Option[]
 
-  /** Links estáticos do card de Anexos (se vierem, o card usa exatamente estes valores).
-   *  - create: normalmente virá { orcamento, proposta }, contrato/ordemServico vazios
-   *  - view/edit: podem vir todos preenchidos
-   */
+  /** Links estáticos do card de Anexos */
   anexosInit?: {
     orcamento?: string | null
     proposta?: string | null
@@ -180,6 +177,24 @@ function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
   }
 }
 
+/** Utils: foco/scroll em campo obrigatório */
+function focusById(id: string) {
+  if (typeof document === "undefined") return
+  const el = document.getElementById(id)
+  if (el) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+    // tenta focar algo clicável interno (ex: botão do Combobox)
+    // se for input sr-only (âncora), o focus nele já centraliza
+    ;(el as HTMLElement).focus?.()
+  }
+}
+
+function isEmpty(v: any) {
+  if (v === null || v === undefined) return true
+  if (typeof v === "string") return v.trim() === ""
+  return false
+}
+
 export default function ObrasPage({
   mode,
   obraId,
@@ -253,29 +268,160 @@ export default function ObrasPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telhaOrcamentoDerivado])
 
+  /** ===== Validação de campos obrigatórios (front-only) ===== */
+  function validateAndFocus(): boolean {
+    // InfosGerais — obrigatórios
+    if (isEmpty(vm.tipoObra)) {
+      toast.error("Tipo de obra é obrigatório.")
+      focusById("info.tipoObra")
+      return false
+    }
+    if (!(Number(vm.largura) > 0)) {
+      toast.error("Largura é obrigatória.")
+      focusById("info.largura")
+      return false
+    }
+    if (!(Number(vm.comprimento) > 0)) {
+      toast.error("Comprimento é obrigatório.")
+      focusById("info.comprimento")
+      return false
+    }
+    if (isEmpty(vm.telhaEscolhida)) {
+      toast.error("Selecione a telha.")
+      focusById("info.telhaEscolhida")
+      return false
+    }
+    if (isEmpty(vm.status)) {
+      toast.error("Status é obrigatório.")
+      focusById("info.status")
+      return false
+    }
+    if (isEmpty(vm?.cliente?.nome)) {
+      toast.error("Nome do cliente é obrigatório (vem do orçamento).")
+      focusById("info.cliente.nome") // âncora opcional; se não existir, apenas mostra o erro
+      // não retorno false aqui para não travar se id não existir; mas mantemos padrão:
+      return false
+    }
+    if (isEmpty(vm?.cliente?.telefone)) {
+      toast.error("Telefone do cliente é obrigatório (vem do orçamento).")
+      focusById("info.cliente.telefone")
+      return false
+    }
+    if (isEmpty(vm?.cliente?.cpf)) {
+      toast.error("CPF do cliente é obrigatório.")
+      focusById("info.cliente.cpf")
+      return false
+    }
+
+    // Financeiro — obrigatórios
+    if (!(Number(fin?.valorObra) > 0)) {
+      toast.error("Valor da obra é obrigatório.")
+      focusById("fin.valorObra")
+      return false
+    }
+    if (!(Number(fin?.maoDeObra) >= 0)) {
+      // você pediu obrigatório; considere >0 se quiser evitar 0
+      toast.error("Mão de obra é obrigatória.")
+      focusById("fin.maoDeObra")
+      return false
+    }
+    const ent = fin?.pagamento?.entrada ?? {}
+    if (!(Number(ent?.valor) >= 0)) {
+      toast.error("Valor de entrada é obrigatório.")
+      focusById("fin.entrada.valor")
+      return false
+    }
+    if (isEmpty(ent?.forma)) {
+      toast.error("Forma da entrada é obrigatória.")
+      focusById("fin.entrada.forma")
+      return false
+    }
+    if (isEmpty(ent?.status)) {
+      toast.error("Status da entrada é obrigatório.")
+      focusById("fin.entrada.status")
+      return false
+    }
+    const qui = fin?.pagamento?.quitacao ?? {}
+    if (!(Number(qui?.valor) >= 0)) {
+      toast.error("Valor da quitação é obrigatório.")
+      focusById("fin.quitacao.valor")
+      return false
+    }
+    if (isEmpty(qui?.forma)) {
+      toast.error("Forma da quitação é obrigatória.")
+      focusById("fin.quitacao.forma")
+      return false
+    }
+    if (isEmpty(qui?.status)) {
+      toast.error("Status da quitação é obrigatório.")
+      focusById("fin.quitacao.status")
+      return false
+    }
+
+    // Execução — obrigatórios
+    if (vm.status !== "Finalizado") {
+      if (isEmpty(exec?.equipeId) || Number.isNaN(Number(exec?.equipeId!))) {
+        toast.error("Equipe é obrigatória.")
+        focusById("exec.equipeId")
+        return false
+      }
+      if (!exec?.dataPrevInicio) {
+        toast.error("Data prevista de início é obrigatória.")
+        focusById("exec.dataPrevInicio")
+        return false
+      }
+      if (!exec?.dataPrevConclusao) {
+        toast.error("Data prevista de conclusão é obrigatória.")
+        focusById("exec.dataPrevConclusao")
+        return false
+      }
+    }
+
+    return true
+  }
+
   async function onSave() {
     try {
       setSaving(true)
+
+      // valida sempre (create e update)
+      if (!validateAndFocus()) return
+
       if (mode === "new") {
         if (!orcamentoId) {
           toast.error("Orçamento não informado.")
           return
         }
+
+        // conforme regra: logradouro/maps NÃO obrigatórios
+        const enderecoObra = (vm.endereco.logradouro || "").trim()
+        const mapsUrl = (vm.endereco.mapsUrl || "").trim()
+        const tipoObra = (vm.tipoObra || "").trim()
+        const telhaEscolhida = (vm.telhaEscolhida || "").trim()
+
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
-          endereco_obra: vm.endereco.logradouro,
-          maps_url: vm.endereco.mapsUrl,
-          tipo_obra: vm.tipoObra || "",
-          largura: vm.largura ?? 0,
-          comprimento: vm.comprimento ?? 0,
-          telha_escolhida: vm.telhaEscolhida || "",
-          // se o backend do POST aceitar, já enviamos:
+          endereco_obra: enderecoObra,
+          maps_url: mapsUrl,
+          tipo_obra: tipoObra,
+          largura: Number(vm.largura ?? 0),
+          comprimento: Number(vm.comprimento ?? 0),
+          telha_escolhida: telhaEscolhida,
           valor_obra: Number(fin.valorObra ?? 0),
           valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
           observacoes: vm.observacoes ?? null,
-          actorUserId: 0,
-          clienteCpf: vm.cliente?.cpf ?? null,
+          equipe_id: exec.equipeId ?? null,
+          imagens: (vm.imagens ?? []).map((img, i) => ({
+            url: String(img.url || "").trim(),
+            ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
+            legenda: (img.legenda ?? "") || null,
+          })),
+          area_telha: Number(pedido?.telha?.area ?? 0),
+          orcamento_telha: Number(pedido?.telha?.orcamento ?? 0),
+          orcamento_madeira: Number(pedido?.madeira?.orcamento ?? 0),
+          clienteCpf: (vm.cliente?.cpf || "").trim() || null,
         }
+
         const r = await createObra(payload)
         toast.success("Obra criada.")
         router.push(`/obras/${r.obraId}`)
@@ -330,9 +476,7 @@ export default function ObrasPage({
 
   // ====== LINKS para o card Anexos ======
   const orcamentoLinkFinal = useMemo(() => {
-    // 1) preferir o que veio do SSR
     if (anexosInit?.orcamento) return anexosInit.orcamento
-    // 2) fallback: se só temos o ID do orçamento (modo "new"), monta a URL local
     if (typeof window !== "undefined" && orcamentoId) {
       return `${window.location.origin}/orcamento/detalhes/${orcamentoId}`
     }
@@ -400,7 +544,7 @@ export default function ObrasPage({
         />
       </div>
 
-      {/* Card 3 — Pedido de Compra */}
+      {/* Card 3 — Pedido de Compra (não obrigatório) */}
       <PedidoCompra
         value={pedido}
         onChange={patchPedido}
@@ -415,12 +559,7 @@ export default function ObrasPage({
 
       {/* Linha: Financeiro (2/3) + Execução (1/3) */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Financeiro
-          className="lg:col-span-2"
-          value={fin}
-          onChange={patchFinanceiro}
-          isEditing={isEditing}
-        />
+        <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
 
         <Execucao
           className="lg:col-span-1"
@@ -431,7 +570,7 @@ export default function ObrasPage({
         />
       </div>
 
-      {/* Card 4 — Anexos (sempre estático; largura total; ao final da página) */}
+      {/* Card 4 — Anexos (sempre estático; largura total) */}
       <div className="mt-6">
         <Anexos
           mode={mode}

@@ -62,15 +62,18 @@ export default function InfosGerais({
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
       {/* CARD 1 — Tipo de obra */}
-      <Card className="rounded-2xl shadow-md bg-white border-0">
+      <Card className="rounded-2xl shadow-md bg-white border-0" id="infos">
         <CardContent className="p-5">
           <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">
             <Hammer className="h-5 w-5 text-green" />
             Tipo de obra
           </h3>
 
+          {/* Tipo de obra (OBRIGATÓRIO) */}
           <div className="flex flex-col gap-1 mb-4">
-            <Label className="text-black">Tipo de obra</Label>
+            <Label htmlFor="infos.tipoObra" className="text-black">Tipo de obra</Label>
+            {/* Anchor invisível para foco/scroll no salvar */}
+            <input id="infos.tipoObra" className="sr-only" aria-hidden readOnly />
             {isEditing ? (
               <div className="rounded-xl">
                 <ComboboxAdd
@@ -88,11 +91,13 @@ export default function InfosGerais({
             )}
           </div>
 
+          {/* Largura / Comprimento (OBRIGATÓRIOS) */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="flex flex-col gap-1">
-              <Label className="text-black">Largura</Label>
+              <Label htmlFor="infos.largura" className="text-black">Largura</Label>
               {isEditing ? (
                 <Input
+                  id="infos.largura"
                   type="number"
                   min={0}
                   step={0.01}
@@ -106,9 +111,10 @@ export default function InfosGerais({
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label className="text-black">Comprimento</Label>
+              <Label htmlFor="infos.comprimento" className="text-black">Comprimento</Label>
               {isEditing ? (
                 <Input
+                  id="infos.comprimento"
                   type="number"
                   min={0}
                   step={0.01}
@@ -122,9 +128,12 @@ export default function InfosGerais({
             </div>
           </div>
 
+          {/* Telha / Status (AMBOS OBRIGATÓRIOS) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
-              <Label className="text-black">Telha</Label>
+              <Label htmlFor="infos.telha" className="text-black">Telha</Label>
+              {/* Anchor invisível para foco/scroll */}
+              <input id="infos.telha" className="sr-only" aria-hidden readOnly />
               {isEditing ? (
                 <div className="rounded-xl">
                   <ComboboxAdd
@@ -143,7 +152,9 @@ export default function InfosGerais({
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label className="text-black">Status</Label>
+              <Label htmlFor="infos.status" className="text-black">Status</Label>
+              {/* Anchor invisível para foco/scroll */}
+              <input id="infos.status" className="sr-only" aria-hidden readOnly />
               {isEditing ? (
                 <div className="rounded-xl">
                   <ComboboxAdd
@@ -179,44 +190,38 @@ export default function InfosGerais({
             )}
           </div>
 
+          {/* Nome (sempre desabilitado) */}
           <div className="flex flex-col gap-1 mb-4">
             <Label className="text-black">Nome</Label>
-            {isEditing ? (
-              <Input
-                className={inputClass}
-                value={value.cliente?.nome ?? ""}
-                onChange={(e) => onChange({ cliente: { ...(value.cliente ?? {}), nome: e.target.value } })}
-              />
-            ) : (
-              <div className="font-semibold text-black">{value.cliente?.nome || "—"}</div>
-            )}
+            <Input
+              disabled
+              readOnly
+              className={inputClass}
+              value={value.cliente?.nome ?? ""}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {/* Telefone (sempre desabilitado) */}
             <div className="flex flex-col gap-1">
               <Label className="text-black">Telefone</Label>
-              {isEditing ? (
-                <Input
-                  className={inputClass}
-                  value={value.cliente?.telefone ?? ""}
-                  onChange={(e) => onChange({ cliente: { ...(value.cliente ?? {}), telefone: e.target.value } })}
-                />
-              ) : (
-                <div className="font-semibold text-black">{value.cliente?.telefone || "—"}</div>
-              )}
+              <Input
+                disabled
+                readOnly
+                className={inputClass}
+                value={value.cliente?.telefone ?? ""}
+              />
             </div>
 
+            {/* CPF (OBRIGATÓRIO e editável) */}
             <div className="flex flex-col gap-1">
-              <Label className="text-black">CPF</Label>
-              {isEditing ? (
-                <Input
-                  className={inputClass}
-                  value={value.cliente?.cpf ?? ""}
-                  onChange={(e) => onChange({ cliente: { ...(value.cliente ?? {}), cpf: e.target.value } })}
-                />
-              ) : (
-                <div className="font-semibold text-black">{value.cliente?.cpf || "—"}</div>
-              )}
+              <Label htmlFor="infos.cpf" className="text-black">CPF</Label>
+              <Input
+                id="infos.cpf"
+                className={inputClass}
+                value={value.cliente?.cpf ?? ""}
+                onChange={(e) => onChange({ cliente: { ...(value.cliente ?? {}), cpf: e.target.value } })}
+              />
             </div>
           </div>
         </CardContent>
@@ -237,6 +242,7 @@ export default function InfosGerais({
             )}
           </div>
 
+          {/* Logradouro (não obrigatório, editável em modo edição) */}
           <div className="flex flex-col gap-1 mb-4">
             <Label className="text-black">Logradouro</Label>
             {isEditing ? (
@@ -246,37 +252,35 @@ export default function InfosGerais({
                 onChange={(e) => onChange({ endereco: { ...(value.endereco ?? {}), logradouro: e.target.value } })}
               />
             ) : (
-              <div className="font-semibold text-black">{value.endereco?.logradouro || "—"}</div>
+              <Input disabled readOnly className={inputClass} value={value.endereco?.logradouro ?? ""} />
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
+            {/* Bairro (sempre desabilitado) */}
             <div className="flex flex-col gap-1">
               <Label className="text-black">Bairro</Label>
-              {isEditing ? (
-                <Input
-                  className={inputClass}
-                  value={value.endereco?.bairro ?? ""}
-                  onChange={(e) => onChange({ endereco: { ...(value.endereco ?? {}), bairro: e.target.value } })}
-                />
-              ) : (
-                <div className="font-semibold text-black">{value.endereco?.bairro || "—"}</div>
-              )}
+              <Input
+                disabled
+                readOnly
+                className={inputClass}
+                value={value.endereco?.bairro ?? ""}
+              />
             </div>
+
+            {/* Cidade (sempre desabilitado) */}
             <div className="flex flex-col gap-1">
               <Label className="text-black">Cidade</Label>
-              {isEditing ? (
-                <Input
-                  className={inputClass}
-                  value={value.endereco?.cidade ?? ""}
-                  onChange={(e) => onChange({ endereco: { ...(value.endereco ?? {}), cidade: e.target.value } })}
-                />
-              ) : (
-                <div className="font-semibold text-black">{value.endereco?.cidade || "—"}</div>
-              )}
+              <Input
+                disabled
+                readOnly
+                className={inputClass}
+                value={value.endereco?.cidade ?? ""}
+              />
             </div>
           </div>
 
+          {/* Maps (não obrigatório, editável em modo edição) */}
           <div className="flex flex-col gap-1">
             <Label className="text-black">Maps</Label>
             {isEditing ? (
@@ -286,7 +290,7 @@ export default function InfosGerais({
                 onChange={(e) => onChange({ endereco: { ...(value.endereco ?? {}), mapsUrl: e.target.value } })}
               />
             ) : (
-              <div className="font-semibold text-black">{value.endereco?.mapsUrl || "—"}</div>
+              <Input disabled readOnly className={inputClass} value={value.endereco?.mapsUrl ?? ""} />
             )}
           </div>
         </CardContent>

@@ -32,13 +32,14 @@ type Props = {
 const inputGrayGreen =
   "h-9 border border-green/40 bg-cinza text-green rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
 
-
 function DateField({
+  id,
   label,
   date,
   onSelect,
   disabled,
 }: {
+  id: string
   label: string
   date: Date | null | undefined
   onSelect: (d: Date | undefined) => void
@@ -47,7 +48,11 @@ function DateField({
   const text = useMemo(() => (date ? format(date, "dd/MM/yyyy") : "Selecionar…"), [date])
   return (
     <div className="flex items-center gap-0.5">
-      <Label className="text-black shrink-0 w-40">{label}</Label>
+      <Label htmlFor={id} className="text-black shrink-0 w-40">
+        {label}
+      </Label>
+      {/* Âncora invisível para foco/scroll */}
+      <input id={id} className="sr-only" aria-hidden readOnly />
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -64,19 +69,13 @@ function DateField({
         </PopoverTrigger>
         {!disabled && (
           <PopoverContent className="p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={date ?? undefined}
-              onSelect={onSelect}
-              colorVariant="gray-green"
-            />
+            <Calendar mode="single" selected={date ?? undefined} onSelect={onSelect} colorVariant="gray-green" />
           </PopoverContent>
         )}
       </Popover>
     </div>
   )
 }
-
 
 export default function Execucao({
   value,
@@ -91,7 +90,7 @@ export default function Execucao({
     (equipeOptions.find((o) => String(o.value) === String(value.equipeId))?.label as string) || "Selecione"
 
   return (
-    <Card className={cn("rounded-2xl shadow-md bg-white border-0", className)}>
+    <Card className={cn("rounded-2xl shadow-md bg-white border-0", className)} id="execucao">
       <CardContent className="p-6">
         <h3 className="text-2xl font-semibold text-green mb-4 flex items-center gap-2">
           <Users className="h-6 w-6 text-green" />
@@ -99,9 +98,13 @@ export default function Execucao({
         </h3>
 
         <div className="grid grid-cols-1 gap-4">
-          {/* Equipe */}
+          {/* Equipe (obrigatório) */}
           <div className="flex items-center gap-0.5">
-            <Label className="text-black shrink-0 w-40">Equipe</Label>
+            <Label htmlFor="exec.equipeId" className="text-black shrink-0 w-40">
+              Equipe
+            </Label>
+            {/* Âncora invisível para foco/scroll */}
+            <input id="exec.equipeId" className="sr-only" aria-hidden readOnly />
             {isEditing ? (
               <div className="w-64">
                 <ComboboxAdd
@@ -121,8 +124,9 @@ export default function Execucao({
             )}
           </div>
 
-          {/* Datas */}
+          {/* Datas (obrigatórias) */}
           <DateField
+            id="exec.dataPrevInicio"
             label="Data prevista de início"
             date={value.dataPrevInicio ?? null}
             onSelect={(d) => patch({ dataPrevInicio: d ?? null })}
@@ -130,6 +134,7 @@ export default function Execucao({
           />
 
           <DateField
+            id="exec.dataPrevConclusao"
             label="Data prevista de conclusão"
             date={value.dataPrevConclusao ?? null}
             onSelect={(d) => patch({ dataPrevConclusao: d ?? null })}

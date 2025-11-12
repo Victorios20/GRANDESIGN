@@ -156,7 +156,6 @@ export type CreateObraPayload = {
   observacoes?: string | null
   equipe_id?: number | null
   imagens?: ImagemInput[]
-  actorUserId: number
   area_telha?: number | string
   orcamento_telha?: number | string
   orcamento_madeira?: number | string
@@ -285,7 +284,6 @@ export type PedidoCompraVM = {
     status: PedidoStatusPadrao
     previsao: string | null
     fornecedorId?: number | null
-    /** orçamento total de madeiras vindo do orçamento (backend) */
     orcamento?: number
     itens: Array<{ id?: number; componente: string; madeiraNome: string; descricao: string; quantidade: number; tamanho: number; precoUnitario: number; total: number }>
   }
