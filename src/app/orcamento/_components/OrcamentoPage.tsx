@@ -27,9 +27,9 @@ import type { MaterialCalculado } from "@/actions/calcular-materiais/calcularMat
 
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
 
-
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
+import { logOrcamentoWebhook } from "@/api/useLogWebhook"
 
 
 import type { UpdateOrcamentoInput } from "@/actions/edit-orcamento-db/edit-orcamento-db"
@@ -615,6 +615,13 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const { data: session } = useSession()
     const currentUserId = session?.user?.id ? Number(session.user.id) : -1
 
+    const usuarioLog = {
+        id: session?.user?.id ?? null,
+        nome: session?.user?.name ?? null,
+        email: session?.user?.email ?? null,
+    }
+
+
     const isEdit = props.mode === "edit"
 
     // props comuns (existem em ambos os ramos)
@@ -837,6 +844,15 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }
         return true
     }
+
+    const buildClienteLog = () => ({
+        id: clienteId ?? undefined,
+        nome: form.nome,
+        telefone: form.telefone,
+        bairro: form.bairro,
+        cidade: form.cidade,
+    })
+
 
 
     // ------ Autocomplete states (Nome / Telefone) ------
@@ -1488,6 +1504,15 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         }
                         await updateOrcamentoAPI(orcamentoId, payload)
 
+                        await logOrcamentoWebhook({
+                            acao: "EDITAR_ORCAMENTO",
+                            orcamentoId,
+                            titulo: snap,
+                            cliente: buildClienteLog(),
+                            usuario: usuarioLog,
+                            dadosOrcamento: payload,
+                        })
+
                     } else {
                         // exige cliente associado
                         if (!ensureClienteAssociado()) {
@@ -1505,8 +1530,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             titulo: snap,
                         }
                         console.log("payload create", payloadCreate)
-                        await salvarOrcamentoAPI(payloadCreate)
+                        const novoId = await salvarOrcamentoAPI(payloadCreate)
 
+                        await logOrcamentoWebhook({
+                            acao: "CRIAR_ORCAMENTO",
+                            orcamentoId: novoId,
+                            titulo: snap,
+                            cliente: buildClienteLog(),
+                            usuario: usuarioLog,
+                            dadosOrcamento: payloadCreate,
+                        })
                     }
 
 
@@ -1529,6 +1562,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             setLoadingPDF(false)
         }
     }
+
 
 
 
@@ -1798,7 +1832,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                         <div className="flex flex-col">
                                                             <span className="font-medium">{c.nome}</span>
                                                             <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "-"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
                                                             </span>
                                                         </div>
                                                     </CommandItem>
@@ -1855,7 +1889,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                         <div className="flex flex-col">
                                                             <span className="font-medium">{c.nome}</span>
                                                             <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "-"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
                                                             </span>
                                                         </div>
                                                     </CommandItem>
@@ -2648,14 +2682,20 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 titulo: tituloTemporario,
                                             }
                                             console.log("payload create (rascunho)", payloadRascunho)
-                                            await salvarRascunhoAPI(payloadRascunho)
+                                            const novoId = await salvarRascunhoAPI(payloadRascunho)
 
+                                            await logOrcamentoWebhook({
+                                                acao: "CRIAR_RASCUNHO_ORCAMENTO",
+                                                orcamentoId: novoId,
+                                                titulo: tituloTemporario,
+                                                cliente: buildClienteLog(),
+                                                usuario: usuarioLog,
+                                                dadosOrcamento: payloadRascunho,
+                                            })
 
                                             toast.success("Rascunho salvo com sucesso!")
                                             setModalSucessoAberto(true)
                                         } catch (err: unknown) {
-                                            // ...
-
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar rascunho"
                                             toast.error(msg)
                                         } finally {
@@ -2669,10 +2709,21 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         try {
                                             if (!orcamentoId) throw new Error("ID do orçamento ausente.")
                                             setLoadingSave(true)
-                                            await updateOrcamentoAPI(orcamentoId, {
+                                            const payloadUpdate: UpdateOrcamentoInput = {
                                                 ...buildDbPayload(),
                                                 titulo: tituloTemporario.trim(),
+                                            }
+                                            await updateOrcamentoAPI(orcamentoId, payloadUpdate)
+
+                                            await logOrcamentoWebhook({
+                                                acao: "EDITAR_ORCAMENTO",
+                                                orcamentoId,
+                                                titulo: tituloTemporario.trim(),
+                                                cliente: buildClienteLog(),
+                                                usuario: usuarioLog,
+                                                dadosOrcamento: payloadUpdate,
                                             })
+
                                             toast.success("Orçamento atualizado com sucesso!")
                                         } catch (err: unknown) {
                                             const msg = err instanceof Error ? err.message : "Erro ao atualizar orçamento"
@@ -2688,11 +2739,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         try {
                                             if (!ensureClienteAssociado()) return
                                             setLoadingSave(true)
+                                            const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
+
                                             // se não tiver links, gravamos como rascunho; se tiver, como definitivo
                                             if (links.slide || links.pdf) {
-                                                const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-                                                await salvarOrcamentoAPI({
-                                                    clienteId: Number(clienteId),          // <— NOVO
+                                                const payloadCopia = {
+                                                    clienteId: Number(clienteId),
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
@@ -2700,25 +2752,44 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                     telhaValores: telhaValoresAtual,
                                                     links: { slideUrl: links.slide ?? "", pdfUrl: links.pdf ?? "" },
                                                     titulo: tituloTemporario,
+                                                }
+                                                const novoId = await salvarOrcamentoAPI(payloadCopia)
+
+                                                await logOrcamentoWebhook({
+                                                    acao: "CRIAR_COPIA_ORCAMENTO",
+                                                    orcamentoId: novoId,
+                                                    titulo: tituloTemporario,
+                                                    cliente: buildClienteLog(),
+                                                    usuario: usuarioLog,
+                                                    dadosOrcamento: payloadCopia,
                                                 })
+
                                                 toast.success("Cópia salva como novo orçamento!")
                                             } else {
-                                                const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-                                                await salvarRascunhoAPI({
-                                                    clienteId: Number(clienteId),          // <— NOVO
+                                                const payloadCopiaRascunho = {
+                                                    clienteId: Number(clienteId),
                                                     cliente: form,
                                                     parametros: { tipoObra: tipoObra ?? "", ...dim },
                                                     materiais,
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,
                                                     titulo: tituloTemporario,
+                                                }
+                                                const novoId = await salvarRascunhoAPI(payloadCopiaRascunho)
+
+                                                await logOrcamentoWebhook({
+                                                    acao: "CRIAR_COPIA_ORCAMENTO",
+                                                    orcamentoId: novoId,
+                                                    titulo: tituloTemporario,
+                                                    cliente: buildClienteLog(),
+                                                    usuario: usuarioLog,
+                                                    dadosOrcamento: payloadCopiaRascunho,
                                                 })
+
                                                 toast.success("Cópia salva como rascunho!")
                                             }
 
                                         } catch (err: unknown) {
-                                            // ...
-
                                             const msg = err instanceof Error ? err.message : "Erro ao salvar cópia"
                                             toast.error(msg)
                                         } finally {
@@ -2729,11 +2800,11 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
                                     if (modalMode === "gerar") {
                                         const rawTitle = tituloTemporario.trim().replace(/\s+/g, " ")
-                                        const normForCompare = normalize(rawTitle)        // só para comparar mudanças
+                                        const normForCompare = normalize(rawTitle)
                                         setTituloConfirmado(true)
                                         setTituloSnap(normForCompare)
                                         setAutoTituloSnap(normalize(gerarTituloAutomatico()))
-                                        await handleGerarProposta(rawTitle)              // salva com caixa original
+                                        await handleGerarProposta(rawTitle)
                                     }
 
                                 }}
@@ -2741,6 +2812,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             >
                                 Confirmar
                             </Button>
+
                         </div>
                     </div>
                 </div>
