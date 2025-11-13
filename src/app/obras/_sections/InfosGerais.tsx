@@ -2,7 +2,19 @@
 
 import { useMemo } from "react"
 import { toast } from "sonner"
-import { Copy, Hammer, User, MapPin } from "lucide-react"
+import {
+  Copy,
+  Hammer,
+  User,
+  MapPin,
+  FileCheck,
+  Wrench,
+  ShoppingCart,
+  PlayCircle,
+  CreditCard,
+  AlertTriangle,
+  CheckCircle2,
+} from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -11,6 +23,9 @@ import { Button } from "@/components/ui/button"
 import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 
 import type { ObraInfosVM, ObraStatus } from "../lib/types"
+
+// novo componente unificado de status
+import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
 
 type Option = { value: string; label: string }
 
@@ -22,15 +37,16 @@ type Props = {
   telhaOptions: Option[]
 }
 
-const STATUS: ObraStatus[] = [
-  "Assinatura de contrato",
-  "Aguardando validação técnica",
-  "Compras",
-  "À iniciar",
-  "Execução",
-  "Aguardando pagamento",
-  "Pendência",
-  "Finalizado",
+// catálogo de status com cores e ícones
+const STATUS_OPTIONS: StatusOption<ObraStatus>[] = [
+  { label: "Assinatura de contrato",        value: "Assinatura de contrato",        color: "purple", icon: FileCheck },
+  { label: "validação técnica",  value: "Aguardando validação técnica",  color: "amber",  icon: Wrench },
+  { label: "Compras",                        value: "Compras",                        color: "blue",   icon: ShoppingCart },
+  { label: "À iniciar",                      value: "À iniciar",                      color: "zinc",   icon: PlayCircle },
+  { label: "Execução",                       value: "Execução",                       color: "emerald",icon: Hammer },
+  { label: "Aguardando pagamento",           value: "Aguardando pagamento",           color: "yellow", icon: CreditCard },
+  { label: "Pendência",                      value: "Pendência",                      color: "red",    icon: AlertTriangle },
+  { label: "Finalizado",                     value: "Finalizado",                     color: "green",  icon: CheckCircle2 },
 ]
 
 const inputClass =
@@ -86,7 +102,7 @@ export default function InfosGerais({
                 />
               </div>
             ) : (
-              <div className="font-semibold text-black">{value.tipoObra || "—"}</div>
+              <div className="font-semibold text-black">{value.tipoObra || "-"}</div>
             )}
           </div>
 
@@ -145,28 +161,22 @@ export default function InfosGerais({
                   />
                 </div>
               ) : (
-                <div className="font-semibold text-black">{value.telhaEscolhida || "—"}</div>
+                <div className="font-semibold text-black">{value.telhaEscolhida || "-"}</div>
               )}
             </div>
 
             <div className="flex flex-col gap-1">
               <Label htmlFor="infos.status" className="text-black">Status</Label>
               <input id="infos.status" className="sr-only" aria-hidden readOnly />
-              {isEditing ? (
-                <div className="rounded-xl">
-                  <ComboboxAdd
-                    buttonText={value.status || "Selecione"}
-                    placeholder="Buscar status..."
-                    widthClass="w-full"
-                    items={STATUS.map((s) => ({ value: s, label: s }))}
-                    colorVariant="gray-green"
-                    onSelect={(s) => onChange({ status: s as ObraStatus })}
-                    showEmptyOption={false}
-                  />
-                </div>
-              ) : (
-                <div className="font-semibold text-black">{value.status || "—"}</div>
-              )}
+              {/* usando StatusSelect — dinâmico em edição; estático (pill) em view */}
+              <StatusSelect<ObraStatus>
+                options={STATUS_OPTIONS}
+                value={value.status ?? null}
+                onChange={(s) => onChange({ status: s })}
+                mode={isEditing ? "dynamic" : "static"}
+                staticVariant="pill"
+                size="md"
+              />
             </div>
           </div>
         </CardContent>

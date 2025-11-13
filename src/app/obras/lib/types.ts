@@ -61,7 +61,17 @@ export type GetOrcamentoResult = {
 
 export type ObraDetalheDTO = {
   id: number
+  titulo: string | null
   orcamento: { id: number } | null
+
+  anexos: {
+    orcamentoId: number | null
+    propostaSlide: string | null
+    propostaPdf: string | null
+    contrato: string | null
+    ordemServico: string | null
+  }
+
   cliente: {
     id: number
     nome: string
@@ -70,7 +80,9 @@ export type ObraDetalheDTO = {
     cidade: { id: number | null; nome: string | null }
     cpf: string | null
   }
+
   equipe: { id: number; nome: string } | null
+
   dadosObra: {
     endereco: string
     mapsUrl: string
@@ -85,10 +97,12 @@ export type ObraDetalheDTO = {
     dataCriacao: string | null
     dataUltimaAlteracao: string | null
   }
+
   financeiro: {
     entrada: { valor: number | null; forma: string | null; status: PagamentoStatus }
     quitacao: { valor: number | null; forma: string | null; status: PagamentoStatus }
   }
+
   pedidoCompra: {
     id: number
     links: { telhaId: number | null; madeiraId: number | null; materiaisId: number | null; andaimesId: number | null }
@@ -131,6 +145,7 @@ export type ObraDetalheDTO = {
       andaimes: Array<{ id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
     }
   } | null
+
   ordemServico: {
     id: number
     equipeId: number
@@ -138,8 +153,10 @@ export type ObraDetalheDTO = {
     dataPrevInicio: string
     dataPrevConclusao: string
   } | null
+
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null; createdAt: string }>
 }
+
 
 export type ImagemInput = { url: string; ordem?: number | null; legenda?: string | null }
 

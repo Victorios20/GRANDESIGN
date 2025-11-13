@@ -25,7 +25,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const fmtDim = (v: number | null | undefined) =>
     typeof v === "number" && isFinite(v) && v > 0 ? `${v.toLocaleString("pt-BR")} m` : "-"
   const fmtDate = (d: any) => {
-  if (!d) return "—"
+  if (!d) return "-"
   const s = String(d)
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/)
   if (!m) return s
@@ -47,8 +47,8 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const isRetangular =
     detalhe?.dimensoes?.largura != null && detalhe?.dimensoes?.comprimento != null
 
-  const createdEmail = (detalhe as any)?.createdBy?.email ?? "—"
-  const updatedEmail = (detalhe as any)?.updatedBy?.email ?? "—"
+  const createdEmail = (detalhe as any)?.createdBy?.email ?? "-"
+  const updatedEmail = (detalhe as any)?.updatedBy?.email ?? "-"
   const dataCriacao = (detalhe as any)?.dataCriacao ?? null
   const dataUltimaAlteracao = (detalhe as any)?.dataUltimaAlteracao ?? null
 

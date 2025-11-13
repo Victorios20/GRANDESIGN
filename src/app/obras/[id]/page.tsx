@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
 import ObrasPage from "@/app/obras/ObrasPage"
-import type { ObraDetalheDTO, ObraInfosVM, GetOrcamentoResult } from "@/app/obras/lib/types"
+import type { ObraDetalheDTO, ObraInfosVM } from "@/app/obras/lib/types"
 
 // catálogos/combos (SSR)
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
@@ -79,34 +79,19 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
-  // telhas: tentar via orçamento vinculado (se existir)
-  let telhaOptions: Option[] = []
-  const orcId = dto?.orcamento?.id
-  if (Number.isFinite(orcId)) {
-    const resOrc = await fetch(`${base}/api/Orcamentos/${orcId}`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    })
-    if (resOrc.ok) {
-      const orc = (await resOrc.json()) as GetOrcamentoResult
-      telhaOptions = Array.from(
-        new Set(
-          (orc?.materiais?.telhas ?? [])
-            .map((t: any) => String((t?.nome ?? t?.descricao ?? "")).trim())
-            .filter(Boolean)
-        )
-      ).map((n) => ({ value: n, label: n }))
-    }
-  }
+  // telhas: em view/edit pegamos opções do catálogo (sem refetch do orçamento)
+  const telhaOptions: Option[] = Array.from(
+    new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
+  ).map((n) => ({ value: n, label: n }))
 
   const initial: Partial<ObraInfosVM> = {
-    titulo: undefined,
+    // agora usamos o título salvo na OBRA
+    titulo: (dto as any).titulo ?? "",
     tipoObra: dto.dadosObra?.tipoObra ?? "",
     largura: dto.dadosObra?.largura ?? 0,
     comprimento: dto.dadosObra?.comprimento ?? 0,
     telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
-    status: (dto.dadosObra?.status as any),
+    status: dto.dadosObra?.status as any,
     cliente: {
       nome: dto.cliente?.nome ?? "",
       telefone: dto.cliente?.telefone ?? "",
@@ -164,38 +149,17 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
-  // ===== Anexos (VIEW/EDIT) =====
-  const isLocalhost = host.includes("localhost")
+  // ===== Anexos (VIEW/EDIT) — tudo vem do DTO da OBRA =====
+  const orcId = dto?.orcamento?.id
   const orcamentoLink =
-    Number.isFinite(orcId) && orcId
-      ? `${proto}://${host}/orcamento/detalhes/${orcId}`
-      : ""
-
-  // Esses campos dependem do DTO já trazer anexos (obra) e, como fallback, do orçamento:
-  const propostaFromObra = (dto as any)?.anexos?.proposta ?? (dto as any)?.proposta ?? ""
-  const contratoFromObra = (dto as any)?.anexos?.contrato ?? (dto as any)?.contrato ?? ""
-  const osFromObra = (dto as any)?.anexos?.ordemServico ?? (dto as any)?.ordemServico ?? ""
-
-  // Fallback para proposta do orçamento (link_slide)
-let propostaFromOrcamento = ""
-if (Number.isFinite(orcId)) {
-  try {
-    const resOrc = await fetch(`${base}/api/Orcamentos/${orcId}`, { /* ... */ })
-    if (resOrc.ok) {
-      const orc = (await resOrc.json()) as GetOrcamentoResult
-      propostaFromOrcamento = String(orc?.links?.slideUrl ?? "").trim()
-    }
-  } catch {
-    // ignora
-  }
-}
-
+    Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
 
   const anexosInit = {
     orcamento: orcamentoLink,
-    proposta: String(propostaFromObra || propostaFromOrcamento || ""),
-    contrato: String(contratoFromObra || ""),
-    ordemServico: String(osFromObra || ""),
+    // usa campos da obra; sem fallback de orçamento aqui
+    proposta: String(dto?.anexos?.propostaSlide ?? ""),
+    contrato: String(dto?.anexos?.contrato ?? ""),
+    ordemServico: String(dto?.anexos?.ordemServico ?? ""),
   }
 
   return (

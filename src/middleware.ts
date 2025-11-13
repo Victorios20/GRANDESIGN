@@ -1,4 +1,3 @@
-// middleware.ts
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
@@ -8,11 +7,10 @@ const PUBLIC_PREFIX = ["/_next", "/assets", "/images", "/public"]
 
 const LOGIN_PATH = "/login"
 
-// Só essas duas rotas GET são públicas (exatas, sem subrotas), case-insensitive
+// GET liberados (exatos)
 function isExactPublicApiGet(req: NextRequest) {
   if (req.method?.toUpperCase() !== "GET") return false
   const lower = req.nextUrl.pathname.toLowerCase()
-  // /api/Orcamentos (com “O” maiúsculo) também passa por causa do toLowerCase()
   return lower === "/api/bairros" || lower === "/api/orcamentos"
 }
 
@@ -24,11 +22,31 @@ function isPublicAsset(pathname: string) {
   )
 }
 
+function isExpired(exp?: number | null) {
+  if (!exp || typeof exp !== "number") return false
+  return exp * 1000 < Date.now()
+}
+
+function clearNextAuthCookies(res: NextResponse) {
+  // Nomes possíveis de cookies do NextAuth (dev/prod, secure/não-secure)
+  const names = [
+    "__Secure-next-auth.session-token",
+    "next-auth.session-token",
+    "__Secure-next-auth.callback-url",
+    "next-auth.callback-url",
+    "__Secure-next-auth.csrf-token",
+    "next-auth.csrf-token",
+  ]
+  for (const name of names) {
+    res.cookies.set(name, "", { path: "/", httpOnly: true, secure: true, expires: new Date(0) })
+  }
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl
   const method = req.method?.toUpperCase()
 
-  // bypass opcional p/ seu helper SSR (ssrJSON)
+  // bypass opcional p/ SSR helper
   if (req.headers.get("x-internal-ssr") === "1") {
     return NextResponse.next()
   }
@@ -42,17 +60,18 @@ export async function middleware(req: NextRequest) {
   // exemplo de endpoint público POST (se precisar)
   if (pathname === "/api/users" && method === "POST") return NextResponse.next()
 
-  // ✅ Só estas duas APIs em GET são públicas
+  // GET públicos exatos
   if (isExactPublicApiGet(req)) return NextResponse.next()
 
-  // ❌ Nada de “liberação geral de GET”. Daqui pra baixo tudo exige auth.
+  // Daqui pra baixo: tudo exige auth
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
   const token = await getToken({ req, secret })
 
   const isApi = pathname.startsWith("/api/")
   const isLogin = pathname === LOGIN_PATH
 
-  if (!token) {
+  // Sem token ou token expirado => trata como não autenticado
+  if (!token || isExpired((token as any).exp)) {
     if (isApi) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
@@ -64,11 +83,13 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone()
     url.pathname = LOGIN_PATH
     url.search = new URLSearchParams({ callbackUrl: pathname + search }).toString()
-    return NextResponse.redirect(url)
+
+    const res = NextResponse.redirect(url)
+    clearNextAuthCookies(res)
+    return res
   }
 
-  // se tiver regras de role, aplique aqui
-
+  // Se quiser checar roles, faça aqui com base no token
   return NextResponse.next()
 }
 

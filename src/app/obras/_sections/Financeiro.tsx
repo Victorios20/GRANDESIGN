@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 import { cn } from "@/lib/utils"
-import { Wallet, CreditCard } from "lucide-react"
+import { Wallet, CreditCard, CheckCircle2, Clock } from "lucide-react"
+import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
 
 type FormaPagamento = "Pix" | "6x" | "10x" | "12x" | "16x"
 type StatusPagamento = "Efetuado" | "Pendente"
@@ -42,22 +43,15 @@ const FORMAS: Option[] = [
   { value: "16x", label: "16x" },
 ]
 
-const STATUS: Option[] = [
-  { value: "Efetuado", label: "Efetuado" },
-  { value: "Pendente", label: "Pendente" },
+// opções do StatusSelect (cores + ícones)
+const STATUS_OPTIONS: StatusOption<StatusPagamento>[] = [
+  { label: "Efetuado", value: "Efetuado", color: "blue", icon: CheckCircle2 },
+  { label: "Pendente", value: "Pendente", color: "yellow", icon: Clock },
 ]
 
 function Money({ value }: { value?: number }) {
   if (typeof value !== "number" || Number.isNaN(value)) return <span>—</span>
   return <span>{value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-}
-
-function StatusPill({ status }: { status?: StatusPagamento | null }) {
-  if (!status)
-    return <span className="inline-block rounded-full px-2.5 py-1 text-xs bg-neutral-300 text-black/80">—</span>
-  if (status === "Efetuado")
-    return <span className="inline-block rounded-full px-2.5 py-1 text-xs bg-blue-500 text-white">Efetuado</span>
-  return <span className="inline-block rounded-full px-2.5 py-1 text-xs bg-neutral-800 text-white">Pendente</span>
 }
 
 export default function Financeiro({ value, onChange, isEditing, className }: Props) {
@@ -82,7 +76,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
           {/* Coluna esquerda: totais */}
           <div className="lg:col-span-1 flex flex-col justify-center">
             <div className="flex items-center gap-0.5 mb-3 sm:w-[520px]">
-              <Label htmlFor="fin.valorObra" className="text-black shrink-0 w-32">Valor da obra</Label>
+              <Label htmlFor="fin.valorObra" className="text-black shrink-0 w-32">
+                Valor da obra
+              </Label>
               {isEditing ? (
                 <Input
                   id="fin.valorObra"
@@ -99,7 +95,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
             </div>
 
             <div className="flex items-center gap-0.5 sm:w-[520px]">
-              <Label htmlFor="fin.maoDeObra" className="text-black shrink-0 w-32">Mão de obra</Label>
+              <Label htmlFor="fin.maoDeObra" className="text-black shrink-0 w-32">
+                Mão de obra
+              </Label>
               {isEditing ? (
                 <Input
                   id="fin.maoDeObra"
@@ -128,7 +126,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                 {/* Entrada */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.valor" className="text-black shrink-0 w-20">Entrada</Label>
+                    <Label htmlFor="fin.entrada.valor" className="text-black shrink-0 w-20">
+                      Entrada
+                    </Label>
                     {isEditing ? (
                       <Input
                         id="fin.entrada.valor"
@@ -145,7 +145,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.forma" className="text-black shrink-0 w-20">Forma</Label>
+                    <Label htmlFor="fin.entrada.forma" className="text-black shrink-0 w-20">
+                      Forma
+                    </Label>
                     {/* Âncora invisível para foco/scroll */}
                     <input id="fin.entrada.forma" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
@@ -161,38 +163,35 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                         />
                       </div>
                     ) : (
-                      <span className="font-semibold inline-block w-40">{entrada.forma || "—"}</span>
+                      <span className="font-semibold inline-block w-40">{entrada.forma || "-"}</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.status" className="text-black shrink-0 w-20">Status</Label>
+                    <Label htmlFor="fin.entrada.status" className="text-black shrink-0 w-20">
+                      Status
+                    </Label>
                     {/* Âncora invisível para foco/scroll */}
                     <input id="fin.entrada.status" className="sr-only" aria-hidden readOnly />
-                    {isEditing ? (
-                      <div className="w-40">
-                        <ComboboxAdd
-                          widthClass="w-full"
-                          placeholder="Selecionar…"
-                          buttonText={entrada.status || "Selecione"}
-                          items={STATUS}
-                          onSelect={(v) => patchEntrada({ status: v as StatusPagamento })}
-                          showEmptyOption={false}
-                          colorVariant="white-green"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-40">
-                        <StatusPill status={entrada.status || null} />
-                      </div>
-                    )}
+                    <div className="w-40">
+                      <StatusSelect<StatusPagamento>
+                        options={STATUS_OPTIONS}
+                        value={entrada.status ?? null}
+                        onChange={(v) => patchEntrada({ status: v })}
+                        mode={isEditing ? "dynamic" : "static"}
+                        staticVariant="pill"
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 {/* Quitação */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.valor" className="text-black shrink-0 w-20">Quitação</Label>
+                    <Label htmlFor="fin.quitacao.valor" className="text-black shrink-0 w-20">
+                      Quitação
+                    </Label>
                     {isEditing ? (
                       <Input
                         id="fin.quitacao.valor"
@@ -209,7 +208,9 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.forma" className="text-black shrink-0 w-20">Forma</Label>
+                    <Label htmlFor="fin.quitacao.forma" className="text-black shrink-0 w-20">
+                      Forma
+                    </Label>
                     {/* Âncora invisível para foco/scroll */}
                     <input id="fin.quitacao.forma" className="sr-only" aria-hidden readOnly />
                     {isEditing ? (
@@ -225,31 +226,26 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                         />
                       </div>
                     ) : (
-                      <span className="font-semibold inline-block w-40">{quitacao.forma || "—"}</span>
+                      <span className="font-semibold inline-block w-40">{quitacao.forma || "-"}</span>
                     )}
                   </div>
 
                   <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.status" className="text-black shrink-0 w-20">Status</Label>
+                    <Label htmlFor="fin.quitacao.status" className="text-black shrink-0 w-20">
+                      Status
+                    </Label>
                     {/* Âncora invisível para foco/scroll */}
                     <input id="fin.quitacao.status" className="sr-only" aria-hidden readOnly />
-                    {isEditing ? (
-                      <div className="w-40">
-                        <ComboboxAdd
-                          widthClass="w-full"
-                          placeholder="Selecionar…"
-                          buttonText={quitacao.status || "Selecione"}
-                          items={STATUS}
-                          onSelect={(v) => patchQuitacao({ status: v as StatusPagamento })}
-                          showEmptyOption={false}
-                          colorVariant="white-green"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-40">
-                        <StatusPill status={quitacao.status || null} />
-                      </div>
-                    )}
+                    <div className="w-40">
+                      <StatusSelect<StatusPagamento>
+                        options={STATUS_OPTIONS}
+                        value={quitacao.status ?? null}
+                        onChange={(v) => patchQuitacao({ status: v })}
+                        mode={isEditing ? "dynamic" : "static"}
+                        staticVariant="pill"
+                        size="sm"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

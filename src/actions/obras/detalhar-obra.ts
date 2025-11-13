@@ -38,13 +38,15 @@ const obraInclude = Prisma.validator<Prisma.obrasInclude>()({
   },
   ordem_servico: { include: { equipe: true } },
   imagens: { orderBy: [{ ordem: "asc" as const }, { id: "asc" as const }] },
-  orcamento: { select: { id: true } },
+  // precisamos do título do orçamento como fallback
+  orcamento: { select: { id: true, titulo: true } },
 })
 
 type ObraRow = Prisma.obrasGetPayload<{ include: typeof obraInclude }>
 
 export type ObraDetalheDTO = {
   id: number
+  titulo: string | null
   orcamento: { id: number } | null
   anexos: {
     orcamentoId: number | null
@@ -148,6 +150,9 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
 
   const dto: ObraDetalheDTO = {
     id: row.id,
+    // novo campo:
+    titulo: row.titulo ?? row.orcamento?.titulo ?? null,
+
     orcamento: row.orcamento ? { id: row.orcamento.id } : null,
 
     anexos: {

@@ -126,6 +126,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       throw new ObraCreateError("ORCAMENTO_JA_LANCADO", "Já existe obra para este orçamento.", "check-orcamento", { orcamentoId })
     }
 
+    // ===== CPF do cliente (opcional) =====
     if (clienteCpf !== undefined && clienteCpf !== null && String(clienteCpf).trim() !== "") {
       const cpfDigits = onlyDigits(clienteCpf)
       if (cpfDigits.length !== 11) {
@@ -184,6 +185,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
     }
 
+    // ===== Criação da obra (com título espelhado do orçamento) =====
+    const tituloOrc = (String((orc as any).titulo ?? "").trim() || null) as string | null
+
     let obraId = 0
     try {
       const obra = await tx.obras.create({
@@ -191,6 +195,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           orcamento: { connect: { id: orcamentoId } },
           cliente: { connect: { id: orc.cliente_id } },
           ...(Number.isFinite(Number(equipe_id)) && Number(equipe_id) ? { equipe: { connect: { id: Number(equipe_id) } } } : {}),
+
+          // título espelho do orçamento
+          titulo: tituloOrc,
 
           endereco_obra: endereco_obra.trim(),
           maps_url: maps_url.trim(),
@@ -204,8 +211,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
           observacoes: (observacoes ?? "") || null,
 
-          link_slide_orcamento: (orc.link_slide ?? null) || null,
-          link_pdf_orcamento: (orc.link_pdf ?? null) || null,
+          link_slide_orcamento: (orc as any).link_slide ?? null,
+          link_pdf_orcamento: (orc as any).link_pdf ?? null,
 
           createdBy: { connect: { id: actorUserId } },
           updatedBy: { connect: { id: actorUserId } },
@@ -221,6 +228,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       throw new ObraCreateError("OBRA_CREATE_FAILED", "Erro ao criar a obra.", "create-obra", { err: msg })
     }
 
+    // ===== Pedido de compra (head + links) =====
     let pedidoCompraId = 0
     try {
       const head = await tx.pedido_compra.create({
@@ -307,6 +315,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     }
 
+    // ===== Imagens (opcional) =====
     if (Array.isArray(imagens) && imagens.length > 0) {
       try {
         await tx.obra_imagens.createMany({
@@ -324,6 +333,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
     }
 
+    // ===== Marcar orçamento como lançado =====
     try {
       await tx.orcamento.update({
         where: { id: orcamentoId },
@@ -339,6 +349,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
     }
 
+    // ===== Audit (best-effort) =====
     try {
       await tx.auditLog.createMany({
         data: [
@@ -347,7 +358,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             action: "OBRA_CREATE",
             entity: "obras",
             entity_id: obraId,
-            detail: { orcamentoId, links: { slide: orc.link_slide ?? null, pdf: orc.link_pdf ?? null } },
+            detail: { orcamentoId, titulo: tituloOrc, links: { slide: (orc as any).link_slide ?? null, pdf: (orc as any).link_pdf ?? null } },
           },
           {
             user_id: actorUserId,

@@ -1798,7 +1798,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                         <div className="flex flex-col">
                                                             <span className="font-medium">{c.nome}</span>
                                                             <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "-"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
                                                             </span>
                                                         </div>
                                                     </CommandItem>
@@ -1855,7 +1855,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                         <div className="flex flex-col">
                                                             <span className="font-medium">{c.nome}</span>
                                                             <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "-"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
                                                             </span>
                                                         </div>
                                                     </CommandItem>

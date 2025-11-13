@@ -3,7 +3,17 @@
 import { useMemo } from "react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import { CalendarDays, Plus, Trash2 } from "lucide-react"
+import {
+  CalendarDays,
+  Plus,
+  Trash2,
+  Clock,
+  CreditCard,
+  ShoppingCart,
+  Boxes,
+  Truck,
+  CheckCircle2,
+} from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -13,6 +23,11 @@ import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
+
+import {
+  StatusSelect,
+  type StatusOption,
+} from "@/components/ui/StatusSelect"
 
 import type {
   PedidoCompraVM,
@@ -48,9 +63,29 @@ type Props = {
   fornecedoresAndaimesOptions?: Option[]
 }
 
-const PADRAO: PedidoStatusPadrao[] = ["Pendente", "Aguardando pagamento", "Pedido feito", "Entregue"]
-const MATERIAIS: PedidoStatusMateriais[] = ["Pendente", "Em estoque", "Entregue"]
-const ANDAIMES: PedidoStatusAndaimes[] = ["Pendente", "Pedido feito", "Entregue", "À coletar", "Coletado"]
+// Status de TELHA e MADEIRA (padrão)
+const STATUS_TELHA_MADEIRA: StatusOption<PedidoStatusPadrao>[] = [
+  { label: "Pendente",             value: "Pendente",             color: "yellow", icon: Clock },
+  { label: "Aguardando pagamento", value: "Aguardando pagamento", color: "amber",   icon: CreditCard },
+  { label: "Pedido feito",         value: "Pedido feito",         color: "blue",    icon: ShoppingCart },
+  { label: "Entregue",             value: "Entregue",             color: "green",   icon: CheckCircle2 },
+]
+
+// Status de MATERIAIS
+const STATUS_MATERIAIS: StatusOption<PedidoStatusMateriais>[] = [
+  { label: "Pendente",   value: "Pendente",   color: "yellow", icon: Clock },
+  { label: "Em estoque", value: "Em estoque", color: "violet",  icon: Boxes },
+  { label: "Entregue",   value: "Entregue",   color: "green",   icon: CheckCircle2 },
+]
+
+// Status de ANDAIMES
+const STATUS_ANDAIMES: StatusOption<PedidoStatusAndaimes>[] = [
+  { label: "Pendente",     value: "Pendente",     color: "yellow", icon: Clock },
+  { label: "Pedido feito", value: "Pedido feito", color: "blue",    icon: ShoppingCart },
+  { label: "Entregue",     value: "Entregue",     color: "green",   icon: CheckCircle2 },
+  { label: "À coletar",    value: "À coletar",    color: "cyan",    icon: Truck },
+  { label: "Coletado",     value: "Coletado",     color: "emerald", icon: CheckCircle2 },
+]
 
 const input =
   "h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
@@ -287,21 +322,14 @@ export default function PedidoCompra({
             <section>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Telhas</h3>
-                {isEditing ? (
-                  <div className="rounded-xl w-[200px]">
-                    <ComboboxAdd
-                      widthClass="w-full"
-                      placeholder="Selecionar status…"
-                      buttonText={value.telha?.status || "Selecione"}
-                      items={PADRAO.map((s) => ({ value: s, label: s }))}
-                      onSelect={(s) => patchTelha({ status: s as PedidoStatusPadrao })}
-                      showEmptyOption={false}
-                      colorVariant="gray-green"
-                    />
-                  </div>
-                ) : (
-                  <span className="text-black/70">• {value.telha?.status || "—"}</span>
-                )}
+                <StatusSelect<PedidoStatusPadrao>
+                  options={STATUS_TELHA_MADEIRA}
+                  value={value.telha?.status ?? null}
+                  onChange={(s) => patchTelha({ status: s })}
+                  mode={isEditing ? "dynamic" : "static"}
+                  staticVariant="pill"
+                  size="md"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-1 sm:gap-x-0 gap-y-2 sm:w-[520px]">
@@ -333,7 +361,7 @@ export default function PedidoCompra({
                     <span className="font-medium inline-block w-36">
                       {value.telha?.previsao
                         ? format(new Date(value.telha.previsao), "dd/MM/yyyy", { locale: ptBR })
-                        : "—"}
+                        : "-"}
                     </span>
                   )}
                 </div>
@@ -341,7 +369,7 @@ export default function PedidoCompra({
                 <div className="flex items-center gap-0.5">
                   <Label className="text-black shrink-0 w-24">Telha:</Label>
                   <span className="font-semibold text-black inline-block w-36 truncate">
-                    {telhaSelecionada || "—"}
+                    {telhaSelecionada || "-"}
                   </span>
                 </div>
 
@@ -356,7 +384,7 @@ export default function PedidoCompra({
                     />
                   ) : (
                     <span className="font-semibold inline-block w-36">
-                      {totalTelhaUn ? totalTelhaUn : "—"}
+                      {totalTelhaUn ? totalTelhaUn : "-"}
                     </span>
                   )}
                 </div>
@@ -372,7 +400,7 @@ export default function PedidoCompra({
                     />
                   ) : (
                     <span className="font-semibold inline-block w-36">
-                      {typeof value.telha?.area === "number" ? value.telha?.area : "—"}
+                      {typeof value.telha?.area === "number" ? value.telha?.area : "-"}
                     </span>
                   )}
                 </div>
@@ -384,31 +412,24 @@ export default function PedidoCompra({
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Materiais</h3>
-                {isEditing ? (
-                  <>
-                    <div className="rounded-xl w-[220px]">
-                      <ComboboxAdd
-                        widthClass="w-full"
-                        placeholder="Selecionar status…"
-                        buttonText={value.materiais?.status || "Selecione"}
-                        items={MATERIAIS.map((s) => ({ value: s, label: s }))}
-                        onSelect={(s) => patchMateriais({ status: s as PedidoStatusMateriais })}
-                        showEmptyOption={false}
-                        colorVariant="gray-green"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      className="h-8 w-8 bg-green text-white hover:bg-green/90"
-                      onClick={addLinhaMateriais}
-                      title="Adicionar linha"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-black/70">• {value.materiais?.status || "—"}</span>
+                <StatusSelect<PedidoStatusMateriais>
+                  options={STATUS_MATERIAIS}
+                  value={value.materiais?.status ?? null}
+                  onChange={(s) => patchMateriais({ status: s })}
+                  mode={isEditing ? "dynamic" : "static"}
+                  staticVariant="pill"
+                  size="md"
+                />
+                {isEditing && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-8 w-8 bg-green text-white hover:bg-green/90"
+                    onClick={addLinhaMateriais}
+                    title="Adicionar linha"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
 
@@ -479,8 +500,8 @@ export default function PedidoCompra({
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-black">{descricao || "—"}</div>
-                          <div className="font-medium text-black">{qtd || "—"}</div>
+                          <div className="font-medium text-black">{descricao || "-"}</div>
+                          <div className="font-medium text-black">{qtd || "-"}</div>
                           <div className="font-medium text-black">
                             <Money value={Number(total)} />
                           </div>
@@ -497,31 +518,24 @@ export default function PedidoCompra({
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Andaimes</h3>
-                {isEditing ? (
-                  <>
-                    <div className="rounded-xl w-[220px]">
-                      <ComboboxAdd
-                        widthClass="w-full"
-                        placeholder="Selecionar status…"
-                        buttonText={value.andaimes?.status || "Selecione"}
-                        items={ANDAIMES.map((s) => ({ value: s, label: s }))}
-                        onSelect={(s) => patchAndaimes({ status: s as PedidoStatusAndaimes })}
-                        showEmptyOption={false}
-                        colorVariant="gray-green"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      className="h-8 w-8 bg-green text-white hover:bg-green/90"
-                      onClick={addLinhaAndaimes}
-                      title="Adicionar linha"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-black/70">• {value.andaimes?.status || "—"}</span>
+                <StatusSelect<PedidoStatusAndaimes>
+                  options={STATUS_ANDAIMES}
+                  value={value.andaimes?.status ?? null}
+                  onChange={(s) => patchAndaimes({ status: s })}
+                  mode={isEditing ? "dynamic" : "static"}
+                  staticVariant="pill"
+                  size="md"
+                />
+                {isEditing && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-8 w-8 bg-green text-white hover:bg-green/90"
+                    onClick={addLinhaAndaimes}
+                    title="Adicionar linha"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
 
@@ -542,7 +556,7 @@ export default function PedidoCompra({
                   </div>
                 ) : (
                   <span className="font-medium inline-block w-36">
-                    {selectedAndaimesFornecedorLabel || "—"}
+                    {selectedAndaimesFornecedorLabel || "-"}
                   </span>
                 )}
               </div>
@@ -595,8 +609,8 @@ export default function PedidoCompra({
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-black">{descricao || "—"}</div>
-                          <div className="font-medium text-black">{it.quantidade ?? "—"}</div>
+                          <div className="font-medium text-black">{descricao || "-"}</div>
+                          <div className="font-medium text-black">{it.quantidade ?? "-"}</div>
                           <div className="font-medium text-black">
                             <Money value={Number(total)} />
                           </div>
@@ -615,31 +629,24 @@ export default function PedidoCompra({
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Madeiras</h3>
-                {isEditing ? (
-                  <>
-                    <div className="rounded-xl w-[220px]">
-                      <ComboboxAdd
-                        widthClass="w-full"
-                        placeholder="Selecionar status…"
-                        buttonText={value.madeira?.status || "Selecione"}
-                        items={PADRAO.map((s) => ({ value: s, label: s }))}
-                        onSelect={(s) => patchMadeira({ status: s as PedidoStatusPadrao })}
-                        showEmptyOption={false}
-                        colorVariant="gray-green"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="icon"
-                      className="h-8 w-8 bg-green text-white hover:bg-green/90"
-                      onClick={addLinhaMadeira}
-                      title="Adicionar linha"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-black/70">• {value.madeira?.status || "—"}</span>
+                <StatusSelect<PedidoStatusPadrao>
+                  options={STATUS_TELHA_MADEIRA}
+                  value={value.madeira?.status ?? null}
+                  onChange={(s) => patchMadeira({ status: s })}
+                  mode={isEditing ? "dynamic" : "static"}
+                  staticVariant="pill"
+                  size="md"
+                />
+                {isEditing && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    className="h-8 w-8 bg-green text-white hover:bg-green/90"
+                    onClick={addLinhaMadeira}
+                    title="Adicionar linha"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
 
@@ -673,7 +680,7 @@ export default function PedidoCompra({
                     <span className="font-medium inline-block w-36">
                       {value.madeira?.previsao
                         ? format(new Date(value.madeira.previsao), "dd/MM/yyyy", { locale: ptBR })
-                        : "—"}
+                        : "-"}
                     </span>
                   )}
                 </div>
@@ -696,7 +703,7 @@ export default function PedidoCompra({
                   </div>
                 ) : (
                   <span className="font-medium inline-block w-36">
-                    {selectedMadeiraFornecedorLabel || "—"}
+                    {selectedMadeiraFornecedorLabel || "-"}
                   </span>
                 )}
               </div>
@@ -782,10 +789,10 @@ export default function PedidoCompra({
                         </>
                       ) : (
                         <>
-                          <div className="font-medium text-black">{it.componente || "—"}</div>
-                          <div className="font-medium text-black">{madeiraNome || "—"}</div>
-                          <div className="font-medium text-black">{qtd || "—"}</div>
-                          <div className="font-medium text-black">{it.tamanho ?? "—"}</div>
+                          <div className="font-medium text-black">{it.componente || "-"}</div>
+                          <div className="font-medium text-black">{madeiraNome || "-"}</div>
+                          <div className="font-medium text-black">{qtd || "-"}</div>
+                          <div className="font-medium text-black">{it.tamanho ?? "-"}</div>
                           <div />
                         </>
                       )}

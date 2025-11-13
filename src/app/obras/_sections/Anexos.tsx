@@ -63,7 +63,7 @@ function LinkField({ label, value, icon: Icon }: LinkFieldProps) {
           value={value ?? ""}
           disabled
           className="h-10 rounded-xl bg-cinza border-0 text-black disabled:opacity-100 disabled:cursor-default"
-          placeholder="—"
+          placeholder="-"
         />
 
         {/* Botão de copiar — verde com ícone branco */}

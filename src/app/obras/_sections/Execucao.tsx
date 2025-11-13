@@ -119,7 +119,7 @@ export default function Execucao({
               </div>
             ) : (
               <span className="font-bold inline-block w-64">
-                {equipeButtonText !== "Selecione" ? equipeButtonText : "—"}
+                {equipeButtonText !== "Selecione" ? equipeButtonText : "-"}
               </span>
             )}
           </div>

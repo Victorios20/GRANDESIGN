@@ -67,7 +67,7 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
               />
             ) : (
               <div className="text-black/80 leading-relaxed whitespace-pre-wrap">
-                {observacoes?.trim() ? observacoes : "—"}
+                {observacoes?.trim() ? observacoes : "-"}
               </div>
             )}
           </div>
@@ -156,9 +156,9 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
                         <span className="font-medium">Ordem:</span> {img.ordem ?? idx + 1}
                       </div>
                       <div className="text-sm text-black/80">
-                        <span className="font-medium">Legenda:</span> {img.legenda?.trim() || "—"}
+                        <span className="font-medium">Legenda:</span> {img.legenda?.trim() || "-"}
                       </div>
-                      <div className="text-xs text-black/60 break-all">{img.url || "—"}</div>
+                      <div className="text-xs text-black/60 break-all">{img.url || "-"}</div>
                     </div>
                   )}
                 </div>
