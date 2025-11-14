@@ -1,9 +1,15 @@
-// Server Component (visualizar/editar obra existente)
+// app/obras/[id]/page.tsx
 import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
 import ObrasPage from "@/app/obras/ObrasPage"
-import type { ObraDetalheDTO, ObraInfosVM } from "@/app/obras/lib/types"
+import type {
+  ObraDetalheDTO,
+  ObraInfosVM,
+  FormaPagamento,
+  PagamentoStatus,
+  PedidoCompraVM,
+} from "@/app/obras/lib/types"
 
 // catálogos/combos (SSR)
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
@@ -15,6 +21,22 @@ export const revalidate = 0
 export const metadata: Metadata = { title: "Obras · Detalhe" }
 
 type Option = { value: string; label: string }
+
+// helpers de normalização para o FinanceiroVM
+function mapFormaPagamento(raw: unknown): FormaPagamento | null {
+  const s = String(raw ?? "").trim().toLowerCase()
+  if (!s) return null
+  if (s === "pix") return "Pix"
+  if (s === "6x") return "6x"
+  if (s === "10x") return "10x"
+  if (s === "12x") return "12x"
+  if (s === "16x") return "16x"
+  return null
+}
+function mapStatusPagamento(raw: unknown): PagamentoStatus {
+  const s = String(raw ?? "").trim().toLowerCase()
+  return s === "efetuado" ? "Efetuado" : "Pendente"
+}
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await params
@@ -63,8 +85,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   if (!resObra.ok) notFound()
 
   const dtoJson = await resObra.json()
-  // rotas padronizadas retornam { data }
   const dto = (dtoJson?.data ?? dtoJson) as ObraDetalheDTO
+
+  // DEBUG SERVER LOG
+  // eslint-disable-next-line no-console
+  console.log("[/obras/[id]] DTO recebido:", JSON.stringify(dto, null, 2))
 
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(
@@ -79,13 +104,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
-  // telhas: em view/edit pegamos opções do catálogo (sem refetch do orçamento)
+  // telhas do catálogo (sem re-fetch do orçamento)
   const telhaOptions: Option[] = Array.from(
     new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
   const initial: Partial<ObraInfosVM> = {
-    // agora usamos o título salvo na OBRA
     titulo: (dto as any).titulo ?? "",
     tipoObra: dto.dadosObra?.tipoObra ?? "",
     largura: dto.dadosObra?.largura ?? 0,
@@ -108,9 +132,9 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     observacoes: dto.dadosObra?.observacoes ?? null,
   }
 
-  // Catálogo para comboboxes do Pedido de Compra (edição inline)
+  // Catálogo para comboboxes do Pedido de Compra
   const catalogo = {
-    madeiras: [], // carregadas no client por fornecedor selecionado
+    madeiras: [] as { nome: string; preco: number }[],
     materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
     telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
   }
@@ -140,27 +164,119 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   // Equipes -> Options
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
-    ? equipesJson.data
+    ? (equipesJson.data as any[])
         .map((e: any) => {
           const label = String(e?.nome ?? "").trim()
           const value = String(e?.id ?? "")
           return label ? { value, label } : null
         })
-        .filter(Boolean)
+        .filter(Boolean) as Option[]
     : []
 
-  // ===== Anexos (VIEW/EDIT) — tudo vem do DTO da OBRA =====
+  // ===== Anexos (VIEW/EDIT)
   const orcId = dto?.orcamento?.id
-  const orcamentoLink =
-    Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
+  const orcamentoLink = Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
 
   const anexosInit = {
     orcamento: orcamentoLink,
-    // usa campos da obra; sem fallback de orçamento aqui
     proposta: String(dto?.anexos?.propostaSlide ?? ""),
     contrato: String(dto?.anexos?.contrato ?? ""),
     ordemServico: String(dto?.anexos?.ordemServico ?? ""),
   }
+
+  // ===== Financeiro (normalizado p/ FinanceiroVM do client) =====
+  const fin = (dto as any)?.financeiro ?? {}
+  const financeiroInit = {
+    valorObra: Number(dto?.dadosObra?.valorObra ?? 0),
+    maoDeObra: Number(dto?.dadosObra?.valorMaoDeObra ?? 0),
+    pagamento: {
+      entrada: {
+        valor: Number(fin?.entrada?.valor ?? 0),
+        forma: mapFormaPagamento(fin?.entrada?.forma),
+        status: mapStatusPagamento(fin?.entrada?.status),
+      },
+      quitacao: {
+        valor: Number(fin?.quitacao?.valor ?? 0),
+        forma: mapFormaPagamento(fin?.quitacao?.forma),
+        status: mapStatusPagamento(fin?.quitacao?.status),
+      },
+    },
+  }
+
+  // ===== Pedido de Compra (preenchimento inicial para o client) =====
+  const pc = dto?.pedidoCompra
+  const pedidoInit: Partial<PedidoCompraVM> | undefined = pc
+    ? {
+        telha: {
+          status: pc.telha?.status ?? "Pendente",
+          previsao: pc.telha?.previsao ?? null,
+          orcamento: Number(pc.telha?.orcamento ?? 0),
+          area: Number(pc.telha?.area ?? 0),
+          itens: Array.isArray(pc.itens?.telha)
+            ? pc.itens.telha.map((it) => ({
+                id: it.id,
+                descricao: it.descricao,
+                quantidade: Number(it.quantidade ?? 0),
+                precoUnitario: Number(it.precoUnitario ?? 0),
+                total: Number(it.total ?? 0),
+              }))
+            : [],
+        },
+        madeira: {
+          status: pc.madeira?.status ?? "Pendente",
+          previsao: pc.madeira?.previsao ?? null,
+          fornecedorId: pc.fornecedores?.madeira?.id ?? null,
+          orcamento: Number(pc.madeira?.orcamento ?? 0),
+          itens: Array.isArray(pc.itens?.madeira)
+            ? pc.itens.madeira.map((it) => ({
+                id: it.id,
+                componente: it.componente,
+                madeiraNome: it.madeiraNome,
+                descricao: it.descricao,
+                quantidade: Number(it.quantidade ?? 0),
+                tamanho: Number(it.tamanho ?? 0),
+                precoUnitario: Number(it.precoUnitario ?? 0),
+                total: Number(it.total ?? 0),
+              }))
+            : [],
+        },
+        materiais: {
+          status: pc.materiais?.status ?? "Pendente",
+          itens: Array.isArray(pc.itens?.materiais)
+            ? pc.itens.materiais.map((it) => ({
+                id: it.id,
+                descricao: it.descricao,
+                quantidade: Number(it.quantidade ?? 0),
+                precoUnitario: Number(it.precoUnitario ?? 0),
+                total: Number(it.total ?? 0),
+              }))
+            : [],
+        },
+        andaimes: {
+          status: pc.andaimes?.status ?? "Pendente",
+          fornecedorId: pc.fornecedores?.andaimes?.id ?? null,
+          itens: Array.isArray(pc.itens?.andaimes)
+            ? pc.itens.andaimes.map((it) => ({
+                id: it.id,
+                descricao: it.descricao,
+                quantidade: Number(it.quantidade ?? 0),
+                precoUnitario: Number(it.precoUnitario ?? 0),
+                total: Number(it.total ?? 0),
+              }))
+            : [],
+        },
+      }
+    : undefined
+
+  // ===== Execução (ordem de serviço) =====
+  const execucaoInit =
+    dto?.ordemServico
+      ? {
+          equipeId: dto.ordemServico.equipe?.id ?? dto.ordemServico.equipeId ?? null,
+          dataPrevInicio: dto.ordemServico.dataPrevInicio ?? null,
+          dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
+        }
+      : undefined
 
   return (
     <ObrasPage
@@ -169,12 +285,15 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
+      pedidoInit={pedidoInit}
       catalogo={catalogo}
       componentes={componentes}
       fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       equipeOptions={equipesOptions}
       anexosInit={anexosInit}
+      financeiroInit={financeiroInit}
+      execucaoInit={execucaoInit}
     />
   )
 }

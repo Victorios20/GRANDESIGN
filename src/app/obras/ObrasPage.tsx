@@ -248,9 +248,8 @@ export default function ObrasPage({
     const atualOrcamento = toNum(pedido.telha?.orcamento)
     const desejadoOrcamento = toNum(telhaOrcamentoDerivado)
     if (atualOrcamento !== desejadoOrcamento) {
-      patchPedido({ telha: { ...pedido.telha, orcamento: desejadoOrcamento } })
+      setPedido((d) => ({ ...d, telha: { ...(d.telha ?? {}), orcamento: desejadoOrcamento } }))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telhaOrcamentoDerivado])
 
   /** ===== Validação de campos obrigatórios (front-only) ===== */
@@ -353,7 +352,7 @@ export default function ObrasPage({
       return false
     }
 
-    // Execução — obrigatórios
+    // Execução — obrigatórios (se não finalizado)
     if (vm.status !== "Finalizado") {
       if (!exec?.equipeId || Number(exec?.equipeId) <= 0) {
         toast.error("Equipe é obrigatória.")
@@ -460,11 +459,11 @@ export default function ObrasPage({
           // ========= PEDIDO DE COMPRA (HEAD) =========
           area_telha: Number(pedido.telha?.area ?? 0),
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
-          previsao_telha: pedido.telha?.previsao ?? null,
+          previsao_telha: (pedido.telha?.previsao as any) ?? null,
           status_telha: (pedido.telha?.status as any) ?? "Pendente",
 
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
-          previsao_madeira: pedido.madeira?.previsao ?? null,
+          previsao_madeira: (pedido.madeira?.previsao as any) ?? null,
           status_madeira: (pedido.madeira?.status as any) ?? "Pendente",
           fornecedor_madeira_id: pedido.madeira?.fornecedorId ? Number(pedido.madeira.fornecedorId) : null,
 
@@ -483,7 +482,6 @@ export default function ObrasPage({
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
 
-        // Log do payload que vai para o back (remova em produção se preferir)
         // eslint-disable-next-line no-console
         console.log("[Obras] Payload de criação enviado ao back:", payload)
 
@@ -493,8 +491,8 @@ export default function ObrasPage({
       } else if (obraId) {
         const ordemServico: OrdemServicoPayload = {
           equipe_id: exec.equipeId ?? undefined,
-          data_prev_inicio: exec.dataPrevInicio ?? undefined,
-          data_prev_conclusao: exec.dataPrevConclusao ?? undefined,
+          data_prev_inicio: (exec.dataPrevInicio as any) ?? undefined,
+          data_prev_conclusao: (exec.dataPrevConclusao as any) ?? undefined,
         }
 
         const upd: UpdateObraPayload = {
@@ -512,11 +510,13 @@ export default function ObrasPage({
             valor_obra: Number(fin.valorObra ?? 0),
             valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
             pagamento_entrada: Number(fin.pagamento?.entrada?.valor ?? 0),
-            forma_pagamento_entrada: fin.pagamento?.entrada?.forma || "",
-            status_pagamento_entrada: fin.pagamento?.entrada?.status as any,
+            // <<< AQUI O AJUSTE: nada de string vazia
+            forma_pagamento_entrada: fin.pagamento?.entrada?.forma ?? undefined,
+            status_pagamento_entrada: fin.pagamento?.entrada?.status ?? undefined,
             pagamento_quitacao: Number(fin.pagamento?.quitacao?.valor ?? 0),
-            forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma || "",
-            status_pagamento_quitacao: fin.pagamento?.quitacao?.status as any,
+            // <<< AQUI TAMBÉM
+            forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma ?? undefined,
+            status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? undefined,
           },
           ordemServico,
         }

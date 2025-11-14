@@ -1,3 +1,5 @@
+// app/obras/lib/types.ts
+
 export type ObraStatus =
   | 'Assinatura de contrato'
   | 'Aguardando validação técnica'
@@ -9,6 +11,9 @@ export type ObraStatus =
   | 'Finalizado'
 
 export type PagamentoStatus = 'Pendente' | 'Efetuado'
+
+// ⇣ ADICIONADO: manter igual ao componente Financeiro
+export type FormaPagamento = 'Pix' | '6x' | '10x' | '12x' | '16x'
 
 export type PedidoStatusPadrao = 'Pendente' | 'Aguardando pagamento' | 'Pedido feito' | 'Entregue'
 export type PedidoStatusMateriais = 'Pendente' | 'Em estoque' | 'Entregue'
@@ -100,9 +105,10 @@ export type ObraDetalheDTO = {
     dataUltimaAlteracao: string | null
   }
 
+  // ⇣ AJUSTADO: forma agora é FormaPagamento | null
   financeiro: {
-    entrada: { valor: number | null; forma: string | null; status: PagamentoStatus }
-    quitacao: { valor: number | null; forma: string | null; status: PagamentoStatus }
+    entrada: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
+    quitacao: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
   }
 
   pedidoCompra: {
@@ -159,11 +165,8 @@ export type ObraDetalheDTO = {
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null; createdAt: string }>
 }
 
-
-
-/* ===== Payload de criação (completo e alinhado ao back) ===== */
+/* ===== Payload de criação ===== */
 export type CreateObraPayload = {
-  // Infos gerais (HEAD)
   orcamentoId: number
   endereco_obra: string
   maps_url: string
@@ -172,21 +175,15 @@ export type CreateObraPayload = {
   comprimento: number | string
   telha_escolhida: string
 
-  // Financeiro básico
   valor_obra: number | string
   valor_mao_de_obra: number | string
 
-  // Status/observações
   status?: ObraStatus
   observacoes?: string | null
 
-  // Execução
   equipe_id?: number | null
-
-  // Imagens
   imagens?: ImagemInput[]
 
-  // Pedido de compra — HEAD
   area_telha?: number | string
   orcamento_telha?: number | string
   previsao_telha?: string | Date | null
@@ -202,7 +199,6 @@ export type CreateObraPayload = {
   andaimes_status?: PedidoStatusAndaimes | null
   andaimes_fornecedor_id?: number | null
 
-  // Pedido de compra — ITENS
   telhaItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
   madeiraItens?: Array<{
     componente: string
@@ -216,16 +212,15 @@ export type CreateObraPayload = {
   materiaisItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
   andaimesItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
 
-  // Financeiro detalhado
+  // ⇣ AJUSTADO: forma agora é FormaPagamento
   pagamento_entrada?: number | string
-  forma_pagamento_entrada?: string | null
+  forma_pagamento_entrada?: FormaPagamento | null
   status_pagamento_entrada?: PagamentoStatus | null
 
   pagamento_quitacao?: number | string
-  forma_pagamento_quitacao?: string | null
+  forma_pagamento_quitacao?: FormaPagamento | null
   status_pagamento_quitacao?: PagamentoStatus | null
 
-  // Cliente (opcional)
   clienteCpf?: string | null
   forceUpdateClienteCpf?: boolean
 }
@@ -237,7 +232,7 @@ export type CriarObraResult = {
   pedidos: { telhaId: number; madeiraId: number; materiaisId: number; andaimesId: number }
 }
 
-/* ===== VMs (sem mudanças estruturais além de nomes coerentes) ===== */
+/* ===== VMs ===== */
 export type ObraInfosVM = {
   titulo?: string
   tipoObra: string | null
@@ -275,15 +270,15 @@ export type FinanceiroExecVM = {
   financeiro: {
     valorObra: number
     valorMaoDeObra: number
-    entrada: { valor: number | null; forma: string | null; status: PagamentoStatus }
-    quitacao: { valor: number | null; forma: string | null; status: PagamentoStatus }
+    entrada: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
+    quitacao: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
   }
   execucao: { equipeId: number | null; dataPrevInicio: string | null; dataPrevConclusao: string | null }
 }
 
 export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }
 
-/* ===== Update payloads (mantidos) ===== */
+/* ===== Update payloads ===== */
 export type PedidoLinksPayload = {
   telha?: { id?: number | string; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
   madeira?: {
@@ -359,10 +354,11 @@ export type UpdateObraPayload = {
     valor_obra?: number | string
     valor_mao_de_obra?: number | string
     pagamento_entrada?: number | string
-    forma_pagamento_entrada?: string
+    // ⇣ AJUSTADO: forma como FormaPagamento
+    forma_pagamento_entrada?: FormaPagamento
     status_pagamento_entrada?: PagamentoStatus
     pagamento_quitacao?: number | string
-    forma_pagamento_quitacao?: string
+    forma_pagamento_quitacao?: FormaPagamento
     status_pagamento_quitacao?: PagamentoStatus
   }
   pedidoCompra?: PedidoCompraPayload
