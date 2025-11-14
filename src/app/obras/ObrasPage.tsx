@@ -1,3 +1,4 @@
+// app/obras/ObrasPage.tsx
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -67,11 +68,13 @@ const toNum = (v: any) => {
   return Number.isFinite(n) ? n : 0
 }
 const nomeTelha = (it: any): string => ((it?.descricao ?? it?.nome ?? "") + "").trim()
+
+// Telha: considerar total informado OU (precoUnitario * quantidade)
 const totalItemTelha = (it: any): number => {
   const qtd = toNum(it?.quantidade)
-  const precoUnitario = toNum(it?.precoUnitario ?? it?.preco)
-  const total = it?.total != null ? toNum(it.total) : precoUnitario * qtd + toNum(it?.frete)
-  return total
+  const precoUnitario = toNum(it?.precoUnitario)
+  if (it?.total != null && it.total !== "") return toNum(it.total)
+  return precoUnitario * qtd
 }
 
 function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): VM {
@@ -279,7 +282,7 @@ export default function ObrasPage({
       return false
     }
 
-    // Logradouro e Maps — AGORA obrigatórios
+    // Logradouro e Maps — obrigatórios
     if (isEmpty(vm?.endereco?.logradouro)) {
       toast.error("Logradouro é obrigatório.")
       focusById("infos.logradouro")
@@ -294,7 +297,6 @@ export default function ObrasPage({
     // Cliente — nome/telefone vêm do orçamento, CPF editável
     if (isEmpty(vm?.cliente?.nome)) {
       toast.error("Nome do cliente é obrigatório (vem do orçamento).")
-      // âncora opcional; se não existir, apenas exibe o erro
       return false
     }
     if (isEmpty(vm?.cliente?.telefone)) {
@@ -385,35 +387,105 @@ export default function ObrasPage({
           return
         }
 
+        // ========= montar itens nos formatos esperados pelo back =========
+        const telhaItens = (pedido.telha?.itens ?? []).map((it) => ({
+          descricao: String(it?.descricao ?? "").trim(),
+          quantidade: Number(it?.quantidade ?? 0),
+          preco_unitario: Number(it?.precoUnitario ?? 0),
+          total: Number(totalItemTelha(it)),
+        }))
+
+        const madeiraItens = (pedido.madeira?.itens ?? []).map((it) => ({
+          componente: String(it?.componente ?? "").trim(),
+          madeira_nome: String(it?.madeiraNome ?? it?.descricao ?? "").trim(),
+          descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+          quantidade: Number(it?.quantidade ?? 0),
+          tamanho: Number(it?.tamanho ?? 0),
+          preco_unitario: Number(it?.precoUnitario ?? 0),
+          total: Number(it?.total ?? Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0)),
+        }))
+
+        const materiaisItens = (pedido.materiais?.itens ?? []).map((it) => ({
+          descricao: String(it?.descricao ?? "").trim(),
+          quantidade: Number(it?.quantidade ?? 0),
+          preco_unitario: Number(it?.precoUnitario ?? 0),
+          total: Number(it?.total ?? Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0)),
+        }))
+
+        const andaimesItens = (pedido.andaimes?.itens ?? []).map((it) => ({
+          descricao: String(it?.descricao ?? "").trim(),
+          quantidade: Number(it?.quantidade ?? 0),
+          preco_unitario: Number(it?.precoUnitario ?? 0),
+          total: Number(it?.total ?? Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0)),
+        }))
+
+        // ========= payload completo aceito pelo back =========
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
-          // agora são obrigatórios (já validados)
-          endereco_obra: (vm.endereco.logradouro || "").trim(),
-          maps_url: (vm.endereco.mapsUrl || "").trim(),
 
-          tipo_obra: (vm.tipoObra || "").trim(),
-          largura: Number(vm.largura ?? 0),
-          comprimento: Number(vm.comprimento ?? 0),
-          telha_escolhida: (vm.telhaEscolhida || "").trim(),
+          // ========= INFOS GERAIS =========
+          endereco_obra: vm.endereco.logradouro.trim(),
+          maps_url: vm.endereco.mapsUrl.trim(),
+          tipo_obra: String(vm.tipoObra || "").trim(),
+          largura: Number(vm.largura),
+          comprimento: Number(vm.comprimento),
+          telha_escolhida: vm.telhaEscolhida.trim(),
 
-          valor_obra: Number(fin.valorObra ?? 0),
-          valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
+          // ========= FINANCEIRO =========
+          valor_obra: Number(fin.valorObra),
+          valor_mao_de_obra: Number(fin.maoDeObra),
 
+          pagamento_entrada: Number(fin.pagamento?.entrada?.valor ?? 0),
+          forma_pagamento_entrada: fin.pagamento?.entrada?.forma ?? null,
+          status_pagamento_entrada: fin.pagamento?.entrada?.status ?? null,
+
+          pagamento_quitacao: Number(fin.pagamento?.quitacao?.valor ?? 0),
+          forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma ?? null,
+          status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? null,
+
+          // ========= STATUS / OBS =========
           observacoes: vm.observacoes ?? null,
+          status: vm.status as any,
 
+          // ========= EXECUÇÃO =========
           equipe_id: exec.equipeId ?? null,
+
+          // ========= IMAGENS =========
           imagens: (vm.imagens ?? []).map((img, i) => ({
-            url: String(img.url || "").trim(),
+            url: img.url.trim(),
             ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-            legenda: (img.legenda ?? "") || null,
+            legenda: img.legenda || null,
           })),
 
-          area_telha: Number(pedido?.telha?.area ?? 0),
-          orcamento_telha: Number(pedido?.telha?.orcamento ?? 0),
-          orcamento_madeira: Number(pedido?.madeira?.orcamento ?? 0),
+          // ========= PEDIDO DE COMPRA (HEAD) =========
+          area_telha: Number(pedido.telha?.area ?? 0),
+          orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
+          previsao_telha: pedido.telha?.previsao ?? null,
+          status_telha: (pedido.telha?.status as any) ?? "Pendente",
 
-          clienteCpf: (vm.cliente?.cpf || "").trim() || null,
+          orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
+          previsao_madeira: pedido.madeira?.previsao ?? null,
+          status_madeira: (pedido.madeira?.status as any) ?? "Pendente",
+          fornecedor_madeira_id: pedido.madeira?.fornecedorId ? Number(pedido.madeira.fornecedorId) : null,
+
+          materiais_status: (pedido.materiais?.status as any) ?? "Pendente",
+
+          andaimes_status: (pedido.andaimes?.status as any) ?? "Pendente",
+          andaimes_fornecedor_id: pedido.andaimes?.fornecedorId ? Number(pedido.andaimes.fornecedorId) : null,
+
+          // ========= PEDIDO DE COMPRA (ITENS) =========
+          telhaItens,
+          madeiraItens,
+          materiaisItens,
+          andaimesItens,
+
+          // ========= CLIENTE =========
+          clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
+
+        // Log do payload que vai para o back (remova em produção se preferir)
+        // eslint-disable-next-line no-console
+        console.log("[Obras] Payload de criação enviado ao back:", payload)
 
         const r = await createObra(payload)
         toast.success("Obra criada.")
@@ -427,7 +499,6 @@ export default function ObrasPage({
 
         const upd: UpdateObraPayload = {
           obra: {
-            // manter os mesmos campos; front já garante obrigatoriedade
             endereco_obra: vm.endereco.logradouro,
             maps_url: vm.endereco.mapsUrl,
             tipo_obra: vm.tipoObra || "",

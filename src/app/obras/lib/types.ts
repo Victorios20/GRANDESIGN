@@ -24,6 +24,8 @@ export type UIMaterial = {
   frete?: number
 }
 
+export type ImagemInput = { url: string; ordem?: number | null; legenda?: string | null }
+
 export type GetOrcamentoResult = {
   id: number
   titulo: string
@@ -158,9 +160,10 @@ export type ObraDetalheDTO = {
 }
 
 
-export type ImagemInput = { url: string; ordem?: number | null; legenda?: string | null }
 
+/* ===== Payload de criação (completo e alinhado ao back) ===== */
 export type CreateObraPayload = {
+  // Infos gerais (HEAD)
   orcamentoId: number
   endereco_obra: string
   maps_url: string
@@ -168,14 +171,61 @@ export type CreateObraPayload = {
   largura: number | string
   comprimento: number | string
   telha_escolhida: string
+
+  // Financeiro básico
   valor_obra: number | string
   valor_mao_de_obra: number | string
+
+  // Status/observações
+  status?: ObraStatus
   observacoes?: string | null
+
+  // Execução
   equipe_id?: number | null
+
+  // Imagens
   imagens?: ImagemInput[]
+
+  // Pedido de compra — HEAD
   area_telha?: number | string
   orcamento_telha?: number | string
+  previsao_telha?: string | Date | null
+  status_telha?: PedidoStatusPadrao | null
+
   orcamento_madeira?: number | string
+  previsao_madeira?: string | Date | null
+  status_madeira?: PedidoStatusPadrao | null
+  fornecedor_madeira_id?: number | null
+
+  materiais_status?: PedidoStatusMateriais | null
+
+  andaimes_status?: PedidoStatusAndaimes | null
+  andaimes_fornecedor_id?: number | null
+
+  // Pedido de compra — ITENS
+  telhaItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
+  madeiraItens?: Array<{
+    componente: string
+    madeira_nome: string
+    descricao: string
+    quantidade: number | string
+    tamanho: number | string
+    preco_unitario: number | string
+    total: number | string
+  }>
+  materiaisItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
+  andaimesItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
+
+  // Financeiro detalhado
+  pagamento_entrada?: number | string
+  forma_pagamento_entrada?: string | null
+  status_pagamento_entrada?: PagamentoStatus | null
+
+  pagamento_quitacao?: number | string
+  forma_pagamento_quitacao?: string | null
+  status_pagamento_quitacao?: PagamentoStatus | null
+
+  // Cliente (opcional)
   clienteCpf?: string | null
   forceUpdateClienteCpf?: boolean
 }
@@ -187,6 +237,53 @@ export type CriarObraResult = {
   pedidos: { telhaId: number; madeiraId: number; materiaisId: number; andaimesId: number }
 }
 
+/* ===== VMs (sem mudanças estruturais além de nomes coerentes) ===== */
+export type ObraInfosVM = {
+  titulo?: string
+  tipoObra: string | null
+  largura: number | null
+  comprimento: number | null
+  telhaEscolhida: string
+  status: ObraStatus
+  cliente: { nome: string; telefone?: string | null; cpf?: string | null; bairro?: string | null; cidade?: string | null }
+  endereco: { logradouro: string; bairro: string; cidade: string; mapsUrl: string }
+  observacoes?: string | null
+}
+
+export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
+
+export type PedidoCompraVM = {
+  telha: {
+    status: PedidoStatusPadrao
+    previsao: string | null
+    orcamento: number
+    area: number
+    itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
+  }
+  madeira: {
+    status: PedidoStatusPadrao
+    previsao: string | null
+    fornecedorId?: number | null
+    orcamento?: number
+    itens: Array<{ id?: number; componente: string; madeiraNome: string; descricao: string; quantidade: number; tamanho: number; precoUnitario: number; total: number }>
+  }
+  materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
+  andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
+}
+
+export type FinanceiroExecVM = {
+  financeiro: {
+    valorObra: number
+    valorMaoDeObra: number
+    entrada: { valor: number | null; forma: string | null; status: PagamentoStatus }
+    quitacao: { valor: number | null; forma: string | null; status: PagamentoStatus }
+  }
+  execucao: { equipeId: number | null; dataPrevInicio: string | null; dataPrevConclusao: string | null }
+}
+
+export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }
+
+/* ===== Update payloads (mantidos) ===== */
 export type PedidoLinksPayload = {
   telha?: { id?: number | string; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
   madeira?: {
@@ -274,48 +371,3 @@ export type UpdateObraPayload = {
 }
 
 export type UpdateObraResponse = { ok: boolean; status: number; data?: { id: number }; error?: string }
-
-export type ObraInfosVM = {
-  titulo?: string
-  tipoObra: string | null
-  largura: number | null
-  comprimento: number | null
-  telhaEscolhida: string
-  status: ObraStatus
-  cliente: { nome: string; telefone?: string | null; cpf?: string | null; bairro?: string | null; cidade?: string | null }
-  endereco: { logradouro: string; bairro: string; cidade: string; mapsUrl: string }
-  observacoes?: string | null
-}
-
-export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
-
-export type PedidoCompraVM = {
-  telha: {
-    status: PedidoStatusPadrao
-    previsao: string | null
-    orcamento: number
-    area: number
-    itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
-  }
-  madeira: {
-    status: PedidoStatusPadrao
-    previsao: string | null
-    fornecedorId?: number | null
-    orcamento?: number
-    itens: Array<{ id?: number; componente: string; madeiraNome: string; descricao: string; quantidade: number; tamanho: number; precoUnitario: number; total: number }>
-  }
-  materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
-  andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
-}
-
-export type FinanceiroExecVM = {
-  financeiro: {
-    valorObra: number
-    valorMaoDeObra: number
-    entrada: { valor: number | null; forma: string | null; status: PagamentoStatus }
-    quitacao: { valor: number | null; forma: string | null; status: PagamentoStatus }
-  }
-  execucao: { equipeId: number | null; dataPrevInicio: string | null; dataPrevConclusao: string | null }
-}
-
-export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }

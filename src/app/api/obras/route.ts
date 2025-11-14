@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       return json({ error: "INVALID_JSON", requestId }, 400, requestId)
     }
 
-    // validações mínimas (evita 500 por payload vazio)
+    // validações mínimas
     const reqStr = ["endereco_obra", "maps_url", "tipo_obra", "telha_escolhida"] as const
     for (const k of reqStr) {
       if (!String(body?.[k] ?? "").trim()) {
@@ -75,24 +75,71 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Monta o payload COMPLETO para o service (não descartar chaves!)
     const result = await criarObraComHeadPedidoCompra({
+      // ===== IDENTIFICAÇÃO / INFOS GERAIS =====
       orcamentoId: Number(body.orcamentoId),
       endereco_obra: String(body.endereco_obra),
       maps_url: String(body.maps_url),
       tipo_obra: String(body.tipo_obra),
-      largura: body.largura,
-      comprimento: body.comprimento,
+      largura: Number(body.largura),
+      comprimento: Number(body.comprimento),
       telha_escolhida: String(body.telha_escolhida),
-      valor_obra: body.valor_obra,
-      valor_mao_de_obra: body.valor_mao_de_obra,
       observacoes: body.observacoes ?? null,
-      equipe_id: body.equipe_id ?? null,
+      status: body.status ?? null,
+
+      // equipe (execução)
+      equipe_id: body.equipe_id != null ? Number(body.equipe_id) : null,
+
+      // ===== FINANCEIRO =====
+      valor_obra: Number(body.valor_obra),
+      valor_mao_de_obra: Number(body.valor_mao_de_obra),
+
+      pagamento_entrada:
+        body.pagamento_entrada != null ? Number(body.pagamento_entrada) : undefined,
+      forma_pagamento_entrada:
+        body.forma_pagamento_entrada != null ? String(body.forma_pagamento_entrada) : null,
+      status_pagamento_entrada: body.status_pagamento_entrada ?? null,
+
+      pagamento_quitacao:
+        body.pagamento_quitacao != null ? Number(body.pagamento_quitacao) : undefined,
+      forma_pagamento_quitacao:
+        body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
+      status_pagamento_quitacao: body.status_pagamento_quitacao ?? null,
+
+      // ===== IMAGENS =====
       imagens: Array.isArray(body.imagens) ? body.imagens : undefined,
-      area_telha: body.area_telha,
-      orcamento_telha: body.orcamento_telha,
-      orcamento_madeira: body.orcamento_madeira,
-      clienteCpf: body.clienteCpf,
+
+      // ===== PEDIDO DE COMPRA — HEAD =====
+      area_telha: body.area_telha != null ? Number(body.area_telha) : undefined,
+      orcamento_telha: body.orcamento_telha != null ? Number(body.orcamento_telha) : undefined,
+
+      previsao_telha: body.previsao_telha ?? null,
+      status_telha: body.status_telha ?? null,
+
+      orcamento_madeira: body.orcamento_madeira != null ? Number(body.orcamento_madeira) : undefined,
+      previsao_madeira: body.previsao_madeira ?? null,
+      status_madeira: body.status_madeira ?? null,
+      fornecedor_madeira_id:
+        body.fornecedor_madeira_id != null ? Number(body.fornecedor_madeira_id) : null,
+
+      materiais_status: body.materiais_status ?? null,
+
+      andaimes_status: body.andaimes_status ?? null,
+      andaimes_fornecedor_id:
+        body.andaimes_fornecedor_id != null ? Number(body.andaimes_fornecedor_id) : null,
+
+      // ===== PEDIDO DE COMPRA — ITENS =====
+      telhaItens: Array.isArray(body.telhaItens) ? body.telhaItens : undefined,
+      madeiraItens: Array.isArray(body.madeiraItens) ? body.madeiraItens : undefined,
+      materiaisItens: Array.isArray(body.materiaisItens) ? body.materiaisItens : undefined,
+      andaimesItens: Array.isArray(body.andaimesItens) ? body.andaimesItens : undefined,
+
+      // ===== CLIENTE / AUDIT =====
+      clienteCpf: body.clienteCpf ?? null,
       forceUpdateClienteCpf: !!body.forceUpdateClienteCpf,
+
+      // audit
       actorUserId: actorId,
     })
 
