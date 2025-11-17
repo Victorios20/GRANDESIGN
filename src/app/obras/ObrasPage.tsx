@@ -1,4 +1,3 @@
-// app/obras/ObrasPage.tsx
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -448,6 +447,9 @@ export default function ObrasPage({
 
           // ========= EXECUÇÃO =========
           equipe_id: exec.equipeId ?? null,
+          // >>>>>> NOVO: enviar datas da OS no create
+          data_prev_inicio: (exec.dataPrevInicio as any) ?? null,
+          data_prev_conclusao: (exec.dataPrevConclusao as any) ?? null,
 
           // ========= IMAGENS =========
           imagens: (vm.imagens ?? []).map((img, i) => ({
@@ -510,11 +512,9 @@ export default function ObrasPage({
             valor_obra: Number(fin.valorObra ?? 0),
             valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
             pagamento_entrada: Number(fin.pagamento?.entrada?.valor ?? 0),
-            // <<< AQUI O AJUSTE: nada de string vazia
             forma_pagamento_entrada: fin.pagamento?.entrada?.forma ?? undefined,
             status_pagamento_entrada: fin.pagamento?.entrada?.status ?? undefined,
             pagamento_quitacao: Number(fin.pagamento?.quitacao?.valor ?? 0),
-            // <<< AQUI TAMBÉM
             forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma ?? undefined,
             status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? undefined,
           },

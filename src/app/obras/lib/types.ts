@@ -181,7 +181,11 @@ export type CreateObraPayload = {
   status?: ObraStatus
   observacoes?: string | null
 
+  // Execução (OS)
   equipe_id?: number | null
+  data_prev_inicio?: string | Date | null
+  data_prev_conclusao?: string | Date | null
+
   imagens?: ImagemInput[]
 
   area_telha?: number | string
@@ -212,7 +216,7 @@ export type CreateObraPayload = {
   materiaisItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
   andaimesItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
 
-  // ⇣ AJUSTADO: forma agora é FormaPagamento
+  // ⇣ forma agora é FormaPagamento
   pagamento_entrada?: number | string
   forma_pagamento_entrada?: FormaPagamento | null
   status_pagamento_entrada?: PagamentoStatus | null
@@ -224,6 +228,7 @@ export type CreateObraPayload = {
   clienteCpf?: string | null
   forceUpdateClienteCpf?: boolean
 }
+
 
 export type CriarObraResult = {
   obraId: number

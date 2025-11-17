@@ -179,6 +179,10 @@ export type CriarObraInput = {
       andaimes?: PedidoAndaimesItemInput[]
     }
   }
+
+  // EXECUÇÃO (OS) — opcionais no create; a OS só será criada se todos estiverem válidos
+  data_prev_inicio?: string | Date | null
+  data_prev_conclusao?: string | Date | null
 }
 
 export type CriarObraResult = {
@@ -206,7 +210,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     }
   }
 
-  // Fallbacks do objeto aninhado (pedidoCompra.*) – tudo opcional
   const pc = (input as any).pedidoCompra ?? {}
   const telhaHead = pc.telha ?? {}
   const madeiraHead = pc.madeira ?? {}
@@ -214,7 +217,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   const andaimesHead = pc.andaimes ?? {}
   const itensPC = pc.itens ?? {}
 
-  // Efetivos: preferir top-level; se ausente, pegar do aninhado; por fim, default
   const areaTelhaEff = input.area_telha ?? telhaHead.area ?? 0
   const orcTelhaEff = input.orcamento_telha ?? telhaHead.orcamento ?? 0
   const prevTelhaEff = input.previsao_telha ?? telhaHead.previsao ?? null
@@ -259,6 +261,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     pagamento_quitacao,
     forma_pagamento_quitacao,
     status_pagamento_quitacao,
+
+    data_prev_inicio,
+    data_prev_conclusao,
   } = input
 
   return await prisma.$transaction(
@@ -268,7 +273,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       if (orc.lancado_obra || orc.obra)
         throw new ObraCreateError("ORCAMENTO_JA_LANCADO", "Já existe obra para este orçamento.", "check-orcamento", { orcamentoId })
 
-      // CPF (opcional)
       if (clienteCpf !== undefined && clienteCpf !== null && String(clienteCpf).trim() !== "") {
         const cpfDigits = onlyDigits(clienteCpf)
         if (cpfDigits.length !== 11) throw new ObraCreateError("CPF_INVALIDO", "CPF inválido. Use 11 dígitos.", "cliente-cpf", { cpf: cpfDigits })
@@ -296,7 +300,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         }
       }
 
-      // OBRA
       const tituloOrc = (String((orc as any).titulo ?? "").trim() || null) as string | null
       let obraId = 0
       try {
@@ -337,20 +340,54 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         throw new ObraCreateError("OBRA_CREATE_FAILED", "Erro ao criar a obra.", "create-obra", { err: msg })
       }
 
-      // PEDIDO HEAD (com fallbacks)
+      // ORDEM DE SERVIÇO (cria junto com a obra — somente se todos os campos obrigatórios existirem)
+      try {
+        const equipeIdNum = Number(equipe_id)
+        const prevInicio = parseDateLoose(data_prev_inicio ?? null)
+        const prevConclusao = parseDateLoose(data_prev_conclusao ?? null)
+
+        if (Number.isFinite(equipeIdNum) && equipeIdNum && prevInicio && prevConclusao) {
+          await tx.ordem_servico.create({
+            data: {
+              obra_id: obraId,
+              equipe_id: equipeIdNum,
+              data_prev_inicio: prevInicio,
+              data_prev_conclusao: prevConclusao,
+            },
+          })
+
+          try {
+            await tx.auditLog.create({
+              data: {
+                user_id: actorUserId ?? null,
+                action: "ORDEM_SERVICO_CREATE",
+                entity: "ordem_servico",
+                entity_id: obraId,
+                detail: {
+                  obraId,
+                  equipe_id: equipeIdNum,
+                  data_prev_inicio: prevInicio,
+                  data_prev_conclusao: prevConclusao,
+                },
+              },
+            })
+          } catch {}
+        }
+      } catch (err: any) {
+        console.error("[ordem_servico] create durante obra-create falhou:", err?.message ?? err)
+      }
+
       let pedidoCompraId = 0
       try {
         const head = await tx.pedido_compra.create({
           data: {
             obra: { connect: { id: obraId } },
 
-            // TELHA
             ...(areaTelhaEff !== undefined ? { area_telha: d(areaTelhaEff) } : {}),
             ...(orcTelhaEff !== undefined ? { orcamento_telha: d(orcTelhaEff) } : {}),
             ...(prevTelhaEff !== undefined ? { previsao_telha: parseDateLoose(prevTelhaEff) } : {}),
             ...(mapPedidoPadraoStatus(statusTelhaEff) ? { status_telha: mapPedidoPadraoStatus(statusTelhaEff)! } : {}),
 
-            // MADEIRA
             ...(orcMadeiraEff !== undefined ? { orcamento_madeira: d(orcMadeiraEff) } : {}),
             ...(prevMadeiraEff !== undefined ? { previsao_madeira: parseDateLoose(prevMadeiraEff) } : {}),
             ...(mapPedidoPadraoStatus(statusMadeiraEff) ? { status_madeira: mapPedidoPadraoStatus(statusMadeiraEff)! } : {}),
@@ -358,10 +395,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               ? { fornecedor_madeira: { connect: { id: Number(fornMadeiraEff) } } }
               : {}),
 
-            // MATERIAIS
             ...(mapMateriaisStatus(statusMateriaisEff) ? { materiais_status: mapMateriaisStatus(statusMateriaisEff)! } : {}),
 
-            // ANDAIMES
             ...(mapAndaimesStatus(statusAndaimesEff) ? { andaimes_status: mapAndaimesStatus(statusAndaimesEff)! } : {}),
             ...(Number.isFinite(Number(fornAndaimesEff)) && Number(fornAndaimesEff)
               ? { andaimes_fornecedor: { connect: { id: Number(fornAndaimesEff) } } }
@@ -376,10 +411,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         })
       }
 
-      // ITENS + LINKS
       let ptId = 0, pmId = 0, pmatId = 0, paId = 0
       try {
-        // TELHA
         const telhaRows =
           Array.isArray(telhaItensEff) && telhaItensEff.length > 0
             ? await Promise.all(
@@ -404,7 +437,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               ]
         ptId = telhaRows[0].id
 
-        // MADEIRA
         const madeiraRows =
           Array.isArray(madeiraItensEff) && madeiraItensEff.length > 0
             ? await Promise.all(
@@ -441,7 +473,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               ]
         pmId = madeiraRows[0].id
 
-        // MATERIAIS
         const materiaisRows =
           Array.isArray(materiaisItensEff) && materiaisItensEff.length > 0
             ? await Promise.all(
@@ -466,7 +497,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               ]
         pmatId = materiaisRows[0].id
 
-        // ANDAIMES
         const andaimesRows =
           Array.isArray(andaimesItensEff) && andaimesItensEff.length > 0
             ? await Promise.all(
@@ -491,7 +521,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               ]
         paId = andaimesRows[0].id
 
-        // Linka ids no HEAD
         await tx.pedido_compra.update({
           where: { id: pedidoCompraId },
           data: { pedido_telha_id: ptId, pedido_madeira_id: pmId, pedido_materiais_id: pmatId, pedido_andaimes_id: paId },
@@ -506,7 +535,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         )
       }
 
-      // IMAGENS (opcional)
       if (Array.isArray(imagens) && imagens.length > 0) {
         try {
           await tx.obra_imagens.createMany({
@@ -522,7 +550,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         }
       }
 
-      // MARCAR ORÇAMENTO COMO LANÇADO
       try {
         await tx.orcamento.update({
           where: { id: orcamentoId },
@@ -532,7 +559,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         throw new ObraCreateError("ORCAMENTO_UPDATE_FAILED", "Erro ao marcar orçamento como lançado.", "update-orcamento", { err: String(err?.message ?? "") })
       }
 
-      // AUDIT (best-effort)
       try {
         await tx.auditLog.createMany({
           data: [

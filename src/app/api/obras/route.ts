@@ -1,4 +1,3 @@
-// src/app/api/obras/route.ts
 import { NextResponse, NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -90,6 +89,10 @@ export async function POST(req: NextRequest) {
 
       // equipe (execução)
       equipe_id: body.equipe_id != null ? Number(body.equipe_id) : null,
+
+      // >>>>>> NOVO: datas da OS (opcionais)
+      data_prev_inicio: body.data_prev_inicio ?? null,
+      data_prev_conclusao: body.data_prev_conclusao ?? null,
 
       // ===== FINANCEIRO =====
       valor_obra: Number(body.valor_obra),

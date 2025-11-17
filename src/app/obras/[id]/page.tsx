@@ -9,6 +9,10 @@ import type {
   FormaPagamento,
   PagamentoStatus,
   PedidoCompraVM,
+  ObraStatus,
+  PedidoStatusPadrao,
+  PedidoStatusMateriais,
+  PedidoStatusAndaimes,
 } from "@/app/obras/lib/types"
 
 // catálogos/combos (SSR)
@@ -22,7 +26,21 @@ export const metadata: Metadata = { title: "Obras · Detalhe" }
 
 type Option = { value: string; label: string }
 
-// helpers de normalização para o FinanceiroVM
+/* ===== Normalizações vindas do back (UPPER_CASE) -> UI ===== */
+function mapObraStatus(raw: unknown): ObraStatus {
+  const s = String(raw ?? "").toUpperCase()
+  switch (s) {
+    case "ASSINATURA_DE_CONTRATO": return "Assinatura de contrato"
+    case "AGUARDANDO_VALIDACAO_TECNICA": return "Aguardando validação técnica"
+    case "COMPRAS": return "Compras"
+    case "A_INICIAR": return "À iniciar"
+    case "EXECUCAO": return "Execução"
+    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
+    case "PENDENCIA": return "Pendência"
+    case "FINALIZADO": return "Finalizado"
+    default: return "Assinatura de contrato"
+  }
+}
 function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   const s = String(raw ?? "").trim().toLowerCase()
   if (!s) return null
@@ -34,8 +52,35 @@ function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   return null
 }
 function mapStatusPagamento(raw: unknown): PagamentoStatus {
-  const s = String(raw ?? "").trim().toLowerCase()
-  return s === "efetuado" ? "Efetuado" : "Pendente"
+  const s = String(raw ?? "").trim().toUpperCase()
+  return s === "EFETUADO" ? "Efetuado" : "Pendente"
+}
+function mapPedidoStatusPadrao(raw: unknown): PedidoStatusPadrao {
+  const s = String(raw ?? "").toUpperCase()
+  switch (s) {
+    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
+    case "PEDIDO_FEITO": return "Pedido feito"
+    case "ENTREGUE": return "Entregue"
+    default: return "Pendente"
+  }
+}
+function mapPedidoStatusMateriais(raw: unknown): PedidoStatusMateriais {
+  const s = String(raw ?? "").toUpperCase()
+  switch (s) {
+    case "EM_ESTOQUE": return "Em estoque"
+    case "ENTREGUE": return "Entregue"
+    default: return "Pendente"
+  }
+}
+function mapPedidoStatusAndaimes(raw: unknown): PedidoStatusAndaimes {
+  const s = String(raw ?? "").toUpperCase()
+  switch (s) {
+    case "PEDIDO_FEITO": return "Pedido feito"
+    case "ENTREGUE": return "Entregue"
+    case "A_COLETAR": return "À coletar"
+    case "COLETADO": return "Coletado"
+    default: return "Pendente"
+  }
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -104,18 +149,19 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
-  // telhas do catálogo (sem re-fetch do orçamento)
+  // telhas do catálogo
   const telhaOptions: Option[] = Array.from(
     new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
+  // ===== Infos Gerais =====
   const initial: Partial<ObraInfosVM> = {
-    titulo: (dto as any).titulo ?? "",
+    titulo: dto.titulo ?? "",
     tipoObra: dto.dadosObra?.tipoObra ?? "",
     largura: dto.dadosObra?.largura ?? 0,
     comprimento: dto.dadosObra?.comprimento ?? 0,
     telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
-    status: dto.dadosObra?.status as any,
+    status: mapObraStatus(dto.dadosObra?.status),
     cliente: {
       nome: dto.cliente?.nome ?? "",
       telefone: dto.cliente?.telefone ?? "",
@@ -132,7 +178,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     observacoes: dto.dadosObra?.observacoes ?? null,
   }
 
-  // Catálogo para comboboxes do Pedido de Compra
+  // ===== Catálogo para comboboxes do Pedido de Compra =====
   const catalogo = {
     madeiras: [] as { nome: string; preco: number }[],
     materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
@@ -175,7 +221,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   // ===== Anexos (VIEW/EDIT)
   const orcId = dto?.orcamento?.id
-  const orcamentoLink = Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
+  const orcamentoLink =
+    Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
 
   const anexosInit = {
     orcamento: orcamentoLink,
@@ -184,7 +231,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     ordemServico: String(dto?.anexos?.ordemServico ?? ""),
   }
 
-  // ===== Financeiro (normalizado p/ FinanceiroVM do client) =====
+  // ===== Financeiro -> FinanceiroVM =====
   const fin = (dto as any)?.financeiro ?? {}
   const financeiroInit = {
     valorObra: Number(dto?.dadosObra?.valorObra ?? 0),
@@ -203,12 +250,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     },
   }
 
-  // ===== Pedido de Compra (preenchimento inicial para o client) =====
+  // ===== Pedido de Compra -> PedidoCompraVM (com status mapeado) =====
   const pc = dto?.pedidoCompra
   const pedidoInit: Partial<PedidoCompraVM> | undefined = pc
     ? {
         telha: {
-          status: pc.telha?.status ?? "Pendente",
+          status: mapPedidoStatusPadrao(pc.telha?.status),
           previsao: pc.telha?.previsao ?? null,
           orcamento: Number(pc.telha?.orcamento ?? 0),
           area: Number(pc.telha?.area ?? 0),
@@ -223,7 +270,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
             : [],
         },
         madeira: {
-          status: pc.madeira?.status ?? "Pendente",
+          status: mapPedidoStatusPadrao(pc.madeira?.status),
           previsao: pc.madeira?.previsao ?? null,
           fornecedorId: pc.fornecedores?.madeira?.id ?? null,
           orcamento: Number(pc.madeira?.orcamento ?? 0),
@@ -241,7 +288,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
             : [],
         },
         materiais: {
-          status: pc.materiais?.status ?? "Pendente",
+          status: mapPedidoStatusMateriais(pc.materiais?.status),
           itens: Array.isArray(pc.itens?.materiais)
             ? pc.itens.materiais.map((it) => ({
                 id: it.id,
@@ -253,7 +300,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
             : [],
         },
         andaimes: {
-          status: pc.andaimes?.status ?? "Pendente",
+          status: mapPedidoStatusAndaimes(pc.andaimes?.status),
           fornecedorId: pc.fornecedores?.andaimes?.id ?? null,
           itens: Array.isArray(pc.itens?.andaimes)
             ? pc.itens.andaimes.map((it) => ({
@@ -268,7 +315,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       }
     : undefined
 
-  // ===== Execução (ordem de serviço) =====
+  // ===== Execução (ordem de serviço) — fallback da equipe da obra quando OS = null =====
   const execucaoInit =
     dto?.ordemServico
       ? {
@@ -276,7 +323,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           dataPrevInicio: dto.ordemServico.dataPrevInicio ?? null,
           dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
         }
-      : undefined
+      : {
+          // se não existe OS, ao menos pré-seleciona a equipe da obra
+          equipeId: dto?.equipe?.id ?? null,
+          dataPrevInicio: null,
+          dataPrevConclusao: null,
+        }
 
   return (
     <ObrasPage
