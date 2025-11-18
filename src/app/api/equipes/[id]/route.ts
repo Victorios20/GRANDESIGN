@@ -5,10 +5,8 @@ import { prisma } from "@/lib/prisma"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-type RouteContext = { params: { id: string } }
-
 /** GET /api/equipes/:id */
-export async function GET(_req: Request, { params }: RouteContext) {
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = Number(params.id)
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "ID inválido" }, { status: 400 })
@@ -23,7 +21,7 @@ export async function GET(_req: Request, { params }: RouteContext) {
 }
 
 /** PUT /api/equipes/:id  { nome } */
-export async function PUT(req: Request, { params }: RouteContext) {
+export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id)
     if (!Number.isFinite(id)) {
@@ -44,7 +42,7 @@ export async function PUT(req: Request, { params }: RouteContext) {
 }
 
 /** DELETE /api/equipes/:id */
-export async function DELETE(_req: Request, { params }: RouteContext) {
+export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
   try {
     const id = Number(params.id)
     if (!Number.isFinite(id)) {
