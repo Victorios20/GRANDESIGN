@@ -8,6 +8,7 @@ type Id = number | string
 type EnumString = string
 
 type ObraBasePayload = {
+  titulo?: string
   endereco_obra?: string
   maps_url?: string
   tipo_obra?: string
@@ -15,17 +16,17 @@ type ObraBasePayload = {
   comprimento?: number | string
   telha_escolhida?: string
   status?: EnumString
-  observacoes?: string
+  observacoes?: string | null
 }
 
 type FinanceiroPayload = {
   valor_obra?: number | string
   valor_mao_de_obra?: number | string
   pagamento_entrada?: number | string
-  forma_pagamento_entrada?: string
+  forma_pagamento_entrada?: string | null
   status_pagamento_entrada?: EnumString
   pagamento_quitacao?: number | string
-  forma_pagamento_quitacao?: string
+  forma_pagamento_quitacao?: string | null
   status_pagamento_quitacao?: EnumString
 }
 
@@ -77,18 +78,18 @@ type PedidoItensUpsert = {
 
 type PedidoCompraPayload = {
   orcamento_telha?: number | string
-  previsao_telha?: string | Date
-  status_telha?: EnumString
+  previsao_telha?: string | Date | null
+  status_telha?: EnumString | null
   area_telha?: number | string
 
   orcamento_madeira?: number | string
-  previsao_madeira?: string | Date
-  status_madeira?: EnumString
+  previsao_madeira?: string | Date | null
+  status_madeira?: EnumString | null
   fornecedor_madeira_id?: Id | null
 
-  materiais_status?: EnumString
+  materiais_status?: EnumString | null
 
-  andaimes_status?: EnumString
+  andaimes_status?: EnumString | null
   andaimes_fornecedor_id?: Id | null
 
   links?: PedidoLinksPayload
@@ -105,20 +106,28 @@ type OrdemServicoPayload = {
   _delete?: boolean
   id?: Id
   equipe_id?: Id
-  data_prev_inicio?: string | Date
-  data_prev_conclusao?: string | Date
+  data_prev_inicio?: string | Date | null
+  data_prev_conclusao?: string | Date | null
 }
 
 type ImagemPayload = {
   id?: Id
   url?: string
-  ordem?: number
-  legenda?: string
+  ordem?: number | null
+  legenda?: string | null
   _delete?: boolean
 }
 type ImagensPayload = {
   replace?: boolean
   list?: ImagemPayload[]
+}
+
+type ClientePayload = {
+  nome?: string | null
+  telefone?: string | null
+  bairro?: string | null
+  cidade_id?: Id | null
+  cidade_nome?: string | null
 }
 
 type AnexosPayload = {
@@ -135,17 +144,129 @@ export type UpdateObraPayload = {
   ordemServico?: OrdemServicoPayload
   imagens?: ImagensPayload
   anexos?: AnexosPayload
+  cliente?: ClientePayload
 }
 
 function n(v: any) {
-  if (v === undefined || v === null) return undefined
-  const num = typeof v === "string" ? Number(v) : v
+  if (v === undefined || v === null || v === "") return undefined
+  const num = typeof v === "string" ? Number(v.replace?.(",", ".")) : v
   return Number.isNaN(num) ? undefined : num
+}
+
+function d(v: any | null | undefined): Date | undefined {
+  if (v === null || v === undefined) return undefined
+  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v : undefined
+  const dd = new Date(v)
+  return Number.isFinite(dd.getTime()) ? dd : undefined
 }
 
 function setNullableString(target: Record<string, any>, key: string, v: string | null | undefined) {
   if (v === undefined) return
   target[key] = v === null ? null : String(v).trim()
+}
+
+function cleanText(s: string | null | undefined) {
+  return (s ?? "").toString().trim().replace(/\s+/g, " ")
+}
+
+const ensureInt = (v: Id | null | undefined): number | undefined => {
+  if (v === null || v === undefined || v === "") return undefined
+  const n2 = Number(v)
+  return Number.isFinite(n2) ? n2 : undefined
+}
+
+function norm(s: unknown) {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toUpperCase()
+    .trim()
+}
+
+const OBRA_TOKENS = [
+  "ASSINATURA_DE_CONTRATO",
+  "AGUARDANDO_VALIDACAO_TECNICA",
+  "COMPRAS",
+  "A_INICIAR",
+  "EXECUCAO",
+  "AGUARDANDO_PAGAMENTO",
+  "PENDENCIA",
+  "FINALIZADO",
+]
+
+const PGM_TOKENS = ["PENDENTE", "EFETUADO"]
+
+const PEDIDO_TOKENS = ["PENDENTE", "AGUARDANDO_PAGAMENTO", "PEDIDO_FEITO", "ENTREGUE"]
+
+const MATERIAIS_TOKENS = ["PENDENTE", "EM_ESTOQUE", "ENTREGUE"]
+
+const ANDAIMES_TOKENS = ["PENDENTE", "PEDIDO_FEITO", "A_COLETAR", "COLETADO", "ENTREGUE"]
+
+function mapObraStatus(v: unknown): string | undefined {
+  const raw = String(v ?? "").trim()
+  const up = raw.toUpperCase()
+  if (OBRA_TOKENS.includes(up)) return up
+  switch (norm(raw)) {
+    case "ASSINATURA DE CONTRATO": return "ASSINATURA_DE_CONTRATO"
+    case "AGUARDANDO VALIDACAO TECNICA": return "AGUARDANDO_VALIDACAO_TECNICA"
+    case "COMPRAS": return "COMPRAS"
+    case "A INICIAR": return "A_INICIAR"
+    case "EXECUCAO": return "EXECUCAO"
+    case "AGUARDANDO PAGAMENTO": return "AGUARDANDO_PAGAMENTO"
+    case "PENDENCIA": return "PENDENCIA"
+    case "FINALIZADO": return "FINALIZADO"
+    default: return undefined
+  }
+}
+
+function mapPagStatus(v: unknown): string | undefined {
+  const raw = String(v ?? "").trim()
+  const up = raw.toUpperCase()
+  if (PGM_TOKENS.includes(up)) return up
+  switch (norm(raw)) {
+    case "PENDENTE": return "PENDENTE"
+    case "EFETUADO": return "EFETUADO"
+    default: return undefined
+  }
+}
+
+function mapPedidoStatusPadrao(v: unknown): string | undefined {
+  const raw = String(v ?? "").trim()
+  const up = raw.toUpperCase()
+  if (PEDIDO_TOKENS.includes(up)) return up
+  switch (norm(raw)) {
+    case "PENDENTE": return "PENDENTE"
+    case "AGUARDANDO PAGAMENTO": return "AGUARDANDO_PAGAMENTO"
+    case "PEDIDO FEITO": return "PEDIDO_FEITO"
+    case "ENTREGUE": return "ENTREGUE"
+    default: return undefined
+  }
+}
+
+function mapMateriaisStatus(v: unknown): string | undefined {
+  const raw = String(v ?? "").trim()
+  const up = raw.toUpperCase()
+  if (MATERIAIS_TOKENS.includes(up)) return up
+  switch (norm(raw)) {
+    case "PENDENTE": return "PENDENTE"
+    case "EM ESTOQUE": return "EM_ESTOQUE"
+    case "ENTREGUE": return "ENTREGUE"
+    default: return undefined
+  }
+}
+
+function mapAndaimesStatus(v: unknown): string | undefined {
+  const raw = String(v ?? "").trim()
+  const up = raw.toUpperCase()
+  if (ANDAIMES_TOKENS.includes(up)) return up
+  switch (norm(raw)) {
+    case "PENDENTE": return "PENDENTE"
+    case "PEDIDO FEITO": return "PEDIDO_FEITO"
+    case "A COLETAR": return "A_COLETAR"
+    case "COLETADO": return "COLETADO"
+    case "ENTREGUE": return "ENTREGUE"
+    default: return undefined
+  }
 }
 
 export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id) {
@@ -154,9 +275,9 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     return { ok: false, status: 400, error: "OBRA_ID_INVALIDO" }
   }
 
-  const hasForbidden =
+  const banidos =
     JSON.stringify(payload).match(/"cliente_id"|"orcamento_id"|"created_by"|"updated_by"/g)?.length ?? 0
-  if (hasForbidden) {
+  if (banidos) {
     return { ok: false, status: 400, error: "EDICAO_DE_CAMPO_PROIBIDO" }
   }
 
@@ -173,87 +294,118 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     return { ok: false, status: 404, error: "OBRA_NAO_ENCONTRADA" }
   }
 
-  const obraData: Prisma.obrasUpdateInput = {}
-  if (userId) {
-    obraData.updatedBy = { connect: { id: Number(userId) } }
-  }
+  const updated = await prisma.$transaction(async (tx) => {
+    if (payload.cliente) {
+      const patch: Prisma.clienteUpdateInput = {}
+      if (payload.cliente.nome !== undefined) patch.nome = cleanText(payload.cliente.nome)
+      if (payload.cliente.telefone !== undefined) patch.telefone = cleanText(payload.cliente.telefone)
+      if (payload.cliente.bairro !== undefined) patch.bairro = cleanText(payload.cliente.bairro)
+      if (payload.cliente.cidade_id === null) {
+        patch.cidades = { disconnect: true }
+      } else if (payload.cliente.cidade_id !== undefined) {
+        const cid = ensureInt(payload.cliente.cidade_id)
+        if (cid) patch.cidades = { connect: { id: cid } }
+      } else if (payload.cliente.cidade_nome !== undefined) {
+        const nome = cleanText(payload.cliente.cidade_nome)
+        if (nome) {
+          const row = await tx.cidades.findFirst({
+            where: { nome: { equals: nome, mode: "insensitive" } },
+            select: { id: true },
+          })
+          if (row?.id) patch.cidades = { connect: { id: row.id } }
+        }
+      }
+      if (Object.keys(patch).length > 0) {
+        await tx.cliente.update({ where: { id: obraAtual.cliente_id }, data: patch })
+      }
+    }
 
-  if (payload.obra) {
-    obraData.endereco_obra = payload.obra.endereco_obra ?? undefined
-    obraData.maps_url = payload.obra.maps_url ?? undefined
-    obraData.tipo_obra = payload.obra.tipo_obra ?? undefined
-    obraData.largura = n(payload.obra.largura)
-    obraData.comprimento = n(payload.obra.comprimento)
-    obraData.telha_escolhida = payload.obra.telha_escolhida ?? undefined
-    obraData.status = payload.obra.status as any
-    obraData.observacoes = payload.obra.observacoes ?? undefined
-  }
+    const obraData: Prisma.obrasUpdateInput = {}
+    if (userId) {
+      obraData.updatedBy = { connect: { id: Number(userId) } }
+    }
 
-  // Anexos (novos campos em obras): undefined = não altera; null = seta NULL; string = grava
-  if (payload.anexos) {
-    setNullableString(obraData, "link_contrato", payload.anexos.contrato)
-    setNullableString(obraData, "link_ordem_servico", payload.anexos.ordemServico)
-    setNullableString(obraData, "link_slide_orcamento", payload.anexos.propostaSlide)
-    setNullableString(obraData, "link_pdf_orcamento", payload.anexos.propostaPdf)
-  }
+    if (payload.obra) {
+      if (payload.obra.titulo !== undefined) obraData.titulo = cleanText(payload.obra.titulo)
+      obraData.endereco_obra = payload.obra.endereco_obra ?? undefined
+      obraData.maps_url = payload.obra.maps_url ?? undefined
+      obraData.tipo_obra = payload.obra.tipo_obra ?? undefined
+      obraData.largura = n(payload.obra.largura)
+      obraData.comprimento = n(payload.obra.comprimento)
+      obraData.telha_escolhida = payload.obra.telha_escolhida ?? undefined
+      const stObra = mapObraStatus(payload.obra.status)
+      obraData.status = (stObra as any) ?? undefined
+      obraData.observacoes = payload.obra.observacoes ?? undefined
+    }
 
-  if (payload.financeiro) {
-    obraData.valor_obra = n(payload.financeiro.valor_obra)
-    obraData.valor_mao_de_obra = n(payload.financeiro.valor_mao_de_obra)
-    obraData.pagamento_entrada = n(payload.financeiro.pagamento_entrada)
-    obraData.forma_pagamento_entrada = payload.financeiro.forma_pagamento_entrada ?? undefined
-    obraData.status_pagamento_entrada = payload.financeiro.status_pagamento_entrada as any
-    obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
-    obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao ?? undefined
-    obraData.status_pagamento_quitacao = payload.financeiro.status_pagamento_quitacao as any
-  }
+    if (payload.anexos) {
+      setNullableString(obraData, "link_contrato", payload.anexos.contrato)
+      setNullableString(obraData, "link_ordem_servico", payload.anexos.ordemServico)
+      setNullableString(obraData, "link_slide_orcamento", payload.anexos.propostaSlide)
+      setNullableString(obraData, "link_pdf_orcamento", payload.anexos.propostaPdf)
+    }
 
-  // imagens (1:N)
-  if (payload.imagens?.list && payload.imagens.list.length >= 0) {
-    const list = payload.imagens.list
-    if (payload.imagens.replace) {
-      obraData.imagens = {
-        deleteMany: {},
-        create: list
-          .filter(i => !i._delete && i.url)
+    if (payload.financeiro) {
+      obraData.valor_obra = n(payload.financeiro.valor_obra)
+      obraData.valor_mao_de_obra = n(payload.financeiro.valor_mao_de_obra)
+      obraData.pagamento_entrada = n(payload.financeiro.pagamento_entrada)
+      obraData.forma_pagamento_entrada =
+        payload.financeiro.forma_pagamento_entrada === undefined
+          ? undefined
+          : payload.financeiro.forma_pagamento_entrada
+      obraData.status_pagamento_entrada = (mapPagStatus(payload.financeiro.status_pagamento_entrada) as any) ?? undefined
+      obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
+      obraData.forma_pagamento_quitacao =
+        payload.financeiro.forma_pagamento_quitacao === undefined
+          ? undefined
+          : payload.financeiro.forma_pagamento_quitacao
+      obraData.status_pagamento_quitacao =
+        (mapPagStatus(payload.financeiro.status_pagamento_quitacao) as any) ?? undefined
+    }
+
+    if (payload.imagens?.list && payload.imagens.list.length >= 0) {
+      const list = payload.imagens.list
+      if (payload.imagens.replace) {
+        obraData.imagens = {
+          deleteMany: {},
+          create: list
+            .filter(i => !i._delete && i.url)
+            .map(i => ({
+              url: i.url!,
+              ordem: i.ordem ?? null,
+              legenda: i.legenda ?? null,
+            })),
+        }
+      } else {
+        const updateOps = list
+          .filter(i => i.id && !i._delete)
+          .map(i => ({
+            where: { id: Number(i.id) },
+            data: {
+              url: i.url ?? undefined,
+              ordem: i.ordem ?? undefined,
+              legenda: i.legenda ?? undefined,
+            },
+          }))
+
+        const createOps = list
+          .filter(i => !i.id && !i._delete && i.url)
           .map(i => ({
             url: i.url!,
             ordem: i.ordem ?? null,
             legenda: i.legenda ?? null,
-          })),
-      }
-    } else {
-      const updateOps = list
-        .filter(i => i.id && !i._delete)
-        .map(i => ({
-          where: { id: Number(i.id) },
-          data: {
-            url: i.url ?? undefined,
-            ordem: i.ordem ?? undefined,
-            legenda: i.legenda ?? undefined,
-          },
-        }))
+          }))
 
-      const createOps = list
-        .filter(i => !i.id && !i._delete && i.url)
-        .map(i => ({
-          url: i.url!,
-          ordem: i.ordem ?? null,
-          legenda: i.legenda ?? null,
-        }))
+        const deleteIds = list.filter(i => i.id && i._delete).map(i => Number(i.id))
 
-      const deleteIds = list.filter(i => i.id && i._delete).map(i => Number(i.id))
-
-      obraData.imagens = {
-        ...(deleteIds.length ? { deleteMany: { id: { in: deleteIds } } } : {}),
-        ...(updateOps.length ? { update: updateOps as any } : {}),
-        ...(createOps.length ? { create: createOps } : {}),
+        obraData.imagens = {
+          ...(deleteIds.length ? { deleteMany: { id: { in: deleteIds } } } : {}),
+          ...(updateOps.length ? { update: updateOps as any } : {}),
+          ...(createOps.length ? { create: createOps } : {}),
+        }
       }
     }
-  }
 
-  const updated = await prisma.$transaction(async (tx) => {
-    // 1) garante o HEAD do pedido_compra e pega o id
     const head = await tx.pedido_compra.upsert({
       where: { obra_id: id },
       update: {},
@@ -262,7 +414,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     })
     const pedidoCompraId = head.id
 
-    // 2) ORDEM DE SERVIÇO
     if (payload.ordemServico) {
       const os = payload.ordemServico
       const hasOS = !!obraAtual.ordem_servico?.id
@@ -273,57 +424,56 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.ordem_servico = {
           update: {
             ...(os.equipe_id !== undefined ? { equipe: { connect: { id: Number(os.equipe_id) } } } : {}),
-            ...(os.data_prev_inicio ? { data_prev_inicio: new Date(os.data_prev_inicio) } : {}),
-            ...(os.data_prev_conclusao ? { data_prev_conclusao: new Date(os.data_prev_conclusao) } : {}),
+            ...(os.data_prev_inicio !== undefined ? { data_prev_inicio: d(os.data_prev_inicio) ?? undefined } : {}),
+            ...(os.data_prev_conclusao !== undefined
+              ? { data_prev_conclusao: d(os.data_prev_conclusao) ?? undefined }
+              : {}),
           },
         }
       } else {
-        const canCreate =
-          os.equipe_id !== undefined && !!os.data_prev_inicio && !!os.data_prev_conclusao
-
-        if (!canCreate) {
-          throw Object.assign(new Error("Dados insuficientes para criar a ordem de serviço."), {
-            code: "ORDEM_SERVICO_DADOS_INSUFICIENTES",
-          })
-        }
-
-        obraData.ordem_servico = {
-          create: {
-            equipe: { connect: { id: Number(os.equipe_id) } },
-            data_prev_inicio: new Date(os.data_prev_inicio!),
-            data_prev_conclusao: new Date(os.data_prev_conclusao!),
-          },
+        const equipeOk = ensureInt(os.equipe_id)
+        const dpi = d(os.data_prev_inicio)
+        const dpc = d(os.data_prev_conclusao)
+        if (equipeOk && dpi && dpc) {
+          obraData.ordem_servico = {
+            create: {
+              equipe: { connect: { id: equipeOk } },
+              data_prev_inicio: dpi,
+              data_prev_conclusao: dpc,
+            },
+          }
         }
       }
     }
 
-    // 3) PEDIDO DE COMPRA (head + links + itens)
     if (payload.pedidoCompra) {
       const pc = payload.pedidoCompra
       const pcUpdate: Prisma.pedido_compraUpdateInput = {}
 
       pcUpdate.orcamento_telha = n(pc.orcamento_telha)
-      pcUpdate.previsao_telha = pc.previsao_telha ? new Date(pc.previsao_telha) : undefined
-      pcUpdate.status_telha = pc.status_telha as any
+      pcUpdate.previsao_telha = pc.previsao_telha === null ? null : d(pc.previsao_telha)
+      pcUpdate.status_telha = (mapPedidoStatusPadrao(pc.status_telha) as any) ?? undefined
       pcUpdate.area_telha = n(pc.area_telha)
 
       pcUpdate.orcamento_madeira = n(pc.orcamento_madeira)
-      pcUpdate.previsao_madeira = pc.previsao_madeira ? new Date(pc.previsao_madeira) : undefined
-      pcUpdate.status_madeira = pc.status_madeira as any
+      pcUpdate.previsao_madeira = pc.previsao_madeira === null ? null : d(pc.previsao_madeira)
+      pcUpdate.status_madeira = (mapPedidoStatusPadrao(pc.status_madeira) as any) ?? undefined
 
-      pcUpdate.materiais_status = pc.materiais_status as any
-      pcUpdate.andaimes_status = pc.andaimes_status as any
+      pcUpdate.materiais_status = (mapMateriaisStatus(pc.materiais_status) as any) ?? undefined
+      pcUpdate.andaimes_status = (mapAndaimesStatus(pc.andaimes_status) as any) ?? undefined
 
       if (pc.fornecedor_madeira_id === null) {
         pcUpdate.fornecedor_madeira = { disconnect: true }
       } else if (pc.fornecedor_madeira_id !== undefined) {
-        pcUpdate.fornecedor_madeira = { connect: { id: Number(pc.fornecedor_madeira_id) } }
+        const fm = ensureInt(pc.fornecedor_madeira_id)
+        if (fm) pcUpdate.fornecedor_madeira = { connect: { id: fm } }
       }
 
       if (pc.andaimes_fornecedor_id === null) {
         pcUpdate.andaimes_fornecedor = { disconnect: true }
       } else if (pc.andaimes_fornecedor_id !== undefined) {
-        pcUpdate.andaimes_fornecedor = { connect: { id: Number(pc.andaimes_fornecedor_id) } }
+        const fa = ensureInt(pc.andaimes_fornecedor_id)
+        if (fa) pcUpdate.andaimes_fornecedor = { connect: { id: fa } }
       }
 
       if (pc.links?.telha) {
@@ -470,14 +620,18 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       }
       if (pc.itens?.materiais) {
         pcUpdate.pedido_materiais_itens = {
-          ...(deleteIds(pc.itens.materiais).length ? { deleteMany: { id: { in: deleteIds(pc.itens.materiais) } } } : {}),
+          ...(deleteIds(pc.itens.materiais).length
+            ? { deleteMany: { id: { in: deleteIds(pc.itens.materiais) } } }
+            : {}),
           ...(upsertArr(pc.itens.materiais).length ? { upsert: upsertArr(pc.itens.materiais) as any } : {}),
           ...(createArr(pc.itens.materiais).length ? { create: createArr(pc.itens.materiais) as any } : {}),
         }
       }
       if (pc.itens?.andaimes) {
         pcUpdate.pedido_andaimes_itens = {
-          ...(deleteIds(pc.itens.andaimes).length ? { deleteMany: { id: { in: deleteIds(pc.itens.andaimes) } } } : {}),
+          ...(deleteIds(pc.itens.andaimes).length
+            ? { deleteMany: { id: { in: deleteIds(pc.itens.andaimes) } } }
+            : {}),
           ...(upsertArr(pc.itens.andaimes).length ? { upsert: upsertArr(pc.itens.andaimes) as any } : {}),
           ...(createArr(pc.itens.andaimes).length ? { create: createArr(pc.itens.andaimes) as any } : {}),
         }

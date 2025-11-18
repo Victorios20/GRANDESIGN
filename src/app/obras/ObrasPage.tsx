@@ -142,7 +142,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-    ;(el as HTMLElement).focus?.()
+      ; (el as HTMLElement).focus?.()
   }
 }
 
@@ -447,7 +447,6 @@ export default function ObrasPage({
 
           // ========= EXECUÇÃO =========
           equipe_id: exec.equipeId ?? null,
-          // >>>>>> NOVO: enviar datas da OS no create
           data_prev_inicio: (exec.dataPrevInicio as any) ?? null,
           data_prev_conclusao: (exec.dataPrevConclusao as any) ?? null,
 
@@ -497,7 +496,94 @@ export default function ObrasPage({
           data_prev_conclusao: (exec.dataPrevConclusao as any) ?? undefined,
         }
 
+        // Helpers de mapeamento (PUT)
+        const mapTelhaItens = (arr: any[] = []) =>
+          arr.map((it) => ({
+            id: it?.id ?? undefined,
+            descricao: String(it?.descricao ?? "").trim(),
+            quantidade: Number(it?.quantidade ?? 0),
+            preco_unitario: Number(it?.precoUnitario ?? 0),
+            total:
+              it?.total !== undefined && it?.total !== null && String(it.total) !== ""
+                ? Number(it.total)
+                : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
+          }))
+
+        const mapMadeiraItens = (arr: any[] = []) =>
+          arr.map((it) => ({
+            id: it?.id ?? undefined,
+            componente: String(it?.componente ?? "").trim() || undefined,
+            madeira_nome: String(it?.madeiraNome ?? it?.descricao ?? "").trim() || undefined,
+            descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+            quantidade: Number(it?.quantidade ?? 0),
+            tamanho: Number(it?.tamanho ?? 0),
+            preco_unitario: Number(it?.precoUnitario ?? 0),
+            total:
+              it?.total !== undefined && it?.total !== null && String(it.total) !== ""
+                ? Number(it.total)
+                : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
+          }))
+
+        const mapMateriaisItens = (arr: any[] = []) =>
+          arr.map((it) => ({
+            id: it?.id ?? undefined,
+            descricao: String(it?.descricao ?? "").trim(),
+            quantidade: Number(it?.quantidade ?? 0),
+            preco_unitario: Number(it?.precoUnitario ?? 0),
+            total:
+              it?.total !== undefined && it?.total !== null && String(it.total) !== ""
+                ? Number(it.total)
+                : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
+          }))
+
+        // Pedido de Compra (head + itens) para PUT
+        const pedidoCompra: UpdateObraPayload["pedidoCompra"] = {
+          area_telha: Number(pedido.telha?.area ?? 0),
+          orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
+          previsao_telha: (pedido.telha?.previsao as any) ?? undefined,
+          status_telha: (pedido.telha?.status as any) ?? undefined,
+
+          orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
+          previsao_madeira: (pedido.madeira?.previsao as any) ?? undefined,
+          status_madeira: (pedido.madeira?.status as any) ?? undefined,
+          fornecedor_madeira_id:
+            pedido.madeira?.fornecedorId != null ? Number(pedido.madeira.fornecedorId) : undefined,
+
+          materiais_status: (pedido.materiais?.status as any) ?? undefined,
+
+          andaimes_status: (pedido.andaimes?.status as any) ?? undefined,
+          andaimes_fornecedor_id:
+            pedido.andaimes?.fornecedorId != null ? Number(pedido.andaimes.fornecedorId) : undefined,
+
+          itens: {
+            telha: mapTelhaItens(pedido.telha?.itens),
+            madeira: mapMadeiraItens(pedido.madeira?.itens),
+            materiais: mapMateriaisItens(pedido.materiais?.itens),
+            andaimes: mapMateriaisItens(pedido.andaimes?.itens),
+          },
+        }
+
+        // Imagens — replace total
+        // Imagens — replace total
+        const imagensReplace: UpdateObraPayload["imagens"] = {
+          replace: true,
+          list: (vm.imagens ?? [])
+            .filter((img) => String(img?.url ?? "").trim() !== "") // evita criar sem URL
+            .map((img, i) => ({
+              id: img.id ?? undefined,
+              url: String(img.url ?? "").trim(),
+              ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
+              // legenda precisa ser string | undefined (nunca null)
+              legenda:
+                img?.legenda && String(img.legenda).trim() !== ""
+                  ? String(img.legenda).trim()
+                  : undefined,
+            })),
+        }
+
+
         const upd: UpdateObraPayload = {
+          // INFOS GERAIS
           obra: {
             endereco_obra: vm.endereco.logradouro,
             maps_url: vm.endereco.mapsUrl,
@@ -505,9 +591,11 @@ export default function ObrasPage({
             largura: vm.largura ?? 0,
             comprimento: vm.comprimento ?? 0,
             telha_escolhida: vm.telhaEscolhida || "",
-            status: vm.status,
+            status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,
           },
+
+          // FINANCEIRO
           financeiro: {
             valor_obra: Number(fin.valorObra ?? 0),
             valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
@@ -518,8 +606,20 @@ export default function ObrasPage({
             forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma ?? undefined,
             status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? undefined,
           },
+
+          // ORDEM DE SERVIÇO
           ordemServico,
+
+          // PEDIDO DE COMPRA
+          pedidoCompra,
+
+          // IMAGENS
+          imagens: imagensReplace,
+
+          // ANEXOS (opcional, ligar quando a UI tiver inputs)
+          // anexos: { contrato: ..., ordemServico: ..., propostaSlide: ..., propostaPdf: ... }
         }
+
         await updateObra(obraId, upd)
         toast.success("Obra atualizada.")
         setIsEditing(false)
