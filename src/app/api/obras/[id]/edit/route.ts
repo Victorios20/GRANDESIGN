@@ -41,8 +41,9 @@ function makeErrorBody(
   return body
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const requestId =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
   const dev = process.env.NODE_ENV !== "production"
 
   try {
@@ -56,10 +57,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       )
     }
 
-    const obraId = Number(params?.id)
+    // ⬇️ params agora é Promise e precisa de await
+    const { id: idStr } = await ctx.params
+    const obraId = Number(idStr)
     if (!Number.isFinite(obraId) || obraId <= 0) {
       return json(
-        makeErrorBody("ID da obra inválido", "OBRA_ID_INVALIDO", requestId, "O parâmetro 'id' deve ser um número > 0."),
+        makeErrorBody(
+          "ID da obra inválido",
+          "OBRA_ID_INVALIDO",
+          requestId,
+          "O parâmetro 'id' deve ser um número > 0."
+        ),
         400,
         requestId
       )
@@ -68,7 +76,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const ct = (req.headers.get("content-type") || "").toLowerCase()
     if (!ct.startsWith("application/json")) {
       return json(
-        makeErrorBody("Content-Type inválido", "INVALID_CONTENT_TYPE", requestId, "Use application/json no corpo da requisição."),
+        makeErrorBody(
+          "Content-Type inválido",
+          "INVALID_CONTENT_TYPE",
+          requestId,
+          "Use application/json no corpo da requisição."
+        ),
         415,
         requestId
       )
@@ -101,7 +114,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     // sucesso
     return json({ data: resp.data, requestId }, 200, requestId)
   } catch (err: any) {
-    // Erros conhecidos específicos (ex.: validação da OS)
     if (err?.code === "ORDEM_SERVICO_DADOS_INSUFICIENTES") {
       const body = makeErrorBody(
         "Ordem de serviço com dados insuficientes",
@@ -112,7 +124,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       return json(body, 400, requestId)
     }
 
-    // Prisma / erros inesperados — detalhes só em dev
     const code = err?.code || err?.name || "UNEXPECTED_ERROR"
     const message = dev ? String(err?.message ?? err) : undefined
     const meta = dev ? err?.meta : undefined
