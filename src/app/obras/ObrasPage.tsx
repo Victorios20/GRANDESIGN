@@ -142,7 +142,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-      ; (el as HTMLElement).focus?.()
+    ;(el as HTMLElement).focus?.()
   }
 }
 
@@ -177,6 +177,18 @@ function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
     dataPrevInicio: parseMaybeDate(exec?.dataPrevInicio) ?? null,
     dataPrevConclusao: parseMaybeDate(exec?.dataPrevConclusao) ?? null,
   }
+}
+
+/** mostra toast com title(code) e loga a description (quando existir) */
+function showApiError(err: any) {
+  // se vier no padrão do back:
+  const title = err?.title || err?.error || "Falha ao salvar"
+  const code = err?.code || "UNKNOWN"
+  const desc = err?.description || err?.message
+  toast.error(`${title} (${code})`)
+  // manda tudo pro console pra dev debugar
+  // eslint-disable-next-line no-console
+  console.error("[ObrasPage] API error", { title, code, description: desc, raw: err })
 }
 
 export default function ObrasPage({
@@ -564,23 +576,20 @@ export default function ObrasPage({
         }
 
         // Imagens — replace total
-        // Imagens — replace total
         const imagensReplace: UpdateObraPayload["imagens"] = {
           replace: true,
           list: (vm.imagens ?? [])
-            .filter((img) => String(img?.url ?? "").trim() !== "") // evita criar sem URL
+            .filter((img) => String(img?.url ?? "").trim() !== "")
             .map((img, i) => ({
               id: img.id ?? undefined,
               url: String(img.url ?? "").trim(),
               ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-              // legenda precisa ser string | undefined (nunca null)
               legenda:
                 img?.legenda && String(img.legenda).trim() !== ""
                   ? String(img.legenda).trim()
                   : undefined,
             })),
         }
-
 
         const upd: UpdateObraPayload = {
           // INFOS GERAIS
@@ -616,7 +625,7 @@ export default function ObrasPage({
           // IMAGENS
           imagens: imagensReplace,
 
-          // ANEXOS (opcional, ligar quando a UI tiver inputs)
+          // ANEXOS (opcional)
           // anexos: { contrato: ..., ordemServico: ..., propostaSlide: ..., propostaPdf: ... }
         }
 
@@ -625,7 +634,7 @@ export default function ObrasPage({
         setIsEditing(false)
       }
     } catch (e: any) {
-      toast.error(e?.message || "Erro ao salvar.")
+      showApiError(e)
     } finally {
       setSaving(false)
     }
