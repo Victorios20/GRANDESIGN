@@ -2,20 +2,21 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useMemo } from "react"
+import { useRouter } from "next/navigation"
 import type { DetalheVM } from "./page"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import CopyLinkButton from "@/components/ui/CopyLinkButton"
-import { Edit, ArrowUpRight, Hammer } from "lucide-react"
+import { Edit, ArrowUpRight } from "lucide-react"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { ShinyButton } from "@/components/ui/shiny-button"
 
 export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: DetalheVM; detailUrl: string }) {
   const router = useRouter()
+
   const fmtBRL = (n: unknown) => {
     const v = typeof n === "number" ? n : Number(n)
     const safe = Number.isFinite(v) ? v : 0
@@ -25,14 +26,18 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const fmtDim = (v: number | null | undefined) =>
     typeof v === "number" && isFinite(v) && v > 0 ? `${v.toLocaleString("pt-BR")} m` : "-"
   const fmtDate = (d: any) => {
-  if (!d) return "-"
-  const s = String(d)
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/)
-  if (!m) return s
-  const [, Y, M, D, hh, mm] = m
-  return `${D}/${M}/${Y} ${hh}:${mm}`
-}
-
+    if (!d) return "-"
+    const s = String(d)
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/)
+    if (!m) return s
+    const [, Y, M, D, hh, mm] = m
+    return `${D}/${M}/${Y} ${hh}:${mm}`
+  }
+  const fmtCPF = (cpf: string | null | undefined) => {
+    const only = (cpf ?? "").replace(/\D+/g, "")
+    if (only.length !== 11) return "-"
+    return `${only.slice(0,3)}.${only.slice(3,6)}.${only.slice(6,9)}-${only.slice(9)}`
+  }
 
   const materiaisGroup = useMemo(() => {
     const base: Record<"madeira" | "geral" | "telha", DetalheVM["materiais"]> = { madeira: [], geral: [], telha: [] }
@@ -52,12 +57,37 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const dataCriacao = (detalhe as any)?.dataCriacao ?? null
   const dataUltimaAlteracao = (detalhe as any)?.dataUltimaAlteracao ?? null
 
+  // ====== Botão Lançar/Visualizar Obra (Shiny) ======
+  const obraLancada = !!detalhe.lancadoObra
+  const canVisualizarObra = obraLancada && detalhe.obraId != null
+
+  const BotaoObra = () => {
+    if (!obraLancada) {
+      return (
+        <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>
+          Lançar obra
+        </ShinyButton>
+      )
+    }
+    if (canVisualizarObra) {
+      return (
+        <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>
+          Visualizar obra
+        </ShinyButton>
+      )
+    }
+    return (
+      <ShinyButton disabled>
+        Visualizar obra
+      </ShinyButton>
+    )
+  }
+
   return (
     <PageLayout
       headerActions={
         <>
-          <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)} />
-
+          <BotaoObra />
           <Button asChild className="bg-bege text-marromEscuro hover:bg-bege/80">
             <Link href={editHref}>
               <Edit className="h-4 w-4 mr-2" />
@@ -99,6 +129,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
               <p><b>Telefone:</b> {safeCell(detalhe.cliente.telefone)}</p>
               <p><b>Bairro:</b> {safeCell(detalhe.cliente.bairro)}</p>
               <p><b>Cidade:</b> {safeCell(detalhe.cliente.cidade)}</p>
+              <p><b>CPF:</b> {fmtCPF((detalhe.cliente as any)?.cpf)}</p>
             </CardContent>
           </Card>
 
@@ -133,6 +164,10 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
               <p><b>Criado em:</b> {fmtDate(dataCriacao)}</p>
               <p><b>Última edição por:</b> {updatedEmail}</p>
               <p><b>Última edição em:</b> {fmtDate(dataUltimaAlteracao)}</p>
+              <div className="pt-2 border-t border-muted">
+                <p><b>Data do lançamento da obra:</b> {fmtDate(detalhe.lancadoObraEm)}</p>
+                <p><b>ID da obra:</b> {detalhe.obraId != null ? detalhe.obraId : "-"}</p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -143,8 +178,8 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
 
           const titulo =
             tipo === "madeira" ? "Madeiras" :
-              tipo === "geral" ? "Materiais Gerais" :
-                "Telhas"
+            tipo === "geral" ? "Materiais Gerais" :
+            "Telhas"
 
           return (
             <Card key={tipo}>
@@ -190,8 +225,8 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
                         const frete = Number((l as any).frete ?? 0)
                         const total =
                           tipo === "madeira" ? tam * qtd * preco :
-                            tipo === "telha" ? qtd * preco + frete :
-                              qtd * preco
+                          tipo === "telha" ? qtd * preco + frete :
+                          qtd * preco
 
                         return (
                           <TableRow key={i} className="odd:bg-muted/40">
@@ -312,7 +347,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="p-4 space-y-5">
+        <CardContent className="p-4 space-y-5">
             <div className="grid gap-2">
               <label className="text-sm">Link do Slide</label>
               <div className="flex gap-2">

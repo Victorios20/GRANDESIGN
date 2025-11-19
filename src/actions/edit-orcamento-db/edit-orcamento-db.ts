@@ -18,12 +18,13 @@ export type UIMaterial = {
 export type GetOrcamentoResult = {
   id: number
   titulo: string
-  clienteId: number 
+  clienteId: number
   cliente: {
     nome: string
     telefone: string
     bairro: string
     cidade: string | null
+    cpf: string | null // ✅ novo campo opcional
   }
   parametros: {
     tipoObra: string | null
@@ -56,8 +57,12 @@ export type GetOrcamentoResult = {
   dataUltimaAlteracao: Date
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
-}
 
+  // Campos para a página de detalhe (lançamento de obra)
+  lancadoObra: boolean
+  lancadoObraEm: Date | null
+  obraId: number | null
+}
 
 export type UpdateOrcamentoInput = {
   titulo: string
@@ -108,7 +113,6 @@ export type UpdateOrcamentoInput = {
   actorUserId: number
 }
 
-
 /* ------------------------- utilidades numéricas ------------------------- */
 
 function cleanText(s: string | null | undefined) {
@@ -144,8 +148,6 @@ function nonNeg(v: unknown): number {
   return n < 0 ? 0 : n
 }
 
-
-
 // id efêmero só para keys da UI
 function ephemeralId(seed = 0) {
   return (Date.now() & 0xfffffff) + Math.floor(Math.random() * 1000) + seed
@@ -177,11 +179,7 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         const orc = await tx.orcamento.findUnique({
           where: { id },
           include: {
-            cliente: {
-              include: {
-                cidades: true,
-              },
-            },
+            cliente: { include: { cidades: true } }, // inclui cpf junto com os demais campos
             tipo_obra: true,
             createdBy: { select: { id: true, name: true, email: true } },
             updatedBy: { select: { id: true, name: true, email: true } },
@@ -190,6 +188,7 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
 
         if (!orc) throw new Error("Orçamento não encontrado.")
 
+        // materiais e pagamentos
         const mats = await tx.orcamento_material.findMany({
           where: { orcamento_id: id },
           orderBy: { id: "asc" },
@@ -200,7 +199,13 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
           orderBy: [{ tipo_telhas: "asc" }, { metodo_pagamento: "asc" }],
         })
 
-        return { orc, mats, pays }
+        // obra vinculada (se existir)
+        const obra = await tx.obras.findFirst({
+          where: { orcamento_id: id },
+          select: { id: true },
+        })
+
+        return { orc, mats, pays, obra }
       },
       { timeout: 120_000, maxWait: 20_000 }
     )
@@ -267,6 +272,7 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         telefone: data.orc.cliente.telefone ?? "",
         bairro: data.orc.cliente.bairro ?? "",
         cidade: data.orc.cliente.cidades?.nome ?? null,
+        cpf: data.orc.cliente.cpf ?? null, // ✅ mapeia CPF (pode ser null)
       },
       parametros: {
         tipoObra: data.orc.tipo_obra?.tipo_obra ?? null,
@@ -297,8 +303,17 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
       telhaValores,
       dataCriacao: data.orc.data_criacao ?? null,
       dataUltimaAlteracao: data.orc.data_ultima_alteracao,
-      createdBy: data.orc.createdBy ? { id: data.orc.createdBy.id, name: data.orc.createdBy.name, email: data.orc.createdBy.email } : null,
-      updatedBy: data.orc.updatedBy ? { id: data.orc.updatedBy.id, name: data.orc.updatedBy.name, email: data.orc.updatedBy.email } : null,
+      createdBy: data.orc.createdBy
+        ? { id: data.orc.createdBy.id, name: data.orc.createdBy.name, email: data.orc.createdBy.email }
+        : null,
+      updatedBy: data.orc.updatedBy
+        ? { id: data.orc.updatedBy.id, name: data.orc.updatedBy.name, email: data.orc.updatedBy.email }
+        : null,
+
+      // Flags/infos sobre obra vinculada
+      lancadoObra: Boolean((data.orc as any).lancado_obra),
+      lancadoObraEm: (data.orc as any).lancado_obra_em ?? null,
+      obraId: data.obra?.id ?? null,
     }
 
     return res
@@ -309,7 +324,6 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
     throw new Error("Não foi possível carregar o orçamento.")
   }
 }
-
 
 /* ========================= UPDATE (editar orçamento) ========================= */
 
@@ -325,7 +339,9 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
       let tipoObraId: number | null = null
       const tipoObraIdPayload = Number((input.parametros as any)?.tipoObraId)
       if (Number.isFinite(tipoObraIdPayload)) {
-        const chk = (await tx.$queryRaw`SELECT id FROM tipo_obra WHERE id = ${tipoObraIdPayload} LIMIT 1`) as Array<{ id: number }>
+        const chk = (await tx.$queryRaw`SELECT id FROM tipo_obra WHERE id = ${tipoObraIdPayload} LIMIT 1`) as Array<{
+          id: number
+        }>
         tipoObraId = chk?.[0]?.id ?? null
       }
       if (!tipoObraId) {
@@ -333,25 +349,18 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         if (tipoObraNome) {
           const alvo = tipoObraNome.trim().replace(/\u00A0/g, " ").replace(/\s+/g, " ").toLowerCase()
           const row = (await tx.$queryRaw`
-      SELECT id
-      FROM tipo_obra
-      WHERE lower(regexp_replace(replace(tipo_obra, chr(160), ' '), '\s+', ' ', 'g')) = ${alvo}
-      LIMIT 1
-    `) as Array<{ id: number }>
+            SELECT id
+            FROM tipo_obra
+            WHERE lower(regexp_replace(replace(tipo_obra, chr(160), ' '), '\s+', ' ', 'g')) = ${alvo}
+            LIMIT 1
+          `) as Array<{ id: number }>
           if (!row?.[0]?.id) throw new Error("Tipo de obra não encontrado.")
           tipoObraId = row[0].id
         }
       }
 
       const dimUpdate: Record<string, number | null | undefined> = {}
-      const {
-        largura,
-        comprimento,
-        larguraMaior,
-        larguraMenor,
-        comprimentoMaior,
-        comprimentoMenor,
-      } = input.parametros
+      const { largura, comprimento, larguraMaior, larguraMenor, comprimentoMaior, comprimentoMenor } = input.parametros
 
       if (largura !== undefined) dimUpdate.largura = toNumber(largura)
       if (comprimento !== undefined) dimUpdate.comprimento = toNumber(comprimento)

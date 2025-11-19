@@ -41,8 +41,14 @@ export async function generateMetadata(
 
 type GetOrcamentoResult = {
   id: number
-  titulo: string
-  cliente: { nome: string; telefone: string; bairro: string; cidade: string | null }
+  titulo: string | null
+  cliente: {
+    nome: string
+    telefone: string | null
+    bairro: string | null
+    cidade: string | null
+    cpf: string | null           // ✅ novo (pode vir null)
+  }
   parametros: {
     tipoObra: string | null
     largura: number | null
@@ -64,12 +70,23 @@ type GetOrcamentoResult = {
   dataUltimaAlteracao: string
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
+
+  // ✅ novos campos vindos do GET (já implementados no back):
+  lancadoObra: boolean
+  lancadoObraEm: string | null
+  obraId: number | null
 }
 
 export type DetalheVM = {
   id: number
   titulo: string | null
-  cliente: { nome: string; telefone?: string | null; bairro?: string | null; cidade?: string | null }
+  cliente: {
+    nome: string
+    telefone?: string | null
+    bairro?: string | null
+    cidade?: string | null
+    cpf?: string | null        // ✅ disponível no VM
+  }
   tipoObra: string | null
   dimensoes: {
     largura: number | null
@@ -95,6 +112,11 @@ export type DetalheVM = {
   dataUltimaAlteracao: string
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
+
+  // ✅ infos para botão e auditoria
+  lancadoObra: boolean
+  lancadoObraEm: string | null
+  obraId: number | null
 }
 
 function normalize(dto: GetOrcamentoResult): DetalheVM {
@@ -160,6 +182,11 @@ function normalize(dto: GetOrcamentoResult): DetalheVM {
     dataUltimaAlteracao: dto.dataUltimaAlteracao,
     createdBy: dto.createdBy ?? null,
     updatedBy: dto.updatedBy ?? null,
+
+    // ✅ botão & auditoria
+    lancadoObra: !!dto.lancadoObra,
+    lancadoObraEm: dto.lancadoObraEm ?? null,
+    obraId: dto.obraId ?? null,
   }
 }
 
