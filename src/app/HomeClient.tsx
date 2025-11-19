@@ -1,14 +1,14 @@
+// app/HomeClient.tsx (DEPOIS)
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { format, parseISO } from "date-fns"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { EllipsisVertical, Eye, Pencil, Copy } from "lucide-react"
+import { EllipsisVertical, Eye, Pencil, Copy, Hammer } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -17,20 +17,22 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 import { BigShinyButton } from "@/components/ui/BigShinyButton"
-import { toast, Toaster } from "sonner"
+import { toast } from "sonner"
 import FilterCard, { type FieldId, type Option, type FilterState } from "./FilterCard"
 import { listarBairros } from "./_actions/home.actions"
 import type { OrcamentoTabela } from "./_actions/home.actions"
 
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
-import { GlobalStyles } from "@mui/material"
 
 type OrcRow = OrcamentoTabela & {
   cidade?: string
   tipoObra?: string
   data_ultima_alteracao?: string
   clienteTelefone?: string
+  lancadoObra?: boolean
+  lancadoObraEmISO?: string | null
+  obraId?: number | null
 }
 
 type InitialData = {
@@ -53,9 +55,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [telefone, setTelefone] = useState("")
   const [cidadeId, setCidadeId] = useState<number | null>(null)
   const [tipoObraId, setTipoObraId] = useState<number | null>(null)
-
-  const [orderBy, setOrderBy] = useState<string | undefined>(undefined)
-  const [orderDir, setOrderDir] = useState<"asc" | "desc" | undefined>(undefined)
+  const [obraVinculada, setObraVinculada] = useState<"todos" | "sim" | "nao">("todos")
 
   const [cidadesOpts, setCidadesOpts] = useState<{ id: number; label: string }[]>([])
   const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
@@ -67,15 +67,24 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         { id: "bairro", label: "Bairro", type: "text" },
         { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
         { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
-        { id: "dateField", label: "Campo de data", type: "segmented" },
         { id: "dateRange", label: "Período", type: "dateRange" },
+        { id: "obraVinculada", label: "Obra vinculada?", type: "select" },
         { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
       ] as const),
     [cidadesOpts, tiposOpts]
   )
 
-  const PERSIST_KEY = "gd.historico.filtros.campos.v1"
-  const DEFAULT_FIELDS: FieldId[] = ["q", "dateRange", "pageSize", "bairro", "telefone", "cidadeId", "tipoObraId"]
+  const PERSIST_KEY = "gd.historico.filtros.campos.v2"
+  const DEFAULT_FIELDS: FieldId[] = [
+    "q",
+    "dateRange",
+    "obraVinculada",
+    "pageSize",
+    "bairro",
+    "telefone",
+    "cidadeId",
+    "tipoObraId",
+  ]
 
   const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
     if (typeof window === "undefined") return DEFAULT_FIELDS
@@ -88,7 +97,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     }
   })
 
-  const [orcamentos, setOrcamentos] = useState<OrcamentoTabela[]>(initial.dados ?? [])
+  const [orcamentos, setOrcamentos] = useState<OrcRow[]>(
+    (initial.dados ?? []).map((o, i) => ({
+      id: (o as any).id ?? i,
+      ...(o as any),
+      lancadoObra: Boolean((o as any).lancado_obra ?? (o as any).lancadoObra ?? false),
+      lancadoObraEmISO: (o as any).lancado_obra_em ?? (o as any).lancadoObraEmISO ?? null,
+      obraId:
+        (o as any).obraId != null
+          ? Number((o as any).obraId)
+          : (o as any).obra_id != null
+          ? Number((o as any).obra_id)
+          : null,
+    }))
+  )
   const [total, setTotal] = useState<number>(initial.total ?? 0)
   const [loadingTabela, setLoadingTabela] = useState(false)
 
@@ -153,7 +175,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   useEffect(() => {
     consultar()
-  }, [nome, bairro, telefone, cidadeId, tipoObraId, dataIni, dataFim, page, perPage, orderBy, orderDir])
+  }, [nome, bairro, telefone, cidadeId, tipoObraId, dataIni, dataFim, obraVinculada, page, perPage])
 
   async function consultar() {
     setLoadingTabela(true)
@@ -170,8 +192,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (tipoObraId != null) qs.set("tipoObraId", String(tipoObraId))
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
-    if (orderBy) qs.set("orderBy", orderBy)
-    if (orderDir) qs.set("orderDir", orderDir)
+    if (obraVinculada && obraVinculada !== "todos") qs.set("obraVinculada", obraVinculada)
 
     const res = await fetch(`/api/Orcamentos/table-search?${qs.toString()}`, { cache: "no-store" })
     if (!res.ok) {
@@ -181,7 +202,15 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       return
     }
     const json = await res.json()
-    setOrcamentos(json.dados ?? [])
+    const dadosRaw = (json.dados ?? []) as any[]
+    const mapped: OrcRow[] = dadosRaw.map((o, i) => ({
+      id: o?.id ?? i,
+      ...o,
+      lancadoObra: Boolean(o?.lancado_obra ?? o?.lancadoObra ?? false),
+      lancadoObraEmISO: o?.lancado_obra_em ?? o?.lancadoObraEmISO ?? null,
+      obraId: o?.obraId != null ? Number(o.obraId) : o?.obra_id != null ? Number(o.obra_id) : null,
+    }))
+    setOrcamentos(mapped)
     setTotal(Number(json.total ?? 0))
     setLoadingTabela(false)
   }
@@ -193,6 +222,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     setTelefone("")
     setCidadeId(null)
     setTipoObraId(null)
+    setObraVinculada("todos")
     setDataIni(undefined)
     setDataFim(undefined)
     setPage(0)
@@ -200,25 +230,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const safeCell = (v: string | number | null | undefined) => (v == null || v === "" ? "-" : v)
   const strDate = (s?: string) => {
-  if (!s) return "-"
-  const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/)
-  if (naive) {
-    const [, Y, M, D, hh, mm] = naive
-    return `${D}/${M}/${Y} ${hh}:${mm}`
+    if (!s) return "-"
+    const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/)
+    if (naive) {
+      const [, Y, M, D, hh, mm] = naive
+      return `${D}/${M}/${Y} ${hh}:${mm}`
+    }
+    const d = new Date(s)
+    if (isNaN(d.getTime())) return s
+    return d
+      .toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+      .replace(",", "")
   }
-  const d = new Date(s)
-  if (isNaN(d.getTime())) return s
-  return d.toLocaleString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    year: "2-digit",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).replace(",", "")
-}
-
 
   const rows: OrcRow[] = useMemo(
     () =>
@@ -229,13 +260,29 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   )
 
   const columns: MUIDataTableColumnDef[] = [
-    { name: "titulo", label: "Título", options: { sort: true, searchable: true } },
-    { name: "cliente", label: "Cliente", options: { sort: true, searchable: true } },
+    {
+      name: "__obra",
+      label: "",
+      options: {
+        sort: false,
+        searchable: false,
+        filter: false,
+        setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
+        setCellProps: () => ({ style: { textAlign: "center" } }),
+        customBodyRender: (_val, meta) => {
+          const r = rows[meta.rowIndex]
+          if (!r?.lancadoObra) return null
+          return <Hammer className="h-4 w-4 text-marromEscuro" aria-label="Obra lançada" />
+        },
+      },
+    },
+    { name: "titulo", label: "Título", options: { sort: false, searchable: true } },
+    { name: "cliente", label: "Cliente", options: { sort: false, searchable: true } },
     {
       name: "bairro",
       label: "Bairro",
       options: {
-        sort: true,
+        sort: false,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.bairro),
       },
@@ -244,7 +291,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       name: "cidade",
       label: "Cidade",
       options: {
-        sort: true,
+        sort: false,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.cidade),
       },
@@ -253,7 +300,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       name: "tipoObra",
       label: "Tipo de obra",
       options: {
-        sort: true,
+        sort: false,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.tipoObra),
       },
@@ -262,7 +309,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       name: "data_ultima_alteracao",
       label: "Data da Atualização",
       options: {
-        sort: true,
+        sort: false,
         searchable: false,
         customBodyRender: (_val, meta) => strDate(rows[meta.rowIndex]?.data_ultima_alteracao),
       },
@@ -294,8 +341,13 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         filter: false,
         customBodyRender: (_val, tableMeta) => {
           const o = rows[tableMeta.rowIndex] as OrcRow
+          const isLancado = !!o.lancadoObra
           return (
-            <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} className="flex justify-end">
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="flex justify-end"
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -354,6 +406,35 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                       Visualizar detalhes
                     </Link>
                   </DropdownMenuItem>
+
+                  {!isLancado ? (
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link
+                        href={`/obras/new/${(o as any).id}`}
+                        title="Lançar obra"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Hammer className="mr-2 h-4 w-4" />
+                        Lançar obra
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      asChild
+                      className={`cursor-pointer ${o.obraId == null ? "opacity-60 pointer-events-none" : ""}`}
+                    >
+                      <Link
+                        href={o.obraId != null ? `/obras/${o.obraId}` : "#"}
+                        title="Visualizar obra"
+                        target={o.obraId != null ? "_blank" : undefined}
+                        rel={o.obraId != null ? "noopener noreferrer" : undefined}
+                      >
+                        <Hammer className="mr-2 h-4 w-4" />
+                        Visualizar obra
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -377,9 +458,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     rowsPerPage: perPage,
     rowsPerPageOptions: [5, 10, 20, 50, 100],
     onTableChange: (action, tableState) => {
-      if (action === "changePage") {
-        setPage(tableState.page)
-      }
+      if (action === "changePage") setPage(tableState.page)
       if (action === "changeRowsPerPage") {
         setPerPage(tableState.rowsPerPage)
         setPage(0)
@@ -388,34 +467,21 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         const q = tableState.searchText || ""
         setSearchInput(q)
       }
-      if (action === "sort") {
-        const s = tableState.sortOrder
-        if (s && s.name) {
-          setOrderBy(s.name as string)
-          setOrderDir((s.direction as "asc" | "desc") || undefined)
-          setPage(0)
-        } else {
-          setOrderBy(undefined)
-          setOrderDir(undefined)
-        }
-      }
     },
-    sort: true,
+    sort: false, // desabilita ordenação global
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
     onRowClick: (_rowData, meta) => {
       const id = (rows[meta.dataIndex] as any)?.id
       if (id != null) router.push(`/orcamento/detalhes/${id}`)
     },
-    setRowProps: (_row, dataIndex) => {
-      return {
-        onMouseDown: (e: any) => {
-          const el = e.target as HTMLElement
-          if (el.closest("[data-no-row-nav]")) e.stopPropagation()
-        },
-        className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
-      }
-    },
+    setRowProps: () => ({
+      onMouseDown: (e: any) => {
+        const el = e.target as HTMLElement
+        if (el.closest("[data-no-row-nav]")) e.stopPropagation()
+      },
+      className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
+    }),
   }
 
   const theme = useMemo(
@@ -427,14 +493,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         },
         components: {
           MuiTableHead: { styleOverrides: { root: { backgroundColor: BEGE } } },
-          MuiTableRow: {
-            styleOverrides: {
-              head: {
-                backgroundColor: BEGE,
-                height: 36,
-              },
-            },
-          },
+          MuiTableRow: { styleOverrides: { head: { backgroundColor: BEGE, height: 36 } } },
           MuiTableCell: {
             styleOverrides: {
               head: {
@@ -446,13 +505,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 lineHeight: 1.1,
                 whiteSpace: "nowrap",
               },
-              root: {
-                color: MARROM,
-                borderBottom: "1px solid rgba(0,0,0,0.06)",
-              },
+              root: { color: MARROM, borderBottom: "1px solid rgba(0,0,0,0.06)" },
             },
           },
-
           MuiIconButton: {
             styleOverrides: {
               root: { color: MARROM, "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
@@ -460,28 +515,15 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             },
           },
           MuiSvgIcon: { styleOverrides: { root: { color: "inherit" } } },
-          MuiCheckbox: {
-            styleOverrides: {
-              root: { color: MARROM, "&.Mui-checked": { color: BEGE } },
-            },
-          },
+          MuiCheckbox: { styleOverrides: { root: { color: MARROM, "&.Mui-checked": { color: BEGE } } } },
           MuiFormControlLabel: { styleOverrides: { label: { color: MARROM } } },
           MuiMenuItem: {
             styleOverrides: {
-              root: {
-                color: MARROM,
-                "&.Mui-selected, &.Mui-selected:hover": { backgroundColor: "rgba(232,201,154,0.35)" },
-              },
+              root: { color: MARROM, "&.Mui-selected, &.Mui-selected:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
             },
           },
           MuiPaper: { styleOverrides: { root: { borderRadius: 12 } } },
           MuiToolbar: { styleOverrides: { root: { color: MARROM } } },
-          MuiTableSortLabel: {
-            styleOverrides: {
-              root: { color: MARROM + " !important" },
-              icon: { color: MARROM + " !important" },
-            },
-          },
         },
       }),
     []
@@ -504,6 +546,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
             fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
             pageSize: perPage as 5 | 10 | 20,
+            obraVinculada,
           }}
           onChange={(next: FilterState) => {
             setNome(next.q ?? "")
@@ -515,6 +558,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             setPerPage((next.pageSize as number) ?? perPage)
             setDataIni(next.ini ? new Date(next.ini) : undefined)
             setDataFim(next.fim ? new Date(next.fim) : undefined)
+            setObraVinculada((next as any).obraVinculada ?? "todos")
             setPage(0)
           }}
           onClear={() => limparFiltros()}
@@ -548,35 +592,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
               </div>
             ) : (
               <ThemeProvider theme={theme}>
-                <GlobalStyles
-                  styles={{
-                    ".MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head, .MUIDataTableHeadCell-fixedHeader": {
-                      backgroundColor: BEGE + " !important",
-                      color: MARROM + " !important",
-                    },
-                    ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
-                      color: MARROM + " !important",
-                    },
-                    ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
-                      backgroundColor: "rgba(232,201,154,0.35) !important",
-                    },
-                    ".MUIDataTableToolbar-iconActive .MuiSvgIcon-root": {
-                      color: MARROM + " !important",
-                    },
-                    ".MUIDataTableViewCol-title, .MUIDataTableViewCol-label": {
-                      color: MARROM + " !important",
-                    },
-                    ".MuiTableSortLabel-root:hover .MuiTableSortLabel-icon": {
-                      opacity: 1,
-                    },
-                    ".MuiTableSortLabel-icon": {
-                      color: MARROM + " !important",
-                    },
-                    ".MuiIconButton-root .MuiSvgIcon-root": {
-                      color: "inherit !important",
-                    },
-                  }}
-                />
                 <MUIDataTable title={""} data={rows as any} columns={columns} options={options} />
               </ThemeProvider>
             )}

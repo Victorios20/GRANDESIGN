@@ -8,6 +8,14 @@ function getParam(url: URL, k: string) {
   return v === null ? null : v
 }
 
+function parseBooleanParam(v: string | null): boolean | undefined {
+  if (v == null) return undefined
+  const s = v.trim().toLowerCase()
+  if (["1", "true", "t", "yes", "y", "sim"].includes(s)) return true
+  if (["0", "false", "f", "no", "n", "nao", "não"].includes(s)) return false
+  return undefined
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
   if (!session) {
@@ -26,6 +34,8 @@ export async function GET(req: Request) {
   const tipoObraIdStr = getParam(url, "tipoObraId")
   const dIni = getParam(url, "dIni")
   const dFim = getParam(url, "dFim")
+  const somenteLancados = parseBooleanParam(getParam(url, "somenteLancados"))
+
   const cidadeId = cidadeIdStr ? Number(cidadeIdStr) : null
   const tipoObraId = tipoObraIdStr ? Number(tipoObraIdStr) : null
 
@@ -41,7 +51,8 @@ export async function GET(req: Request) {
       cidadeId,
       tipoObraId,
       dIni,
-      dFim
+      dFim,
+      somenteLancados,
     })
     return NextResponse.json(res, { status: 200 })
   } catch (e: any) {

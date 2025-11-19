@@ -1,4 +1,4 @@
-// FilterCard.tsx
+// FilterCard.tsx (DEPOIS)
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
@@ -16,6 +16,8 @@ import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
 
 export type Option = { id: number; label: string }
 
+export type ObraVinculada = "todos" | "sim" | "nao"
+
 export type FilterState = {
   q?: string
   telefone?: string
@@ -25,6 +27,7 @@ export type FilterState = {
   ini?: string
   fim?: string
   pageSize?: 5 | 10 | 20
+  obraVinculada?: ObraVinculada
 }
 
 export type FieldId =
@@ -35,6 +38,7 @@ export type FieldId =
   | "tipoObraId"
   | "dateRange"
   | "pageSize"
+  | "obraVinculada"
 
 export type AvailableField =
   | { id: "q"; label: string; type: "text" }
@@ -44,6 +48,7 @@ export type AvailableField =
   | { id: "tipoObraId"; label: string; type: "select"; options: Option[] }
   | { id: "dateRange"; label: string; type: "dateRange" }
   | { id: "pageSize"; label: string; type: "select"; options: number[] }
+  | { id: "obraVinculada"; label: string; type: "select" }
 
 export type FilterCardProps = {
   value: FilterState
@@ -91,7 +96,7 @@ export default function FilterCard(props: FilterCardProps) {
       const raw = localStorage.getItem(persistKey)
       if (!raw) return
       const savedRaw = JSON.parse(raw) as string[]
-      const allow = ["q", "telefone", "bairro", "cidadeId", "tipoObraId", "dateRange", "pageSize"] as const
+      const allow = ["q", "telefone", "bairro", "cidadeId", "tipoObraId", "dateRange", "pageSize", "obraVinculada"] as const
       const saved: FieldId[] = Array.isArray(savedRaw)
         ? savedRaw.filter((id): id is FieldId => (allow as readonly string[]).includes(id))
         : []
@@ -99,11 +104,11 @@ export default function FilterCard(props: FilterCardProps) {
         onSelectedFieldsChange(saved)
       }
     } catch {}
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fieldMap = useMemo(() => {
     const m = new Map<FieldId, AvailableField>()
-    availableFields.forEach((f) => m.set(f.id, f as AvailableField))
+    availableFields.forEach((f) => m.set(f.id as FieldId, f as AvailableField))
     return m
   }, [availableFields])
 
@@ -157,7 +162,7 @@ export default function FilterCard(props: FilterCardProps) {
               <p className="mb-2 text-sm font-medium text-marromEscuro">Selecionar campos visíveis</p>
               <div className="grid grid-cols-1 gap-2">
                 {availableFields.map((f) => {
-                  const checked = selectedFields.includes(f.id)
+                  const checked = selectedFields.includes(f.id as FieldId)
                   return (
                     <div key={f.id} className="rounded-md border p-2 transition-colors hover:bg-muted/40">
                       <label className="flex items-center gap-3 cursor-pointer select-none">
@@ -165,8 +170,8 @@ export default function FilterCard(props: FilterCardProps) {
                           checked={checked}
                           onCheckedChange={() => {
                             const setIds = new Set(selectedFields)
-                            if (setIds.has(f.id)) setIds.delete(f.id)
-                            else setIds.add(f.id)
+                            if (setIds.has(f.id as FieldId)) setIds.delete(f.id as FieldId)
+                            else setIds.add(f.id as FieldId)
                             onSelectedFieldsChange(Array.from(setIds))
                           }}
                           className="h-5 w-5 data-[state=checked]:bg-bege data-[state=checked]:border-bege"
@@ -317,6 +322,28 @@ export default function FilterCard(props: FilterCardProps) {
                         })
                       }
                     />
+                  </motion.div>
+                )
+              }
+
+              if (id === "obraVinculada" && meta.type === "select") {
+                const current = value.obraVinculada ?? "todos"
+                return (
+                  <motion.div key={id} layout {...smooth} className="flex flex-col gap-1 w-[220px]">
+                    <Label className="text-sm font-medium text-marromEscuro">Obra vinculada?</Label>
+                    <Select
+                      value={current}
+                      onValueChange={(v) => set({ obraVinculada: (v as ObraVinculada) || "todos" })}
+                    >
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        <SelectItem value="todos">Todos</SelectItem>
+                        <SelectItem value="sim">Sim</SelectItem>
+                        <SelectItem value="nao">Não</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </motion.div>
                 )
               }

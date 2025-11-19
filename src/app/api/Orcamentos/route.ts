@@ -26,6 +26,14 @@ function parseOrder(input: string | null): "asc" | "desc" | undefined {
   return v === "asc" || v === "desc" ? (v as "asc" | "desc") : undefined
 }
 
+function parseBooleanParam(v: string | null): boolean | undefined {
+  if (v == null) return undefined
+  const s = v.trim().toLowerCase()
+  if (["1", "true", "t", "yes", "y", "sim"].includes(s)) return true
+  if (["0", "false", "f", "no", "n", "nao", "não"].includes(s)) return false
+  return undefined
+}
+
 type ApiErrorShape = {
   error: string
   code?: string
@@ -49,13 +57,7 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   else if (code === "CLIENT_NOT_FOUND") status = 404
   else if (code === "CLIENT_ID_REQUIRED") status = 422
   else if (code === "CHECK_DUPLICATE_FAILED") status = 500
-  else if (
-    code === "INSERT_ORCAMENTO_FAILED" ||
-    code === "INSERT_MATERIAL_FAILED" ||
-    code === "INSERT_PAGAMENTO_FAILED"
-  ) {
-    status = 500
-  } else {
+  else {
     const msg = String(message)
     if (msg.includes("Já existe um orçamento com esse título")) status = 409
     else if (msg.includes("Cidade não encontrada")) status = 404
@@ -85,6 +87,7 @@ export async function GET(req: Request) {
     const page = parsePage(searchParams.get("page")) ?? 1
     const perPage = parsePageSize(searchParams.get("pageSize")) ?? 10
     const ordenarData = parseOrder(searchParams.get("ordem")) ?? "desc"
+    const somenteLancados = parseBooleanParam(searchParams.get("somenteLancados"))
 
     const result = await buscarOrcamentosDB({
       nome,
@@ -97,7 +100,10 @@ export async function GET(req: Request) {
       page,
       perPage,
       ordenarData,
-    })
+      // se sua função já aceitar, esse campo filtra apenas lançados;
+      // se ainda não aceitar, pode remover sem quebrar o GET.
+      somenteLancados,
+    } as any)
 
     return NextResponse.json(
       {

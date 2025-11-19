@@ -8,8 +8,12 @@ export interface OrcamentoTabela {
   dataISO: string
   valorFormatado: string
   tipoObra?: string | null
-}
 
+  // NOVOS CAMPOS (para controle de obra lançada)
+  lancado_obra: boolean
+  lancado_obra_em: string | null
+  obraId: number | null
+}
 
 export type MaterialItem = {
   nome: string
@@ -104,7 +108,6 @@ export type BuscarOrcamentosParams = {
   ordenarData?: "asc" | "desc"
 }
 
-
 export async function buscarOrcamentosDB(
   params: BuscarOrcamentosParams
 ): Promise<{ dados: OrcamentoTabela[]; total: number }> {
@@ -123,7 +126,6 @@ export async function buscarOrcamentosDB(
   const offset = hasSearch ? 0 : (page - 1) * perPage
   const ini = params.dataIni ? startOfDay(params.dataIni) : null
   const fimExclusivo = params.dataFim ? nextDay(params.dataFim) : null
-
 
   const baseWhere = `
   WHERE
@@ -157,7 +159,12 @@ export async function buscarOrcamentosDB(
     t.tipo_obra AS "tipoObra",
     o.data_criacao,
     o.data_ultima_alteracao,
-    o.data_ultima_alteracao,
+
+    -- NOVOS CAMPOS
+    o.lancado_obra,
+    o.lancado_obra_em,
+    ob.id AS obra_id,
+
     COALESCE(
       (SELECT MIN(op.valor)  FROM orcamento_pagamento op  WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%'),
       (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id),
@@ -167,15 +174,13 @@ export async function buscarOrcamentosDB(
   JOIN cliente c ON c.id = o.cliente_id
   LEFT JOIN cidades ci ON ci.id = c.cidade_id
   LEFT JOIN tipo_obra t ON t.id = o.tipo_obra_id
+  LEFT JOIN obras ob ON ob.orcamento_id = o.id
   ${baseWhere}
 ORDER BY o.data_ultima_alteracao ASC
 LIMIT $8 OFFSET $9
-
 `
 
   const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_ultima_alteracao ASC", "ORDER BY o.data_ultima_alteracao DESC")
-
-
 
   const countSQL = `
     SELECT COUNT(*)::bigint AS total
@@ -211,7 +216,6 @@ LIMIT $8 OFFSET $9
     ),
   ])
 
-
   const rs = rows as Array<{
     id: number
     titulo: string | null
@@ -224,44 +228,51 @@ LIMIT $8 OFFSET $9
     data_criacao: string | Date
     data_ultima_alteracao: string | Date
     valor_pix_preferido: unknown
+
+    // novos campos
+    lancado_obra: boolean | null
+    lancado_obra_em: string | Date | null
+    obra_id: number | null
   }>
 
   const cs = countRows as Array<{ total: bigint | number }>
-
   const total = cs?.[0]?.total != null ? Number(cs[0].total) : 0
 
-function toISO(x: unknown): string | null {
-  if (!x) return null
-  const d = x instanceof Date ? x : new Date(String(x))
-  return isNaN(d.getTime()) ? null : d.toISOString()
-}
-
-const dados = rs.map((r) => {
-  const valorNum = num(r.valor_pix_preferido)
-
-  const criacaoISO = toISO(r.data_criacao)
-  const atualizacaoISO = toISO(r.data_ultima_alteracao) ?? criacaoISO
-
-  const item: any = {
-    id: r.id,
-    titulo: r.titulo ?? null,
-    cliente: r.nome_cliente ?? null,
-    bairro: r.bairro ?? null,
-    dataISO: criacaoISO!,
-    data_ultima_alteracao: atualizacaoISO!,
-    valorFormatado: BRL.format(valorNum),
+  function toISO(x: unknown): string | null {
+    if (!x) return null
+    const d = x instanceof Date ? x : new Date(String(x))
+    return isNaN(d.getTime()) ? null : d.toISOString()
   }
 
+  const dados = rs.map((r) => {
+    const valorNum = num(r.valor_pix_preferido)
 
-    item.cidade = r.cidade_nome ?? null
-    item.cidadeId = r.cidade_id ?? null
-    item.clienteTelefone = r.cliente_telefone ?? null
-    item.tipoObra = r.tipoObra ?? null
+    const criacaoISO = toISO(r.data_criacao)
+    const atualizacaoISO = toISO(r.data_ultima_alteracao) ?? criacaoISO
+    const lancadoEmISO = toISO(r.lancado_obra_em)
+
+    const item: OrcamentoTabela = {
+      id: r.id,
+      titulo: r.titulo ?? null,
+      cliente: r.nome_cliente ?? null,
+      bairro: r.bairro ?? null,
+      dataISO: criacaoISO!,
+      valorFormatado: BRL.format(valorNum),
+      tipoObra: r.tipoObra ?? null,
+
+      lancado_obra: Boolean(r.lancado_obra),
+      lancado_obra_em: lancadoEmISO,
+      obraId: r.obra_id ?? null,
+    }
+
+    // extras já retornados pela sua tela (se você usa)
+    ;(item as any).cidade = r.cidade_nome ?? null
+    ;(item as any).cidadeId = r.cidade_id ?? null
+    ;(item as any).clienteTelefone = r.cliente_telefone ?? null
+    ;(item as any).data_ultima_alteracao = atualizacaoISO!
 
     return item
-  }) as any[]
-
+  })
 
   return { dados, total }
-
 }
