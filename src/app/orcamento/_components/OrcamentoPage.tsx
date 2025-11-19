@@ -19,6 +19,7 @@ import {
     UserPlus,
     UserCheck
 } from "lucide-react"
+import { FATOR_10X, FATOR_18X } from "@/app/orcamento/_utils/fatoresCartao"
 
 import { Toaster, toast } from "sonner"
 
@@ -559,9 +560,7 @@ const toPos = (s?: string | number): number => {
     return Number.isFinite(n) ? Math.max(0, n) : 0
 }
 
-// fatores de acréscimo do cartão
-const FATOR_10X = 1.1457 // 14,57 %
-const FATOR_18X = 1.2385 // 23,85 %
+
 
 const calcTelhaValores = (
     telhasArr: {
