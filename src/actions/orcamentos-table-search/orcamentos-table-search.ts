@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 
 type OrderDir = "asc" | "desc"
+type ObraVinculada = "sim" | "nao" | "todos"
 
 function sumValores(x: any) {
   const a = Number(x.totais_madeiras_preco) || 0
@@ -28,7 +29,7 @@ export type TableParams = {
   tipoObraId?: number | null
   dIni?: string | null
   dFim?: string | null
-  somenteLancados?: boolean
+  obraVinculada?: ObraVinculada // <- tri-estado
 }
 
 export async function listarOrcamentosTableSearch(params: TableParams) {
@@ -47,11 +48,12 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
   const tipoObraId = params.tipoObraId ?? null
   const telefoneFiltro = (params.telefone ?? "").trim() || null
   const searchDigits = rawSearch.replace(/\D+/g, "")
-  const somenteLancados = params.somenteLancados === true
   const ob = (params.orderBy || "data_ultima_alteracao")
   const asc = params.orderDir === "asc"
 
-  // ⚠️ Troca para $queryRawUnsafe para evitar o bug de parsing de TS com generics + template tag
+  const obraVinculada: ObraVinculada = params.obraVinculada ?? "todos"
+
+  // COUNT
   const totalRows = await prisma.$queryRawUnsafe(
     `
     SELECT COUNT(*)::bigint AS count
@@ -74,22 +76,28 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       AND ($6::int4 IS NULL OR c.cidade_id = $6::int4)
       AND ($7::int4 IS NULL OR o.tipo_obra_id = $7::int4)
       AND ($8::text IS NULL OR regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || regexp_replace($8, '\\D', '', 'g') || '%')
-      AND (CASE WHEN $9::boolean = true THEN (o.lancado_obra = true OR ob.id IS NOT NULL) ELSE true END)
+      AND (
+        CASE
+          WHEN $9::text = 'sim'  THEN (o.lancado_obra = true OR ob.id IS NOT NULL)
+          WHEN $9::text = 'nao'  THEN (coalesce(o.lancado_obra, false) = false AND ob.id IS NULL)
+          ELSE true
+        END
+      )
     `,
-    searchPattern,            // $1
-    searchDigits,             // $2
-    bairroPattern,            // $3
-    dIni,                     // $4
-    dFim,                     // $5
-    cidadeId,                 // $6
-    tipoObraId,               // $7
-    telefoneFiltro,           // $8
-    somenteLancados           // $9
+    searchPattern,   // $1
+    searchDigits,    // $2
+    bairroPattern,   // $3
+    dIni,            // $4
+    dFim,            // $5
+    cidadeId,        // $6
+    tipoObraId,      // $7
+    telefoneFiltro,  // $8
+    obraVinculada    // $9
   )
 
   const total = Number((totalRows as Array<{ count: bigint }>)[0]?.count ?? 0)
 
-  // Monta ORDER BY seguro
+  // ORDER BY seguro
   const orderSql =
     `
     ORDER BY
@@ -108,6 +116,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       o.id DESC
     `
 
+  // DATA
   const rows = await prisma.$queryRawUnsafe(
     `
     SELECT
@@ -148,23 +157,29 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       AND ($6::int4 IS NULL OR c.cidade_id = $6::int4)
       AND ($7::int4 IS NULL OR o.tipo_obra_id = $7::int4)
       AND ($8::text IS NULL OR regexp_replace(coalesce(c.telefone, ''), '\\D', '', 'g') LIKE '%' || regexp_replace($8, '\\D', '', 'g') || '%')
-      AND (CASE WHEN $9::boolean = true THEN (o.lancado_obra = true OR ob.id IS NOT NULL) ELSE true END)
+      AND (
+        CASE
+          WHEN $9::text = 'sim'  THEN (o.lancado_obra = true OR ob.id IS NOT NULL)
+          WHEN $9::text = 'nao'  THEN (coalesce(o.lancado_obra, false) = false AND ob.id IS NULL)
+          ELSE true
+        END
+      )
       ${orderSql}
       LIMIT $12 OFFSET $13
     `,
-    searchPattern,   // $1
-    searchDigits,    // $2
-    bairroPattern,   // $3
-    dIni,            // $4
-    dFim,            // $5
-    cidadeId,        // $6
-    tipoObraId,      // $7
-    telefoneFiltro,  // $8
-    somenteLancados, // $9
-    ob,              // $10
-    asc,             // $11
-    perPage,         // $12
-    skip             // $13
+    searchPattern,  // $1
+    searchDigits,   // $2
+    bairroPattern,  // $3
+    dIni,           // $4
+    dFim,           // $5
+    cidadeId,       // $6
+    tipoObraId,     // $7
+    telefoneFiltro, // $8
+    obraVinculada,  // $9
+    ob,             // $10
+    asc,            // $11
+    perPage,        // $12
+    skip            // $13
   ) as Array<{
     id: number
     titulo: string | null

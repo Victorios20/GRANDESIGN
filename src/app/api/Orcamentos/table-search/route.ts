@@ -3,17 +3,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { listarOrcamentosTableSearch } from "@/actions/orcamentos-table-search/orcamentos-table-search"
 
+type ObraVinculada = "sim" | "nao" | "todos"
+
 function getParam(url: URL, k: string) {
   const v = url.searchParams.get(k)
   return v === null ? null : v
-}
-
-function parseBooleanParam(v: string | null): boolean | undefined {
-  if (v == null) return undefined
-  const s = v.trim().toLowerCase()
-  if (["1", "true", "t", "yes", "y", "sim"].includes(s)) return true
-  if (["0", "false", "f", "no", "n", "nao", "não"].includes(s)) return false
-  return undefined
 }
 
 export async function GET(req: Request) {
@@ -34,7 +28,11 @@ export async function GET(req: Request) {
   const tipoObraIdStr = getParam(url, "tipoObraId")
   const dIni = getParam(url, "dIni")
   const dFim = getParam(url, "dFim")
-  const somenteLancados = parseBooleanParam(getParam(url, "somenteLancados"))
+
+  // novo: aceita tri-estado
+  const obraVinculadaRaw = (getParam(url, "obraVinculada") || "").toLowerCase()
+  const obraVinculada: ObraVinculada =
+    obraVinculadaRaw === "sim" ? "sim" : obraVinculadaRaw === "nao" || obraVinculadaRaw === "não" ? "nao" : "todos"
 
   const cidadeId = cidadeIdStr ? Number(cidadeIdStr) : null
   const tipoObraId = tipoObraIdStr ? Number(tipoObraIdStr) : null
@@ -52,7 +50,7 @@ export async function GET(req: Request) {
       tipoObraId,
       dIni,
       dFim,
-      somenteLancados,
+      obraVinculada, // <- tri-estado
     })
     return NextResponse.json(res, { status: 200 })
   } catch (e: any) {

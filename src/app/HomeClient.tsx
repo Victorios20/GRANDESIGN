@@ -1,4 +1,4 @@
-// app/HomeClient.tsx (DEPOIS)
+// app/HomeClient.tsx (COMPLETO)
 "use client"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
@@ -24,6 +24,7 @@ import type { OrcamentoTabela } from "./_actions/home.actions"
 
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
+import { GlobalStyles } from "@mui/material"
 
 type OrcRow = OrcamentoTabela & {
   cidade?: string
@@ -261,7 +262,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const columns: MUIDataTableColumnDef[] = [
     {
-      name: "__obra",
+      name: "obra",
       label: "",
       options: {
         sort: false,
@@ -592,6 +593,21 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
               </div>
             ) : (
               <ThemeProvider theme={theme}>
+                {/* Força o cabeçalho do MUIDataTable a usar o bege/marrom */}
+                <GlobalStyles
+                  styles={{
+                    ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
+                      backgroundColor: BEGE + " !important",
+                      color: MARROM + " !important",
+                    },
+                    ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
+                      color: MARROM + " !important",
+                    },
+                    ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
+                      backgroundColor: "rgba(232,201,154,0.35) !important",
+                    },
+                  }}
+                />
                 <MUIDataTable title={""} data={rows as any} columns={columns} options={options} />
               </ThemeProvider>
             )}
