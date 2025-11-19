@@ -87,7 +87,7 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
     cliente: {
       nome: initial.cliente?.nome ?? "",
       telefone: initial.cliente?.telefone ?? "",
-      cpf: initial.cliente?.cpf ?? "",
+      cpf: initial.cliente?.cpf ?? "", // ✅ já considera CPF vindo do orçamento
       bairro: initial.cliente?.bairro ?? "",
       cidade: initial.cliente?.cidade ?? "",
     },
@@ -181,12 +181,10 @@ function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
 
 /** mostra toast com title(code) e loga a description (quando existir) */
 function showApiError(err: any) {
-  // se vier no padrão do back:
   const title = err?.title || err?.error || "Falha ao salvar"
   const code = err?.code || "UNKNOWN"
   const desc = err?.description || err?.message
   toast.error(`${title} (${code})`)
-  // manda tudo pro console pra dev debugar
   // eslint-disable-next-line no-console
   console.error("[ObrasPage] API error", { title, code, description: desc, raw: err })
 }
@@ -216,6 +214,15 @@ export default function ObrasPage({
   const [pedido, setPedido] = useState<PedidoCompraVM>(() => hydratePedido(pedidoInit))
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
   const [exec, setExec] = useState<ExecucaoVM>(() => hydrateExecucao(execucaoInit))
+
+  // ✅ Se veio CPF do orçamento, desabilita o input de CPF no formulário
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const el = document.getElementById("infos.cliente.cpf") as HTMLInputElement | null
+    if (!el) return
+    const hasCpf = !!(vm?.cliente?.cpf && String(vm.cliente.cpf).trim() !== "")
+    el.disabled = hasCpf
+  }, [vm?.cliente?.cpf])
 
   const catalogoSafe: Catalogo = useMemo(
     () => ({
@@ -304,7 +311,7 @@ export default function ObrasPage({
       return false
     }
 
-    // Cliente — nome/telefone vêm do orçamento, CPF editável
+    // Cliente — nome/telefone vêm do orçamento, CPF pode vir do orçamento (desabilitado) ou ser digitado
     if (isEmpty(vm?.cliente?.nome)) {
       toast.error("Nome do cliente é obrigatório (vem do orçamento).")
       return false
@@ -492,7 +499,7 @@ export default function ObrasPage({
           andaimesItens,
 
           // ========= CLIENTE =========
-          clienteCpf: vm.cliente?.cpf?.trim() || null,
+          clienteCpf: vm.cliente?.cpf?.trim() || null, // ✅ envia o CPF (se vier, fica desabilitado no input; se não, usuário digita)
         }
 
         // eslint-disable-next-line no-console
@@ -624,9 +631,6 @@ export default function ObrasPage({
 
           // IMAGENS
           imagens: imagensReplace,
-
-          // ANEXOS (opcional)
-          // anexos: { contrato: ..., ordemServico: ..., propostaSlide: ..., propostaPdf: ... }
         }
 
         await updateObra(obraId, upd)

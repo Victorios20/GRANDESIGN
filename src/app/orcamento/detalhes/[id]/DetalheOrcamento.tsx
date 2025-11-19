@@ -62,26 +62,38 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const canVisualizarObra = obraLancada && detalhe.obraId != null
 
   const BotaoObra = () => {
-    if (!obraLancada) {
-      return (
-        <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>
-          Lançar obra
-        </ShinyButton>
-      )
-    }
-    if (canVisualizarObra) {
-      return (
-        <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>
-          Visualizar obra
-        </ShinyButton>
-      )
-    }
+  const obraLancada = !!detalhe.lancadoObra
+  const canVisualizarObra = obraLancada && detalhe.obraId != null
+
+  if (!obraLancada) {
     return (
-      <ShinyButton disabled>
+      <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>
+        Lançar obra
+      </ShinyButton>
+    )
+  }
+
+  if (canVisualizarObra) {
+    return (
+      <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>
         Visualizar obra
       </ShinyButton>
     )
   }
+
+  // “Desabilitado” sem usar prop disabled (que não existe no ShinyButton)
+  return (
+    <ShinyButton
+      onClick={() => {}}
+      className="opacity-60 pointer-events-none select-none"
+      aria-disabled="true"
+      tabIndex={-1}
+    >
+      Visualizar obra
+    </ShinyButton>
+  )
+}
+
 
   return (
     <PageLayout

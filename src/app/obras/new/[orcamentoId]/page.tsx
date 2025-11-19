@@ -73,7 +73,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
 
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(
-    tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw
+    (tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
   )
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
         .map((x: any) => {
@@ -81,7 +81,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
           const lab = String(label).trim()
           return lab ? { value: lab, label: lab } : null
         })
-        .filter(Boolean)
+        .filter(Boolean) as Option[]
     : []
 
   const telhaOptions: Option[] = Array.from(
@@ -102,6 +102,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
     cliente: {
       nome: orc.cliente?.nome ?? "",
       telefone: orc.cliente?.telefone ?? "",
+      cpf: (orc as any)?.cliente?.cpf ?? "",          // ✅ PREENCHE CPF SE VIER
       bairro: orc.cliente?.bairro ?? "",
       cidade: orc.cliente?.cidade ?? "",
     },
@@ -214,8 +215,8 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const anexosInit = {
     orcamento: orcamentoLink,
     proposta: propostaLink,
-    contrato: "",      // só aparece em view/edit
-    ordemServico: "",  // só aparece em view/edit
+    contrato: "",
+    ordemServico: "",
   }
 
   return (
