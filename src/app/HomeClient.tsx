@@ -1,5 +1,6 @@
-// app/HomeClient.tsx (COMPLETO)
+// app/HomeClient.tsx (COMPLETO — compacto)
 "use client"
+
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -16,9 +17,9 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
-import { BigShinyButton } from "@/components/ui/BigShinyButton"
 import { toast } from "sonner"
-import FilterCard, { type FieldId, type Option, type FilterState } from "./FilterCard"
+import FilterCard from "../components/modals/FilterCard"
+import type { Option } from "../components/modals/FilterCard"
 import { listarBairros } from "./_actions/home.actions"
 import type { OrcamentoTabela } from "./_actions/home.actions"
 
@@ -48,56 +49,18 @@ const MARROM = "#8B5E3C"
 export default function HomeClient({ initial }: { initial: InitialData }) {
   const router = useRouter()
 
+  // ==== ESTADO DOS FILTROS (apenas os que ficarão no popover) ====
   const [nome, setNome] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [bairro, setBairro] = useState<string>("")
   const [dataIni, setDataIni] = useState<Date | undefined>()
   const [dataFim, setDataFim] = useState<Date | undefined>()
   const [telefone, setTelefone] = useState("")
-  const [cidadeId, setCidadeId] = useState<number | null>(null)
   const [tipoObraId, setTipoObraId] = useState<number | null>(null)
-  const [obraVinculada, setObraVinculada] = useState<"todos" | "sim" | "nao">("todos")
 
-  const [cidadesOpts, setCidadesOpts] = useState<{ id: number; label: string }[]>([])
-  const [tiposOpts, setTiposOpts] = useState<{ id: number; label: string }[]>([])
-  const availableFields = useMemo(
-    () =>
-      ([
-        { id: "q", label: "Nome ou Título", type: "text" },
-        { id: "telefone", label: "Telefone", type: "text" },
-        { id: "bairro", label: "Bairro", type: "text" },
-        { id: "cidadeId", label: "Cidade", type: "select", options: cidadesOpts as Option[] },
-        { id: "tipoObraId", label: "Tipo de obra", type: "select", options: tiposOpts as Option[] },
-        { id: "dateRange", label: "Período", type: "dateRange" },
-        { id: "obraVinculada", label: "Obra vinculada?", type: "select" },
-        { id: "pageSize", label: "Linhas por página", type: "select", options: [5, 10, 20] },
-      ] as const),
-    [cidadesOpts, tiposOpts]
-  )
+  const [tiposOpts, setTiposOpts] = useState<Option[]>([])
 
-  const PERSIST_KEY = "gd.historico.filtros.campos.v2"
-  const DEFAULT_FIELDS: FieldId[] = [
-    "q",
-    "dateRange",
-    "obraVinculada",
-    "pageSize",
-    "bairro",
-    "telefone",
-    "cidadeId",
-    "tipoObraId",
-  ]
-
-  const [selectedFields, setSelectedFields] = useState<FieldId[]>(() => {
-    if (typeof window === "undefined") return DEFAULT_FIELDS
-    try {
-      const raw = localStorage.getItem(PERSIST_KEY)
-      const saved = raw ? (JSON.parse(raw) as FieldId[]) : null
-      return Array.isArray(saved) && saved.length ? saved : DEFAULT_FIELDS
-    } catch {
-      return DEFAULT_FIELDS
-    }
-  })
-
+  // ==== TABELA ====
   const [orcamentos, setOrcamentos] = useState<OrcRow[]>(
     (initial.dados ?? []).map((o, i) => ({
       id: (o as any).id ?? i,
@@ -122,50 +85,39 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (nome.trim() && page !== 0) setPage(0)
   }, [nome])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(PERSIST_KEY, JSON.stringify(selectedFields))
-    } catch {}
-  }, [selectedFields])
-
+  // carregar combos necessários e primeira consulta
   useEffect(() => {
     listarBairros().catch(() => {})
 
     ;(async () => {
       try {
-        const [rc, rt] = await Promise.all([
-          fetch(`/api/cidades?page=1&pageSize=100`).then((r) => r.json()),
-          fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json()),
-        ])
-
-        function toOptions(res: any, labelKeys: string[]): { id: number; label: string }[] {
-          const arr = res?.options ?? res?.data ?? res?.items ?? res ?? []
-          if (!Array.isArray(arr)) return []
-          return arr
-            .map((x: any) => {
-              const id = Number(x?.id)
-              if (!Number.isFinite(id)) return null
-              const label =
-                labelKeys.map((k) => (typeof x?.[k] === "string" ? x[k] : null)).find(Boolean) ??
-                (typeof x?.label === "string" ? x.label : null) ??
-                (typeof x?.nome === "string" ? x.nome : null) ??
-                (typeof x?.descricao === "string" ? x.descricao : null) ??
-                (typeof x?.tipo_obra === "string" ? x.tipo_obra : null) ??
-                ""
-              const lab = String(label).trim()
-              if (!lab) return null
-              return { id, label: lab }
-            })
-            .filter(Boolean) as { id: number; label: string }[]
-        }
-        setCidadesOpts(toOptions(rc, ["nome", "cidade"]))
-        setTiposOpts(toOptions(rt, ["tipo_obra", "nome", "descricao"]))
+        const rt = await fetch(`/api/tipos-obra?page=1&pageSize=100`).then((r) => r.json())
+        const arr = rt?.options ?? rt?.data ?? rt?.items ?? rt ?? []
+        const list: Option[] = Array.isArray(arr)
+          ? arr
+              .map((x: any) => {
+                const id = Number(x?.id)
+                if (!Number.isFinite(id)) return null
+                const label =
+                  (typeof x?.tipo_obra === "string" && x.tipo_obra) ||
+                  (typeof x?.nome === "string" && x.nome) ||
+                  (typeof x?.descricao === "string" && x.descricao) ||
+                  ""
+                const lab = String(label).trim()
+                if (!lab) return null
+                return { id, label: lab }
+              })
+              .filter(Boolean) as Option[]
+          : []
+        setTiposOpts(list)
       } catch {}
     })()
 
     consultar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // debounce do search da toolbar
   useEffect(() => {
     const t = setTimeout(() => {
       setNome(searchInput)
@@ -174,9 +126,11 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     return () => clearTimeout(t)
   }, [searchInput])
 
+  // refetch ao mudar filtros/paginação
   useEffect(() => {
     consultar()
-  }, [nome, bairro, telefone, cidadeId, tipoObraId, dataIni, dataFim, obraVinculada, page, perPage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nome, bairro, telefone, tipoObraId, dataIni, dataFim, page, perPage])
 
   async function consultar() {
     setLoadingTabela(true)
@@ -189,11 +143,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (nome) qs.set("search", nome)
     if (bairro) qs.set("bairro", bairro)
     if (telefone) qs.set("telefone", telefone)
-    if (cidadeId != null) qs.set("cidadeId", String(cidadeId))
     if (tipoObraId != null) qs.set("tipoObraId", String(tipoObraId))
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
-    if (obraVinculada && obraVinculada !== "todos") qs.set("obraVinculada", obraVinculada)
 
     const res = await fetch(`/api/Orcamentos/table-search?${qs.toString()}`, { cache: "no-store" })
     if (!res.ok) {
@@ -221,9 +173,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     setSearchInput("")
     setBairro("")
     setTelefone("")
-    setCidadeId(null)
     setTipoObraId(null)
-    setObraVinculada("todos")
     setDataIni(undefined)
     setDataFim(undefined)
     setPage(0)
@@ -469,7 +419,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         setSearchInput(q)
       }
     },
-    sort: false, // desabilita ordenação global
+    sort: false,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
     onRowClick: (_rowData, meta) => {
@@ -485,6 +435,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     }),
   }
 
+  // THEME COMPACTO
   const theme = useMemo(
     () =>
       createTheme({
@@ -493,6 +444,16 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           text: { primary: MARROM },
         },
         components: {
+          MuiToolbar: {
+            styleOverrides: {
+              root: {
+                minHeight: 36,
+                paddingLeft: 8,
+                paddingRight: 8,
+                color: MARROM,
+              },
+            },
+          },
           MuiTableHead: { styleOverrides: { root: { backgroundColor: BEGE } } },
           MuiTableRow: { styleOverrides: { head: { backgroundColor: BEGE, height: 36 } } },
           MuiTableCell: {
@@ -506,7 +467,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 lineHeight: 1.1,
                 whiteSpace: "nowrap",
               },
-              root: { color: MARROM, borderBottom: "1px solid rgba(0,0,0,0.06)" },
+              root: { color: MARROM, borderBottom: "1px solid rgba(0,0,0,0.06)", paddingTop: 6, paddingBottom: 6 },
             },
           },
           MuiIconButton: {
@@ -524,67 +485,72 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             },
           },
           MuiPaper: { styleOverrides: { root: { borderRadius: 12 } } },
-          MuiToolbar: { styleOverrides: { root: { color: MARROM } } },
         },
       }),
     []
   )
 
+  // ====== HEADER: somente filtros (título aparecerá ao lado via isTitulo) ======
+  const headerActions = (
+    <div className="flex items-center gap-2">
+      <FilterCard
+        value={{
+          q: nome,
+          telefone,
+          bairro,
+          tipoObraId,
+          ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
+          fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+          pageSize: perPage as any,
+        }}
+        onChange={(next) => {
+          setNome(next.q ?? "")
+          setSearchInput(next.q ?? "")
+          setTelefone(next.telefone ?? "")
+          setBairro(next.bairro ?? "")
+          setTipoObraId(next.tipoObraId ?? null)
+          if (next.pageSize) setPerPage(Number(next.pageSize))
+          setDataIni(next.ini ? new Date(next.ini) : undefined)
+          setDataFim(next.fim ? new Date(next.fim) : undefined)
+          setPage(0)
+        }}
+        onApply={() => consultar()}
+        onClear={() => {
+          limparFiltros()
+          consultar()
+        }}
+        tipoObraOptions={tiposOpts}
+        pageSizeOptions={[10, 20, 25, 50, 100]}
+        loading={loadingTabela}
+      />
+    </div>
+  )
+
   return (
-    <PageLayout>
+    <PageLayout headerActions={headerActions} isTitulo>
       <TooltipProvider>
-        <Link href="/orcamento/new" className="block mb-8">
-          <BigShinyButton />
-        </Link>
-
-        <FilterCard
-          value={{
-            q: nome,
-            telefone,
-            bairro,
-            cidadeId,
-            tipoObraId,
-            ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-            fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
-            pageSize: perPage as 5 | 10 | 20,
-            obraVinculada,
-          }}
-          onChange={(next: FilterState) => {
-            setNome(next.q ?? "")
-            setSearchInput(next.q ?? "")
-            setTelefone(next.telefone ?? "")
-            setBairro(next.bairro ?? "")
-            setCidadeId(next.cidadeId ?? null)
-            setTipoObraId(next.tipoObraId ?? null)
-            setPerPage((next.pageSize as number) ?? perPage)
-            setDataIni(next.ini ? new Date(next.ini) : undefined)
-            setDataFim(next.fim ? new Date(next.fim) : undefined)
-            setObraVinculada((next as any).obraVinculada ?? "todos")
-            setPage(0)
-          }}
-          onClear={() => limparFiltros()}
-          availableFields={availableFields as any}
-          selectedFields={selectedFields}
-          onSelectedFieldsChange={setSelectedFields}
-          loading={loadingTabela}
-        />
-
-        <Card className="mt-8">
-          <CardHeader className="pb-4">
+        <Card ultraCompact>
+          {/* Header do Card mais compacto */}
+          <CardHeader className="py-2">
             <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-2xl text-marromEscuro">Orçamentos</CardTitle>
-                <CardDescription className="text-marromClaro">Tabela com os orçamentos dos clientes.</CardDescription>
+              <div className="space-y-0.5">
+                <CardTitle className="text-2xl leading-tight text-marromEscuro">Orçamentos</CardTitle>
+                <CardDescription className="text-[13px] leading-tight text-marromClaro">
+                  Tabela com os orçamentos dos clientes.
+                </CardDescription>
               </div>
+
+              {/* "Gerar Novo" dentro do Card, também mais compacto */}
               <Link href="/orcamento/new">
-                <InteractiveHoverButton className="px-5 py-2 text-sm font-medium rounded-lg shadow-sm hover:shadow-md">
+                <InteractiveHoverButton className="px-4 py-1.5 text-sm rounded-lg shadow-sm hover:shadow-md">
                   Gerar Novo
                 </InteractiveHoverButton>
               </Link>
             </div>
           </CardHeader>
 
-          <CardContent className="p-4 sm:p-6">
+          {/* Conteúdo com padding reduzido */}
+          <CardContent className="pt-2 pb-4 px-4 sm:px-6">
             {loadingTabela ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -593,9 +559,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
               </div>
             ) : (
               <ThemeProvider theme={theme}>
-                {/* Força o cabeçalho do MUIDataTable a usar o bege/marrom */}
                 <GlobalStyles
                   styles={{
+                    ".MUIDataTableToolbar-root": { minHeight: "36px", padding: "0 8px" },
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: BEGE + " !important",
                       color: MARROM + " !important",

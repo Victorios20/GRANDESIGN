@@ -14,7 +14,7 @@ export const InteractiveHoverButton = React.forwardRef<
       ref={ref}
       className={cn(
         "group relative w-auto cursor-pointer overflow-hidden rounded-full px-6 py-2 font-semibold",
-        "bg-white text-marromEscuro",
+        "bg-white border border-bege text-marromEscuro",          // <- aqui
         "hover:bg-bege hover:text-marromEscuro",
         "transition-colors",
         "min-w-[160px]",

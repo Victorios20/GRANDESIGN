@@ -8,6 +8,10 @@ type CardProps = React.ComponentProps<"div"> & {
   elevation?: 1 | 2 | 3 | 4
   interactive?: boolean
   noShadow?: boolean
+  /** Reduz padding vertical e espaço entre seções (header/content/footer) */
+  compact?: boolean
+  /** Remove totalmente o gap vertical entre header e conteúdo (prioridade sobre compact) */
+  ultraCompact?: boolean
 }
 
 const ELEVATION_MAP: Record<NonNullable<CardProps["elevation"]>, string> = {
@@ -22,15 +26,29 @@ function Card({
   elevation = 3,
   interactive = false,
   noShadow,
+  compact = false,
+  ultraCompact = false,
   ...props
 }: CardProps) {
   const shadow = noShadow ? "" : ELEVATION_MAP[elevation]
   const hover = interactive && !noShadow ? "transition-shadow hover:shadow-2xl" : ""
+
+  // Espaçamentos:
+  // - ultraCompact: remove o "gap" entre header e content (resolve a faixa roxa).
+  // - compact: reduz py e gap.
+  // - default: espaçamento confortável.
+  const spacing = ultraCompact
+    ? "py-1 gap-0"
+    : compact
+    ? "py-2 gap-2"
+    : "py-6 gap-6"
+
   return (
     <div
       data-slot="card"
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-2xl border py-6",
+        "bg-card text-card-foreground flex flex-col rounded-2xl border",
+        spacing,
         shadow,
         hover,
         className
