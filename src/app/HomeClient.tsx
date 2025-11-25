@@ -490,39 +490,14 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     []
   )
 
-  // ====== HEADER: somente filtros (título aparecerá ao lado via isTitulo) ======
+  // ====== HEADER: agora só o "Gerar Novo" ======
   const headerActions = (
     <div className="flex items-center gap-2">
-      <FilterCard
-        value={{
-          q: nome,
-          telefone,
-          bairro,
-          tipoObraId,
-          ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-          fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
-          pageSize: perPage as any,
-        }}
-        onChange={(next) => {
-          setNome(next.q ?? "")
-          setSearchInput(next.q ?? "")
-          setTelefone(next.telefone ?? "")
-          setBairro(next.bairro ?? "")
-          setTipoObraId(next.tipoObraId ?? null)
-          if (next.pageSize) setPerPage(Number(next.pageSize))
-          setDataIni(next.ini ? new Date(next.ini) : undefined)
-          setDataFim(next.fim ? new Date(next.fim) : undefined)
-          setPage(0)
-        }}
-        onApply={() => consultar()}
-        onClear={() => {
-          limparFiltros()
-          consultar()
-        }}
-        tipoObraOptions={tiposOpts}
-        pageSizeOptions={[10, 20, 25, 50, 100]}
-        loading={loadingTabela}
-      />
+      <Link href="/orcamento/new">
+        <InteractiveHoverButton className="px-4 py-1.5 text-sm rounded-lg shadow-sm hover:shadow-md">
+          Gerar Novo
+        </InteractiveHoverButton>
+      </Link>
     </div>
   )
 
@@ -532,7 +507,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         <Card ultraCompact>
           {/* Header do Card mais compacto */}
           <CardHeader className="py-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="space-y-0.5">
                 <CardTitle className="text-2xl leading-tight text-marromEscuro">Orçamentos</CardTitle>
                 <CardDescription className="text-[13px] leading-tight text-marromClaro">
@@ -540,12 +515,39 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 </CardDescription>
               </div>
 
-              {/* "Gerar Novo" dentro do Card, também mais compacto */}
-              <Link href="/orcamento/new">
-                <InteractiveHoverButton className="px-4 py-1.5 text-sm rounded-lg shadow-sm hover:shadow-md">
-                  Gerar Novo
-                </InteractiveHoverButton>
-              </Link>
+              {/* Aqui agora ficam os filtros (Filtro / Limpar) */}
+              <div className="flex items-center gap-2">
+                <FilterCard
+                  value={{
+                    q: nome,
+                    telefone,
+                    bairro,
+                    tipoObraId,
+                    ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
+                    fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+                    pageSize: perPage as any,
+                  }}
+                  onChange={(next) => {
+                    setNome(next.q ?? "")
+                    setSearchInput(next.q ?? "")
+                    setTelefone(next.telefone ?? "")
+                    setBairro(next.bairro ?? "")
+                    setTipoObraId(next.tipoObraId ?? null)
+                    if (next.pageSize) setPerPage(Number(next.pageSize))
+                    setDataIni(next.ini ? new Date(next.ini) : undefined)
+                    setDataFim(next.fim ? new Date(next.fim) : undefined)
+                    setPage(0)
+                  }}
+                  onApply={() => consultar()}
+                  onClear={() => {
+                    limparFiltros()
+                    consultar()
+                  }}
+                  tipoObraOptions={tiposOpts}
+                  pageSizeOptions={[10, 20, 25, 50, 100]}
+                  loading={loadingTabela}
+                />
+              </div>
             </div>
           </CardHeader>
 
