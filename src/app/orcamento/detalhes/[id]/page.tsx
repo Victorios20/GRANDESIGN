@@ -7,7 +7,6 @@ import DetalheOrcamento from "./DetalheOrcamento"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-// título da aba dinâmico: "orçamento - {título}"
 export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Metadata> {
@@ -19,8 +18,8 @@ export async function generateMetadata(
     const h = await nextHeaders()
     const cookie = h.get("cookie") ?? ""
     const proto = h.get("x-forwarded-proto") ?? "http"
-    const host  = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
-    const base  = `${proto}://${host}`
+    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
+    const base = `${proto}://${host}`
 
     const res = await fetch(`${base}/api/Orcamentos/${numId}`, {
       cache: "no-store",
@@ -47,7 +46,7 @@ type GetOrcamentoResult = {
     telefone: string | null
     bairro: string | null
     cidade: string | null
-    cpf: string | null           // ✅ novo (pode vir null)
+    cpf: string | null
   }
   parametros: {
     tipoObra: string | null
@@ -70,11 +69,11 @@ type GetOrcamentoResult = {
   dataUltimaAlteracao: string
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
-
-  // ✅ novos campos vindos do GET (já implementados no back):
   lancadoObra: boolean
   lancadoObraEm: string | null
   obraId: number | null
+  fornecedorId?: number | null
+  fornecedor?: { id: number; nome: string } | null
 }
 
 export type DetalheVM = {
@@ -85,7 +84,7 @@ export type DetalheVM = {
     telefone?: string | null
     bairro?: string | null
     cidade?: string | null
-    cpf?: string | null        // ✅ disponível no VM
+    cpf?: string | null
   }
   tipoObra: string | null
   dimensoes: {
@@ -112,11 +111,11 @@ export type DetalheVM = {
   dataUltimaAlteracao: string
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
-
-  // ✅ infos para botão e auditoria
   lancadoObra: boolean
   lancadoObraEm: string | null
   obraId: number | null
+  fornecedorId: number | null
+  fornecedorNome: string | null
 }
 
 function normalize(dto: GetOrcamentoResult): DetalheVM {
@@ -182,11 +181,13 @@ function normalize(dto: GetOrcamentoResult): DetalheVM {
     dataUltimaAlteracao: dto.dataUltimaAlteracao,
     createdBy: dto.createdBy ?? null,
     updatedBy: dto.updatedBy ?? null,
-
-    // ✅ botão & auditoria
     lancadoObra: !!dto.lancadoObra,
     lancadoObraEm: dto.lancadoObraEm ?? null,
     obraId: dto.obraId ?? null,
+    fornecedorId:
+      dto.fornecedorId != null ? Number(dto.fornecedorId) :
+      dto.fornecedor?.id != null ? Number(dto.fornecedor.id) : null,
+    fornecedorNome: dto.fornecedor?.nome ?? null,
   }
 }
 
@@ -197,11 +198,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   const h = await nextHeaders()
   const cookie = h.get("cookie") ?? ""
-
-  // Monta base absoluta (funciona em localhost e homolog/produção)
   const proto = h.get("x-forwarded-proto") ?? "http"
-  const host  = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
-  const base  = `${proto}://${host}`
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
+  const base = `${proto}://${host}`
 
   const res = await fetch(`${base}/api/Orcamentos/${id}`, {
     cache: "no-store",

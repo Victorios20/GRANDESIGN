@@ -27,8 +27,19 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
   return {
     id: data.id,
 
-    // 👇 Novo: garante que o componente receba o id do cliente já associado
+    // garante que o componente receba o id do cliente já associado
     clienteId: (data as any).clienteId ?? data.clienteId ?? 0,
+
+    // >>> ADIÇÃO: preenche fornecedor para o client pré-selecionar
+    fornecedorId:
+      (data as any).fornecedorId != null
+        ? Number((data as any).fornecedorId)
+        : (data as any).fornecedor?.id != null
+        ? Number((data as any).fornecedor.id)
+        : null,
+    fornecedorNome:
+      (data as any).fornecedor?.nome ??
+      (typeof (data as any).fornecedorNome === "string" ? (data as any).fornecedorNome : null),
 
     titulo: data.titulo ?? "",
     cliente: {
@@ -93,13 +104,16 @@ export default async function Page(context: { params: Promise<{ id: string }> })
 
   const initialData = toInitialData(orc)
 
-  // DEBUG
-console.log("[EDIT] id:", id)
-console.log("[EDIT] orcamento raw:", JSON.stringify(orc, null, 2))
-console.log(
-  "[EDIT] tiposObra:",
-  tiposObra.map((t: any) => ({ id: t.id, descricao: t.descricao }))
-)
+  // DEBUG útil
+  console.log("[EDIT] id:", id)
+  console.log("[EDIT] fornecedor vindo do servidor:", {
+    fornecedorId: (orc as any).fornecedorId ?? (orc as any).fornecedor?.id ?? null,
+    fornecedor: (orc as any).fornecedor ?? null,
+  })
+  console.log("[EDIT] initialData fornecedor:", {
+    fornecedorId: initialData.fornecedorId,
+    fornecedorNome: initialData.fornecedorNome,
+  })
 
   return (
     <OrcamentoPage

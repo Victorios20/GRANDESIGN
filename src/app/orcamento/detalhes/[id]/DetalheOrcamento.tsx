@@ -36,7 +36,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const fmtCPF = (cpf: string | null | undefined) => {
     const only = (cpf ?? "").replace(/\D+/g, "")
     if (only.length !== 11) return "-"
-    return `${only.slice(0,3)}.${only.slice(3,6)}.${only.slice(6,9)}-${only.slice(9)}`
+    return `${only.slice(0, 3)}.${only.slice(3, 6)}.${only.slice(6, 9)}-${only.slice(9)}`
   }
 
   const materiaisGroup = useMemo(() => {
@@ -62,38 +62,23 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const canVisualizarObra = obraLancada && detalhe.obraId != null
 
   const BotaoObra = () => {
-  const obraLancada = !!detalhe.lancadoObra
-  const canVisualizarObra = obraLancada && detalhe.obraId != null
-
-  if (!obraLancada) {
+    if (!obraLancada) {
+      return <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>Lançar obra</ShinyButton>
+    }
+    if (canVisualizarObra) {
+      return <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>Visualizar obra</ShinyButton>
+    }
     return (
-      <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>
-        Lançar obra
-      </ShinyButton>
-    )
-  }
-
-  if (canVisualizarObra) {
-    return (
-      <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>
+      <ShinyButton
+        onClick={() => {}}
+        className="opacity-60 pointer-events-none select-none"
+        aria-disabled="true"
+        tabIndex={-1}
+      >
         Visualizar obra
       </ShinyButton>
     )
   }
-
-  // “Desabilitado” sem usar prop disabled (que não existe no ShinyButton)
-  return (
-    <ShinyButton
-      onClick={() => {}}
-      className="opacity-60 pointer-events-none select-none"
-      aria-disabled="true"
-      tabIndex={-1}
-    >
-      Visualizar obra
-    </ShinyButton>
-  )
-}
-
 
   return (
     <PageLayout
@@ -151,6 +136,10 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
             </CardHeader>
             <CardContent className="space-y-1 text-sm grow">
               <p><b>Tipo de obra:</b> {safeCell(detalhe.tipoObra)}</p>
+              <p>
+                <b>Fornecedor:</b>{" "}
+                {safeCell(detalhe.fornecedorNome ?? (detalhe.fornecedorId != null ? `#${detalhe.fornecedorId}` : ""))}
+              </p>
               {isRetangular ? (
                 <>
                   <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
@@ -359,7 +348,7 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
             </CardDescription>
           </CardHeader>
 
-        <CardContent className="p-4 space-y-5">
+          <CardContent className="p-4 space-y-5">
             <div className="grid gap-2">
               <label className="text-sm">Link do Slide</label>
               <div className="flex gap-2">
