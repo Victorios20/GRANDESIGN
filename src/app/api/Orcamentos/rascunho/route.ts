@@ -1,4 +1,3 @@
-// app/api/orcamentos/rascunho/route.ts
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -19,7 +18,6 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   const step = typeof err?.step === "string" ? err.step : undefined
   const details = err?.details
 
-  // Mensagens curtas, em PT-BR, priorizando clareza para o usuário
   const friendlyByCode: Record<string, string> = {
     DUPLICATE_TITLE: "Falha ao salvar rascunho: título já existe.",
     CLIENT_ID_REQUIRED: "Falha ao salvar rascunho: selecione um cliente.",
@@ -53,7 +51,6 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
   ) {
     status = 500
   } else {
-    // Backward-compat: heurísticas pela mensagem
     const msg = String(rawMessage)
     if (msg.includes("título já existe")) status = 409
     else if (msg.includes("Tipo de obra não encontrado")) status = 404
@@ -65,7 +62,6 @@ function mapErrorToHttp(err: any, requestId: string): { status: number; body: Ap
     body: { error: message, code, step, details, requestId },
   }
 }
-
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -95,6 +91,12 @@ export async function POST(req: Request) {
     const totais = body?.totais ?? {}
     const telhaValores = body?.telhaValores ?? {}
 
+    // NOVO: extrair fornecedorId de forma tolerante
+    const rawFornecedorId =
+      body?.fornecedorId ?? body?.fornecedor_id ?? body?.id_fornecedor ?? body?.fornecedor?.id ?? null
+    const parsedF = Number(rawFornecedorId)
+    const fornecedorId = Number.isFinite(parsedF) ? parsedF : null
+
     const actorUserId = Number((session.user as any).id)
 
     const id = await salvarRascunhoOrcamentoDB({
@@ -106,6 +108,7 @@ export async function POST(req: Request) {
       telhaValores,
       clienteId,
       actorUserId,
+      fornecedorId, // <<< repassando para a camada DB
     } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })
@@ -119,4 +122,3 @@ export async function POST(req: Request) {
     return res
   }
 }
-

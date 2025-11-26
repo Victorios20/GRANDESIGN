@@ -1,3 +1,4 @@
+// src/app/api/Orcamentos/[id]/route.ts
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -57,11 +58,27 @@ export async function PUT(
     return NextResponse.json({ error: "payload vazio", code: "VALIDACAO" }, { status: 422 })
   }
 
+  // Nunca permitimos trocar cliente por aqui (mantém seu comportamento atual)
   const { cliente, clienteId, cliente_id, ...safeBody } = body
+
+  // Normalização tolerante do fornecedor (sem quebrar nada existente)
+  const rawFornecedorId =
+    body?.fornecedorId ?? body?.fornecedor_id ?? body?.id_fornecedor ?? body?.fornecedor?.id ?? null
+  const parsedFornecedor = Number(rawFornecedorId)
+  const fornecedorId = Number.isFinite(parsedFornecedor) ? parsedFornecedor : null
+
   const actorUserId = Number((session.user as any).id)
 
   try {
-    const updatedId = await updateOrcamento(id, { ...safeBody, actorUserId })
+    // Passamos ambas as chaves para a camada DB aceitar qualquer forma:
+    // - fornecedorId (camelCase)
+    // - id_fornecedor (snake) — caso sua função espere esse nome
+    const updatedId = await updateOrcamento(id, {
+      ...safeBody,
+      fornecedorId,
+      id_fornecedor: fornecedorId,
+      actorUserId,
+    })
     return NextResponse.json({ id: updatedId ?? id }, { status: 200 })
   } catch (err: any) {
     const code = typeof err?.code === "string" ? err.code : undefined

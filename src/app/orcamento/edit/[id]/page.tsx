@@ -69,7 +69,6 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
   }
 }
 
-
 export default async function Page(context: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await context.params
   const id = Number(idStr)
@@ -87,13 +86,20 @@ export default async function Page(context: { params: Promise<{ id: string }> })
   ])
 
   const catalogo = {
-  madeiras: [], // madeiras agora vêm no client por fornecedor selecionado
-  materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
-  telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
-}
-
+    madeiras: [], // madeiras agora vêm no client por fornecedor selecionado
+    materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+    telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+  }
 
   const initialData = toInitialData(orc)
+
+  // DEBUG
+console.log("[EDIT] id:", id)
+console.log("[EDIT] orcamento raw:", JSON.stringify(orc, null, 2))
+console.log(
+  "[EDIT] tiposObra:",
+  tiposObra.map((t: any) => ({ id: t.id, descricao: t.descricao }))
+)
 
   return (
     <OrcamentoPage

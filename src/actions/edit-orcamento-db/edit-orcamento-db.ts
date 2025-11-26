@@ -24,8 +24,12 @@ export type GetOrcamentoResult = {
     telefone: string
     bairro: string
     cidade: string | null
-    cpf: string | null // ✅ novo campo opcional
+    cpf: string | null
   }
+  /** NOVO: fornecedor vinculado ao orçamento (opcional) */
+  fornecedorId: number | null
+  fornecedor: { id: number; nome: string } | null
+
   parametros: {
     tipoObra: string | null
     largura: number | null
@@ -67,6 +71,8 @@ export type GetOrcamentoResult = {
 export type UpdateOrcamentoInput = {
   titulo: string
   cliente: { nome: string; telefone: string; bairro: string; cidade: string | null }
+  /** NOVO: atualizar fornecedor opcionalmente */
+  fornecedorId?: number | null
   parametros: {
     tipoObraId?: number | null
     tipoObra: string | null
@@ -170,6 +176,16 @@ function uiMetodoKey(metodoPersistido: string): "pix" | "x10" | "x18" | null {
   return null
 }
 
+/* ------------------------- fornecedor helper ------------------------- */
+async function resolveFornecedorId(tx: any, maybeId: unknown): Promise<number | null> {
+  const n = Number(maybeId)
+  if (!Number.isFinite(n)) return null
+  const rows = (await tx.$queryRaw`
+    SELECT id FROM fornecedores WHERE id = ${n} LIMIT 1
+  `) as Array<{ id: number }>
+  return rows?.[0]?.id ?? null
+}
+
 /* ========================= GET (carregar para edição) ========================= */
 
 export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> {
@@ -179,10 +195,12 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         const orc = await tx.orcamento.findUnique({
           where: { id },
           include: {
-            cliente: { include: { cidades: true } }, // inclui cpf junto com os demais campos
+            cliente: { include: { cidades: true } },
             tipo_obra: true,
             createdBy: { select: { id: true, name: true, email: true } },
             updatedBy: { select: { id: true, name: true, email: true } },
+            /** NOVO: traz fornecedor do orçamento */
+            fornecedor: { select: { id: true, nome: true } },
           },
         })
 
@@ -271,43 +289,57 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         nome: data.orc.cliente.nome ?? "",
         telefone: data.orc.cliente.telefone ?? "",
         bairro: data.orc.cliente.bairro ?? "",
-        cidade: data.orc.cliente.cidades?.nome ?? null,
-        cpf: data.orc.cliente.cpf ?? null, // ✅ mapeia CPF (pode ser null)
+        cidade: (data.orc as any).cliente?.cidades?.nome ?? null,
+        cpf: (data.orc as any).cliente?.cpf ?? null,
       },
+
+      // NOVO: mapeamento do fornecedor
+      fornecedorId: (data.orc as any).id_fornecedor ?? null,
+      fornecedor: data.orc.fornecedor ? { id: data.orc.fornecedor.id, nome: data.orc.fornecedor.nome } : null,
+
       parametros: {
-        tipoObra: data.orc.tipo_obra?.tipo_obra ?? null,
-        largura: toNumber(data.orc.largura),
-        comprimento: toNumber(data.orc.comprimento),
-        larguraMaior: toNumber(data.orc.largura_maior),
-        larguraMenor: toNumber(data.orc.largura_menor),
-        comprimentoMaior: toNumber(data.orc.comprimento_maior),
-        comprimentoMenor: toNumber(data.orc.comprimento_menor),
+        tipoObra: (data.orc as any).tipo_obra?.tipo_obra ?? null,
+        largura: toNumber((data.orc as any).largura),
+        comprimento: toNumber((data.orc as any).comprimento),
+        larguraMaior: toNumber((data.orc as any).largura_maior),
+        larguraMenor: toNumber((data.orc as any).largura_menor),
+        comprimentoMaior: toNumber((data.orc as any).comprimento_maior),
+        comprimentoMenor: toNumber((data.orc as any).comprimento_menor),
       },
+
       materiais: {
         madeiras,
         materiaisGerais: gerais,
         telhas,
       },
       totais: {
-        madeiras: nonNeg(data.orc.totais_madeiras_preco),
-        materiais: nonNeg(data.orc.totais_materiais_preco),
-        comissao: nonNeg(data.orc.totais_comissao_preco),
-        frete: nonNeg(data.orc.totais_frete_preco),
-        empresaPS: nonNeg(data.orc.totais_empresa_ps_preco),
-        empresaGD: nonNeg(data.orc.totais_empresa_gd_preco),
+        madeiras: nonNeg((data.orc as any).totais_madeiras_preco),
+        materiais: nonNeg((data.orc as any).totais_materiais_preco),
+        comissao: nonNeg((data.orc as any).totais_comissao_preco),
+        frete: nonNeg((data.orc as any).totais_frete_preco),
+        empresaPS: nonNeg((data.orc as any).totais_empresa_ps_preco),
+        empresaGD: nonNeg((data.orc as any).totais_empresa_gd_preco),
       },
       links: {
-        slideUrl: data.orc.link_slide ?? null,
-        pdfUrl: data.orc.link_pdf ?? null,
+        slideUrl: (data.orc as any).link_slide ?? null,
+        pdfUrl: (data.orc as any).link_pdf ?? null,
       },
       telhaValores,
-      dataCriacao: data.orc.data_criacao ?? null,
-      dataUltimaAlteracao: data.orc.data_ultima_alteracao,
-      createdBy: data.orc.createdBy
-        ? { id: data.orc.createdBy.id, name: data.orc.createdBy.name, email: data.orc.createdBy.email }
+      dataCriacao: (data.orc as any).data_criacao ?? null,
+      dataUltimaAlteracao: (data.orc as any).data_ultima_alteracao,
+      createdBy: (data.orc as any).createdBy
+        ? {
+          id: (data.orc as any).createdBy.id,
+          name: (data.orc as any).createdBy.name,
+          email: (data.orc as any).createdBy.email,
+        }
         : null,
-      updatedBy: data.orc.updatedBy
-        ? { id: data.orc.updatedBy.id, name: data.orc.updatedBy.name, email: data.orc.updatedBy.email }
+      updatedBy: (data.orc as any).updatedBy
+        ? {
+          id: (data.orc as any).updatedBy.id,
+          name: (data.orc as any).updatedBy.name,
+          email: (data.orc as any).updatedBy.email,
+        }
         : null,
 
       // Flags/infos sobre obra vinculada
@@ -359,6 +391,9 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         }
       }
 
+      // NOVO: resolve fornecedor (opcional)
+      const resolvedFornecedorId = await resolveFornecedorId(tx, input.fornecedorId ?? null)
+
       const dimUpdate: Record<string, number | null | undefined> = {}
       const { largura, comprimento, larguraMaior, larguraMenor, comprimentoMaior, comprimentoMenor } = input.parametros
 
@@ -375,6 +410,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           data: {
             titulo: cleanText(input.titulo),
             tipo_obra_id: tipoObraId,
+            /** NOVO: atualiza id_fornecedor de forma opcional/silenciosa */
+            id_fornecedor: resolvedFornecedorId,
             totais_madeiras_preco: nonNeg(input.totais.madeiras),
             totais_materiais_preco: nonNeg(input.totais.materiais),
             totais_comissao_preco: nonNeg(input.totais.comissao),

@@ -127,7 +127,6 @@ type ClienteSearchResult = {
 
 export type InitialData = {
     id: number
-    /** ID do cliente já associado a este orçamento (vem da API de GET /Orcamentos/[id]) */
     clienteId: number
     titulo: string
     cliente: { nome: string; telefone: string; bairro: string; cidade: string }
@@ -151,7 +150,12 @@ export type InitialData = {
     }
     telhaValores: Record<string, Pagto>
     links: { slide?: string; pdf?: string; slideUrl?: string | null; pdfUrl?: string | null }
+
+    // NOVO ↓
+    fornecedorId?: number | null
+    fornecedorNome?: string | null
 }
+
 
 
 type Catalogo = {
@@ -701,13 +705,27 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             try {
                 const lista = await getFornecedores()
                 setFornecedores(lista)
-                try { localStorage.removeItem("gd.fornecedorSelecionado") } catch { }
-                setFornecedorSel(null)
+
+                // só zera seleção no CREATE; no EDIT preserva para pré-selecionar
+                if (!isEdit) {
+                    try { localStorage.removeItem("gd.fornecedorSelecionado") } catch { }
+                    setFornecedorSel(null)
+                }
             } catch (e: any) {
                 toast.error(e?.message ?? "Falha ao carregar fornecedores")
             }
         })()
-    }, [])
+    }, [isEdit])
+
+    useEffect(() => {
+        if (!isEdit) return
+        const id = Number(initialData?.fornecedorId)
+        if (Number.isFinite(id) && fornecedores.length && fornecedores.some(f => f.id === id)) {
+            setFornecedorSel(id)
+        }
+    }, [isEdit, initialData?.fornecedorId, fornecedores])
+
+
 
 
     // ao trocar fornecedor → buscar madeiras (sem gravar em localStorage)
@@ -984,12 +1002,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setTitulo(initialData.titulo ?? "")
         setForm({ nome, telefone, bairro, cidade })
 
-        // >>> ASSOCIAÇÃO AO ENTRAR NO EDITAR <<<
+        // Associação ao entrar no editar
         setClienteId(initialData.clienteId ?? null)
         const snap = { nome, telefone, cidade, bairro }
         setClienteSnap(snap)
 
-        // (se quiser sobreviver a refresh durante o editar)
+        // Persistência leve para refresh
         localStorage.setItem("orcamento.clienteId", String(initialData.clienteId ?? ""))
         localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
 
@@ -1013,8 +1031,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setTituloSnap("")
         setAutoTituloSnap("")
 
+        // Pré-seleção do fornecedor (corrige string vs number)
+        const fornecedorIdNorm =
+            initialData.fornecedorId != null ? Number(initialData.fornecedorId) : null
+        setFornecedorSel(
+            Number.isFinite(fornecedorIdNorm as any) ? (fornecedorIdNorm as number) : null
+        )
+
         setHydrated(true)
     }, [isEdit, initialData])
+
 
 
     /* ===================================================================
@@ -1527,6 +1553,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             telhaValores: telhaValoresAtual,
                             links: { slideUrl: slide, pdfUrl: pdf },
                             titulo: snap,
+                            fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
                         }
                         console.log("payload create", payloadCreate)
                         const novoId = await salvarOrcamentoAPI(payloadCreate)
@@ -1674,6 +1701,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 pdfUrl: links.pdf ?? null,
             },
             actorUserId: currentUserId,
+            fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
         }
     }
 
@@ -2100,7 +2128,13 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         <div className="flex flex-col gap-1">
                             <Label>Fornecedor</Label>
                             <ComboboxAdd
-                                buttonText={fornecedorSelObj?.nome || "Selecione"}
+                                key={`forn-${fornecedorSel ?? 0}-${fornecedores.length}`}
+                                buttonText={
+                                    fornecedorSelObj?.nome
+                                    || initialData?.fornecedorNome
+                                    || (initialData as any)?.fornecedor?.nome
+                                    || "Selecione"
+                                }
                                 placeholder="Buscar fornecedor..."
                                 widthClass="w-56"
                                 disabled={!fornecedores.length}
@@ -2108,6 +2142,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 onSelect={(v) => setFornecedorSel(Number(v))}
                                 showEmptyOption={false}
                             />
+
                         </div>
 
 
@@ -2679,6 +2714,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 totais: totEdit,
                                                 telhaValores: telhaValoresAtual,
                                                 titulo: tituloTemporario,
+                                                fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
                                             }
                                             console.log("payload create (rascunho)", payloadRascunho)
                                             const novoId = await salvarRascunhoAPI(payloadRascunho)
@@ -2751,6 +2787,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                     telhaValores: telhaValoresAtual,
                                                     links: { slideUrl: links.slide ?? "", pdfUrl: links.pdf ?? "" },
                                                     titulo: tituloTemporario,
+                                                    fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
                                                 }
                                                 const novoId = await salvarOrcamentoAPI(payloadCopia)
 
@@ -2773,6 +2810,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,
                                                     titulo: tituloTemporario,
+                                                    fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
                                                 }
                                                 const novoId = await salvarRascunhoAPI(payloadCopiaRascunho)
 

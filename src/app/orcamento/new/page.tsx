@@ -18,11 +18,10 @@ export default async function Page() {
   ])
 
   const catalogo = {
-  madeiras: [], // madeiras agora vêm no client por fornecedor selecionado
-  materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
-  telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
-}
-
+    madeiras: [], // madeiras agora vêm no client por fornecedor selecionado
+    materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+    telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
+  }
 
   return (
     <OrcamentoPage
