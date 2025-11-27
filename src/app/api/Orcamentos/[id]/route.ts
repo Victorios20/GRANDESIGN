@@ -58,8 +58,12 @@ export async function PUT(
     return NextResponse.json({ error: "payload vazio", code: "VALIDACAO" }, { status: 422 })
   }
 
-  // Nunca permitimos trocar cliente por aqui (mantém o comportamento atual)
-  const { cliente, clienteId, cliente_id, ...safeBody } = body
+  // NOVO: agora permitimos trocar o cliente associado
+  // tenta pegar o id de várias formas para manter compatibilidade
+  const rawClienteId =
+    body?.clienteId ?? body?.cliente_id ?? body?.cliente?.id ?? null
+  const parsedClienteId = Number(rawClienteId)
+  const clienteId = Number.isFinite(parsedClienteId) ? parsedClienteId : NaN
 
   // Fornecedor (tolerante)
   const rawFornecedorId =
@@ -75,10 +79,13 @@ export async function PUT(
 
   try {
     await updateOrcamento(id, {
-      ...safeBody,
+      ...body,
+      // garante que o backend receba o clienteId normalizado
+      clienteId,
+      // garante que o backend receba o fornecedorId normalizado
       fornecedorId,
       id_fornecedor: fornecedorId, // segue enviando snake/camel para máxima compat
-      observacoes,                 // <<< novo campo opcional
+      observacoes,                 // <<< campo opcional já tratado
       actorUserId,
     })
     return NextResponse.json({ id }, { status: 200 })

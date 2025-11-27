@@ -1642,6 +1642,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     // payload comum para DB
     const buildDbPayload = (): UpdateOrcamentoInput => {
+        // segurança extra: essa função só faz sentido em modo edição
+        if (!isEdit) {
+            throw new Error("buildDbPayload só deve ser chamado em modo edição.")
+        }
+
+        // garante que SEMPRE existe um cliente associado antes de salvar
+        if (clienteId == null) {
+            throw new Error("Cliente não associado. Cadastre ou associe um cliente antes de salvar o orçamento.")
+        }
+
         // monta 'parametros' de forma inteligente
         const parametros: any = { tipoObra: tipoObra ?? "", tipoObraId: selectedTipoId }
 
@@ -1673,9 +1683,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
         const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
 
-
         return {
             titulo,
+
+            // agora SEM undefined — TS feliz e back sempre recebe um número
+            clienteId: Number(clienteId),
+
             cliente: { ...form },
             parametros,
             materiais: {
@@ -1715,6 +1728,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             observacoes: (observacoes || "").trim() || null,
         }
     }
+
+
 
 
     useEffect(() => {
@@ -1815,300 +1830,300 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             {/* ---------------------------------------------------------------
  *                          ETAPA 1
  * --------------------------------------------------------------- */}
-<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-  {/* Card: Dados Pessoais */}
-  <Card>
-    <CardHeader className="p-4">
-      <div className="flex justify-between items-start sm:items-center">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            Etapa 1
-          </Badge>
-          <CardTitle className="text-lg">Dados Pessoais</CardTitle>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={clearEtapa1}
-          className="text-red-500 hover:text-red-700"
-        >
-          <Trash className="h-4 w-4 mr-1" /> Limpar
-        </Button>
-      </div>
-    </CardHeader>
-
-    <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
-        <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
-        <Input
-          id={FIELD_IDS.nome}
-          name="nome"
-          placeholder="Ex.: João Luiz"
-          autoComplete="off"
-          value={form.nome}
-          onChange={(e) => {
-            onFormChange(e)
-            setQNome(e.target.value) // dispara busca
-          }}
-          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-        />
-        {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-            <Command shouldFilter={false}>
-              <CommandList>
-                {loadingNome && (
-                  <CommandItem disabled>
-                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                    Buscando…
-                  </CommandItem>
-                )}
-
-                {!loadingNome && resNome.length > 0 && (
-                  <CommandGroup heading="Clientes">
-                    {resNome.map((c) => (
-                      <CommandItem
-                        key={c.id}
-                        value={String(c.id)}
-                        onSelect={() => {
-                          onPickCliente(c)
-                          setQNome("")        // fecha dropdown do Nome
-                          setResNome([])
-                        }}
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium">{c.nome}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                          </span>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {/* Card: Dados Pessoais */}
+                <Card>
+                    <CardHeader className="p-4">
+                        <div className="flex justify-between items-start sm:items-center">
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                    Etapa 1
+                                </Badge>
+                                <CardTitle className="text-lg">Dados Pessoais</CardTitle>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={clearEtapa1}
+                                className="text-red-500 hover:text-red-700"
+                            >
+                                <Trash className="h-4 w-4 mr-1" /> Limpar
+                            </Button>
                         </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
+                    </CardHeader>
 
-                {!loadingNome && resNome.length === 0 && (
-                  <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                )}
-              </CommandList>
-            </Command>
-          </div>
-        )}
-      </div>
+                    <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
+                            <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
+                            <Input
+                                id={FIELD_IDS.nome}
+                                name="nome"
+                                placeholder="Ex.: João Luiz"
+                                autoComplete="off"
+                                value={form.nome}
+                                onChange={(e) => {
+                                    onFormChange(e)
+                                    setQNome(e.target.value) // dispara busca
+                                }}
+                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+                            />
+                            {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
+                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+                                    <Command shouldFilter={false}>
+                                        <CommandList>
+                                            {loadingNome && (
+                                                <CommandItem disabled>
+                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                    Buscando…
+                                                </CommandItem>
+                                            )}
 
-      <div ref={telBoxRef} className="flex flex-col gap-1 relative">
-        <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
-        <Input
-          id={FIELD_IDS.telefone}
-          name="telefone"
-          placeholder="Ex.: (85) 98765-4321"
-          autoComplete="off"
-          value={form.telefone}
-          onChange={(e) => {
-            onFormChange(e)           // mantém máscara/estado atual
-            setQTel(e.target.value)   // dispara busca
-          }}
-          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-        />
-        {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-            <Command shouldFilter={false}>
-              <CommandList>
-                {loadingTel && (
-                  <CommandItem disabled>
-                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                    Buscando…
-                  </CommandItem>
-                )}
+                                            {!loadingNome && resNome.length > 0 && (
+                                                <CommandGroup heading="Clientes">
+                                                    {resNome.map((c) => (
+                                                        <CommandItem
+                                                            key={c.id}
+                                                            value={String(c.id)}
+                                                            onSelect={() => {
+                                                                onPickCliente(c)
+                                                                setQNome("")        // fecha dropdown do Nome
+                                                                setResNome([])
+                                                            }}
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium">{c.nome}</span>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                </span>
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            )}
 
-                {!loadingTel && resTel.length > 0 && (
-                  <CommandGroup heading="Clientes">
-                    {resTel.map((c) => (
-                      <CommandItem
-                        key={c.id}
-                        value={String(c.id)}
-                        onSelect={() => {
-                          onPickCliente(c)
-                          setQTel("")         // fecha dropdown do Telefone
-                          setResTel([])
-                        }}
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium">{c.nome}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                          </span>
+                                            {!loadingNome && resNome.length === 0 && (
+                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                                            )}
+                                        </CommandList>
+                                    </Command>
+                                </div>
+                            )}
                         </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
 
-                {!loadingTel && resTel.length === 0 && (
-                  <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                )}
-              </CommandList>
-            </Command>
-          </div>
-        )}
-      </div>
+                        <div ref={telBoxRef} className="flex flex-col gap-1 relative">
+                            <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
+                            <Input
+                                id={FIELD_IDS.telefone}
+                                name="telefone"
+                                placeholder="Ex.: (85) 98765-4321"
+                                autoComplete="off"
+                                value={form.telefone}
+                                onChange={(e) => {
+                                    onFormChange(e)           // mantém máscara/estado atual
+                                    setQTel(e.target.value)   // dispara busca
+                                }}
+                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+                            />
+                            {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
+                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+                                    <Command shouldFilter={false}>
+                                        <CommandList>
+                                            {loadingTel && (
+                                                <CommandItem disabled>
+                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                                                    Buscando…
+                                                </CommandItem>
+                                            )}
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
-        {/* wrapper para “pintar” o trigger do ComboboxAdd sem alterar o componente */}
-        <div className="rounded-xl [&_button]:bg-cinza [&_button]:border-0 [&_button]:rounded-xl [&_button]:h-9 [&_button]:px-3 focus-visible:[&_button]:ring-2 focus-visible:[&_button]:ring-marromEscuro">
-          <ComboboxAdd
-            buttonText={form.cidade?.trim() || "Selecione"}
-            placeholder="Buscar cidade..."
-            widthClass="w-full"
-            items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
-            onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
-            showEmptyOption={false}
-            colorVariant="gray-brown"
-          />
-        </div>
-      </div>
+                                            {!loadingTel && resTel.length > 0 && (
+                                                <CommandGroup heading="Clientes">
+                                                    {resTel.map((c) => (
+                                                        <CommandItem
+                                                            key={c.id}
+                                                            value={String(c.id)}
+                                                            onSelect={() => {
+                                                                onPickCliente(c)
+                                                                setQTel("")         // fecha dropdown do Telefone
+                                                                setResTel([])
+                                                            }}
+                                                        >
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium">{c.nome}</span>
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                                                                </span>
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            )}
 
-      <div className="flex flex-col gap-1">
-        <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
-        <Input
-          id={FIELD_IDS.bairro}
-          name="bairro"
-          placeholder="Ex.: Meireles"
-          value={form.bairro}
-          onChange={onFormChange}
-          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-        />
-      </div>
-    </CardContent>
+                                            {!loadingTel && resTel.length === 0 && (
+                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                                            )}
+                                        </CommandList>
+                                    </Command>
+                                </div>
+                            )}
+                        </div>
 
-    {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
-    <div className="p-4 pt-0 flex justify-end">
-      <Button
-        id={FIELD_IDS.cadastrarCliente}
-        className={[
-          "min-w-[200px]",
-          clienteId && !clienteDirty && !isSavingClient
-            ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
-            : "",
-        ].join(" ")}
-        variant={clienteId ? "secondary" : "outline"}
-        disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-        aria-busy={isSavingClient ? "true" : "false"}
-        aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-        onClick={async () => {
-          if (clienteId && !clienteDirty) {
-            toast.message("Cliente já associado.")
-            return
-          }
-          setIsSavingClient(true)
-          try {
-            if (clienteId && clienteDirty) {
-              await editarCliente(clienteId, form, cidades)
-              const snap = {
-                nome: form.nome.trim(),
-                telefone: formatPhone(form.telefone),
-                cidade: form.cidade.trim(),
-                bairro: (form.bairro ?? "").trim(),
-              }
-              setClienteSnap(snap)
-              localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-              toast.success("Cliente atualizado com sucesso!")
-            } else {
-              const { id, associado } = await criarOuAssociarCliente(form, cidades)
-              setClienteId(id)
-              const snap = {
-                nome: form.nome.trim(),
-                telefone: formatPhone(form.telefone),
-                cidade: form.cidade.trim(),
-                bairro: (form.bairro ?? "").trim(),
-              }
-              setClienteSnap(snap)
-              localStorage.setItem("orcamento.clienteId", String(id))
-              localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-              toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
-            }
-          } catch (e: any) {
-            toast.error(e?.message ?? "Falha ao salvar cliente.")
-            scrollToField(FIELD_IDS.nome)
-          } finally {
-            setIsSavingClient(false)
-          }
-        }}
-        title={
-          clienteId
-            ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
-            : "Cadastrar/associar cliente"
-        }
-      >
-        {isSavingClient ? (
-          <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
-          </>
-        ) : clienteId ? (
-          clienteDirty ? (
-            <>
-              <UserPlus className="h-4 w-4 mr-1" />
-              Editar cliente
-            </>
-          ) : (
-            <>
-              <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
-              <span className="text-emerald-600">Cliente associado</span>
-            </>
-          )
-        ) : (
-          <>
-            <UserPlus className="h-4 w-4 mr-1" />
-            Cadastrar cliente
-          </>
-        )}
-      </Button>
-    </div>
-  </Card>
+                        <div className="flex flex-col gap-1">
+                            <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
+                            {/* wrapper para “pintar” o trigger do ComboboxAdd sem alterar o componente */}
+                            <div className="rounded-xl [&_button]:bg-cinza [&_button]:border-0 [&_button]:rounded-xl [&_button]:h-9 [&_button]:px-3 focus-visible:[&_button]:ring-2 focus-visible:[&_button]:ring-marromEscuro">
+                                <ComboboxAdd
+                                    buttonText={form.cidade?.trim() || "Selecione"}
+                                    placeholder="Buscar cidade..."
+                                    widthClass="w-full"
+                                    items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
+                                    onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
+                                    showEmptyOption={false}
+                                    colorVariant="gray-brown"
+                                />
+                            </div>
+                        </div>
 
-  {/* Card: Observações */}
-  <Card>
-    <CardHeader className="p-4">
-      <div className="flex justify-between items-start sm:items-center">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            Etapa 1
-          </Badge>
-          <CardTitle className="text-lg">Observações</CardTitle>
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setObservacoes("")}
-          className="text-red-500 hover:text-red-700"
-          title="Limpar observações"
-        >
-          <Trash className="h-4 w-4 mr-1" /> Limpar
-        </Button>
-      </div>
-      <CardDescription className="text-sm text-muted-foreground mt-1">
-        Campo opcional para notas internas do orçamento (não aparece para o cliente).
-      </CardDescription>
-    </CardHeader>
+                        <div className="flex flex-col gap-1">
+                            <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
+                            <Input
+                                id={FIELD_IDS.bairro}
+                                name="bairro"
+                                placeholder="Ex.: Meireles"
+                                value={form.bairro}
+                                onChange={onFormChange}
+                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+                            />
+                        </div>
+                    </CardContent>
 
-    <CardContent className="p-4">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="obs-textarea">Observações</Label>
-        <Textarea
-          id="obs-textarea"
-          placeholder="Ex.: Cliente prefere contato à tarde; telhas devem ser entregues pela fornecedora X..."
-          className="min-h-[180px] resize-y border-0 bg-cinza rounded-xl px-3 py-2 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-          value={observacoes}
-          onChange={(e) => setObservacoes(e.target.value)}
-        />
-        <div className="text-xs text-muted-foreground text-right">
-          {observacoes.length} caractere{observacoes.length === 1 ? "" : "s"}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-</div>
+                    {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
+                    <div className="p-4 pt-0 flex justify-end">
+                        <Button
+                            id={FIELD_IDS.cadastrarCliente}
+                            className={[
+                                "min-w-[200px]",
+                                clienteId && !clienteDirty && !isSavingClient
+                                    ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
+                                    : "",
+                            ].join(" ")}
+                            variant={clienteId ? "secondary" : "outline"}
+                            disabled={isSavingClient || (!!clienteId && !clienteDirty)}
+                            aria-busy={isSavingClient ? "true" : "false"}
+                            aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
+                            onClick={async () => {
+                                if (clienteId && !clienteDirty) {
+                                    toast.message("Cliente já associado.")
+                                    return
+                                }
+                                setIsSavingClient(true)
+                                try {
+                                    if (clienteId && clienteDirty) {
+                                        await editarCliente(clienteId, form, cidades)
+                                        const snap = {
+                                            nome: form.nome.trim(),
+                                            telefone: formatPhone(form.telefone),
+                                            cidade: form.cidade.trim(),
+                                            bairro: (form.bairro ?? "").trim(),
+                                        }
+                                        setClienteSnap(snap)
+                                        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+                                        toast.success("Cliente atualizado com sucesso!")
+                                    } else {
+                                        const { id, associado } = await criarOuAssociarCliente(form, cidades)
+                                        setClienteId(id)
+                                        const snap = {
+                                            nome: form.nome.trim(),
+                                            telefone: formatPhone(form.telefone),
+                                            cidade: form.cidade.trim(),
+                                            bairro: (form.bairro ?? "").trim(),
+                                        }
+                                        setClienteSnap(snap)
+                                        localStorage.setItem("orcamento.clienteId", String(id))
+                                        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+                                        toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
+                                    }
+                                } catch (e: any) {
+                                    toast.error(e?.message ?? "Falha ao salvar cliente.")
+                                    scrollToField(FIELD_IDS.nome)
+                                } finally {
+                                    setIsSavingClient(false)
+                                }
+                            }}
+                            title={
+                                clienteId
+                                    ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
+                                    : "Cadastrar/associar cliente"
+                            }
+                        >
+                            {isSavingClient ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
+                                </>
+                            ) : clienteId ? (
+                                clienteDirty ? (
+                                    <>
+                                        <UserPlus className="h-4 w-4 mr-1" />
+                                        Editar cliente
+                                    </>
+                                ) : (
+                                    <>
+                                        <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
+                                        <span className="text-emerald-600">Cliente associado</span>
+                                    </>
+                                )
+                            ) : (
+                                <>
+                                    <UserPlus className="h-4 w-4 mr-1" />
+                                    Cadastrar cliente
+                                </>
+                            )}
+                        </Button>
+                    </div>
+                </Card>
+
+                {/* Card: Observações */}
+                <Card>
+                    <CardHeader className="p-4">
+                        <div className="flex justify-between items-start sm:items-center">
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                    Etapa 1
+                                </Badge>
+                                <CardTitle className="text-lg">Observações</CardTitle>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setObservacoes("")}
+                                className="text-red-500 hover:text-red-700"
+                                title="Limpar observações"
+                            >
+                                <Trash className="h-4 w-4 mr-1" /> Limpar
+                            </Button>
+                        </div>
+                        <CardDescription className="text-sm text-muted-foreground mt-1">
+                            Campo opcional para notas internas do orçamento (não aparece para o cliente).
+                        </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="p-4">
+                        <div className="flex flex-col gap-2">
+                            <Label htmlFor="obs-textarea">Observações</Label>
+                            <Textarea
+                                id="obs-textarea"
+                                placeholder="Ex.: Cliente prefere contato à tarde; telhas devem ser entregues pela fornecedora X..."
+                                className="min-h-[180px] resize-y border-0 bg-cinza rounded-xl px-3 py-2 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+                                value={observacoes}
+                                onChange={(e) => setObservacoes(e.target.value)}
+                            />
+                            <div className="text-xs text-muted-foreground text-right">
+                                {observacoes.length} caractere{observacoes.length === 1 ? "" : "s"}
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
 
 

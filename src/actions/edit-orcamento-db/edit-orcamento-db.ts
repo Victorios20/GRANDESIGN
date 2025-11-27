@@ -73,6 +73,8 @@ export type GetOrcamentoResult = {
 
 export type UpdateOrcamentoInput = {
   titulo: string
+  /** NOVO: id do cliente associado ao orçamento (permite trocar o cliente) */
+  clienteId: number
   cliente: { nome: string; telefone: string; bairro: string; cidade: string | null }
   /** NOVO: atualizar fornecedor opcionalmente */
   fornecedorId?: number | null
@@ -304,7 +306,9 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
 
       // NOVO: mapeamento do fornecedor
       fornecedorId: (data.orc as any).id_fornecedor ?? null,
-      fornecedor: (data.orc as any).fornecedor ? { id: (data.orc as any).fornecedor.id, nome: (data.orc as any).fornecedor.nome } : null,
+      fornecedor: (data.orc as any).fornecedor
+        ? { id: (data.orc as any).fornecedor.id, nome: (data.orc as any).fornecedor.nome }
+        : null,
 
       // NOVO: observações
       observacoes: (data.orc as any).observacoes ?? null,
@@ -380,6 +384,23 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
       })
       if (!atual) throw new Error("Orçamento não encontrado.")
 
+      // NOVO: resolver e validar o novo clienteId (troca de associação)
+      const clienteIdPayload = Number((input as any).clienteId)
+      if (!Number.isFinite(clienteIdPayload)) {
+        throw new Error("Cliente inválido. Selecione um cliente antes de salvar.")
+      }
+
+      const chkCliente = (await tx.$queryRaw`
+        SELECT id
+        FROM cliente
+        WHERE id = ${clienteIdPayload}
+        LIMIT 1
+      `) as Array<{ id: number }>
+      const clienteId = chkCliente?.[0]?.id ?? null
+      if (!clienteId) {
+        throw new Error("Cliente não encontrado.")
+      }
+
       let tipoObraId: number | null = null
       const tipoObraIdPayload = Number((input.parametros as any)?.tipoObraId)
       if (Number.isFinite(tipoObraIdPayload)) {
@@ -421,6 +442,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           where: { id },
           data: {
             titulo: cleanText(input.titulo),
+            // NOVO: atualiza associação do cliente
+            cliente_id: clienteId,
             tipo_obra_id: tipoObraId,
             /** NOVO: atualiza id_fornecedor e observações */
             id_fornecedor: resolvedFornecedorId,
