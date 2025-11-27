@@ -57,7 +57,6 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const dataCriacao = (detalhe as any)?.dataCriacao ?? null
   const dataUltimaAlteracao = (detalhe as any)?.dataUltimaAlteracao ?? null
 
-  // ====== Botão Lançar/Visualizar Obra (Shiny) ======
   const obraLancada = !!detalhe.lancadoObra
   const canVisualizarObra = obraLancada && detalhe.obraId != null
 
@@ -116,7 +115,8 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
           </CardHeader>
         </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        {/* Linha 1: Dados do Cliente | Dados da Obra */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
           <Card className="h-full flex flex-col">
             <CardHeader className="pb-2">
               <CardTitle>Dados do Cliente</CardTitle>
@@ -153,6 +153,20 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
                   <p><b>Comprimento (menor):</b> {fmtDim(detalhe.dimensoes.comprimentoMenor ?? (detalhe as any).dimensoes.comprimento_menor)}</p>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Linha 2: Observações | Auditoria */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+          <Card className="h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <CardTitle>Observações</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm grow">
+              <div className="rounded-xl border border-bege bg-bege/20 p-3 whitespace-pre-wrap">
+                {detalhe.observacoes?.trim() ? detalhe.observacoes : "—"}
+              </div>
             </CardContent>
           </Card>
 

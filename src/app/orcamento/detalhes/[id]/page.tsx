@@ -41,6 +41,7 @@ export async function generateMetadata(
 type GetOrcamentoResult = {
   id: number
   titulo: string | null
+  observacoes?: string | null
   cliente: {
     nome: string
     telefone: string | null
@@ -79,6 +80,7 @@ type GetOrcamentoResult = {
 export type DetalheVM = {
   id: number
   titulo: string | null
+  observacoes: string | null
   cliente: {
     nome: string
     telefone?: string | null
@@ -163,6 +165,7 @@ function normalize(dto: GetOrcamentoResult): DetalheVM {
   return {
     id: dto.id,
     titulo: dto.titulo ?? null,
+    observacoes: dto.observacoes ?? null,
     cliente: { ...dto.cliente },
     tipoObra: dto.parametros.tipoObra ?? null,
     dimensoes: {

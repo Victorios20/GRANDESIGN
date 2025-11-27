@@ -134,6 +134,7 @@ model orcamento {
   totais_frete_preco      Decimal  @default(0.00) @db.Decimal(10, 2)
   link_pdf                String?
   titulo                  String?  @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
+  observacoes    String?  @db.Text
 
   // Fornecedor (madeira) opcional do orçamento
   id_fornecedor Int?

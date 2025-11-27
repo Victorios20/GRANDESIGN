@@ -58,28 +58,30 @@ export async function PUT(
     return NextResponse.json({ error: "payload vazio", code: "VALIDACAO" }, { status: 422 })
   }
 
-  // Nunca permitimos trocar cliente por aqui (mantém seu comportamento atual)
+  // Nunca permitimos trocar cliente por aqui (mantém o comportamento atual)
   const { cliente, clienteId, cliente_id, ...safeBody } = body
 
-  // Normalização tolerante do fornecedor (sem quebrar nada existente)
+  // Fornecedor (tolerante)
   const rawFornecedorId =
     body?.fornecedorId ?? body?.fornecedor_id ?? body?.id_fornecedor ?? body?.fornecedor?.id ?? null
   const parsedFornecedor = Number(rawFornecedorId)
   const fornecedorId = Number.isFinite(parsedFornecedor) ? parsedFornecedor : null
 
+  // NOVO: Observações (opcional) — normaliza "" -> null, não quebra contratos existentes
+  const observacoesRaw = typeof body?.observacoes === "string" ? body.observacoes.trim() : ""
+  const observacoes = observacoesRaw.length ? observacoesRaw : null
+
   const actorUserId = Number((session.user as any).id)
 
   try {
-    // Passamos ambas as chaves para a camada DB aceitar qualquer forma:
-    // - fornecedorId (camelCase)
-    // - id_fornecedor (snake) — caso sua função espere esse nome
-    const updatedId = await updateOrcamento(id, {
+    await updateOrcamento(id, {
       ...safeBody,
       fornecedorId,
-      id_fornecedor: fornecedorId,
+      id_fornecedor: fornecedorId, // segue enviando snake/camel para máxima compat
+      observacoes,                 // <<< novo campo opcional
       actorUserId,
     })
-    return NextResponse.json({ id: updatedId ?? id }, { status: 200 })
+    return NextResponse.json({ id }, { status: 200 })
   } catch (err: any) {
     const code = typeof err?.code === "string" ? err.code : undefined
     const msg = String(err?.message ?? "")

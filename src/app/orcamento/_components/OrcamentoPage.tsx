@@ -39,6 +39,7 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import {
     Card,
@@ -154,6 +155,7 @@ export type InitialData = {
     // NOVO ↓
     fornecedorId?: number | null
     fornecedorNome?: string | null
+    observacoes?: string | null
 }
 
 
@@ -238,6 +240,7 @@ type SalvarPayload = {
     telhaValores: Record<string, Pagto>
     links?: { slideUrl: string | null; pdfUrl: string | null }
     titulo: string
+    observacoes?: string | null
 }
 
 
@@ -652,6 +655,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     // reseta Selects quando limpa
     const [cityResetKey, setCityResetKey] = useState(0)
     const [obraResetKey, setObraResetKey] = useState(0)
+    const [observacoes, setObservacoes] = useState<string>("")
 
 
     const [hydrated, setHydrated] = useState(false)
@@ -1038,6 +1042,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             Number.isFinite(fornecedorIdNorm as any) ? (fornecedorIdNorm as number) : null
         )
 
+        setObservacoes((initialData?.observacoes ?? "") || "")
+
         setHydrated(true)
     }, [isEdit, initialData])
 
@@ -1116,6 +1122,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setTituloSnap("")
         setAutoTituloSnap("")
         setLinks({})
+        setObservacoes("")
         if (!isEdit) localStorage.removeItem(STORAGE_KEY)
     }
 
@@ -1124,6 +1131,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setForm({ nome: "", telefone: "", cidade: "", bairro: "" })
         setCityResetKey(k => k + 1)
         setClienteId(null)
+        setObservacoes("")
         setClienteSnap({ nome: "", telefone: "", cidade: "", bairro: "" })
         setQNome(""); setResNome([])
         setQTel(""); setResTel([])
@@ -1434,6 +1442,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 setTotEdit(d.totEdit ?? totEdit)
                 setTelhaValores(d.telhaValores ?? telhaValores)
                 setTitulo(d.titulo ?? "")
+                setObservacoes(d.observacoes ?? "")
 
                 if (Number.isFinite(Number(d?.clienteId))) setClienteId(Number(d.clienteId))
                 if (d?.clienteSnap) setClienteSnap(d.clienteSnap)
@@ -1448,7 +1457,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     useEffect(() => {
         if (isEdit || typeof window === "undefined") return
-        const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores, titulo, clienteId, clienteSnap }
+        const draft = { form, tipoObra, dim, materiais, totEdit, telhaValores, titulo, observacoes, clienteId, clienteSnap }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
     }, [isEdit, form, tipoObra, dim, materiais, totEdit, telhaValores, titulo, clienteId, clienteSnap])
 
@@ -1554,6 +1563,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             links: { slideUrl: slide, pdfUrl: pdf },
                             titulo: snap,
                             fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                            observacoes: (observacoes || "").trim() || null,
                         }
                         console.log("payload create", payloadCreate)
                         const novoId = await salvarOrcamentoAPI(payloadCreate)
@@ -1702,6 +1712,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             },
             actorUserId: currentUserId,
             fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+            observacoes: (observacoes || "").trim() || null,
         }
     }
 
@@ -1802,245 +1813,304 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             </Card>
 
             {/* ---------------------------------------------------------------
-       *                          ETAPA 1
-       * --------------------------------------------------------------- */}
-            <Card>
-                <CardHeader className="p-4">
-                    <div className="flex justify-between items-start sm:items-center">
-                        <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                                Etapa 1
-                            </Badge>
-                            <CardTitle className="text-lg">Dados Pessoais</CardTitle>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={clearEtapa1} className="text-red-500 hover:text-red-700">
-                            <Trash className="h-4 w-4 mr-1" /> Limpar
-                        </Button>
-                    </div>
-                </CardHeader>
+ *                          ETAPA 1
+ * --------------------------------------------------------------- */}
+<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+  {/* Card: Dados Pessoais */}
+  <Card>
+    <CardHeader className="p-4">
+      <div className="flex justify-between items-start sm:items-center">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            Etapa 1
+          </Badge>
+          <CardTitle className="text-lg">Dados Pessoais</CardTitle>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearEtapa1}
+          className="text-red-500 hover:text-red-700"
+        >
+          <Trash className="h-4 w-4 mr-1" /> Limpar
+        </Button>
+      </div>
+    </CardHeader>
 
-                <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
-                        <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
-                        <Input
-                            id={FIELD_IDS.nome}
-                            name="nome"
-                            placeholder="Ex.: João Luiz"
-                            autoComplete="off"
-                            value={form.nome}
-                            onChange={(e) => {
-                                onFormChange(e)
-                                setQNome(e.target.value) // dispara busca
-                            }}
-                        />
-                        {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
-                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                <Command shouldFilter={false}>
-                                    <CommandList>
-                                        {loadingNome && (
-                                            <CommandItem disabled>
-                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                Buscando…
-                                            </CommandItem>
-                                        )}
+    <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
+        <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
+        <Input
+          id={FIELD_IDS.nome}
+          name="nome"
+          placeholder="Ex.: João Luiz"
+          autoComplete="off"
+          value={form.nome}
+          onChange={(e) => {
+            onFormChange(e)
+            setQNome(e.target.value) // dispara busca
+          }}
+          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+        />
+        {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+            <Command shouldFilter={false}>
+              <CommandList>
+                {loadingNome && (
+                  <CommandItem disabled>
+                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                    Buscando…
+                  </CommandItem>
+                )}
 
-                                        {!loadingNome && resNome.length > 0 && (
-                                            <CommandGroup heading="Clientes">
-                                                {resNome.map((c) => (
-                                                    <CommandItem
-                                                        key={c.id}
-                                                        value={String(c.id)}
-                                                        onSelect={() => {
-                                                            onPickCliente(c)
-                                                            setQNome("")        // fecha dropdown do Nome
-                                                            setResNome([])
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span className="font-medium">{c.nome}</span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                            </span>
-                                                        </div>
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        )}
-
-                                        {!loadingNome && resNome.length === 0 && (
-                                            <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                        )}
-                                    </CommandList>
-                                </Command>
-                            </div>
-                        )}
-
-                    </div>
-
-                    <div ref={telBoxRef} className="flex flex-col gap-1 relative">
-                        <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
-                        <Input
-                            id={FIELD_IDS.telefone}
-                            name="telefone"
-                            placeholder="Ex.: (85) 98765-4321"
-                            autoComplete="off"
-                            value={form.telefone}
-                            onChange={(e) => {
-                                onFormChange(e)           // mantém máscara/estado atual
-                                setQTel(e.target.value)   // dispara busca
-                            }}
-                        />
-                        {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
-                            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                <Command shouldFilter={false}>
-                                    <CommandList>
-                                        {loadingTel && (
-                                            <CommandItem disabled>
-                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                Buscando…
-                                            </CommandItem>
-                                        )}
-
-                                        {!loadingTel && resTel.length > 0 && (
-                                            <CommandGroup heading="Clientes">
-                                                {resTel.map((c) => (
-                                                    <CommandItem
-                                                        key={c.id}
-                                                        value={String(c.id)}
-                                                        onSelect={() => {
-                                                            onPickCliente(c)
-                                                            setQTel("")         // fecha dropdown do Telefone
-                                                            setResTel([])
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span className="font-medium">{c.nome}</span>
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                            </span>
-                                                        </div>
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        )}
-
-                                        {!loadingTel && resTel.length === 0 && (
-                                            <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                        )}
-                                    </CommandList>
-                                </Command>
-                            </div>
-                        )}
-
-                    </div>
-
-
-                    <div className="flex flex-col gap-1">
-                        <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
-                        <ComboboxAdd
-                            buttonText={form.cidade?.trim() || "Selecione"}
-                            placeholder="Buscar cidade..."
-                            widthClass="w-full"
-                            items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
-                            onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
-                            showEmptyOption={false}
-                        />
-                    </div>
-
-
-                    <div className="flex flex-col gap-1">
-                        <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
-                        <Input id={FIELD_IDS.bairro} name="bairro" placeholder="Ex.: Meireles" value={form.bairro} onChange={onFormChange} />
-                    </div>
-                </CardContent>
-
-                {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
-                <div className="p-4 pt-0 flex justify-end">
-                    <Button
-                        id={FIELD_IDS.cadastrarCliente}
-                        className={[
-                            "min-w-[200px]",
-                            clienteId && !clienteDirty && !isSavingClient
-                                ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
-                                : "",
-                        ].join(" ")}
-                        variant={clienteId ? "secondary" : "outline"}
-                        disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-                        aria-busy={isSavingClient ? "true" : "false"}
-                        aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-                        onClick={async () => {
-                            if (clienteId && !clienteDirty) {
-                                toast.message("Cliente já associado.")
-                                return
-                            }
-                            setIsSavingClient(true)
-                            try {
-                                if (clienteId && clienteDirty) {
-                                    await editarCliente(clienteId, form, cidades)
-                                    const snap = {
-                                        nome: form.nome.trim(),
-                                        telefone: formatPhone(form.telefone),
-                                        cidade: form.cidade.trim(),
-                                        bairro: (form.bairro ?? "").trim(),
-                                    }
-                                    setClienteSnap(snap)
-                                    localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-                                    toast.success("Cliente atualizado com sucesso!")
-                                } else {
-                                    const { id, associado } = await criarOuAssociarCliente(form, cidades)
-                                    setClienteId(id)
-                                    const snap = {
-                                        nome: form.nome.trim(),
-                                        telefone: formatPhone(form.telefone),
-                                        cidade: form.cidade.trim(),
-                                        bairro: (form.bairro ?? "").trim(),
-                                    }
-                                    setClienteSnap(snap)
-                                    localStorage.setItem("orcamento.clienteId", String(id))
-                                    localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-                                    toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
-                                }
-                            } catch (e: any) {
-                                toast.error(e?.message ?? "Falha ao salvar cliente.")
-                                scrollToField(FIELD_IDS.nome)
-                            } finally {
-                                setIsSavingClient(false)
-                            }
+                {!loadingNome && resNome.length > 0 && (
+                  <CommandGroup heading="Clientes">
+                    {resNome.map((c) => (
+                      <CommandItem
+                        key={c.id}
+                        value={String(c.id)}
+                        onSelect={() => {
+                          onPickCliente(c)
+                          setQNome("")        // fecha dropdown do Nome
+                          setResNome([])
                         }}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{c.nome}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
 
-                        title={
-                            clienteId
-                                ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
-                                : "Cadastrar/associar cliente"
-                        }
-                    >
-                        {isSavingClient ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
-                            </>
-                        ) : clienteId ? (
-                            clienteDirty ? (
-                                <>
-                                    <UserPlus className="h-4 w-4 mr-1" />
-                                    Editar cliente
-                                </>
-                            ) : (
-                                <>
-                                    <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
-                                    <span className="text-emerald-600">Cliente associado</span>
-                                </>
-                            )
-                        ) : (
-                            <>
-                                <UserPlus className="h-4 w-4 mr-1" />
-                                Cadastrar cliente
-                            </>
-                        )}
-                    </Button>
-                </div>
+                {!loadingNome && resNome.length === 0 && (
+                  <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                )}
+              </CommandList>
+            </Command>
+          </div>
+        )}
+      </div>
 
-            </Card>
+      <div ref={telBoxRef} className="flex flex-col gap-1 relative">
+        <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
+        <Input
+          id={FIELD_IDS.telefone}
+          name="telefone"
+          placeholder="Ex.: (85) 98765-4321"
+          autoComplete="off"
+          value={form.telefone}
+          onChange={(e) => {
+            onFormChange(e)           // mantém máscara/estado atual
+            setQTel(e.target.value)   // dispara busca
+          }}
+          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+        />
+        {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
+            <Command shouldFilter={false}>
+              <CommandList>
+                {loadingTel && (
+                  <CommandItem disabled>
+                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                    Buscando…
+                  </CommandItem>
+                )}
+
+                {!loadingTel && resTel.length > 0 && (
+                  <CommandGroup heading="Clientes">
+                    {resTel.map((c) => (
+                      <CommandItem
+                        key={c.id}
+                        value={String(c.id)}
+                        onSelect={() => {
+                          onPickCliente(c)
+                          setQTel("")         // fecha dropdown do Telefone
+                          setResTel([])
+                        }}
+                      >
+                        <div className="flex flex-col">
+                          <span className="font-medium">{c.nome}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                )}
+
+                {!loadingTel && resTel.length === 0 && (
+                  <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
+                )}
+              </CommandList>
+            </Command>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
+        {/* wrapper para “pintar” o trigger do ComboboxAdd sem alterar o componente */}
+        <div className="rounded-xl [&_button]:bg-cinza [&_button]:border-0 [&_button]:rounded-xl [&_button]:h-9 [&_button]:px-3 focus-visible:[&_button]:ring-2 focus-visible:[&_button]:ring-marromEscuro">
+          <ComboboxAdd
+            buttonText={form.cidade?.trim() || "Selecione"}
+            placeholder="Buscar cidade..."
+            widthClass="w-full"
+            items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
+            onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
+            showEmptyOption={false}
+            colorVariant="gray-brown"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
+        <Input
+          id={FIELD_IDS.bairro}
+          name="bairro"
+          placeholder="Ex.: Meireles"
+          value={form.bairro}
+          onChange={onFormChange}
+          className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+        />
+      </div>
+    </CardContent>
+
+    {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
+    <div className="p-4 pt-0 flex justify-end">
+      <Button
+        id={FIELD_IDS.cadastrarCliente}
+        className={[
+          "min-w-[200px]",
+          clienteId && !clienteDirty && !isSavingClient
+            ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
+            : "",
+        ].join(" ")}
+        variant={clienteId ? "secondary" : "outline"}
+        disabled={isSavingClient || (!!clienteId && !clienteDirty)}
+        aria-busy={isSavingClient ? "true" : "false"}
+        aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
+        onClick={async () => {
+          if (clienteId && !clienteDirty) {
+            toast.message("Cliente já associado.")
+            return
+          }
+          setIsSavingClient(true)
+          try {
+            if (clienteId && clienteDirty) {
+              await editarCliente(clienteId, form, cidades)
+              const snap = {
+                nome: form.nome.trim(),
+                telefone: formatPhone(form.telefone),
+                cidade: form.cidade.trim(),
+                bairro: (form.bairro ?? "").trim(),
+              }
+              setClienteSnap(snap)
+              localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+              toast.success("Cliente atualizado com sucesso!")
+            } else {
+              const { id, associado } = await criarOuAssociarCliente(form, cidades)
+              setClienteId(id)
+              const snap = {
+                nome: form.nome.trim(),
+                telefone: formatPhone(form.telefone),
+                cidade: form.cidade.trim(),
+                bairro: (form.bairro ?? "").trim(),
+              }
+              setClienteSnap(snap)
+              localStorage.setItem("orcamento.clienteId", String(id))
+              localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+              toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
+            }
+          } catch (e: any) {
+            toast.error(e?.message ?? "Falha ao salvar cliente.")
+            scrollToField(FIELD_IDS.nome)
+          } finally {
+            setIsSavingClient(false)
+          }
+        }}
+        title={
+          clienteId
+            ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
+            : "Cadastrar/associar cliente"
+        }
+      >
+        {isSavingClient ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
+          </>
+        ) : clienteId ? (
+          clienteDirty ? (
+            <>
+              <UserPlus className="h-4 w-4 mr-1" />
+              Editar cliente
+            </>
+          ) : (
+            <>
+              <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
+              <span className="text-emerald-600">Cliente associado</span>
+            </>
+          )
+        ) : (
+          <>
+            <UserPlus className="h-4 w-4 mr-1" />
+            Cadastrar cliente
+          </>
+        )}
+      </Button>
+    </div>
+  </Card>
+
+  {/* Card: Observações */}
+  <Card>
+    <CardHeader className="p-4">
+      <div className="flex justify-between items-start sm:items-center">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            Etapa 1
+          </Badge>
+          <CardTitle className="text-lg">Observações</CardTitle>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setObservacoes("")}
+          className="text-red-500 hover:text-red-700"
+          title="Limpar observações"
+        >
+          <Trash className="h-4 w-4 mr-1" /> Limpar
+        </Button>
+      </div>
+      <CardDescription className="text-sm text-muted-foreground mt-1">
+        Campo opcional para notas internas do orçamento (não aparece para o cliente).
+      </CardDescription>
+    </CardHeader>
+
+    <CardContent className="p-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="obs-textarea">Observações</Label>
+        <Textarea
+          id="obs-textarea"
+          placeholder="Ex.: Cliente prefere contato à tarde; telhas devem ser entregues pela fornecedora X..."
+          className="min-h-[180px] resize-y border-0 bg-cinza rounded-xl px-3 py-2 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+          value={observacoes}
+          onChange={(e) => setObservacoes(e.target.value)}
+        />
+        <div className="text-xs text-muted-foreground text-right">
+          {observacoes.length} caractere{observacoes.length === 1 ? "" : "s"}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</div>
+
+
 
 
             {/* ---------------------------------------------------------------
@@ -2715,6 +2785,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 telhaValores: telhaValoresAtual,
                                                 titulo: tituloTemporario,
                                                 fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                                                observacoes: (observacoes || "").trim() || null,
                                             }
                                             console.log("payload create (rascunho)", payloadRascunho)
                                             const novoId = await salvarRascunhoAPI(payloadRascunho)
@@ -2769,7 +2840,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         return
                                     }
 
-                                    // EDIT: salvar cópia (INSERT novo)
+                                    // EDIT: salvar cópia (INSERT novo) — agora com redirecionamento
                                     if (modalMode === "salvar_copia" && isEdit) {
                                         try {
                                             if (!ensureClienteAssociado()) return
@@ -2788,6 +2859,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                     links: { slideUrl: links.slide ?? "", pdfUrl: links.pdf ?? "" },
                                                     titulo: tituloTemporario,
                                                     fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                                                    observacoes: (observacoes || "").trim() || null,
                                                 }
                                                 const novoId = await salvarOrcamentoAPI(payloadCopia)
 
@@ -2801,6 +2873,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 })
 
                                                 toast.success("Cópia salva como novo orçamento!")
+                                                router.push(`/orcamento/edit/${novoId}`) // <<<<<< REDIRECIONA PARA A CÓPIA
                                             } else {
                                                 const payloadCopiaRascunho = {
                                                     clienteId: Number(clienteId),
@@ -2811,6 +2884,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                     telhaValores: telhaValoresAtual,
                                                     titulo: tituloTemporario,
                                                     fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                                                    observacoes: (observacoes || "").trim() || null,
                                                 }
                                                 const novoId = await salvarRascunhoAPI(payloadCopiaRascunho)
 
@@ -2824,6 +2898,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 })
 
                                                 toast.success("Cópia salva como rascunho!")
+                                                router.push(`/orcamento/edit/${novoId}`) // <<<<<< REDIRECIONA PARA A CÓPIA (rascunho)
                                             }
 
                                         } catch (err: unknown) {
@@ -2834,6 +2909,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         }
                                         return
                                     }
+
 
                                     if (modalMode === "gerar") {
                                         const rawTitle = tituloTemporario.trim().replace(/\s+/g, " ")

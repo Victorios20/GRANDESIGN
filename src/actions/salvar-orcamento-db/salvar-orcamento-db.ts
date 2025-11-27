@@ -103,6 +103,8 @@ export type SalvarOrcamentoParams = {
   clienteId: number
   /** NOVO — opcional */
   fornecedorId?: number | null
+  /** NOVO — opcional (campo na tabela orcamento) */
+  observacoes?: string | null
 }
 
 export type SalvarRascunhoParams = {
@@ -120,6 +122,8 @@ export type SalvarRascunhoParams = {
   actorUserId: number
   /** NOVO — opcional */
   fornecedorId?: number | null
+  /** NOVO — opcional (campo na tabela orcamento) */
+  observacoes?: string | null
 }
 
 /* ================================================================
@@ -134,6 +138,11 @@ function normalizeMetodoPagamento(m: string): "pix" | "10x" | "18x" {
 
 function cleanText(s: string | null | undefined): string {
   return (s ?? "").trim().replace(/\s+/g, " ")
+}
+
+function cleanTextOrNull(s: string | null | undefined): string | null {
+  const t = cleanText(s)
+  return t.length ? t : null
 }
 
 function num(v: unknown): number {
@@ -212,6 +221,8 @@ async function insertOrcamento(
     tipo_obra_id: number | null
     /** NOVO — opcional */
     id_fornecedor: number | null
+    /** NOVO — opcional */
+    observacoes: string | null
     totais_madeiras_preco: number
     totais_materiais_preco: number
     totais_comissao_preco: number
@@ -233,13 +244,13 @@ async function insertOrcamento(
 ): Promise<number> {
   const rows = (await tx.$queryRaw`
     INSERT INTO orcamento (
-      cliente_id, tipo_obra_id, id_fornecedor,
+      cliente_id, tipo_obra_id, id_fornecedor, observacoes,
       totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
       totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
       largura, comprimento, largura_maior, largura_menor, comprimento_maior, comprimento_menor,
       link_slide, link_pdf, titulo, created_by, updated_by
     ) VALUES (
-      ${data.cliente_id}, ${data.tipo_obra_id}, ${data.id_fornecedor},
+      ${data.cliente_id}, ${data.tipo_obra_id}, ${data.id_fornecedor}, ${data.observacoes},
       ${data.totais_madeiras_preco}, ${data.totais_materiais_preco}, ${data.totais_comissao_preco},
       ${data.totais_empresa_ps_preco}, ${data.totais_empresa_gd_preco}, ${data.totais_frete_preco},
       ${data.largura}, ${data.comprimento}, ${data.largura_maior}, ${data.largura_menor}, ${data.comprimento_maior}, ${data.comprimento_menor},
@@ -295,6 +306,7 @@ async function insertPagamento(
 export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<number> {
   const tituloLimpo = cleanText(params.titulo)
   const nomeCidade = cleanText(params.cliente.cidade ?? "")
+  const observacoesNorm = cleanTextOrNull(params.observacoes)
 
   return await prisma.$transaction(
     async (tx) => {
@@ -357,6 +369,7 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
           cliente_id: clienteId,
           tipo_obra_id: tipoObraId,
           id_fornecedor,
+          observacoes: observacoesNorm,
           totais_madeiras_preco: num(params.totais.madeiras),
           totais_materiais_preco: num(params.totais.materiais),
           totais_comissao_preco: num(params.totais.comissao),
@@ -529,6 +542,7 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
 export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): Promise<number> {
   const tituloLimpo = cleanText(params.titulo)
   const nomeCidade = cleanText(params.cliente.cidade ?? "")
+  const observacoesNorm = cleanTextOrNull(params.observacoes)
 
   return await prisma.$transaction(
     async (tx) => {
@@ -578,6 +592,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
           cliente_id: clienteId,
           tipo_obra_id: tipoObraId ?? null,
           id_fornecedor,
+          observacoes: observacoesNorm,
           totais_madeiras_preco: num(params.totais.madeiras),
           totais_materiais_preco: num(params.totais.materiais),
           totais_comissao_preco: num(params.totais.comissao),

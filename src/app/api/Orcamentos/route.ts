@@ -116,7 +116,7 @@ export async function GET(req: Request) {
         headers: { "Cache-Control": "private, max-age=60" },
       }
     )
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Erro ao buscar orçamentos" }, { status: 500 })
   }
 }
@@ -176,11 +176,15 @@ export async function POST(req: Request) {
     const rawClienteId = body?.clienteId ?? body?.cliente_id ?? null
     const clienteId = Number(rawClienteId)
 
-    // NOVO: extrair fornecedorId de formas tolerantes (id_fornecedor | fornecedorId | fornecedor.id)
+    // NOVO: extrair fornecedorId de formas tolerantes
     const rawFornecedorId =
       body?.fornecedorId ?? body?.fornecedor_id ?? body?.id_fornecedor ?? body?.fornecedor?.id ?? null
     const parsedF = Number(rawFornecedorId)
     const fornecedorId = Number.isFinite(parsedF) ? parsedF : null
+
+    // NOVO: observações (opcional) — normaliza "" -> null
+    const observacoesRaw = typeof body?.observacoes === "string" ? body.observacoes.trim() : ""
+    const observacoes = observacoesRaw.length ? observacoesRaw : null
 
     const materiais = body?.materiais ?? {}
     const totais = body?.totais ?? {}
@@ -198,7 +202,8 @@ export async function POST(req: Request) {
       links,
       clienteId,
       actorUserId,
-      fornecedorId, // <<< repassando para a camada DB
+      fornecedorId,
+      observacoes, 
     } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })

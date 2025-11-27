@@ -24,13 +24,20 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
       frete: m.frete == null ? undefined : m.frete,
     }))
 
+  // NOVO: normaliza observações — string vazia vira null
+  const observacoesRaw = (data as any).observacoes
+  const observacoes =
+    typeof observacoesRaw === "string" && observacoesRaw.trim().length > 0
+      ? observacoesRaw
+      : null
+
   return {
     id: data.id,
 
     // garante que o componente receba o id do cliente já associado
     clienteId: (data as any).clienteId ?? data.clienteId ?? 0,
 
-    // >>> ADIÇÃO: preenche fornecedor para o client pré-selecionar
+    // >>> mantém fornecedor pré-selecionado
     fornecedorId:
       (data as any).fornecedorId != null
         ? Number((data as any).fornecedorId)
@@ -40,6 +47,9 @@ function toInitialData(data: GetOrcamentoResult): InitialData {
     fornecedorNome:
       (data as any).fornecedor?.nome ??
       (typeof (data as any).fornecedorNome === "string" ? (data as any).fornecedorNome : null),
+
+    // NOVO: observações inicial
+    observacoes,
 
     titulo: data.titulo ?? "",
     cliente: {
@@ -114,6 +124,7 @@ export default async function Page(context: { params: Promise<{ id: string }> })
     fornecedorId: initialData.fornecedorId,
     fornecedorNome: initialData.fornecedorNome,
   })
+  console.log("[EDIT] observacoes (initialData):", initialData.observacoes ?? null)
 
   return (
     <OrcamentoPage

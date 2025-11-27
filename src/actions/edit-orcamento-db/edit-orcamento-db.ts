@@ -30,6 +30,9 @@ export type GetOrcamentoResult = {
   fornecedorId: number | null
   fornecedor: { id: number; nome: string } | null
 
+  /** NOVO: observações (opcional) */
+  observacoes: string | null
+
   parametros: {
     tipoObra: string | null
     largura: number | null
@@ -73,6 +76,8 @@ export type UpdateOrcamentoInput = {
   cliente: { nome: string; telefone: string; bairro: string; cidade: string | null }
   /** NOVO: atualizar fornecedor opcionalmente */
   fornecedorId?: number | null
+  /** NOVO: atualizar observações opcionalmente */
+  observacoes?: string | null
   parametros: {
     tipoObraId?: number | null
     tipoObra: string | null
@@ -123,6 +128,10 @@ export type UpdateOrcamentoInput = {
 
 function cleanText(s: string | null | undefined) {
   return (s ?? "").toString().trim().replace(/\s+/g, " ")
+}
+function cleanTextOrNull(s: string | null | undefined): string | null {
+  const t = cleanText(s)
+  return t.length ? t : null
 }
 function toNumber(v: unknown): number | null {
   if (v === null || v === undefined) return null
@@ -283,19 +292,22 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
 
     const res: GetOrcamentoResult = {
       id,
-      titulo: data.orc.titulo ?? "",
-      clienteId: data.orc.cliente_id ?? 0,
+      titulo: (data.orc as any).titulo ?? "",
+      clienteId: (data.orc as any).cliente_id ?? 0,
       cliente: {
-        nome: data.orc.cliente.nome ?? "",
-        telefone: data.orc.cliente.telefone ?? "",
-        bairro: data.orc.cliente.bairro ?? "",
+        nome: (data.orc as any).cliente?.nome ?? "",
+        telefone: (data.orc as any).cliente?.telefone ?? "",
+        bairro: (data.orc as any).cliente?.bairro ?? "",
         cidade: (data.orc as any).cliente?.cidades?.nome ?? null,
         cpf: (data.orc as any).cliente?.cpf ?? null,
       },
 
       // NOVO: mapeamento do fornecedor
       fornecedorId: (data.orc as any).id_fornecedor ?? null,
-      fornecedor: data.orc.fornecedor ? { id: data.orc.fornecedor.id, nome: data.orc.fornecedor.nome } : null,
+      fornecedor: (data.orc as any).fornecedor ? { id: (data.orc as any).fornecedor.id, nome: (data.orc as any).fornecedor.nome } : null,
+
+      // NOVO: observações
+      observacoes: (data.orc as any).observacoes ?? null,
 
       parametros: {
         tipoObra: (data.orc as any).tipo_obra?.tipo_obra ?? null,
@@ -329,23 +341,23 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
       dataUltimaAlteracao: (data.orc as any).data_ultima_alteracao,
       createdBy: (data.orc as any).createdBy
         ? {
-          id: (data.orc as any).createdBy.id,
-          name: (data.orc as any).createdBy.name,
-          email: (data.orc as any).createdBy.email,
-        }
+            id: (data.orc as any).createdBy.id,
+            name: (data.orc as any).createdBy.name,
+            email: (data.orc as any).createdBy.email,
+          }
         : null,
       updatedBy: (data.orc as any).updatedBy
         ? {
-          id: (data.orc as any).updatedBy.id,
-          name: (data.orc as any).updatedBy.name,
-          email: (data.orc as any).updatedBy.email,
-        }
+            id: (data.orc as any).updatedBy.id,
+            name: (data.orc as any).updatedBy.name,
+            email: (data.orc as any).updatedBy.email,
+          }
         : null,
 
       // Flags/infos sobre obra vinculada
       lancadoObra: Boolean((data.orc as any).lancado_obra),
       lancadoObraEm: (data.orc as any).lancado_obra_em ?? null,
-      obraId: data.obra?.id ?? null,
+      obraId: (data.obra as any)?.id ?? null,
     }
 
     return res
@@ -410,8 +422,9 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           data: {
             titulo: cleanText(input.titulo),
             tipo_obra_id: tipoObraId,
-            /** NOVO: atualiza id_fornecedor de forma opcional/silenciosa */
+            /** NOVO: atualiza id_fornecedor e observações */
             id_fornecedor: resolvedFornecedorId,
+            observacoes: cleanTextOrNull(input.observacoes),
             totais_madeiras_preco: nonNeg(input.totais.madeiras),
             totais_materiais_preco: nonNeg(input.totais.materiais),
             totais_comissao_preco: nonNeg(input.totais.comissao),

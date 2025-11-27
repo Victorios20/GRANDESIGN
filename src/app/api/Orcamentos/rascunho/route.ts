@@ -1,3 +1,4 @@
+// src/app/api/Orcamentos/rascunho/route.ts
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -91,11 +92,15 @@ export async function POST(req: Request) {
     const totais = body?.totais ?? {}
     const telhaValores = body?.telhaValores ?? {}
 
-    // NOVO: extrair fornecedorId de forma tolerante
+    // Fornecedor (tolerante)
     const rawFornecedorId =
       body?.fornecedorId ?? body?.fornecedor_id ?? body?.id_fornecedor ?? body?.fornecedor?.id ?? null
     const parsedF = Number(rawFornecedorId)
     const fornecedorId = Number.isFinite(parsedF) ? parsedF : null
+
+    // NOVO: Observações (opcional) — "" → null
+    const observacoesRaw = typeof body?.observacoes === "string" ? body.observacoes.trim() : ""
+    const observacoes = observacoesRaw.length ? observacoesRaw : null
 
     const actorUserId = Number((session.user as any).id)
 
@@ -108,7 +113,8 @@ export async function POST(req: Request) {
       telhaValores,
       clienteId,
       actorUserId,
-      fornecedorId, // <<< repassando para a camada DB
+      fornecedorId, // mantém compat com a camada DB
+      observacoes,  // <<< novo campo opcional
     } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })
