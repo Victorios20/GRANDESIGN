@@ -1465,6 +1465,16 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     /* ===================================================================
      *                         Handlers (Fluxos)
      * =================================================================== */
+    const showEditBlockedInfo = () => {
+        if (!isEdit) return
+
+        toast.info("Edição temporariamente bloqueada.", {
+            description: "Para salvar este orçamento, utilize 'Salvar Cópia' como uma nova versão.",
+            duration: Infinity,
+        })
+    }
+
+
     const handleCalcular = () => {
         if (!fornecedorSel) {
             toast.error("Selecione um fornecedor antes de calcular.")
@@ -1497,7 +1507,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             return
         }
 
-        // ——— NOVO: exige cliente associado ———
+        // exige cliente associado apenas na criação
         if (mode === "create" && !ensureClienteAssociado()) return
 
         try {
@@ -1509,11 +1519,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                 materiais,
                 totais: totEdit,
-                // >>> ENVIA MAPA DINÂMICO PARA A HOOK
                 telhaValoresDinamicos: telhaValoresAtual,
                 titulo: snap,
             })
-
 
             const raw = result as any
             const r = Array.isArray(raw) ? raw[0] : raw
@@ -1525,59 +1533,51 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             setLinks({ slide, pdf })
 
             if (slide && pdf) {
+                if (isEdit) {
+                    toast.info(
+                        "Links gerados, porém a edição está temporariamente bloqueada.",
+                        {
+                            description:
+                                "A edição deste orçamento não pode ser salva diretamente. Use 'Salvar Cópia' para registrar uma nova versão.",
+                            duration: Infinity,
+                        }
+                    )
+                    return
+                }
+
                 toast.success("Proposta gerada! Links prontos abaixo.")
+
                 try {
                     setLoadingSave(true)
 
-                    if (isEdit) {
-                        if (!orcamentoId) throw new Error("ID do orçamento ausente.")
-                        const payload: UpdateOrcamentoInput = {
-                            ...buildDbPayload(),
-                            titulo: snap, // garante o título recém-confirmado
-                            links: { slideUrl: slide, pdfUrl: pdf },
-                        }
-                        await updateOrcamentoAPI(orcamentoId, payload)
-
-                        await logOrcamentoWebhook({
-                            acao: "EDITAR_ORCAMENTO",
-                            orcamentoId,
-                            titulo: snap,
-                            cliente: buildClienteLog(),
-                            usuario: usuarioLog,
-                            dadosOrcamento: payload,
-                        })
-
-                    } else {
-                        // exige cliente associado
-                        if (!ensureClienteAssociado()) {
-                            setLoadingSave(false)
-                            return
-                        }
-                        const payloadCreate = {
-                            clienteId: Number(clienteId),
-                            cliente: form,
-                            parametros: { tipoObra: tipoObra ?? "", ...dim },
-                            materiais,
-                            totais: totEdit,
-                            telhaValores: telhaValoresAtual,
-                            links: { slideUrl: slide, pdfUrl: pdf },
-                            titulo: snap,
-                            fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
-                            observacoes: (observacoes || "").trim() || null,
-                        }
-                        console.log("payload create", payloadCreate)
-                        const novoId = await salvarOrcamentoAPI(payloadCreate)
-
-                        await logOrcamentoWebhook({
-                            acao: "CRIAR_ORCAMENTO",
-                            orcamentoId: novoId,
-                            titulo: snap,
-                            cliente: buildClienteLog(),
-                            usuario: usuarioLog,
-                            dadosOrcamento: payloadCreate,
-                        })
+                    if (!ensureClienteAssociado()) {
+                        setLoadingSave(false)
+                        return
                     }
 
+                    const payloadCreate = {
+                        clienteId: Number(clienteId),
+                        cliente: form,
+                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        materiais,
+                        totais: totEdit,
+                        telhaValores: telhaValoresAtual,
+                        links: { slideUrl: slide, pdfUrl: pdf },
+                        titulo: snap,
+                        fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                        observacoes: (observacoes || "").trim() || null,
+                    }
+                    console.log("payload create", payloadCreate)
+                    const novoId = await salvarOrcamentoAPI(payloadCreate)
+
+                    await logOrcamentoWebhook({
+                        acao: "CRIAR_ORCAMENTO",
+                        orcamentoId: novoId,
+                        titulo: snap,
+                        cliente: buildClienteLog(),
+                        usuario: usuarioLog,
+                        dadosOrcamento: payloadCreate,
+                    })
 
                     toast.success("Orçamento salvo automaticamente.")
                     setModalSucessoAberto(true)
@@ -1588,9 +1588,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     setLoadingSave(false)
                 }
             } else {
-                toast.error("A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF).")
+                toast.error(
+                    "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
+                )
                 console.debug("[handleGerarProposta] retorno sem links completos:", result)
             }
+
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
             toast.error(msg)
@@ -1598,6 +1601,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             setLoadingPDF(false)
         }
     }
+
 
 
 
@@ -1773,9 +1777,13 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     <Button
                         size="sm"
                         className="h-8 min-w-[150px] bg-bege text-marromEscuro hover:bg-bege/80"
-                        onClick={abrirModalSalvar}
+                        onClick={isEdit ? showEditBlockedInfo : abrirModalSalvar}
                         disabled={loadingSave || loadingPDF}
-                        title={isEdit ? "Atualizar este orçamento" : "Salvar novo orçamento como rascunho"}
+                        title={
+                            isEdit
+                                ? "Edição temporariamente bloqueada. Use 'Salvar Cópia' para criar uma nova versão."
+                                : "Salvar novo orçamento como rascunho"
+                        }
                     >
                         <Save className="h-4 w-4 mr-1" />
                         {isEdit ? "Salvar Edição" : "Salvar Orçamento"}
@@ -1783,6 +1791,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 </>
             }
         >
+
 
 
             {/* ---------------------------------------------------------------
