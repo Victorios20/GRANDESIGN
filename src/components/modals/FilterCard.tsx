@@ -1,7 +1,7 @@
-// FilterCard.tsx (DEPOIS) — agora é um botão que abre um Popover com os filtros
+// FilterCard.tsx — com filtro de Situação (ativos / excluídos / todos)
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +23,8 @@ export type FilterState = {
   ini?: string
   fim?: string
   pageSize?: 10 | 20 | 25 | 50 | 100
+  // NOVO: situação do orçamento (para ativos / excluídos / todos)
+  statusExcluido?: "ativos" | "excluidos" | "todos"
 }
 
 export type FilterCardProps = {
@@ -48,7 +50,7 @@ export type FilterCardProps = {
  * Renderiza:
  *  - Botão “filtros” (abre Popover)
  *  - Botão “limpar filtros”
- *  - Popover com os campos: q, telefone, bairro, tipoObraId, período, pageSize
+ *  - Popover com os campos: q, telefone, bairro, tipoObraId, período, pageSize, statusExcluido
  *
  * Pensado para ser passado direto no header do PageLayout.
  */
@@ -110,6 +112,8 @@ export default function FilterCard({
       ini: undefined,
       fim: undefined,
       pageSize: undefined,
+      // reset padrão: só mostrar orçamentos ativos
+      statusExcluido: "ativos",
     })
     onClear?.()
     setOpen(false)
@@ -131,7 +135,6 @@ export default function FilterCard({
           sideOffset={8}
           className={cn(
             "w-[360px] p-3 sm:w-[400px] shadow-lg",
-            // animações utilitárias do shadcn
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
           )}
         >
@@ -204,12 +207,38 @@ export default function FilterCard({
                 />
               </div>
 
+              {/* NOVO BLOCO: Situação (ativos / excluídos / todos) */}
+              <div className="space-y-1">
+                <Label className="text-sm">Situação</Label>
+                <Select
+                  value={draft.statusExcluido ?? "ativos"}
+                  onValueChange={(v) =>
+                    setDraft({
+                      ...draft,
+                      statusExcluido: v as FilterState["statusExcluido"],
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ativos">Ativos</SelectItem>
+                    <SelectItem value="excluidos">Excluídos</SelectItem>
+                    <SelectItem value="todos">Todos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="space-y-1">
                 <Label className="text-sm">Linhas por página</Label>
                 <Select
                   value={draft.pageSize ? String(draft.pageSize) : ""}
                   onValueChange={(v) =>
-                    setDraft({ ...draft, pageSize: (Number(v) as FilterState["pageSize"]) || undefined })
+                    setDraft({
+                      ...draft,
+                      pageSize: (Number(v) as FilterState["pageSize"]) || undefined,
+                    })
                   }
                 >
                   <SelectTrigger className="h-9">

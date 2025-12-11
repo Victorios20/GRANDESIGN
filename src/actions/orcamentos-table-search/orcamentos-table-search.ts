@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 
 type OrderDir = "asc" | "desc"
 type ObraVinculada = "sim" | "nao" | "todos"
+type StatusExcluido = "ativos" | "excluidos" | "todos"
 
 function sumValores(x: any) {
   const a = Number(x.totais_madeiras_preco) || 0
@@ -14,7 +15,11 @@ function sumValores(x: any) {
 }
 
 function formatBRL(n: number) {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 }).format(n)
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 2,
+  }).format(n)
 }
 
 export type TableParams = {
@@ -29,7 +34,8 @@ export type TableParams = {
   tipoObraId?: number | null
   dIni?: string | null
   dFim?: string | null
-  obraVinculada?: ObraVinculada // <- tri-estado
+  obraVinculada?: ObraVinculada // tri-estado
+  statusExcluido?: StatusExcluido // "ativos" (default), "excluidos", "todos"
 }
 
 export async function listarOrcamentosTableSearch(params: TableParams) {
@@ -38,22 +44,51 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
   const skip = (page - 1) * perPage
 
   const rawSearch = (params.search ?? "").trim()
-  const searchPattern = rawSearch ? `%${rawSearch.replace(/([_%\\])/g, "\\$1").replace(/\s+/g, "%")}%` : null
-  const bairroPattern = (params.bairro ?? "").trim()
-    ? `%${String(params.bairro).trim().replace(/([_%\\])/g, "\\$1").replace(/\s+/g, "%")}%`
+  const searchPattern = rawSearch
+    ? `%${rawSearch.replace(/([_%\\])/g, "\\$1").replace(/\s+/g, "%")}%`
     : null
+
+  const bairroPattern = (params.bairro ?? "").trim()
+    ? `%${String(params.bairro)
+        .trim()
+        .replace(/([_%\\])/g, "\\$1")
+        .replace(/\s+/g, "%")}%`
+    : null
+
   const dIni = params.dIni ? new Date(params.dIni) : null
   const dFim = params.dFim ? new Date(`${params.dFim}T23:59:59.999Z`) : null
   const cidadeId = params.cidadeId ?? null
   const tipoObraId = params.tipoObraId ?? null
   const telefoneFiltro = (params.telefone ?? "").trim() || null
   const searchDigits = rawSearch.replace(/\D+/g, "")
-  const ob = (params.orderBy || "data_ultima_alteracao")
+
+  const ob = params.orderBy || "data_ultima_alteracao"
   const asc = params.orderDir === "asc"
 
   const obraVinculada: ObraVinculada = params.obraVinculada ?? "todos"
 
-  // COUNT
+  // statusExcluido: default "ativos"
+  const statusExcluido: StatusExcluido = params.statusExcluido ?? "ativos"
+
+  // ORDER BY seguro (indices ajustados: $11 e $12)
+  const orderSql = `
+    ORDER BY
+      CASE WHEN $11::text = 'titulo'  AND $12::boolean = true  THEN o.titulo END ASC,
+      CASE WHEN $11::text = 'titulo'  AND $12::boolean = false THEN o.titulo END DESC,
+      CASE WHEN $11::text = 'cliente' AND $12::boolean = true  THEN c.nome END ASC,
+      CASE WHEN $11::text = 'cliente' AND $12::boolean = false THEN c.nome END DESC,
+      CASE WHEN $11::text = 'bairro'  AND $12::boolean = true  THEN c.bairro END ASC,
+      CASE WHEN $11::text = 'bairro'  AND $12::boolean = false THEN c.bairro END DESC,
+      CASE WHEN $11::text = 'cidade'  AND $12::boolean = true  THEN ci.nome END ASC,
+      CASE WHEN $11::text = 'cidade'  AND $12::boolean = false THEN ci.nome END DESC,
+      CASE WHEN $11::text = 'tipoObra' AND $12::boolean = true  THEN to2.tipo_obra END ASC,
+      CASE WHEN $11::text = 'tipoObra' AND $12::boolean = false THEN to2.tipo_obra END DESC,
+      CASE WHEN $11::text = 'data_ultima_alteracao' AND $12::boolean = true  THEN o.data_ultima_alteracao END ASC,
+      CASE WHEN $11::text = 'data_ultima_alteracao' AND $12::boolean = false THEN o.data_ultima_alteracao END DESC,
+      o.id DESC
+  `
+
+  // ================= COUNT =================
   const totalRows = await prisma.$queryRawUnsafe(
     `
     SELECT COUNT(*)::bigint AS count
@@ -83,6 +118,13 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
           ELSE true
         END
       )
+      AND (
+        CASE
+          WHEN $10::text = 'ativos'    THEN coalesce(o.excluido, false) = false
+          WHEN $10::text = 'excluidos' THEN coalesce(o.excluido, false) = true
+          ELSE true
+        END
+      )
     `,
     searchPattern,   // $1
     searchDigits,    // $2
@@ -92,31 +134,13 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
     cidadeId,        // $6
     tipoObraId,      // $7
     telefoneFiltro,  // $8
-    obraVinculada    // $9
+    obraVinculada,   // $9
+    statusExcluido   // $10
   )
 
   const total = Number((totalRows as Array<{ count: bigint }>)[0]?.count ?? 0)
 
-  // ORDER BY seguro
-  const orderSql =
-    `
-    ORDER BY
-      CASE WHEN $10::text = 'titulo'  AND $11::boolean = true  THEN o.titulo END ASC,
-      CASE WHEN $10::text = 'titulo'  AND $11::boolean = false THEN o.titulo END DESC,
-      CASE WHEN $10::text = 'cliente' AND $11::boolean = true  THEN c.nome END ASC,
-      CASE WHEN $10::text = 'cliente' AND $11::boolean = false THEN c.nome END DESC,
-      CASE WHEN $10::text = 'bairro'  AND $11::boolean = true  THEN c.bairro END ASC,
-      CASE WHEN $10::text = 'bairro'  AND $11::boolean = false THEN c.bairro END DESC,
-      CASE WHEN $10::text = 'cidade'  AND $11::boolean = true  THEN ci.nome END ASC,
-      CASE WHEN $10::text = 'cidade'  AND $11::boolean = false THEN ci.nome END DESC,
-      CASE WHEN $10::text = 'tipoObra' AND $11::boolean = true  THEN to2.tipo_obra END ASC,
-      CASE WHEN $10::text = 'tipoObra' AND $11::boolean = false THEN to2.tipo_obra END DESC,
-      CASE WHEN $10::text = 'data_ultima_alteracao' AND $11::boolean = true  THEN o.data_ultima_alteracao END ASC,
-      CASE WHEN $10::text = 'data_ultima_alteracao' AND $11::boolean = false THEN o.data_ultima_alteracao END DESC,
-      o.id DESC
-    `
-
-  // DATA
+  // ================= DATA =================
   const rows = await prisma.$queryRawUnsafe(
     `
     SELECT
@@ -137,7 +161,8 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       o.totais_empresa_gd_preco,
       o.lancado_obra,
       to_char(o.lancado_obra_em, 'YYYY-MM-DD"T"HH24:MI:SS') AS lancado_obra_em,
-      ob.id AS obra_id
+      ob.id AS obra_id,
+      o.excluido
     FROM orcamento o
     JOIN cliente c ON c.id = o.cliente_id
     LEFT JOIN cidades ci ON ci.id = c.cidade_id
@@ -164,22 +189,30 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
           ELSE true
         END
       )
+      AND (
+        CASE
+          WHEN $10::text = 'ativos'    THEN coalesce(o.excluido, false) = false
+          WHEN $10::text = 'excluidos' THEN coalesce(o.excluido, false) = true
+          ELSE true
+        END
+      )
       ${orderSql}
-      LIMIT $12 OFFSET $13
+      LIMIT $13 OFFSET $14
     `,
-    searchPattern,  // $1
-    searchDigits,   // $2
-    bairroPattern,  // $3
-    dIni,           // $4
-    dFim,           // $5
-    cidadeId,       // $6
-    tipoObraId,     // $7
-    telefoneFiltro, // $8
-    obraVinculada,  // $9
-    ob,             // $10
-    asc,            // $11
-    perPage,        // $12
-    skip            // $13
+    searchPattern,   // $1
+    searchDigits,    // $2
+    bairroPattern,   // $3
+    dIni,            // $4
+    dFim,            // $5
+    cidadeId,        // $6
+    tipoObraId,      // $7
+    telefoneFiltro,  // $8
+    obraVinculada,   // $9
+    statusExcluido,  // $10
+    ob,              // $11
+    asc,             // $12
+    perPage,         // $13
+    skip             // $14
   ) as Array<{
     id: number
     titulo: string | null
@@ -199,6 +232,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
     lancado_obra: boolean | null
     lancado_obra_em: string | null
     obra_id: number | null
+    excluido: boolean | null
   }>
 
   const dados = rows.map((r) => {
@@ -217,6 +251,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       lancado_obra: Boolean(r.lancado_obra),
       lancado_obra_em: r.lancado_obra_em ?? null,
       obraId: r.obra_id ?? null,
+      excluido: Boolean(r.excluido), // <<< aqui vem se está excluído ou não
     }
   })
 

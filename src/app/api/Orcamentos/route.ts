@@ -89,6 +89,16 @@ export async function GET(req: Request) {
     const ordenarData = parseOrder(searchParams.get("ordem")) ?? "desc"
     const somenteLancados = parseBooleanParam(searchParams.get("somenteLancados"))
 
+    // novo: statusExcluido (tri-estado) com default = "ativos"
+    const statusRaw = (searchParams.get("statusExcluido") || "").toLowerCase()
+    let statusExcluido: "ativos" | "excluidos" | "todos" = "ativos"
+
+    if (statusRaw === "excluidos" || statusRaw === "excluídos") {
+      statusExcluido = "excluidos"
+    } else if (statusRaw === "todos" || statusRaw === "all") {
+      statusExcluido = "todos"
+    }
+
     const result = await buscarOrcamentosDB({
       nome,
       bairro,
@@ -101,6 +111,7 @@ export async function GET(req: Request) {
       perPage,
       ordenarData,
       somenteLancados,
+      statusExcluido, // << novo param
     } as any)
 
     return NextResponse.json(
@@ -120,6 +131,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Erro ao buscar orçamentos" }, { status: 500 })
   }
 }
+
 
 // -------------------------------
 // POST (continua com auth)

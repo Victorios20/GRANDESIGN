@@ -13,6 +13,9 @@ export interface OrcamentoTabela {
   lancado_obra: boolean
   lancado_obra_em: string | null
   obraId: number | null
+
+  // NOVO CAMPO (soft delete)
+  excluido: boolean
 }
 
 export type MaterialItem = {
@@ -145,6 +148,8 @@ export async function buscarOrcamentosDB(
     AND ($5::text IS NULL OR immutable_unaccent(lower(c.telefone)) ILIKE '%' || immutable_unaccent(lower($5)) || '%')
     AND ($6::int  IS NULL OR c.cidade_id = $6)
     AND ($7::int  IS NULL OR o.tipo_obra_id = $7)
+    -- SOMENTE ORÇAMENTOS ATIVOS
+    AND COALESCE(o.excluido, false) = false
 `
 
   const listSQL_ASC = `
@@ -165,6 +170,9 @@ export async function buscarOrcamentosDB(
     o.lancado_obra_em,
     ob.id AS obra_id,
 
+    -- NOVO CAMPO: soft delete
+    o.excluido,
+
     COALESCE(
       (SELECT MIN(op.valor)  FROM orcamento_pagamento op  WHERE op.orcamento_id = o.id AND op.metodo_pagamento ILIKE '%pix%'),
       (SELECT MIN(op2.valor) FROM orcamento_pagamento op2 WHERE op2.orcamento_id = o.id),
@@ -180,7 +188,10 @@ ORDER BY o.data_ultima_alteracao ASC
 LIMIT $8 OFFSET $9
 `
 
-  const listSQL_DESC = listSQL_ASC.replace("ORDER BY o.data_ultima_alteracao ASC", "ORDER BY o.data_ultima_alteracao DESC")
+  const listSQL_DESC = listSQL_ASC.replace(
+    "ORDER BY o.data_ultima_alteracao ASC",
+    "ORDER BY o.data_ultima_alteracao DESC"
+  )
 
   const countSQL = `
     SELECT COUNT(*)::bigint AS total
@@ -233,6 +244,9 @@ LIMIT $8 OFFSET $9
     lancado_obra: boolean | null
     lancado_obra_em: string | Date | null
     obra_id: number | null
+
+    // NOVO CAMPO
+    excluido: boolean | null
   }>
 
   const cs = countRows as Array<{ total: bigint | number }>
@@ -263,9 +277,11 @@ LIMIT $8 OFFSET $9
       lancado_obra: Boolean(r.lancado_obra),
       lancado_obra_em: lancadoEmISO,
       obraId: r.obra_id ?? null,
+
+      // soft delete
+      excluido: Boolean(r.excluido),
     }
 
-    // extras já retornados pela sua tela (se você usa)
     ;(item as any).cidade = r.cidade_nome ?? null
     ;(item as any).cidadeId = r.cidade_id ?? null
     ;(item as any).clienteTelefone = r.cliente_telefone ?? null

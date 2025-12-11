@@ -1,4 +1,4 @@
-// app/HomeClient.tsx (COMPLETO — compacto)
+// app/HomeClient.tsx
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { EllipsisVertical, Eye, Pencil, Copy, Hammer } from "lucide-react"
+import { EllipsisVertical, Eye, Pencil, Copy, Hammer, Trash2, CheckCircle2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -26,6 +26,7 @@ import type { OrcamentoTabela } from "./_actions/home.actions"
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
 import { GlobalStyles } from "@mui/material"
+import ExcluirModalOrcamento from "@/components/modals/ExcluirModalOrcamento"
 
 type OrcRow = OrcamentoTabela & {
   cidade?: string
@@ -35,6 +36,7 @@ type OrcRow = OrcamentoTabela & {
   lancadoObra?: boolean
   lancadoObraEmISO?: string | null
   obraId?: number | null
+  excluido?: boolean
 }
 
 type InitialData = {
@@ -45,6 +47,8 @@ type InitialData = {
 
 const BEGE = "#E8C99A"
 const MARROM = "#8B5E3C"
+
+type StatusExcluido = "ativos" | "excluidos" | "todos"
 
 export default function HomeClient({ initial }: { initial: InitialData }) {
   const router = useRouter()
@@ -57,6 +61,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [dataFim, setDataFim] = useState<Date | undefined>()
   const [telefone, setTelefone] = useState("")
   const [tipoObraId, setTipoObraId] = useState<number | null>(null)
+  const [statusExcluido, setStatusExcluido] = useState<StatusExcluido>("ativos")
 
   const [tiposOpts, setTiposOpts] = useState<Option[]>([])
 
@@ -73,6 +78,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           : (o as any).obra_id != null
           ? Number((o as any).obra_id)
           : null,
+      excluido: Boolean((o as any).excluido ?? false),
     }))
   )
   const [total, setTotal] = useState<number>(initial.total ?? 0)
@@ -81,9 +87,13 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const [page, setPage] = useState(0)
   const [perPage, setPerPage] = useState(20)
 
+  // Modal excluir/reativar
+  const [modalOpen, setModalOpen] = useState(false)
+  const [orcamentoAlvo, setOrcamentoAlvo] = useState<OrcRow | null>(null)
+
   useEffect(() => {
     if (nome.trim() && page !== 0) setPage(0)
-  }, [nome])
+  }, [nome, page])
 
   // carregar combos necessários e primeira consulta
   useEffect(() => {
@@ -130,7 +140,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   useEffect(() => {
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, bairro, telefone, tipoObraId, dataIni, dataFim, page, perPage])
+  }, [nome, bairro, telefone, tipoObraId, dataIni, dataFim, page, perPage, statusExcluido])
 
   async function consultar() {
     setLoadingTabela(true)
@@ -146,6 +156,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (tipoObraId != null) qs.set("tipoObraId", String(tipoObraId))
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
+    // novo filtro: situação (ativos/excluidos/todos)
+    qs.set("statusExcluido", statusExcluido)
 
     const res = await fetch(`/api/Orcamentos/table-search?${qs.toString()}`, { cache: "no-store" })
     if (!res.ok) {
@@ -162,6 +174,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       lancadoObra: Boolean(o?.lancado_obra ?? o?.lancadoObra ?? false),
       lancadoObraEmISO: o?.lancado_obra_em ?? o?.lancadoObraEmISO ?? null,
       obraId: o?.obraId != null ? Number(o.obraId) : o?.obra_id != null ? Number(o.obra_id) : null,
+      excluido: Boolean(o?.excluido ?? false),
     }))
     setOrcamentos(mapped)
     setTotal(Number(json.total ?? 0))
@@ -176,6 +189,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     setTipoObraId(null)
     setDataIni(undefined)
     setDataFim(undefined)
+    setStatusExcluido("ativos")
     setPage(0)
   }
 
@@ -257,6 +271,29 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       },
     },
     {
+      name: "situacao",
+      label: "Situação",
+      options: {
+        sort: false,
+        searchable: false,
+        customBodyRender: (_val, meta) => {
+          const r = rows[meta.rowIndex]
+          const isExcluido = !!r?.excluido
+          return (
+            <span
+              className={
+                isExcluido
+                  ? "text-red-700 font-medium"
+                  : "text-emerald-700 font-medium"
+              }
+            >
+              {isExcluido ? "Excluído" : "Ativo"}
+            </span>
+          )
+        },
+      },
+    },
+    {
       name: "data_ultima_alteracao",
       label: "Data da Atualização",
       options: {
@@ -293,6 +330,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         customBodyRender: (_val, tableMeta) => {
           const o = rows[tableMeta.rowIndex] as OrcRow
           const isLancado = !!o.lancadoObra
+          const isExcluido = !!o.excluido
+
           return (
             <div
               onMouseDown={(e) => e.stopPropagation()}
@@ -386,6 +425,26 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                       </Link>
                     </DropdownMenuItem>
                   )}
+
+                  <DropdownMenuItem
+                    className={`cursor-pointer ${isExcluido ? "text-emerald-700" : "text-red-700"}`}
+                    onClick={() => {
+                      setOrcamentoAlvo(o)
+                      setModalOpen(true)
+                    }}
+                  >
+                    {isExcluido ? (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Reativar orçamento
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir orçamento
+                      </>
+                    )}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -467,21 +526,38 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                 lineHeight: 1.1,
                 whiteSpace: "nowrap",
               },
-              root: { color: MARROM, borderBottom: "1px solid rgba(0,0,0,0.06)", paddingTop: 6, paddingBottom: 6 },
+              root: {
+                color: MARROM,
+                borderBottom: "1px solid rgba(0,0,0,0.06)",
+                paddingTop: 6,
+                paddingBottom: 6,
+              },
             },
           },
           MuiIconButton: {
             styleOverrides: {
               root: { color: MARROM, "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
-              colorPrimary: { color: MARROM, "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
+              colorPrimary: {
+                color: MARROM,
+                "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" },
+              },
             },
           },
           MuiSvgIcon: { styleOverrides: { root: { color: "inherit" } } },
-          MuiCheckbox: { styleOverrides: { root: { color: MARROM, "&.Mui-checked": { color: BEGE } } } },
+          MuiCheckbox: {
+            styleOverrides: {
+              root: { color: MARROM, "&.Mui-checked": { color: BEGE } },
+            },
+          },
           MuiFormControlLabel: { styleOverrides: { label: { color: MARROM } } },
           MuiMenuItem: {
             styleOverrides: {
-              root: { color: MARROM, "&.Mui-selected, &.Mui-selected:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
+              root: {
+                color: MARROM,
+                "&.Mui-selected, &.Mui-selected:hover": {
+                  backgroundColor: "rgba(232,201,154,0.35)",
+                },
+              },
             },
           },
           MuiPaper: { styleOverrides: { root: { borderRadius: 12 } } },
@@ -509,7 +585,9 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           <CardHeader className="py-2">
             <div className="flex items-center justify-between gap-2">
               <div className="space-y-0.5">
-                <CardTitle className="text-2xl leading-tight text-marromEscuro">Orçamentos</CardTitle>
+                <CardTitle className="text-2xl leading-tight text-marromEscuro">
+                  Orçamentos
+                </CardTitle>
                 <CardDescription className="text-[13px] leading-tight text-marromClaro">
                   Tabela com os orçamentos dos clientes.
                 </CardDescription>
@@ -526,16 +604,23 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
                     fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
                     pageSize: perPage as any,
-                  }}
+                    statusExcluido,
+                  } as any}
                   onChange={(next) => {
-                    setNome(next.q ?? "")
-                    setSearchInput(next.q ?? "")
-                    setTelefone(next.telefone ?? "")
-                    setBairro(next.bairro ?? "")
-                    setTipoObraId(next.tipoObraId ?? null)
-                    if (next.pageSize) setPerPage(Number(next.pageSize))
-                    setDataIni(next.ini ? new Date(next.ini) : undefined)
-                    setDataFim(next.fim ? new Date(next.fim) : undefined)
+                    const v = next as any
+                    setNome(v.q ?? "")
+                    setSearchInput(v.q ?? "")
+                    setTelefone(v.telefone ?? "")
+                    setBairro(v.bairro ?? "")
+                    setTipoObraId(v.tipoObraId ?? null)
+                    if (v.pageSize) setPerPage(Number(v.pageSize))
+                    setDataIni(v.ini ? new Date(v.ini) : undefined)
+                    setDataFim(v.fim ? new Date(v.fim) : undefined)
+                    if (v.statusExcluido === "excluidos" || v.statusExcluido === "todos") {
+                      setStatusExcluido(v.statusExcluido)
+                    } else {
+                      setStatusExcluido("ativos")
+                    }
                     setPage(0)
                   }}
                   onApply={() => consultar()}
@@ -581,6 +666,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             )}
           </CardContent>
         </Card>
+
+        {/* Modal de excluir / reativar orçamento */}
+        <ExcluirModalOrcamento
+          open={modalOpen}
+          onClose={() => {
+            setModalOpen(false)
+            setOrcamentoAlvo(null)
+          }}
+          orcamentoId={orcamentoAlvo?.id ?? null}
+          isExcluido={!!orcamentoAlvo?.excluido}
+          onFinished={() => {
+            consultar()
+          }}
+        />
       </TooltipProvider>
     </PageLayout>
   )

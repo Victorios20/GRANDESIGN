@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { listarOrcamentosTableSearch } from "@/actions/orcamentos-table-search/orcamentos-table-search"
 
 type ObraVinculada = "sim" | "nao" | "todos"
+type StatusExcluido = "ativos" | "excluidos" | "todos"
 
 function getParam(url: URL, k: string) {
   const v = url.searchParams.get(k)
@@ -29,10 +30,24 @@ export async function GET(req: Request) {
   const dIni = getParam(url, "dIni")
   const dFim = getParam(url, "dFim")
 
-  // novo: aceita tri-estado
+  // tri-estado da obra vinculada
   const obraVinculadaRaw = (getParam(url, "obraVinculada") || "").toLowerCase()
   const obraVinculada: ObraVinculada =
-    obraVinculadaRaw === "sim" ? "sim" : obraVinculadaRaw === "nao" || obraVinculadaRaw === "não" ? "nao" : "todos"
+    obraVinculadaRaw === "sim"
+      ? "sim"
+      : obraVinculadaRaw === "nao" || obraVinculadaRaw === "não"
+      ? "nao"
+      : "todos"
+
+  // status de exclusão (soft delete)
+  const statusExcluidoRaw = (getParam(url, "statusExcluido") || "").toLowerCase()
+  let statusExcluido: StatusExcluido = "ativos" // default = só ativos
+
+  if (statusExcluidoRaw === "excluidos" || statusExcluidoRaw === "excluídos") {
+    statusExcluido = "excluidos"
+  } else if (statusExcluidoRaw === "todos" || statusExcluidoRaw === "all") {
+    statusExcluido = "todos"
+  }
 
   const cidadeId = cidadeIdStr ? Number(cidadeIdStr) : null
   const tipoObraId = tipoObraIdStr ? Number(tipoObraIdStr) : null
@@ -50,10 +65,15 @@ export async function GET(req: Request) {
       tipoObraId,
       dIni,
       dFim,
-      obraVinculada, // <- tri-estado
+      obraVinculada,   
+      statusExcluido,  
     })
+
     return NextResponse.json(res, { status: 200 })
   } catch (e: any) {
-    return NextResponse.json({ error: "Falha ao listar orçamentos", details: String(e?.message || e) }, { status: 500 })
+    return NextResponse.json(
+      { error: "Falha ao listar orçamentos", details: String(e?.message || e) },
+      { status: 500 }
+    )
   }
 }

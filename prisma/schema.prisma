@@ -124,21 +124,21 @@ model orcamento {
   data_criacao          DateTime? @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
   data_ultima_alteracao DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @map("data_ultima_alteracao") @db.Timestamp(6)
 
-  totais_madeiras_preco   Decimal  @default(0.00) @db.Decimal(10, 2)
-  totais_materiais_preco  Decimal  @default(0.00) @db.Decimal(10, 2)
-  totais_comissao_preco   Decimal  @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_ps_preco Decimal  @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_gd_preco Decimal  @default(0.00) @db.Decimal(10, 2)
-  largura                 Decimal? @db.Decimal(10, 2)
-  comprimento             Decimal? @db.Decimal(10, 2)
-  totais_frete_preco      Decimal  @default(0.00) @db.Decimal(10, 2)
+  totais_madeiras_preco   Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_materiais_preco  Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_comissao_preco   Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_ps_preco Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_gd_preco Decimal       @default(0.00) @db.Decimal(10, 2)
+  largura                 Decimal?      @db.Decimal(10, 2)
+  comprimento             Decimal?      @db.Decimal(10, 2)
+  totais_frete_preco      Decimal       @default(0.00) @db.Decimal(10, 2)
   link_pdf                String?
-  titulo                  String?  @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
-  observacoes    String?  @db.Text
-
+  titulo                  String?       @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
+  observacoes             String?       @db.Text
+  excluido                Boolean       @default(false)
   // Fornecedor (madeira) opcional do orçamento
-  id_fornecedor Int?
-  fornecedor    fornecedores? @relation("FornecedorOrcamentos", fields: [id_fornecedor], references: [id], onDelete: SetNull)
+  id_fornecedor           Int?
+  fornecedor              fornecedores? @relation("FornecedorOrcamentos", fields: [id_fornecedor], references: [id], onDelete: SetNull)
 
   largura_menor     Decimal?  @db.Decimal(10, 2)
   largura_maior     Decimal?  @db.Decimal(10, 2)
