@@ -53,7 +53,6 @@ type StatusExcluido = "ativos" | "excluidos" | "todos"
 export default function HomeClient({ initial }: { initial: InitialData }) {
   const router = useRouter()
 
-  // ==== ESTADO DOS FILTROS (apenas os que ficarão no popover) ====
   const [nome, setNome] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [bairro, setBairro] = useState<string>("")
@@ -65,7 +64,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const [tiposOpts, setTiposOpts] = useState<Option[]>([])
 
-  // ==== TABELA ====
   const [orcamentos, setOrcamentos] = useState<OrcRow[]>(
     (initial.dados ?? []).map((o, i) => ({
       id: (o as any).id ?? i,
@@ -81,13 +79,13 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       excluido: Boolean((o as any).excluido ?? false),
     }))
   )
+
   const [total, setTotal] = useState<number>(initial.total ?? 0)
   const [loadingTabela, setLoadingTabela] = useState(false)
 
   const [page, setPage] = useState(0)
   const [perPage, setPerPage] = useState(20)
 
-  // Modal excluir/reativar
   const [modalOpen, setModalOpen] = useState(false)
   const [orcamentoAlvo, setOrcamentoAlvo] = useState<OrcRow | null>(null)
 
@@ -95,7 +93,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (nome.trim() && page !== 0) setPage(0)
   }, [nome, page])
 
-  // carregar combos necessários e primeira consulta
   useEffect(() => {
     listarBairros().catch(() => {})
 
@@ -127,7 +124,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // debounce do search da toolbar
   useEffect(() => {
     const t = setTimeout(() => {
       setNome(searchInput)
@@ -136,14 +132,22 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // refetch ao mudar filtros/paginação
   useEffect(() => {
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nome, bairro, telefone, tipoObraId, dataIni, dataFim, page, perPage, statusExcluido])
 
+  useEffect(() => {
+    if (modalOpen) return
+    requestAnimationFrame(() => {
+      if (document.body.style.pointerEvents === "none") document.body.style.pointerEvents = ""
+      if (document.body.style.overflow === "hidden") document.body.style.overflow = ""
+    })
+  }, [modalOpen])
+
   async function consultar() {
     setLoadingTabela(true)
+
     const dIniISO = dataIni?.toISOString().slice(0, 10)
     const dFimISO = dataFim?.toISOString().slice(0, 10)
 
@@ -156,7 +160,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     if (tipoObraId != null) qs.set("tipoObraId", String(tipoObraId))
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
-    // novo filtro: situação (ativos/excluidos/todos)
     qs.set("statusExcluido", statusExcluido)
 
     const res = await fetch(`/api/Orcamentos/table-search?${qs.toString()}`, { cache: "no-store" })
@@ -166,6 +169,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       setLoadingTabela(false)
       return
     }
+
     const json = await res.json()
     const dadosRaw = (json.dados ?? []) as any[]
     const mapped: OrcRow[] = dadosRaw.map((o, i) => ({
@@ -176,6 +180,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       obraId: o?.obraId != null ? Number(o.obraId) : o?.obra_id != null ? Number(o.obra_id) : null,
       excluido: Boolean(o?.excluido ?? false),
     }))
+
     setOrcamentos(mapped)
     setTotal(Number(json.total ?? 0))
     setLoadingTabela(false)
@@ -194,6 +199,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   }
 
   const safeCell = (v: string | number | null | undefined) => (v == null || v === "" ? "-" : v)
+
   const strDate = (s?: string) => {
     if (!s) return "-"
     const naive = s.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?$/)
@@ -280,13 +286,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           const r = rows[meta.rowIndex]
           const isExcluido = !!r?.excluido
           return (
-            <span
-              className={
-                isExcluido
-                  ? "text-red-700 font-medium"
-                  : "text-emerald-700 font-medium"
-              }
-            >
+            <span className={isExcluido ? "text-red-700 font-medium" : "text-emerald-700 font-medium"}>
               {isExcluido ? "Excluído" : "Ativo"}
             </span>
           )
@@ -333,11 +333,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           const isExcluido = !!o.excluido
 
           return (
-            <div
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              className="flex justify-end"
-            >
+            <div className="flex justify-end" data-no-row-nav>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -345,21 +341,16 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     variant="ghost"
                     className="text-marromEscuro hover:bg-marromClaro/20"
                     aria-label="Ações"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
+                    data-no-row-nav
                   >
                     <EllipsisVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-64"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
+
+                <DropdownMenuContent align="end" className="w-64" data-no-row-nav>
                   <DropdownMenuItem
                     className="cursor-pointer"
-                    onClick={async () => {
+                    onSelect={async () => {
                       const link = `https://app.grandesignce.com.br/orcamento/detalhes/${(o as any).id}`
                       try {
                         await navigator.clipboard.writeText(link)
@@ -373,7 +364,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     Copiar link de visualização
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem asChild className="cursor-pointer">
+                  <DropdownMenuItem asChild className="cursor-pointer" data-no-row-nav>
                     <Link
                       href={`/orcamento/edit/${(o as any).id}`}
                       title="Editar orçamento"
@@ -385,7 +376,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     </Link>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem asChild className="cursor-pointer">
+                  <DropdownMenuItem asChild className="cursor-pointer" data-no-row-nav>
                     <Link
                       href={`/orcamento/detalhes/${(o as any).id}`}
                       title="Visualizar detalhes"
@@ -398,7 +389,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                   </DropdownMenuItem>
 
                   {!isLancado ? (
-                    <DropdownMenuItem asChild className="cursor-pointer">
+                    <DropdownMenuItem asChild className="cursor-pointer" data-no-row-nav>
                       <Link
                         href={`/obras/new/${(o as any).id}`}
                         title="Lançar obra"
@@ -413,6 +404,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     <DropdownMenuItem
                       asChild
                       className={`cursor-pointer ${o.obraId == null ? "opacity-60 pointer-events-none" : ""}`}
+                      data-no-row-nav
                     >
                       <Link
                         href={o.obraId != null ? `/obras/${o.obraId}` : "#"}
@@ -428,10 +420,11 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
                   <DropdownMenuItem
                     className={`cursor-pointer ${isExcluido ? "text-emerald-700" : "text-red-700"}`}
-                    onClick={() => {
+                    onSelect={() => {
                       setOrcamentoAlvo(o)
                       setModalOpen(true)
                     }}
+                    data-no-row-nav
                   >
                     {isExcluido ? (
                       <>
@@ -481,20 +474,18 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     sort: false,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
-    onRowClick: (_rowData, meta) => {
-      const id = (rows[meta.dataIndex] as any)?.id
-      if (id != null) router.push(`/orcamento/detalhes/${id}`)
-    },
-    setRowProps: () => ({
-      onMouseDown: (e: any) => {
-        const el = e.target as HTMLElement
-        if (el.closest("[data-no-row-nav]")) e.stopPropagation()
-      },
+
+    setRowProps: (_row, dataIndex) => ({
       className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
+      onClick: (e: React.MouseEvent<HTMLElement>) => {
+        const el = e.target as HTMLElement
+        if (el.closest("[data-no-row-nav]")) return
+        const id = (rows[dataIndex] as any)?.id
+        if (id != null) router.push(`/orcamento/detalhes/${id}`)
+      },
     }),
   }
 
-  // THEME COMPACTO
   const theme = useMemo(
     () =>
       createTheme({
@@ -566,7 +557,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     []
   )
 
-  // ====== HEADER: agora só o "Gerar Novo" ======
   const headerActions = (
     <div className="flex items-center gap-2">
       <Link href="/orcamento/new">
@@ -581,31 +571,29 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     <PageLayout headerActions={headerActions} isTitulo>
       <TooltipProvider>
         <Card ultraCompact>
-          {/* Header do Card mais compacto */}
           <CardHeader className="py-2">
             <div className="flex items-center justify-between gap-2">
               <div className="space-y-0.5">
-                <CardTitle className="text-2xl leading-tight text-marromEscuro">
-                  Orçamentos
-                </CardTitle>
+                <CardTitle className="text-2xl leading-tight text-marromEscuro">Orçamentos</CardTitle>
                 <CardDescription className="text-[13px] leading-tight text-marromClaro">
                   Tabela com os orçamentos dos clientes.
                 </CardDescription>
               </div>
 
-              {/* Aqui agora ficam os filtros (Filtro / Limpar) */}
               <div className="flex items-center gap-2">
                 <FilterCard
-                  value={{
-                    q: nome,
-                    telefone,
-                    bairro,
-                    tipoObraId,
-                    ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-                    fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
-                    pageSize: perPage as any,
-                    statusExcluido,
-                  } as any}
+                  value={
+                    {
+                      q: nome,
+                      telefone,
+                      bairro,
+                      tipoObraId,
+                      ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
+                      fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+                      pageSize: perPage as any,
+                      statusExcluido,
+                    } as any
+                  }
                   onChange={(next) => {
                     const v = next as any
                     setNome(v.q ?? "")
@@ -636,7 +624,6 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
             </div>
           </CardHeader>
 
-          {/* Conteúdo com padding reduzido */}
           <CardContent className="pt-2 pb-4 px-4 sm:px-6">
             {loadingTabela ? (
               <div className="space-y-2">
@@ -667,19 +654,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           </CardContent>
         </Card>
 
-        {/* Modal de excluir / reativar orçamento */}
-        <ExcluirModalOrcamento
-          open={modalOpen}
-          onClose={() => {
-            setModalOpen(false)
-            setOrcamentoAlvo(null)
-          }}
-          orcamentoId={orcamentoAlvo?.id ?? null}
-          isExcluido={!!orcamentoAlvo?.excluido}
-          onFinished={() => {
-            consultar()
-          }}
-        />
+        {modalOpen ? (
+          <ExcluirModalOrcamento
+            open={modalOpen}
+            onClose={() => {
+              setModalOpen(false)
+              setOrcamentoAlvo(null)
+            }}
+            orcamentoId={orcamentoAlvo?.id ?? null}
+            isExcluido={!!orcamentoAlvo?.excluido}
+            onFinished={() => {
+              consultar()
+            }}
+          />
+        ) : null}
       </TooltipProvider>
     </PageLayout>
   )

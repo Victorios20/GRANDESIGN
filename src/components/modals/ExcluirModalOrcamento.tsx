@@ -1,7 +1,6 @@
-// src/components/modals/ExcluirModalOrcamento.tsx
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -17,14 +16,7 @@ type ExcluirModalOrcamentoProps = {
   open: boolean
   onClose: () => void
   orcamentoId: number | null | undefined
-  /**
-   * true  => orçamento já está excluído (ação será REATIVAR)
-   * false => orçamento está ativo      (ação será EXCLUIR)
-   */
   isExcluido: boolean
-  /**
-   * Callback opcional para o pai refazer consulta / atualizar tela
-   */
   onFinished?: () => void
 }
 
@@ -36,6 +28,23 @@ export default function ExcluirModalOrcamento({
   onFinished,
 }: ExcluirModalOrcamentoProps) {
   const [loading, setLoading] = useState(false)
+  const finishingRef = useRef(false)
+
+  useEffect(() => {
+    if (!open) {
+      setLoading(false)
+      finishingRef.current = false
+
+      requestAnimationFrame(() => {
+        if (document.body.style.pointerEvents === "none") {
+          document.body.style.pointerEvents = ""
+        }
+        if (document.body.style.overflow === "hidden") {
+          document.body.style.overflow = ""
+        }
+      })
+    }
+  }, [open])
 
   const isReativar = !!isExcluido
   const actionLabel = isReativar ? "Reativar" : "Excluir"
@@ -47,18 +56,22 @@ export default function ExcluirModalOrcamento({
   const ringColor = isReativar ? "border-emerald-500" : "border-red-500"
   const iconColor = isReativar ? "text-emerald-500" : "text-red-500"
 
-  async function handleConfirm() {
-    if (!orcamentoId || loading) return
+  const safeClose = () => {
+    if (loading) return
+    onClose()
+  }
 
+  async function handleConfirm() {
+    if (!orcamentoId || loading || finishingRef.current) return
+
+    finishingRef.current = true
     setLoading(true)
+
     try {
       const res = await fetch("/api/Orcamentos/excluir", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: orcamentoId,
-          excluido: !isExcluido, // toggle
-        }),
+        body: JSON.stringify({ id: orcamentoId, excluido: !isExcluido }),
       })
 
       if (!res.ok) {
@@ -66,24 +79,25 @@ export default function ExcluirModalOrcamento({
         return
       }
 
-      toast.success(
-        !isExcluido
-          ? "Orçamento marcado como excluído."
-          : "Orçamento reativado com sucesso."
-      )
+      toast.success(!isExcluido ? "Orçamento marcado como excluído." : "Orçamento reativado com sucesso.")
 
-      onFinished?.()
-      onClose()
+      requestAnimationFrame(() => {
+        onClose()
+        setTimeout(() => {
+          onFinished?.()
+        }, 0)
+      })
     } catch (error) {
       console.error(error)
       toast.error("Erro de comunicação com o servidor.")
     } finally {
       setLoading(false)
+      finishingRef.current = false
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !loading && !v && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => (!v ? safeClose() : undefined)}>
       <DialogContent className="rounded-2xl p-6" style={{ width: "100%", maxWidth: 520 }}>
         <div className="flex justify-center">
           <div className={`rounded-full border-[6px] p-4 ${ringColor}`}>
@@ -97,9 +111,7 @@ export default function ExcluirModalOrcamento({
 
         <DialogHeader className="items-center mt-6">
           <DialogTitle
-            className={`text-lg font-semibold text-center ${
-              isReativar ? "text-emerald-700" : "text-red-700"
-            }`}
+            className={`text-lg font-semibold text-center ${isReativar ? "text-emerald-700" : "text-red-700"}`}
           >
             {title}
           </DialogTitle>
@@ -109,19 +121,10 @@ export default function ExcluirModalOrcamento({
 
         <DialogFooter className="mt-8 px-2">
           <div className="flex justify-between w-full gap-4">
-            <Button
-              variant="outline"
-              className="px-6"
-              disabled={loading}
-              onClick={onClose}
-            >
+            <Button variant="outline" className="px-6" disabled={loading} onClick={safeClose}>
               Cancelar
             </Button>
-            <Button
-              className="px-6"
-              onClick={handleConfirm}
-              disabled={loading || !orcamentoId}
-            >
+            <Button className="px-6" onClick={handleConfirm} disabled={loading || !orcamentoId}>
               {loading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               ) : isReativar ? (
