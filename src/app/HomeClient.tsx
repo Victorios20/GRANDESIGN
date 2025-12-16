@@ -232,6 +232,19 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const columns: MUIDataTableColumnDef[] = [
     {
+      name: "id",
+      label: "id",
+      options: {
+        sort: false,
+        filter: false,
+        searchable: false,
+        display: "excluded",
+        viewColumns: false,
+        download: false,
+        print: false,
+      },
+    },
+    {
       name: "obra",
       label: "",
       options: {
@@ -333,7 +346,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           const isExcluido = !!o.excluido
 
           return (
-            <div className="flex justify-end" data-no-row-nav>
+            <div
+              className="flex justify-end"
+              data-no-row-nav
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -342,12 +360,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     className="text-marromEscuro hover:bg-marromClaro/20"
                     aria-label="Ações"
                     data-no-row-nav
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <EllipsisVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-64" data-no-row-nav>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64"
+                  data-no-row-nav
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <DropdownMenuItem
                     className="cursor-pointer"
                     onSelect={async () => {
@@ -474,15 +500,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     sort: false,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
-
-    setRowProps: (_row, dataIndex) => ({
+    onRowClick: (rowData) => {
+      const id = Array.isArray(rowData) ? rowData[0] : null
+      if (id != null) router.push(`/orcamento/detalhes/${id}`)
+    },
+    setRowProps: () => ({
       className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
-      onClick: (e: React.MouseEvent<HTMLElement>) => {
-        const el = e.target as HTMLElement
-        if (el.closest("[data-no-row-nav]")) return
-        const id = (rows[dataIndex] as any)?.id
-        if (id != null) router.push(`/orcamento/detalhes/${id}`)
-      },
     }),
   }
 
