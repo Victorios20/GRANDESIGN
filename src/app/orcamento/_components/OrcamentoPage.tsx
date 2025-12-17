@@ -1204,7 +1204,17 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
             const madeirasSubtotal = subtotalMadeiras(madeirasNew)
             const materiaisSubtotal = subtotalGeral(materGNew)
-            const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
+            console.group("🟡 DEBUG Antes de calcularTotais")
+            console.log("madeirasNew:", madeirasNew)
+            console.log("materGNew:", materGNew)
+            console.log("telhasNew:", telhasNew)
+            console.groupEnd()
+
+            const { maoDeObra, empresaGD } = calcularTotais({
+                madeiras: madeirasNew,
+                materiais: materGNew,
+                telhas: telhasNew
+            })
 
             setTotEdit({
                 madeiras: madeirasSubtotal,
