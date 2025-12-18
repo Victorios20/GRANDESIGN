@@ -62,39 +62,45 @@ export default function ExcluirModalOrcamento({
   }
 
   async function handleConfirm() {
-    if (!orcamentoId || loading || finishingRef.current) return
+  if (!orcamentoId || loading || finishingRef.current) return
 
-    finishingRef.current = true
-    setLoading(true)
+  finishingRef.current = true
+  setLoading(true)
 
-    try {
-      const res = await fetch("/api/Orcamentos/excluir", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: orcamentoId, excluido: !isExcluido }),
-      })
+  try {
+    const res = await fetch("/api/Orcamentos/excluir", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: orcamentoId, excluido: !isExcluido }),
+    })
 
-      if (!res.ok) {
-        toast.error("Erro ao atualizar status do orçamento.")
-        return
-      }
-
-      toast.success(!isExcluido ? "Orçamento marcado como excluído." : "Orçamento reativado com sucesso.")
-
-      requestAnimationFrame(() => {
-        onClose()
-        setTimeout(() => {
-          onFinished?.()
-        }, 0)
-      })
-    } catch (error) {
-      console.error(error)
-      toast.error("Erro de comunicação com o servidor.")
-    } finally {
-      setLoading(false)
-      finishingRef.current = false
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      toast.error(data?.error || "Erro ao atualizar status do orçamento.")
+      return
     }
+
+    toast.success(
+      !isExcluido
+        ? "Orçamento marcado como excluído."
+        : "Orçamento reativado com sucesso."
+    )
+
+    requestAnimationFrame(() => {
+      onClose()
+      setTimeout(() => {
+        onFinished?.()
+      }, 0)
+    })
+  } catch (error) {
+    console.error(error)
+    toast.error("Erro de comunicação com o servidor.")
+  } finally {
+    setLoading(false)
+    finishingRef.current = false
   }
+}
+
 
   return (
     <Dialog open={open} onOpenChange={(v) => (!v ? safeClose() : undefined)}>

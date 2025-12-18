@@ -28,7 +28,6 @@ function isExpired(exp?: number | null) {
 }
 
 function clearNextAuthCookies(res: NextResponse) {
-  // Nomes possíveis de cookies do NextAuth (dev/prod, secure/não-secure)
   const names = [
     "__Secure-next-auth.session-token",
     "next-auth.session-token",
@@ -46,31 +45,24 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl
   const method = req.method?.toUpperCase()
 
-  // bypass opcional p/ SSR helper
   if (req.headers.get("x-internal-ssr") === "1") {
     return NextResponse.next()
   }
 
-  // assets públicos
   if (isPublicAsset(pathname)) return NextResponse.next()
 
-  // NextAuth (signin/callback etc) sempre liberado
   if (pathname.startsWith("/api/auth")) return NextResponse.next()
 
-  // exemplo de endpoint público POST (se precisar)
   if (pathname === "/api/users" && method === "POST") return NextResponse.next()
 
-  // GET públicos exatos
   if (isExactPublicApiGet(req)) return NextResponse.next()
 
-  // Daqui pra baixo: tudo exige auth
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
   const token = await getToken({ req, secret })
 
   const isApi = pathname.startsWith("/api/")
   const isLogin = pathname === LOGIN_PATH
 
-  // Sem token ou token expirado => trata como não autenticado
   if (!token || isExpired((token as any).exp)) {
     if (isApi) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
@@ -78,6 +70,7 @@ export async function middleware(req: NextRequest) {
         headers: { "content-type": "application/json" },
       })
     }
+
     if (isLogin) return NextResponse.next()
 
     const url = req.nextUrl.clone()
@@ -89,7 +82,21 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
-  // Se quiser checar roles, faça aqui com base no token
+  // 🔒 BLOQUEIO DE EXCLUSÃO DE ORÇAMENTO
+  if (pathname === "/api/Orcamentos/excluir" && method === "PATCH") {
+    const roles = (token as { roles?: string[] }).roles ?? []
+
+    if (!roles.includes("ADMIN") && !roles.includes("DEV")) {
+      return new NextResponse(
+        JSON.stringify({ error: "Você não tem permissão para excluir um orçamento" }),
+        {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        }
+      )
+    }
+  }
+
   return NextResponse.next()
 }
 
