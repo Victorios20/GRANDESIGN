@@ -1207,71 +1207,82 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }
 
     const calcular = async (): Promise<void> => {
-        if (!tipoObra || loadingCalc) return
-        setLoadingCalc(true)
-        try {
-            let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
+    if (!tipoObra || loadingCalc) return
+    setLoadingCalc(true)
+    try {
+        let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
-            if (isCobertaL) {
-                resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
-                    larguraMaior: dim.larguraMaior,
-                    comprimentoMaior: dim.comprimentoMaior,
-                    larguraMenor: dim.larguraMenor,
-                    comprimentoMenor: dim.comprimentoMenor,
-                    fornecedorId: Number(fornecedorSel),
-                })
-            } else {
-                resultado = await calcularMateriais(
-                    tipoObra,
-                    dim.largura,
-                    dim.comprimento,
-                    { fornecedorId: Number(fornecedorSel) }
-                )
-            }
-
-            const { madeira, materiais: mats, telhas } = resultado
-
-            const mapRow = (r: MaterialCalculado, i: number): Material => ({
-                id: Date.now() + i + Math.random(),
-                nome: r.descricao,
-                componente: r.componente,
-                quantidade: r.quantidade,
-                preco: r.preco_unitario,
-                tamanho: r.tamanho,
-                frete: r.frete ?? 0,
+        if (isCobertaL) {
+            resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
+                larguraMaior: dim.larguraMaior,
+                comprimentoMaior: dim.comprimentoMaior,
+                larguraMenor: dim.larguraMenor,
+                comprimentoMenor: dim.comprimentoMenor,
+                fornecedorId: Number(fornecedorSel),
             })
-
-            const madeirasNew = madeira.map(mapRow)
-            const materGNew = mats.map(mapRow)
-            let telhasNew = telhas.map(mapRow)
-
-
-            telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
-
-            setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
-
-            const madeirasSubtotal = subtotalMadeiras(madeirasNew)
-            const materiaisSubtotal = subtotalGeral(materGNew)
-            const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
-
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,              // permanece manual/independente
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
-
-            toast.success("Cálculo concluído com sucesso!")
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
-            toast.error(message)
-            console.error(err)
-        } finally {
-            setLoadingCalc(false)
+        } else {
+            resultado = await calcularMateriais(
+                tipoObra,
+                dim.largura,
+                dim.comprimento,
+                { fornecedorId: Number(fornecedorSel) }
+            )
         }
+
+        const { madeira, materiais: mats, telhas } = resultado
+
+        const mapRow = (r: MaterialCalculado, i: number): Material => ({
+            id: Date.now() + i + Math.random(),
+            nome: r.descricao,
+            componente: r.componente,
+            quantidade: r.quantidade,
+            preco: r.preco_unitario,
+            tamanho: r.tamanho,
+            frete: r.frete ?? 0,
+        })
+
+        const madeirasNew = madeira.map(mapRow)
+        const materGNew = mats.map(mapRow)
+        let telhasNew = telhas.map(mapRow)
+
+        telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
+
+        setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
+
+        const madeirasSubtotal = subtotalMadeiras(madeirasNew)
+        const materiaisSubtotal = subtotalGeral(materGNew)
+
+        console.group("🟡 DEBUG Antes de calcularTotais")
+        console.log("madeirasNew:", madeirasNew)
+        console.log("materGNew:", materGNew)
+        console.log("telhasNew:", telhasNew)
+        console.groupEnd()
+
+        const { maoDeObra, empresaGD } = calcularTotais({
+            madeiras: madeirasNew,
+            materiais: materGNew,
+            telhas: telhasNew
+        })
+
+        setTotEdit({
+            madeiras: madeirasSubtotal,
+            materiais: materiaisSubtotal,
+            comissao: 0,
+            frete: 0,
+            empresaPS: maoDeObra,
+            empresaGD: empresaGD,
+        })
+
+        toast.success("Cálculo concluído com sucesso!")
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
+        toast.error(message)
+        console.error(err)
+    } finally {
+        setLoadingCalc(false)
     }
+}
+
 
 
     /* --------------------------- Edição inline --------------------------- */
@@ -2054,66 +2065,66 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     </CardContent>
 
                     {/* Linha da Etapa 1: Status (esquerda) + Ação única (direita) */}
-<div className="p-4 pt-0 flex items-center justify-between gap-3">
-  {/* ESQUERDA: status do cliente */}
-  <Button
-    id={FIELD_IDS.cadastrarCliente}
-    type="button"
-    variant="outline"
-    disabled
-    className={[
-      "min-w-[200px] justify-start disabled:opacity-100 disabled:cursor-default",
-      clienteId
-        ? "border-emerald-500 text-emerald-600 bg-white"
-        : "border-red-500 text-red-600 bg-white",
-    ].join(" ")}
-    title={clienteId ? "Cliente associado" : "Nenhum cliente associado"}
-  >
-    {clienteId ? (
-      <>
-        <UserCheck className="h-4 w-4 mr-2 text-emerald-600" />
-        <span className="text-emerald-600">Cliente associado</span>
-      </>
-    ) : (
-      <>
-        <UserPlus className="h-4 w-4 mr-2 text-red-600" />
-        <span className="text-red-600">Sem cliente</span>
-      </>
-    )}
-  </Button>
+                    <div className="p-4 pt-0 flex items-center justify-between gap-3">
+                        {/* ESQUERDA: status do cliente */}
+                        <Button
+                            id={FIELD_IDS.cadastrarCliente}
+                            type="button"
+                            variant="outline"
+                            disabled
+                            className={[
+                                "min-w-[200px] justify-start disabled:opacity-100 disabled:cursor-default",
+                                clienteId
+                                    ? "border-emerald-500 text-emerald-600 bg-white"
+                                    : "border-red-500 text-red-600 bg-white",
+                            ].join(" ")}
+                            title={clienteId ? "Cliente associado" : "Nenhum cliente associado"}
+                        >
+                            {clienteId ? (
+                                <>
+                                    <UserCheck className="h-4 w-4 mr-2 text-emerald-600" />
+                                    <span className="text-emerald-600">Cliente associado</span>
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="h-4 w-4 mr-2 text-red-600" />
+                                    <span className="text-red-600">Sem cliente</span>
+                                </>
+                            )}
+                        </Button>
 
-  {/* DIREITA: ação única (criar / editar) */}
-  <Button
-    type="button"
-    size="sm"
-    className="min-w-[160px]"
-    variant={clienteId ? "secondary" : "outline"}
-    onClick={() => {
-      if (clienteId) openClienteModalEdit()
-      else openClienteModalCreate()
-    }}
-    disabled={isSavingClient}
-    aria-busy={isSavingClient ? "true" : "false"}
-    title={clienteId ? "Editar o cliente associado" : "Cadastrar/associar cliente"}
-  >
-    {isSavingClient ? (
-      <>
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        Abrindo...
-      </>
-    ) : clienteId ? (
-      <>
-        <Edit className="h-4 w-4 mr-2" />
-        Editar cliente
-      </>
-    ) : (
-      <>
-        <UserPlus className="h-4 w-4 mr-2" />
-        Cadastrar cliente
-      </>
-    )}
-  </Button>
-</div>
+                        {/* DIREITA: ação única (criar / editar) */}
+                        <Button
+                            type="button"
+                            size="sm"
+                            className="min-w-[160px]"
+                            variant={clienteId ? "secondary" : "outline"}
+                            onClick={() => {
+                                if (clienteId) openClienteModalEdit()
+                                else openClienteModalCreate()
+                            }}
+                            disabled={isSavingClient}
+                            aria-busy={isSavingClient ? "true" : "false"}
+                            title={clienteId ? "Editar o cliente associado" : "Cadastrar/associar cliente"}
+                        >
+                            {isSavingClient ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Abrindo...
+                                </>
+                            ) : clienteId ? (
+                                <>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Editar cliente
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="h-4 w-4 mr-2" />
+                                    Cadastrar cliente
+                                </>
+                            )}
+                        </Button>
+                    </div>
 
                 </Card>
 
