@@ -11,7 +11,10 @@ const LOGIN_PATH = "/login"
 function isExactPublicApiGet(req: NextRequest) {
   if (req.method?.toUpperCase() !== "GET") return false
   const lower = req.nextUrl.pathname.toLowerCase()
-  return lower === "/api/bairros" || lower === "/api/orcamentos"
+  if (lower === "/api/bairros") return true
+
+  // sÇ½ liberaÇãÇûo pÇ°blico do GET /api/Orcamentos/[id]
+  return lower.startsWith("/api/orcamentos/")
 }
 
 function isPublicAsset(pathname: string) {
