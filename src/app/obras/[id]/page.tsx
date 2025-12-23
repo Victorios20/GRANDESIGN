@@ -1,4 +1,3 @@
-// app/obras/[id]/page.tsx
 import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
@@ -297,6 +296,15 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     ordemServico: String(dto?.anexos?.ordemServico ?? ""),
   }
 
+  // ✅ ID da Ordem de Serviço (para montar /ordemServico/{id} no Anexos depois)
+  const ordemServicoIdRaw =
+    (dto as any)?.ordemServico?.id ??
+    (dto as any)?.ordemServico?.ordemServicoId ??
+    (dto as any)?.ordem_servico?.id
+
+  const ordemServicoId =
+    Number.isFinite(Number(ordemServicoIdRaw)) ? Number(ordemServicoIdRaw) : null
+
   // ===== Financeiro -> FinanceiroVM =====
   const fin = (dto as any)?.financeiro ?? {}
   const financeiroInit = {
@@ -412,6 +420,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       financeiroInit={financeiroInit}
       execucaoInit={execucaoInit}
       cidades={cidades}
+      ordemServicoId={ordemServicoId}
     />
   )
 }

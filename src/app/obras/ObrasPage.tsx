@@ -50,6 +50,7 @@ type Props = {
   mode: "new" | "view"
   obraId?: number
   orcamentoId?: number
+  ordemServicoId?: number | null
   initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }
   tiposObraOptions: Option[]
   telhaOptions: Option[]
@@ -196,7 +197,6 @@ function showApiError(err: any) {
   const code = err?.code || "UNKNOWN"
   const desc = err?.description || err?.message
   toast.error(`${title} (${code})`)
-  // eslint-disable-next-line no-console
   console.error("[ObrasPage] API error", { title, code, description: desc, raw: err })
 }
 
@@ -204,6 +204,7 @@ export default function ObrasPage({
   mode,
   obraId,
   orcamentoId,
+  ordemServicoId,
   initial,
   tiposObraOptions,
   telhaOptions,
@@ -564,7 +565,6 @@ export default function ObrasPage({
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
 
-        // eslint-disable-next-line no-console
         console.log("[Obras] Payload de criação enviado ao back:", payload)
 
         const r = await createObra(payload)
@@ -716,7 +716,6 @@ export default function ObrasPage({
 
   const propostaLinkFinal = anexosInit?.proposta ?? ""
   const contratoLinkFinal = anexosInit?.contrato ?? ""
-  const ordemServicoLinkFinal = anexosInit?.ordemServico ?? ""
 
   return (
     <PageLayout
@@ -824,9 +823,10 @@ export default function ObrasPage({
         <Anexos
           mode={mode}
           orcamentoLink={orcamentoLinkFinal}
+          orcamentoId={orcamentoId ?? null}
           propostaLink={propostaLinkFinal}
           contratoLink={contratoLinkFinal}
-          ordemServicoLink={ordemServicoLinkFinal}
+          ordemServicoId={ordemServicoId ?? null}
         />
       </div>
     </PageLayout>
