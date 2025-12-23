@@ -237,7 +237,6 @@ export type CriarObraResult = {
   pedidos: { telhaId: number; madeiraId: number; materiaisId: number; andaimesId: number }
 }
 
-/* ===== VMs ===== */
 export type ObraInfosVM = {
   titulo?: string
   tipoObra: string | null
@@ -245,10 +244,19 @@ export type ObraInfosVM = {
   comprimento: number | null
   telhaEscolhida: string
   status: ObraStatus
-  cliente: { nome: string; telefone?: string | null; cpf?: string | null; bairro?: string | null; cidade?: string | null }
+  cliente: {
+    id?: number
+    nome: string
+    telefone?: string | null
+    cpf?: string | null
+    bairro?: string | null
+    cidadeId?: number | null
+    cidade?: string | null
+  }
   endereco: { logradouro: string; bairro: string; cidade: string; mapsUrl: string }
   observacoes?: string | null
 }
+
 
 export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
 

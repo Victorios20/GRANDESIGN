@@ -30,17 +30,27 @@ type Option = { value: string; label: string }
 function mapObraStatus(raw: unknown): ObraStatus {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "ASSINATURA_DE_CONTRATO": return "Assinatura de contrato"
-    case "AGUARDANDO_VALIDACAO_TECNICA": return "Aguardando validação técnica"
-    case "COMPRAS": return "Compras"
-    case "A_INICIAR": return "À iniciar"
-    case "EXECUCAO": return "Execução"
-    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
-    case "PENDENCIA": return "Pendência"
-    case "FINALIZADO": return "Finalizado"
-    default: return "Assinatura de contrato"
+    case "ASSINATURA_DE_CONTRATO":
+      return "Assinatura de contrato"
+    case "AGUARDANDO_VALIDACAO_TECNICA":
+      return "Aguardando validação técnica"
+    case "COMPRAS":
+      return "Compras"
+    case "A_INICIAR":
+      return "À iniciar"
+    case "EXECUCAO":
+      return "Execução"
+    case "AGUARDANDO_PAGAMENTO":
+      return "Aguardando pagamento"
+    case "PENDENCIA":
+      return "Pendência"
+    case "FINALIZADO":
+      return "Finalizado"
+    default:
+      return "Assinatura de contrato"
   }
 }
+
 function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   const s = String(raw ?? "").trim().toLowerCase()
   if (!s) return null
@@ -51,36 +61,73 @@ function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   if (s === "16x") return "16x"
   return null
 }
+
 function mapStatusPagamento(raw: unknown): PagamentoStatus {
   const s = String(raw ?? "").trim().toUpperCase()
   return s === "EFETUADO" ? "Efetuado" : "Pendente"
 }
+
 function mapPedidoStatusPadrao(raw: unknown): PedidoStatusPadrao {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
-    case "PEDIDO_FEITO": return "Pedido feito"
-    case "ENTREGUE": return "Entregue"
-    default: return "Pendente"
+    case "AGUARDANDO_PAGAMENTO":
+      return "Aguardando pagamento"
+    case "PEDIDO_FEITO":
+      return "Pedido feito"
+    case "ENTREGUE":
+      return "Entregue"
+    default:
+      return "Pendente"
   }
 }
+
 function mapPedidoStatusMateriais(raw: unknown): PedidoStatusMateriais {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "EM_ESTOQUE": return "Em estoque"
-    case "ENTREGUE": return "Entregue"
-    default: return "Pendente"
+    case "EM_ESTOQUE":
+      return "Em estoque"
+    case "ENTREGUE":
+      return "Entregue"
+    default:
+      return "Pendente"
   }
 }
+
 function mapPedidoStatusAndaimes(raw: unknown): PedidoStatusAndaimes {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "PEDIDO_FEITO": return "Pedido feito"
-    case "ENTREGUE": return "Entregue"
-    case "A_COLETAR": return "À coletar"
-    case "COLETADO": return "Coletado"
-    default: return "Pendente"
+    case "PEDIDO_FEITO":
+      return "Pedido feito"
+    case "ENTREGUE":
+      return "Entregue"
+    case "A_COLETAR":
+      return "À coletar"
+    case "COLETADO":
+      return "Coletado"
+    default:
+      return "Pendente"
   }
+}
+
+type CidadeRow = { id: number; nome: string }
+
+function normalizeCidades(payload: unknown): CidadeRow[] {
+  const arr =
+    (payload as any)?.data ??
+    (payload as any)?.items ??
+    (payload as any)?.rows ??
+    payload
+
+  if (!Array.isArray(arr)) return []
+
+  return arr
+    .map((c: any) => {
+      const idNum = Number(c?.id)
+      const nome = String(c?.nome ?? "").trim()
+      if (!Number.isFinite(idNum) || !nome) return null
+      return { id: idNum, nome }
+    })
+    .filter(Boolean) as CidadeRow[]
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -94,38 +141,52 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base = `${proto}://${host}`
 
-  // Obra + Tipos + Catálogos + Fornecedores + Equipes
-  const [resObra, resTipos, componentes, geraisDB, telhasDB, resFornMadeira, resFornAndaimes, resEquipes] =
-    await Promise.all([
-      fetch(`${base}/api/obras/${obraId}/detalhado`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      listarComponentesDB(),
-      listarMateriaisGerais(),
-      listarTelhas(),
-      fetch(`${base}/api/fornecedores?tipo=madeira`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/fornecedores?tipo=andaimes`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/equipes?page=1&pageSize=200`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-    ])
+  // Obra + Tipos + Catálogos + Fornecedores + Equipes + Cidades
+  const [
+    resObra,
+    resTipos,
+    componentes,
+    geraisDB,
+    telhasDB,
+    resFornMadeira,
+    resFornAndaimes,
+    resEquipes,
+    resCidades,
+  ] = await Promise.all([
+    fetch(`${base}/api/obras/${obraId}/detalhado`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    listarComponentesDB(),
+    listarMateriaisGerais(),
+    listarTelhas(),
+    fetch(`${base}/api/fornecedores?tipo=madeira`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/fornecedores?tipo=andaimes`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/equipes?page=1&pageSize=200`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/cidades`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+  ])
 
   if (!resObra.ok) notFound()
 
@@ -136,10 +197,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   // eslint-disable-next-line no-console
   console.log("[/obras/[id]] DTO recebido:", JSON.stringify(dto, null, 2))
 
+  const cidadesRaw = await resCidades.json().catch(() => [])
+  const cidades = normalizeCidades(cidadesRaw)
+  const cidadeMap = new Map<number, string>(cidades.map((c) => [c.id, c.nome]))
+
   const tiposRaw = await resTipos.json().catch(() => null)
-  const tiposObraOptions: Option[] = Array.isArray(
-    tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw
-  )
+  const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
         .map((x: any) => {
           const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
@@ -154,6 +217,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
+  const cidadeIdDTO = dto?.cliente?.cidade?.id ?? null
+  const cidadeNomeDTO = dto?.cliente?.cidade?.nome ?? null
+  const cidadeNomeFinal =
+    (cidadeNomeDTO ? String(cidadeNomeDTO).trim() : "") ||
+    (Number.isFinite(Number(cidadeIdDTO)) && cidadeIdDTO != null ? cidadeMap.get(Number(cidadeIdDTO)) ?? "" : "")
+
   // ===== Infos Gerais =====
   const initial: Partial<ObraInfosVM> = {
     titulo: dto.titulo ?? "",
@@ -163,16 +232,18 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
     status: mapObraStatus(dto.dadosObra?.status),
     cliente: {
+      id: dto.cliente?.id ?? undefined,
       nome: dto.cliente?.nome ?? "",
       telefone: dto.cliente?.telefone ?? "",
       cpf: dto.cliente?.cpf ?? "",
       bairro: dto.cliente?.bairro ?? "",
-      cidade: dto.cliente?.cidade?.nome ?? "",
+      cidadeId: dto.cliente?.cidade?.id ?? null,
+      cidade: cidadeNomeFinal || "",
     },
     endereco: {
       logradouro: dto.dadosObra?.endereco ?? "",
       bairro: dto.cliente?.bairro ?? "",
-      cidade: dto.cliente?.cidade?.nome ?? "",
+      cidade: cidadeNomeFinal || "",
       mapsUrl: dto.dadosObra?.mapsUrl ?? "",
     },
     observacoes: dto.dadosObra?.observacoes ?? null,
@@ -200,12 +271,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
   const fornecedoresAndaimesJson = await resFornAndaimes.json().catch(() => [])
 
-  const fornecedoresMadeiraOptions: Option[] = toOptions(
-    (fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson
-  )
-  const fornecedoresAndaimesOptions: Option[] = toOptions(
-    (fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson
-  )
+  const fornecedoresMadeiraOptions: Option[] = toOptions((fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson)
+  const fornecedoresAndaimesOptions: Option[] = toOptions((fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson)
 
   // Equipes -> Options
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
@@ -221,8 +288,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   // ===== Anexos (VIEW/EDIT)
   const orcId = dto?.orcamento?.id
-  const orcamentoLink =
-    Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
+  const orcamentoLink = Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
 
   const anexosInit = {
     orcamento: orcamentoLink,
@@ -324,7 +390,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
         }
       : {
-          // se não existe OS, ao menos pré-seleciona a equipe da obra
           equipeId: dto?.equipe?.id ?? null,
           dataPrevInicio: null,
           dataPrevConclusao: null,
@@ -346,6 +411,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       anexosInit={anexosInit}
       financeiroInit={financeiroInit}
       execucaoInit={execucaoInit}
+      cidades={cidades}
     />
   )
 }

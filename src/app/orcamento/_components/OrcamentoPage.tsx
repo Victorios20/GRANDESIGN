@@ -75,7 +75,7 @@ import {
 } from "@/components/ui/command"
 
 
-import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
+import ModalSucessoProposta from "@/components/modals/ModalSucessoProposta"
 
 import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
 
