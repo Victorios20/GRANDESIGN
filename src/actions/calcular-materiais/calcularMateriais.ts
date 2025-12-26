@@ -8,8 +8,6 @@ import {
   type MaterialRow,
 } from "./calcularMateriais-db"
 
-
-
 /* ================= Tipos ================= */
 
 export interface MaterialCalculado {
@@ -21,11 +19,11 @@ export interface MaterialCalculado {
   frete?: number
 }
 
-const ceil       = Math.ceil
-const HALF       = 0.5
+const ceil = Math.ceil
+const HALF = 0.5
 const ROUND_HALF = (v: number) => ceil(v / HALF) * HALF
-const ROUND_INT  = (v: number) => ceil(v)
-const toStr      = (v: number) => v.toFixed(1).replace(".", ",")
+const ROUND_INT = (v: number) => ceil(v)
+const toStr = (v: number) => v.toFixed(1).replace(".", ",")
 
 interface BaseRow {
   descricao: string
@@ -38,9 +36,9 @@ interface MadeiraRow extends BaseRow {
 }
 
 type Resultado = {
-  madeira:   MaterialCalculado[]
+  madeira: MaterialCalculado[]
   materiais: MaterialCalculado[]
-  telhas:    MaterialCalculado[]
+  telhas: MaterialCalculado[]
 }
 
 type CobertaLOpts = {
@@ -68,7 +66,6 @@ export async function calcularMateriais(
     throw new Error("fornecedorId obrigatório")
   }
 
-
   // Detecta Coberta em L (aceita "Coberta em L" e "Coberta em L - Linha na Parede 15")
   if (/^Coberta em L/i.test(tipoNorm)) {
     const tipoBaseL = tipoNorm.replace(/^Coberta em L\s*-\s*/i, "").trim()
@@ -85,7 +82,7 @@ export async function calcularMateriais(
       throw new Error("Coberta em L: informe largura/comprimento MAIOR e MENOR.")
     }
 
-  return calcularMateriaisCobertaL(base, L.LMaior, L.CMaior, L.LMenor, L.CMenor, fornecedorId)
+    return calcularMateriaisCobertaL(base, L.LMaior, L.CMaior, L.LMenor, L.CMenor, fornecedorId)
   }
 
   // Fluxo normal (compatível com chamadas antigas)
@@ -104,7 +101,6 @@ async function calcularMateriaisNormal(
   comprimento: number,
   fornecedorId: number,
 ): Promise<Resultado> {
-
   const madeiraRaw: MadeiraRow[] = []
   const materiaisRaw: BaseRow[] = []
   const telhasRaw: BaseRow[] = []
@@ -113,9 +109,9 @@ async function calcularMateriaisNormal(
   let adicionouSextavado = false
 
   const area = largura * ROUND_HALF(comprimento + 0.5)
-  const largArred  = ROUND_HALF(largura)
-  const compArred  = ROUND_HALF(comprimento)
-  const espessura  = tipoNorm.includes("11,5") ? "11,5cm" : "15cm"
+  const largArred = ROUND_HALF(largura)
+  const compArred = ROUND_HALF(comprimento)
+  const espessura = tipoNorm.includes("11,5") ? "11,5cm" : "15cm"
 
   const add = (descricao: string, componente: string, qtd: number, tam: number) => {
     if (qtd <= 0) return
@@ -125,6 +121,11 @@ async function calcularMateriaisNormal(
     if (qtd <= 0) return
     materiaisRaw.push({ descricao, componente: "", quantidade: qtd })
   }
+
+  /* ------------------ Tipos auxiliares (NOVOS) ------------------ */
+  const isCorredorQuedaLateral = /^Corredor Queda Lateral/i.test(tipoNorm)
+  const isCorredorQuedaFrontal = /^Corredor Queda Frontal/i.test(tipoNorm)
+  const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaFrontal
 
   /* ------------------ Lógica principal ------------------ */
   switch (true) {
@@ -171,7 +172,29 @@ async function calcularMateriaisNormal(
       break
     }
 
+    // Base existente: Caibro e Ripa (agora também será reaproveitada pelos corredores)
     case /^Caibro e Ripa/i.test(tipoNorm): {
+      break
+    }
+
+    // ===== NOVOS TIPOS =====
+    case /^Corredor Queda Lateral/i.test(tipoNorm): {
+      // cai no bloco comum (madeira comum) com regras específicas:
+      // segue Caibro e Ripa, mas sem pranchão e sem pontalete
+      break
+    }
+
+    case /^Corredor Queda Frontal/i.test(tipoNorm): {
+      // 1) Terças adicionais (a cada 1m no comprimento): Linha 11,5cm de 1,0m
+      const qtdTercas = Math.max(0, ROUND_INT(comprimento))
+      add("Linha 11,5cm", "Terça", qtdTercas, 1.0)
+
+      // 2) Parafuso sextavado para essas terças: 2 por peça + 2 de sobra
+      const qtdSext = qtdTercas * 2 + 2
+      if (qtdSext > 0) {
+        addMaterial("Parafuso Sextavado", qtdSext)
+        adicionouSextavado = true
+      }
       break
     }
 
@@ -181,24 +204,24 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Madeira comum ------------------ */
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
-    const isCaibroRipa         = /^Caibro e Ripa/i.test(tipoNorm)
-    const isLinhaParede        = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
-    const isLinhaParedeComCol  = /^Linha na Parede \+ Coluna/i.test(tipoNorm)
+    const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
+    const isCaibroRipa = isCaibroRipaBase || isCorredorQueda // corredores seguem lógica de caibro e ripa
+    const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
+    const isLinhaParedeComCol = /^Linha na Parede \+ Coluna/i.test(tipoNorm)
 
     // ===== PRANCHÃO =====
+    // Regra NOVA: nos corredores queda (lateral/frontal), NÃO vai pranchão nem pontalete
     if (isCaibroRipa) {
-      // Pranchão 25 cm a cada 2 m (sem limitação de quantidade)
-      const qtdPranchao20 = ROUND_INT(comprimento / 2)
-      if (qtdPranchao20 > 0) add("Linha 25cm", "Pranchão", qtdPranchao20, largArred)
+      if (!isCorredorQueda) {
+        // Pranchão 25 cm a cada 2 m (sem limitação de quantidade)
+        const qtdPranchao20 = ROUND_INT(comprimento / 2)
+        if (qtdPranchao20 > 0) add("Linha 25cm", "Pranchão", qtdPranchao20, largArred)
 
-      // NOVA REGRA: 2 pontaletes por pranchão (sem limite)
-      const qtdPontalete = qtdPranchao20 * 2
-      if (qtdPontalete > 0) add(`Linha ${espessura}`, "Pontalete", qtdPontalete, 2.5)
-
-      // Sem linha na parede local e sem sextavado local.
-      // O sextavado será calculado no bloco genérico, com base nos pontaletes somados aqui.
+        // 2 pontaletes por pranchão (sem limite)
+        const qtdPontalete = qtdPranchao20 * 2
+        if (qtdPontalete > 0) add(`Linha ${espessura}`, "Pontalete", qtdPontalete, 2.5)
+      }
     } else {
-
       const pranchaoBase = comprimento >= 6 ? 3 : 2
       const pranchaoEfetivo = (isLinhaParede || isLinhaParedeComCol)
         ? Math.max(0, pranchaoBase - 1)
@@ -208,13 +231,13 @@ async function calcularMateriaisNormal(
 
     // ===== PONTALETE =====
     if (!isCaibroRipa && isLinhaParede) {
-      const pranchaoBase      = comprimento >= 6 ? 3 : 2
+      const pranchaoBase = comprimento >= 6 ? 3 : 2
       const pranchaoEfetivoLP = Math.max(0, pranchaoBase - 1)
       if (pranchaoEfetivoLP > 0) add(`Linha ${espessura}`, "Pontalete", pranchaoEfetivoLP * 2, 2.5)
     }
 
     // ===== TERÇAS =====
-    // ===== TERÇAS ===== (não aplica para Caibro e Ripa)
+    // não aplica para Caibro e Ripa (inclui corredores)
     if (!isCaibroRipa) {
       let tipoTerca = "Linha 11,5cm"
       const hasThreePranchao = (comprimento >= 6)
@@ -261,7 +284,7 @@ async function calcularMateriaisNormal(
     const temLinhaParede = madeiraRaw.some(m => m.componente === "Linha na Parede")
 
     let qtdSextavado = 0
-    if (qtdPontal)      qtdSextavado += qtdPontal * 3
+    if (qtdPontal) qtdSextavado += qtdPontal * 3
     if (temLinhaParede) qtdSextavado += ROUND_INT(largura)
     if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
   }
@@ -269,10 +292,10 @@ async function calcularMateriaisNormal(
   /* ------------------ Telhas ------------------ */
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
     const formulas = {
-      Romana:    { factor: 17, offset: 10 },
+      Romana: { factor: 17, offset: 10 },
       Americana: { factor: 12, offset: 10 },
-      Colonial:  { factor: 33, offset: 10 },
-      Maxxi:     { factor: 8,  offset: 10 },
+      Colonial: { factor: 33, offset: 10 },
+      Maxxi: { factor: 8, offset: 10 },
     } as const
 
     ;(Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
@@ -313,11 +336,21 @@ async function calcularMateriaisNormal(
   }
 
   const ordemMadeira = [
-    "Linha na Parede", "Colunas Traseiras", "Colunas Frontais",
-    "Coluna", "Pranchão", "Pontalete",
-    "Travessa", "Pérgola", "Terças",
-    "Caibros", "Ripas", "Beiral"
+    "Linha na Parede",
+    "Colunas Traseiras",
+    "Colunas Frontais",
+    "Coluna",
+    "Pranchão",
+    "Pontalete",
+    "Travessa",
+    "Pérgola",
+    "Terças",
+    "Terça", // <-- era "Emenda"
+    "Caibros",
+    "Ripas",
+    "Beiral",
   ] as const
+
   type ComponenteOrdem = typeof ordemMadeira[number]
   const ordenarMadeiras = (a: MadeiraRow, b: MadeiraRow) => {
     const iA = ordemMadeira.indexOf(a.componente as ComponenteOrdem)
@@ -325,9 +358,9 @@ async function calcularMateriaisNormal(
     return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB)
   }
 
-  const madeiraAgrup   = agrupar(madeiraRaw).sort(ordenarMadeiras) as MadeiraRow[]
+  const madeiraAgrup = agrupar(madeiraRaw).sort(ordenarMadeiras) as MadeiraRow[]
   const materiaisAgrup = agrupar(materiaisRaw)
-  const telhasAgrup    = agrupar(telhasRaw)
+  const telhasAgrup = agrupar(telhasRaw)
 
   const descricoesBusca = [...madeiraAgrup, ...materiaisAgrup, ...telhasAgrup]
     .map(r => r.descricao)
@@ -356,17 +389,14 @@ async function calcularMateriaisNormal(
   })
 
   return {
-    madeira:   madeiraAgrup.map(toCalc),
+    madeira: madeiraAgrup.map(toCalc),
     materiais: materiaisAgrup.map(toCalc),
-    telhas:    telhasAgrup.map(toCalc),
+    telhas: telhasAgrup.map(toCalc),
   }
 }
 
 /* ============================================================
  *          IMPLEMENTAÇÃO – COBERTA EM L (coluna na frente)
- *          Componentes:
- *          Pontalete, Pranchão(maior/menor), Terça(maior/menor),
- *          Caibro(maior/menor), Beiral(maior/menor/meio)
  * ============================================================ */
 export async function calcularMateriaisCobertaL(
   tipoBase: string,
@@ -417,7 +447,7 @@ export async function calcularMateriaisCobertaL(
 
   /* ---------- 5) Beirais ---------- */
   add("Beiral Trab. 15cm", "Beiral (maior)", 1, LMaior + 0.5)
-  add("Beiral Trab. 15cm", "Beiral (meio)",  1, (CMaior - CMenor) + 0.5)
+  add("Beiral Trab. 15cm", "Beiral (meio)", 1, (CMaior - CMenor) + 0.5)
 
   /* ---------- 6) Coluna fixa na Coberta em L ---------- */
   const qtdColunas = 1
@@ -436,10 +466,10 @@ export async function calcularMateriaisCobertaL(
   const areaComPerda = (area1 + area2) * 1.08
 
   const formulas = {
-    Romana:    { factor: 17, offset: 10 },
+    Romana: { factor: 17, offset: 10 },
     Americana: { factor: 12, offset: 10 },
-    Colonial:  { factor: 33, offset: 10 },
-    Maxxi:     { factor: 8,  offset: 10 },
+    Colonial: { factor: 33, offset: 10 },
+    Maxxi: { factor: 8, offset: 10 },
   } as const
 
   ;(Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
@@ -470,6 +500,7 @@ export async function calcularMateriaisCobertaL(
     "Caibros", "Caibro (maior)", "Caibro (menor)",
     "Beiral", "Beiral (maior)", "Beiral (meio)"
   ] as const
+
   type ComponenteOrdem = typeof ordemMadeira[number]
   const ordenarMadeiras = (a: MadeiraRow, b: MadeiraRow) => {
     const iA = ordemMadeira.indexOf(a.componente as ComponenteOrdem)
@@ -478,8 +509,8 @@ export async function calcularMateriaisCobertaL(
   }
 
   const madeiraAgrupOrd = agrupar(madeiraRaw).sort(ordenarMadeiras) as MadeiraRow[]
-  const materiaisAgrup  = agrupar(materiaisRaw)
-  const telhasAgrup     = agrupar(telhasRaw)
+  const materiaisAgrup = agrupar(materiaisRaw)
+  const telhasAgrup = agrupar(telhasRaw)
 
   const descricoesBuscaL = [...madeiraAgrupOrd, ...materiaisAgrup, ...telhasAgrup]
     .map(r => r.descricao).filter((v, i, a) => a.indexOf(v) === i)
@@ -501,14 +532,14 @@ export async function calcularMateriaisCobertaL(
     componente: r.componente,
     quantidade: r.quantidade,
     preco_unitario: r.descricao === "Impermeabilizante"
-      ? (mapaPrecosL.get(r.descricao) ?? 0) * 1 // 1 coluna fixa
+      ? (mapaPrecosL.get(r.descricao) ?? 0) * 1
       : (mapaPrecosL.get(r.descricao) ?? 0),
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })
 
   return {
-    madeira:   madeiraAgrupOrd.map(toCalcL),
+    madeira: madeiraAgrupOrd.map(toCalcL),
     materiais: materiaisAgrup.map(toCalcL),
-    telhas:    telhasAgrup.map(toCalcL),
+    telhas: telhasAgrup.map(toCalcL),
   }
 }
