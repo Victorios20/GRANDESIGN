@@ -33,8 +33,14 @@ type FinanceiroPayload = {
 type PedidoLinksPayload = {
   telha?: { id?: Id; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
   madeira?: {
-    id?: Id; componente?: string; madeira_nome?: string; descricao?: string;
-    quantidade?: number | string; tamanho?: number | string; preco_unitario?: number | string; total?: number | string
+    id?: Id
+    componente?: string
+    madeira_nome?: string
+    descricao?: string
+    quantidade?: number | string
+    tamanho?: number | string
+    preco_unitario?: number | string
+    total?: number | string
   }
   materiais?: { id?: Id; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
   andaimes?: { id?: Id; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
@@ -57,6 +63,7 @@ type PedidoCompraPayload = {
   previsao_telha?: string | Date | null
   status_telha?: EnumString | null
   area_telha?: number | string
+  fornecedor_telha_id?: Id | null
 
   orcamento_madeira?: number | string
   previsao_madeira?: string | Date | null
@@ -139,8 +146,14 @@ function norm(s: unknown) {
 }
 
 const OBRA_TOKENS = [
-  "ASSINATURA_DE_CONTRATO", "AGUARDANDO_VALIDACAO_TECNICA", "COMPRAS",
-  "A_INICIAR", "EXECUCAO", "AGUARDANDO_PAGAMENTO", "PENDENCIA", "FINALIZADO",
+  "ASSINATURA_DE_CONTRATO",
+  "AGUARDANDO_VALIDACAO_TECNICA",
+  "COMPRAS",
+  "A_INICIAR",
+  "EXECUCAO",
+  "AGUARDANDO_PAGAMENTO",
+  "PENDENCIA",
+  "FINALIZADO",
 ]
 const PGM_TOKENS = ["PENDENTE", "EFETUADO"]
 const PEDIDO_TOKENS = ["PENDENTE", "AGUARDANDO_PAGAMENTO", "PEDIDO_FEITO", "ENTREGUE"]
@@ -152,15 +165,24 @@ function mapObraStatus(v: unknown): string | undefined {
   const up = raw.toUpperCase()
   if (OBRA_TOKENS.includes(up)) return up
   switch (norm(raw)) {
-    case "ASSINATURA DE CONTRATO": return "ASSINATURA_DE_CONTRATO"
-    case "AGUARDANDO VALIDACAO TECNICA": return "AGUARDANDO_VALIDACAO_TECNICA"
-    case "COMPRAS": return "COMPRAS"
-    case "A INICIAR": return "A_INICIAR"
-    case "EXECUCAO": return "EXECUCAO"
-    case "AGUARDANDO PAGAMENTO": return "AGUARDANDO_PAGAMENTO"
-    case "PENDENCIA": return "PENDENCIA"
-    case "FINALIZADO": return "FINALIZADO"
-    default: return undefined
+    case "ASSINATURA DE CONTRATO":
+      return "ASSINATURA_DE_CONTRATO"
+    case "AGUARDANDO VALIDACAO TECNICA":
+      return "AGUARDANDO_VALIDACAO_TECNICA"
+    case "COMPRAS":
+      return "COMPRAS"
+    case "A INICIAR":
+      return "A_INICIAR"
+    case "EXECUCAO":
+      return "EXECUCAO"
+    case "AGUARDANDO PAGAMENTO":
+      return "AGUARDANDO_PAGAMENTO"
+    case "PENDENCIA":
+      return "PENDENCIA"
+    case "FINALIZADO":
+      return "FINALIZADO"
+    default:
+      return undefined
   }
 }
 function mapPagStatus(v: unknown): string | undefined {
@@ -168,9 +190,12 @@ function mapPagStatus(v: unknown): string | undefined {
   const up = raw.toUpperCase()
   if (PGM_TOKENS.includes(up)) return up
   switch (norm(raw)) {
-    case "PENDENTE": return "PENDENTE"
-    case "EFETUADO": return "EFETUADO"
-    default: return undefined
+    case "PENDENTE":
+      return "PENDENTE"
+    case "EFETUADO":
+      return "EFETUADO"
+    default:
+      return undefined
   }
 }
 function mapPedidoStatusPadrao(v: unknown): string | undefined {
@@ -178,11 +203,16 @@ function mapPedidoStatusPadrao(v: unknown): string | undefined {
   const up = raw.toUpperCase()
   if (PEDIDO_TOKENS.includes(up)) return up
   switch (norm(raw)) {
-    case "PENDENTE": return "PENDENTE"
-    case "AGUARDANDO PAGAMENTO": return "AGUARDANDO_PAGAMENTO"
-    case "PEDIDO FEITO": return "PEDIDO_FEITO"
-    case "ENTREGUE": return "ENTREGUE"
-    default: return undefined
+    case "PENDENTE":
+      return "PENDENTE"
+    case "AGUARDANDO PAGAMENTO":
+      return "AGUARDANDO_PAGAMENTO"
+    case "PEDIDO FEITO":
+      return "PEDIDO_FEITO"
+    case "ENTREGUE":
+      return "ENTREGUE"
+    default:
+      return undefined
   }
 }
 function mapMateriaisStatus(v: unknown): string | undefined {
@@ -190,10 +220,14 @@ function mapMateriaisStatus(v: unknown): string | undefined {
   const up = raw.toUpperCase()
   if (MATERIAIS_TOKENS.includes(up)) return up
   switch (norm(raw)) {
-    case "PENDENTE": return "PENDENTE"
-    case "EM ESTOQUE": return "EM_ESTOQUE"
-    case "ENTREGUE": return "ENTREGUE"
-    default: return undefined
+    case "PENDENTE":
+      return "PENDENTE"
+    case "EM ESTOQUE":
+      return "EM_ESTOQUE"
+    case "ENTREGUE":
+      return "ENTREGUE"
+    default:
+      return undefined
   }
 }
 function mapAndaimesStatus(v: unknown): string | undefined {
@@ -201,12 +235,18 @@ function mapAndaimesStatus(v: unknown): string | undefined {
   const up = raw.toUpperCase()
   if (ANDAIMES_TOKENS.includes(up)) return up
   switch (norm(raw)) {
-    case "PENDENTE": return "PENDENTE"
-    case "PEDIDO FEITO": return "PEDIDO_FEITO"
-    case "A COLETAR": return "A_COLETAR"
-    case "COLETADO": return "COLETADO"
-    case "ENTREGUE": return "ENTREGUE"
-    default: return undefined
+    case "PENDENTE":
+      return "PENDENTE"
+    case "PEDIDO FEITO":
+      return "PEDIDO_FEITO"
+    case "A COLETAR":
+      return "A_COLETAR"
+    case "COLETADO":
+      return "COLETADO"
+    case "ENTREGUE":
+      return "ENTREGUE"
+    default:
+      return undefined
   }
 }
 
@@ -222,12 +262,7 @@ async function rowExists(tx: Prisma.TransactionClient, table: "equipes" | "forne
 
 /* ======================== Error shape ======================== */
 
-function errShape(
-  code: string,
-  title: string,
-  description?: string,
-  meta?: any
-) {
+function errShape(code: string, title: string, description?: string, meta?: any) {
   const dev = process.env.NODE_ENV !== "production"
   return {
     ok: false as const,
@@ -290,7 +325,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   try {
     const updated = await prisma.$transaction(
       async (tx) => {
-        /* -------- Cliente -------- */
         if (payload.cliente) {
           const patch: Prisma.clienteUpdateInput = {}
           if (payload.cliente.nome !== undefined) patch.nome = cleanText(payload.cliente.nome)
@@ -313,7 +347,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           }
         }
 
-        /* -------- Obra + Financeiro + Anexos + Imagens -------- */
         const obraData: Prisma.obrasUpdateInput = {}
         if (userId) obraData.updatedBy = { connect: { id: Number(userId) } }
 
@@ -355,19 +388,27 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           if (payload.imagens.replace) {
             obraData.imagens = {
               deleteMany: {},
-              create: list.filter(i => !i._delete && i.url).map(i => ({
-                url: i.url!, ordem: i.ordem ?? null, legenda: i.legenda ?? null,
+              create: list.filter((i) => !i._delete && i.url).map((i) => ({
+                url: i.url!,
+                ordem: i.ordem ?? null,
+                legenda: i.legenda ?? null,
               })),
             }
           } else {
-            const updateOps = list.filter(i => i.id && !i._delete).map(i => ({
-              where: { id: Number(i.id) },
-              data: { url: i.url ?? undefined, ordem: i.ordem ?? undefined, legenda: i.legenda ?? undefined },
-            }))
-            const createOps = list.filter(i => !i.id && !i._delete && i.url).map(i => ({
-              url: i.url!, ordem: i.ordem ?? null, legenda: i.legenda ?? null,
-            }))
-            const deleteIds = list.filter(i => i.id && i._delete).map(i => Number(i.id))
+            const updateOps = list
+              .filter((i) => i.id && !i._delete)
+              .map((i) => ({
+                where: { id: Number(i.id) },
+                data: { url: i.url ?? undefined, ordem: i.ordem ?? undefined, legenda: i.legenda ?? undefined },
+              }))
+            const createOps = list
+              .filter((i) => !i.id && !i._delete && i.url)
+              .map((i) => ({
+                url: i.url!,
+                ordem: i.ordem ?? null,
+                legenda: i.legenda ?? null,
+              }))
+            const deleteIds = list.filter((i) => i.id && i._delete).map((i) => Number(i.id))
             obraData.imagens = {
               ...(deleteIds.length ? { deleteMany: { id: { in: deleteIds } } } : {}),
               ...(updateOps.length ? { update: updateOps as any } : {}),
@@ -376,7 +417,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           }
         }
 
-        /* -------- Upsert head do pedido_compra -------- */
         const head = await tx.pedido_compra.upsert({
           where: { obra_id: id },
           update: {},
@@ -385,7 +425,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         })
         const pedidoCompraId = head.id
 
-        /* -------- Ordem de Serviço (create/update/delete) -------- */
         if (payload.ordemServico) {
           const os = payload.ordemServico
           const hasOS = !!obraAtual.ordem_servico?.id
@@ -398,16 +437,15 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           } else if (hasOS) {
             const patch: Prisma.ordem_servicoUpdateInput = {}
             if (os.equipe_id !== undefined) {
-              if (equipeIdNum && await rowExists(tx, "equipes", equipeIdNum)) {
+              if (equipeIdNum && (await rowExists(tx, "equipes", equipeIdNum))) {
                 patch.equipe = { connect: { id: equipeIdNum } }
               }
-              // se vier null, ignora (relação required não aceita disconnect)
             }
             if (os.data_prev_inicio !== undefined) patch.data_prev_inicio = prevInicio ?? undefined
             if (os.data_prev_conclusao !== undefined) patch.data_prev_conclusao = prevConclusao ?? undefined
             obraData.ordem_servico = { update: patch }
           } else {
-            if (equipeIdNum && prevInicio && prevConclusao && await rowExists(tx, "equipes", equipeIdNum)) {
+            if (equipeIdNum && prevInicio && prevConclusao && (await rowExists(tx, "equipes", equipeIdNum))) {
               obraData.ordem_servico = {
                 create: {
                   equipe: { connect: { id: equipeIdNum } },
@@ -419,7 +457,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           }
         }
 
-        /* -------- Pedido de Compra (head + itens + links) -------- */
         if (payload.pedidoCompra) {
           const pc = payload.pedidoCompra
           const pcUpdate: Prisma.pedido_compraUpdateInput = {}
@@ -428,6 +465,13 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           pcUpdate.previsao_telha = pc.previsao_telha === null ? null : d(pc.previsao_telha)
           pcUpdate.status_telha = (mapPedidoStatusPadrao(pc.status_telha) as any) ?? undefined
           pcUpdate.area_telha = n(pc.area_telha)
+
+          if (pc.fornecedor_telha_id === null) {
+            ;(pcUpdate as any).fornecedor_telha = { disconnect: true }
+          } else if (pc.fornecedor_telha_id !== undefined) {
+            const ft = ensureInt(pc.fornecedor_telha_id)
+            if (ft && (await rowExists(tx, "fornecedores", ft))) (pcUpdate as any).fornecedor_telha = { connect: { id: ft } }
+          }
 
           pcUpdate.orcamento_madeira = n(pc.orcamento_madeira)
           pcUpdate.previsao_madeira = pc.previsao_madeira === null ? null : d(pc.previsao_madeira)
@@ -539,8 +583,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
           const upsertArr = (arr?: PedidoItensUpsert[]) =>
             (arr ?? [])
-              .filter(i => !i._delete && i.id)
-              .map(i => ({
+              .filter((i) => !i._delete && i.id)
+              .map((i) => ({
                 where: { id: Number(i.id) },
                 update: {
                   descricao: i.descricao ?? undefined,
@@ -564,18 +608,21 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
           const createArr = (arr?: PedidoItensUpsert[]) =>
             (arr ?? [])
-              .filter(i => !i.id && !i._delete)
-              .map(i => ({
-                descricao: i.descricao ?? "",
-                quantidade: n(i.quantidade) ?? 0,
-                preco_unitario: n(i.preco_unitario) ?? 0,
-                total: n(i.total) ?? 0,
-                componente: i.componente ?? undefined,
-                madeira_nome: i.madeira_nome ?? undefined,
-                tamanho: n(i.tamanho) ?? undefined,
-              } as any))
+              .filter((i) => !i.id && !i._delete)
+              .map(
+                (i) =>
+                  ({
+                    descricao: i.descricao ?? "",
+                    quantidade: n(i.quantidade) ?? 0,
+                    preco_unitario: n(i.preco_unitario) ?? 0,
+                    total: n(i.total) ?? 0,
+                    componente: i.componente ?? undefined,
+                    madeira_nome: i.madeira_nome ?? undefined,
+                    tamanho: n(i.tamanho) ?? undefined,
+                  } as any)
+              )
 
-          const deleteIds = (arr?: PedidoItensUpsert[]) => (arr ?? []).filter(i => i.id && i._delete).map(i => Number(i.id))
+          const deleteIds = (arr?: PedidoItensUpsert[]) => (arr ?? []).filter((i) => i.id && i._delete).map((i) => Number(i.id))
 
           if (pc.itens?.telha) {
             pcUpdate.pedido_telha_itens = {
@@ -617,54 +664,27 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
         return { id }
       },
-      { timeout: 120_000, maxWait: 20_000 } // evita P2028; mesmo padrão do create
+      { timeout: 120_000, maxWait: 20_000 }
     )
 
     return { ok: true, status: 200, data: updated }
   } catch (err: any) {
-    // Prisma known errors -> títulos legíveis
     const dev = process.env.NODE_ENV !== "production"
     const code: string = err?.code || err?.name || "UNEXPECTED_ERROR"
 
     if (code === "P2025") {
-      return errShape(
-        "P2025",
-        "Registro relacionado não encontrado",
-        dev ? String(err?.message || err) : undefined,
-        err?.meta
-      )
+      return errShape("P2025", "Registro relacionado não encontrado", dev ? String(err?.message || err) : undefined, err?.meta)
     }
     if (code === "P2003") {
-      return errShape(
-        "P2003",
-        "Violação de integridade referencial",
-        dev ? String(err?.message || err) : undefined,
-        err?.meta
-      )
+      return errShape("P2003", "Violação de integridade referencial", dev ? String(err?.message || err) : undefined, err?.meta)
     }
     if (code === "P2002") {
-      return errShape(
-        "P2002",
-        "Violação de unicidade",
-        dev ? String(err?.message || err) : undefined,
-        err?.meta
-      )
+      return errShape("P2002", "Violação de unicidade", dev ? String(err?.message || err) : undefined, err?.meta)
     }
     if (code === "P2028") {
-      return errShape(
-        "P2028",
-        "Transação expirada",
-        dev ? String(err?.message || err) : "A operação excedeu o tempo limite.",
-        err?.meta
-      )
+      return errShape("P2028", "Transação expirada", dev ? String(err?.message || err) : "A operação excedeu o tempo limite.", err?.meta)
     }
 
-    // fallback
-    return errShape(
-      code,
-      "Erro inesperado",
-      dev ? String(err?.message || err) : undefined,
-      err?.meta
-    )
+    return errShape(code, "Erro inesperado", dev ? String(err?.message || err) : undefined, err?.meta)
   }
 }

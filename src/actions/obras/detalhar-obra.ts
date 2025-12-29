@@ -14,7 +14,7 @@ export class AppError extends Error {
 }
 
 const asNum = (v: any): number | null =>
-  v === null || v === undefined ? null : (typeof v?.toNumber === "function" ? v.toNumber() : Number(v))
+  v === null || v === undefined ? null : typeof v?.toNumber === "function" ? v.toNumber() : Number(v)
 const n0 = (v: any): number => asNum(v) ?? 0
 const dateISO = (d?: Date | null): string | null => (d ? d.toISOString() : null)
 const ymd = (d?: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null)
@@ -24,6 +24,7 @@ const obraInclude = Prisma.validator<Prisma.obrasInclude>()({
   equipe: true,
   pedido_compra: {
     include: {
+      fornecedor_telha: { select: { id: true, nome: true } },
       fornecedor_madeira: { select: { id: true, nome: true } },
       andaimes_fornecedor: { select: { id: true, nome: true } },
       pedido_telha_link: true,
@@ -38,7 +39,6 @@ const obraInclude = Prisma.validator<Prisma.obrasInclude>()({
   },
   ordem_servico: { include: { equipe: true } },
   imagens: { orderBy: [{ ordem: "asc" as const }, { id: "asc" as const }] },
-  // precisamos do título do orçamento como fallback
   orcamento: { select: { id: true, titulo: true } },
 })
 
@@ -105,6 +105,7 @@ export type ObraDetalheDTO = {
     materiais: { status: string }
     andaimes: { status: string }
     fornecedores: {
+      telha: { id: number; nome: string } | null
       madeira: { id: number; nome: string } | null
       andaimes: { id: number; nome: string } | null
     }
@@ -150,7 +151,6 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
 
   const dto: ObraDetalheDTO = {
     id: row.id,
-    // novo campo:
     titulo: row.titulo ?? row.orcamento?.titulo ?? null,
 
     orcamento: row.orcamento ? { id: row.orcamento.id } : null,
@@ -266,18 +266,19 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
           materiais: { status: pc.materiais_status },
           andaimes: { status: pc.andaimes_status },
           fornecedores: {
+            telha: pc.fornecedor_telha ? { id: pc.fornecedor_telha.id, nome: pc.fornecedor_telha.nome } : null,
             madeira: pc.fornecedor_madeira ? { id: pc.fornecedor_madeira.id, nome: pc.fornecedor_madeira.nome } : null,
             andaimes: pc.andaimes_fornecedor ? { id: pc.andaimes_fornecedor.id, nome: pc.andaimes_fornecedor.nome } : null,
           },
           itens: {
-            telha: (pc.pedido_telha_itens ?? []).map(i => ({
+            telha: (pc.pedido_telha_itens ?? []).map((i) => ({
               id: i.id,
               descricao: i.descricao,
               quantidade: n0(i.quantidade),
               precoUnitario: n0(i.preco_unitario),
               total: n0(i.total),
             })),
-            madeira: (pc.pedido_madeira_itens ?? []).map(i => ({
+            madeira: (pc.pedido_madeira_itens ?? []).map((i) => ({
               id: i.id,
               componente: i.componente,
               madeiraNome: i.madeira_nome,
@@ -287,14 +288,14 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
               precoUnitario: n0(i.preco_unitario),
               total: n0(i.total),
             })),
-            materiais: (pc.pedido_materiais_itens ?? []).map(i => ({
+            materiais: (pc.pedido_materiais_itens ?? []).map((i) => ({
               id: i.id,
               descricao: i.descricao,
               quantidade: n0(i.quantidade),
               precoUnitario: n0(i.preco_unitario),
               total: n0(i.total),
             })),
-            andaimes: (pc.pedido_andaimes_itens ?? []).map(i => ({
+            andaimes: (pc.pedido_andaimes_itens ?? []).map((i) => ({
               id: i.id,
               descricao: i.descricao,
               quantidade: n0(i.quantidade),
@@ -315,7 +316,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         }
       : null,
 
-    imagens: (row.imagens ?? []).map(img => ({
+    imagens: (row.imagens ?? []).map((img) => ({
       id: img.id,
       url: img.url,
       ordem: img.ordem ?? null,

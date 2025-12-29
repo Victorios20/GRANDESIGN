@@ -192,6 +192,7 @@ export type CreateObraPayload = {
   orcamento_telha?: number | string
   previsao_telha?: string | Date | null
   status_telha?: PedidoStatusPadrao | null
+  fornecedor_telha_id?: number | null
 
   orcamento_madeira?: number | string
   previsao_madeira?: string | Date | null
@@ -266,6 +267,7 @@ export type PedidoCompraVM = {
     previsao: string | null
     orcamento: number
     area: number
+    fornecedorId?: number | null
     itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
   }
   madeira: {
@@ -278,6 +280,7 @@ export type PedidoCompraVM = {
   materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
   andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
 }
+
 
 export type FinanceiroExecVM = {
   financeiro: {
@@ -325,6 +328,7 @@ export type PedidoCompraPayload = {
   previsao_telha?: string | Date
   status_telha?: PedidoStatusPadrao
   area_telha?: number | string
+  fornecedor_telha_id?: number | string | null
   orcamento_madeira?: number | string
   previsao_madeira?: string | Date
   status_madeira?: PedidoStatusPadrao
@@ -340,6 +344,7 @@ export type PedidoCompraPayload = {
     andaimes?: PedidoItensUpsert[]
   }
 }
+
 
 export type OrdemServicoPayload = {
   _delete?: boolean

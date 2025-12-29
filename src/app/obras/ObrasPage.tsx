@@ -57,6 +57,7 @@ type Props = {
   pedidoInit?: Partial<PedidoCompraVM>
   catalogo?: Catalogo
   componentes?: Componente[]
+  fornecedoresTelhaOptions?: Option[]
   fornecedoresMadeiraOptions?: Option[]
   fornecedoresAndaimesOptions?: Option[]
   financeiroInit?: Partial<FinanceiroVM>
@@ -123,6 +124,7 @@ function hydratePedido(initial?: Partial<PedidoCompraVM>): PedidoCompraVM {
       previsao: initial?.telha?.previsao ?? null,
       orcamento: initial?.telha?.orcamento ?? 0,
       area: initial?.telha?.area ?? 0,
+      fornecedorId: (initial as any)?.telha?.fornecedorId ?? null,
       itens: initial?.telha?.itens ?? [],
     },
     madeira: {
@@ -155,7 +157,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-    ;(el as HTMLElement).focus?.()
+      ; (el as HTMLElement).focus?.()
   }
 }
 
@@ -211,6 +213,7 @@ export default function ObrasPage({
   pedidoInit,
   catalogo,
   componentes,
+  fornecedoresTelhaOptions,
   fornecedoresMadeiraOptions,
   fornecedoresAndaimesOptions,
   financeiroInit,
@@ -546,6 +549,7 @@ export default function ObrasPage({
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
           previsao_telha: (pedido.telha?.previsao as any) ?? null,
           status_telha: (pedido.telha?.status as any) ?? "Pendente",
+          fornecedor_telha_id: pedido.telha?.fornecedorId ? Number(pedido.telha.fornecedorId) : null,
 
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
           previsao_madeira: (pedido.madeira?.previsao as any) ?? null,
@@ -621,6 +625,7 @@ export default function ObrasPage({
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
           previsao_telha: (pedido.telha?.previsao as any) ?? undefined,
           status_telha: (pedido.telha?.status as any) ?? undefined,
+          fornecedor_telha_id: pedido.telha?.fornecedorId != null ? Number(pedido.telha.fornecedorId) : undefined,
 
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
           previsao_madeira: (pedido.madeira?.previsao as any) ?? undefined,
@@ -807,6 +812,7 @@ export default function ObrasPage({
         fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
         fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       />
+
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />

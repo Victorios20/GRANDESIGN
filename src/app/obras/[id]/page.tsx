@@ -147,6 +147,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     componentes,
     geraisDB,
     telhasDB,
+    resFornTelha,
     resFornMadeira,
     resFornAndaimes,
     resEquipes,
@@ -165,6 +166,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     listarComponentesDB(),
     listarMateriaisGerais(),
     listarTelhas(),
+    fetch(`${base}/api/fornecedores?tipo=telha`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
     fetch(`${base}/api/fornecedores?tipo=madeira`, {
       cache: "no-store",
       headers: { cookie },
@@ -267,9 +273,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           .filter(Boolean) as Option[]
       : []
 
+  const fornecedoresTelhaJson = await resFornTelha.json().catch(() => [])
   const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
   const fornecedoresAndaimesJson = await resFornAndaimes.json().catch(() => [])
 
+  const fornecedoresTelhaOptions: Option[] = toOptions((fornecedoresTelhaJson as any)?.data ?? fornecedoresTelhaJson)
   const fornecedoresMadeiraOptions: Option[] = toOptions((fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson)
   const fornecedoresAndaimesOptions: Option[] = toOptions((fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson)
 
@@ -333,6 +341,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           previsao: pc.telha?.previsao ?? null,
           orcamento: Number(pc.telha?.orcamento ?? 0),
           area: Number(pc.telha?.area ?? 0),
+          fornecedorId: (pc as any)?.fornecedores?.telha?.id ?? null,
           itens: Array.isArray(pc.itens?.telha)
             ? pc.itens.telha.map((it) => ({
                 id: it.id,
@@ -413,6 +422,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       pedidoInit={pedidoInit}
       catalogo={catalogo}
       componentes={componentes}
+      fornecedoresTelhaOptions={fornecedoresTelhaOptions}
       fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       equipeOptions={equipesOptions}

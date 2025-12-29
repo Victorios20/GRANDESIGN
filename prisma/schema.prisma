@@ -104,11 +104,10 @@ model fornecedores {
   tipo      String?     @db.VarChar(50)
   materiais materiais[]
 
-  // já existentes
   pedidosMadeira  pedido_compra[] @relation("FornecedorMadeira")
   pedidosAndaimes pedido_compra[] @relation("FornecedorAndaimes")
+  pedidosTelha    pedido_compra[] @relation("FornecedorTelha")
 
-  // NOVO: back-relation para orçamentos
   orcamentosFornecedor orcamento[] @relation("FornecedorOrcamentos")
 
   @@index([tipo])
@@ -299,10 +298,12 @@ model pedido_compra {
   obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
   // TELHA
-  orcamento_telha Decimal            @default(0) @db.Decimal(10, 2)
-  previsao_telha  DateTime?          @db.Date
-  status_telha    PedidoStatusPadrao @default(PENDENTE)
-  area_telha      Decimal            @default(0) @db.Decimal(10, 2)
+  orcamento_telha     Decimal            @default(0) @db.Decimal(10, 2)
+  previsao_telha      DateTime?          @db.Date
+  status_telha        PedidoStatusPadrao @default(PENDENTE)
+  area_telha          Decimal            @default(0) @db.Decimal(10, 2)
+  fornecedor_telha_id Int?
+  fornecedor_telha    fornecedores?      @relation("FornecedorTelha", fields: [fornecedor_telha_id], references: [id], onDelete: SetNull)
 
   // MADEIRA
   orcamento_madeira     Decimal            @default(0) @db.Decimal(10, 2)
@@ -338,6 +339,7 @@ model pedido_compra {
   pedido_andaimes_itens  pedido_andaimes[]  @relation("PC_to_PA_Items")
 
   @@index([obra_id])
+  @@index([fornecedor_telha_id])
   @@index([fornecedor_madeira_id])
   @@index([andaimes_fornecedor_id])
 }

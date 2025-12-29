@@ -57,7 +57,6 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       )
     }
 
-    // ⬇️ params agora é Promise e precisa de await
     const { id: idStr } = await ctx.params
     const obraId = Number(idStr)
     if (!Number.isFinite(obraId) || obraId <= 0) {
@@ -111,7 +110,6 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
       return json(body, status, requestId)
     }
 
-    // sucesso
     return json({ data: resp.data, requestId }, 200, requestId)
   } catch (err: any) {
     if (err?.code === "ORDEM_SERVICO_DADOS_INSUFICIENTES") {

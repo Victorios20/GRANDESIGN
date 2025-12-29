@@ -40,7 +40,6 @@ export async function POST(req: NextRequest) {
       return json({ error: "INVALID_JSON", requestId }, 400, requestId)
     }
 
-    // validações mínimas
     const reqStr = ["endereco_obra", "maps_url", "tipo_obra", "telha_escolhida"] as const
     for (const k of reqStr) {
       if (!String(body?.[k] ?? "").trim()) {
@@ -74,9 +73,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Monta o payload COMPLETO para o service (não descartar chaves!)
     const result = await criarObraComHeadPedidoCompra({
-      // ===== IDENTIFICAÇÃO / INFOS GERAIS =====
       orcamentoId: Number(body.orcamentoId),
       endereco_obra: String(body.endereco_obra),
       maps_url: String(body.maps_url),
@@ -87,14 +84,11 @@ export async function POST(req: NextRequest) {
       observacoes: body.observacoes ?? null,
       status: body.status ?? null,
 
-      // equipe (execução)
       equipe_id: body.equipe_id != null ? Number(body.equipe_id) : null,
 
-      // >>>>>> NOVO: datas da OS (opcionais)
       data_prev_inicio: body.data_prev_inicio ?? null,
       data_prev_conclusao: body.data_prev_conclusao ?? null,
 
-      // ===== FINANCEIRO =====
       valor_obra: Number(body.valor_obra),
       valor_mao_de_obra: Number(body.valor_mao_de_obra),
 
@@ -110,15 +104,15 @@ export async function POST(req: NextRequest) {
         body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
       status_pagamento_quitacao: body.status_pagamento_quitacao ?? null,
 
-      // ===== IMAGENS =====
       imagens: Array.isArray(body.imagens) ? body.imagens : undefined,
 
-      // ===== PEDIDO DE COMPRA — HEAD =====
       area_telha: body.area_telha != null ? Number(body.area_telha) : undefined,
       orcamento_telha: body.orcamento_telha != null ? Number(body.orcamento_telha) : undefined,
 
       previsao_telha: body.previsao_telha ?? null,
       status_telha: body.status_telha ?? null,
+      fornecedor_telha_id:
+        body.fornecedor_telha_id != null ? Number(body.fornecedor_telha_id) : null,
 
       orcamento_madeira: body.orcamento_madeira != null ? Number(body.orcamento_madeira) : undefined,
       previsao_madeira: body.previsao_madeira ?? null,
@@ -132,17 +126,14 @@ export async function POST(req: NextRequest) {
       andaimes_fornecedor_id:
         body.andaimes_fornecedor_id != null ? Number(body.andaimes_fornecedor_id) : null,
 
-      // ===== PEDIDO DE COMPRA — ITENS =====
       telhaItens: Array.isArray(body.telhaItens) ? body.telhaItens : undefined,
       madeiraItens: Array.isArray(body.madeiraItens) ? body.madeiraItens : undefined,
       materiaisItens: Array.isArray(body.materiaisItens) ? body.materiaisItens : undefined,
       andaimesItens: Array.isArray(body.andaimesItens) ? body.andaimesItens : undefined,
 
-      // ===== CLIENTE / AUDIT =====
       clienteCpf: body.clienteCpf ?? null,
       forceUpdateClienteCpf: !!body.forceUpdateClienteCpf,
 
-      // audit
       actorUserId: actorId,
     })
 
