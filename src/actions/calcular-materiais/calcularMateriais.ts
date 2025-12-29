@@ -48,6 +48,8 @@ type CobertaLOpts = {
   comprimentoMenor: number
   /** opcional: se tipoObra vier como "Coberta em L - Linha na Parede 15" não precisa setar */
   tipoBaseL?: string
+  /** novo: quando for "Coberta em L com linha na parede" */
+  comLinhaNaParede?: boolean
 }
 
 /* ============================================================
@@ -66,10 +68,23 @@ export async function calcularMateriais(
     throw new Error("fornecedorId obrigatório")
   }
 
-  // Detecta Coberta em L (aceita "Coberta em L" e "Coberta em L - Linha na Parede 15")
+  // Detecta Coberta em L (aceita "Coberta em L", "Coberta em L - Linha na Parede 15"
+  // e também "Coberta em L com linha na parede")
   if (/^Coberta em L/i.test(tipoNorm)) {
-    const tipoBaseL = tipoNorm.replace(/^Coberta em L\s*-\s*/i, "").trim()
-    const base = tipoBaseL && tipoBaseL !== tipoNorm ? tipoBaseL : (opts?.tipoBaseL ?? "Linha na Parede 15")
+    const comLinhaNaParede =
+      /com\s+linha\s+na\s+parede/i.test(tipoNorm) || Boolean(opts?.comLinhaNaParede)
+
+    // Remove prefixo "Coberta em L", e também remove o trecho "com linha na parede"
+    // Depois tenta extrair um tipoBase após "-" (se existir).
+    const semPrefixo = tipoNorm.replace(/^Coberta em L/i, "").trim()
+    const semFlag = semPrefixo.replace(/com\s+linha\s+na\s+parede/i, "").trim()
+
+    // Se vier " - Linha na Parede 15", extrai "Linha na Parede 15"
+    const tipoBaseExtraido = semFlag.replace(/^\s*-\s*/i, "").trim()
+
+    const tipoBase =
+      (tipoBaseExtraido && tipoBaseExtraido !== tipoNorm ? tipoBaseExtraido : "") ||
+      (opts?.tipoBaseL ?? "Linha na Parede 15")
 
     const L = {
       LMaior: opts?.larguraMaior ?? 0,
@@ -82,7 +97,23 @@ export async function calcularMateriais(
       throw new Error("Coberta em L: informe largura/comprimento MAIOR e MENOR.")
     }
 
-    return calcularMateriaisCobertaL(base, L.LMaior, L.CMaior, L.LMenor, L.CMenor, fornecedorId)
+    console.log("[calcularMateriais] Coberta em L detectada:", {
+      tipoNorm,
+      tipoBase,
+      comLinhaNaParede,
+      ...L,
+      fornecedorId,
+    })
+
+    return calcularMateriaisCobertaL(
+      tipoBase,
+      L.LMaior,
+      L.CMaior,
+      L.LMenor,
+      L.CMenor,
+      fornecedorId,
+      { comLinhaNaParede },
+    )
   }
 
   // Fluxo normal (compatível com chamadas antigas)
@@ -345,7 +376,7 @@ async function calcularMateriaisNormal(
     "Travessa",
     "Pérgola",
     "Terças",
-    "Terça", // <-- era "Emenda"
+    "Terça",
     "Caibros",
     "Ripas",
     "Beiral",
@@ -405,10 +436,23 @@ export async function calcularMateriaisCobertaL(
   LMenor: number,
   CMenor: number,
   fornecedorId: number,
+  opts?: { comLinhaNaParede?: boolean },
 ): Promise<Resultado> {
   if (!tipoBase || !LMaior || !CMaior || !LMenor || !CMenor) {
     throw new Error("Parâmetros obrigatórios da Coberta em L não informados.")
   }
+
+  const comLinhaNaParede = Boolean(opts?.comLinhaNaParede)
+
+  console.log("[calcularMateriaisCobertaL] INICIO:", {
+    tipoBase,
+    fornecedorId,
+    LMaior,
+    CMaior,
+    LMenor,
+    CMenor,
+    comLinhaNaParede,
+  })
 
   const madeiraRaw: MadeiraRow[] = []
   const materiaisRaw: BaseRow[] = []
@@ -425,12 +469,25 @@ export async function calcularMateriaisCobertaL(
     materiaisRaw.push({ descricao, componente: "", quantidade: qtd })
   }
 
-  /* ---------- 1) Pranchões (total 3: 2 no maior, 1 no menor) ---------- */
-  add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
-  add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
+  /* ---------- 0) Linha na parede (VARIANTE) ---------- */
+  // Obs: por padrão eu usei LMenor como “comprimento” da linha na parede.
+  // Se na sua regra for LMaior, troque LMenor por LMaior aqui.
+  if (comLinhaNaParede) {
+    add("Linha 10cm", "Linha na Parede", 1, LMenor)
+  }
 
-  /* ---------- 2) Pontaletes (fixo = 5, 2,5 m) ---------- */
-  add(`Linha ${espessura}`, "Pontalete", 5, 2.5)
+  /* ---------- 1) Pranchões ---------- */
+  // Base: total 3 (2 no maior, 1 no menor)
+  // Variante com linha na parede: remove 1 pranchão (vou remover o menor)
+  add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
+  const qtdPranchaoMenor = comLinhaNaParede ? 0 : 1
+  add("Linha 30cm", "Pranchão (menor)", qtdPranchaoMenor, LMenor)
+
+  /* ---------- 2) Pontaletes ---------- */
+  // Base: fixo = 5 (2,5 m)
+  // Variante com linha na parede: remove 2 => 3
+  const qtdPontaletes = comLinhaNaParede ? 3 : 5
+  add(`Linha ${espessura}`, "Pontalete", qtdPontaletes, 2.5)
 
   /* ---------- 3) Terças (L) ---------- */
   const tipoTercaL = "Linha 11,5cm"
@@ -457,7 +514,9 @@ export async function calcularMateriaisCobertaL(
   addMaterial("Impermeabilizante", 1)
 
   /* ---------- 7) Parafuso Sextavado ---------- */
-  const qtdSextavado = 5 * 3 + 2
+  // Regra base usa 5 pontaletes *3 +2
+  // Ajusta conforme a quantidade de pontaletes na variante
+  const qtdSextavado = qtdPontaletes * 3 + 2
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
   /* ---------- 8) Telhas: Área1 + Área2, com 8% de perda por recorte ---------- */
@@ -491,14 +550,25 @@ export async function calcularMateriaisCobertaL(
   }
 
   const ordemMadeira = [
-    "Linha na Parede", "Colunas Traseiras", "Colunas Frontais",
+    "Linha na Parede",
+    "Colunas Traseiras",
+    "Colunas Frontais",
     "Coluna",
-    "Pranchão", "Pranchão (maior)", "Pranchão (menor)",
+    "Pranchão",
+    "Pranchão (maior)",
+    "Pranchão (menor)",
     "Pontalete",
-    "Travessa", "Pérgola",
-    "Terças", "Terça (maior)", "Terça (menor)",
-    "Caibros", "Caibro (maior)", "Caibro (menor)",
-    "Beiral", "Beiral (maior)", "Beiral (meio)"
+    "Travessa",
+    "Pérgola",
+    "Terças",
+    "Terça (maior)",
+    "Terça (menor)",
+    "Caibros",
+    "Caibro (maior)",
+    "Caibro (menor)",
+    "Beiral",
+    "Beiral (maior)",
+    "Beiral (meio)",
   ] as const
 
   type ComponenteOrdem = typeof ordemMadeira[number]
@@ -536,6 +606,8 @@ export async function calcularMateriaisCobertaL(
       : (mapaPrecosL.get(r.descricao) ?? 0),
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })
+
+  console.log("[calcularMateriaisCobertaL] RESULTADO madeiraRaw:", madeiraAgrupOrd)
 
   return {
     madeira: madeiraAgrupOrd.map(toCalcL),
