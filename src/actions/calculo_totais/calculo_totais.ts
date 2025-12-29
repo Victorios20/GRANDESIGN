@@ -97,7 +97,7 @@ function calcularMaoDeObra(madeiras: Item[] = []): number {
   if (qtdColunas >= 4) return 2100
   if (qtdColunas >= 2) return 1800
 
-  if (qtdPontaletes >= 6) return 1800
+  if (qtdPontaletes >= 6) return 1500
   if (qtdPontaletes >= 4) return 1500
 
   return 1500
