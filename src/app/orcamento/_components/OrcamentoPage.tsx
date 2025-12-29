@@ -1164,14 +1164,17 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         try {
             let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
-            if (isCobertaL) {
-                resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
-                    larguraMaior: dim.larguraMaior,
-                    comprimentoMaior: dim.comprimentoMaior,
-                    larguraMenor: dim.larguraMenor,
-                    comprimentoMenor: dim.comprimentoMenor,
-                    fornecedorId: Number(fornecedorSel),
-                })
+                        if (isCobertaL) {
+            resultado = await calcularMateriais(tipoObra, undefined, undefined, {
+                larguraMaior: dim.larguraMaior,
+                comprimentoMaior: dim.comprimentoMaior,
+                larguraMenor: dim.larguraMenor,
+                comprimentoMenor: dim.comprimentoMenor,
+                fornecedorId: Number(fornecedorSel),
+
+                // opcional, mas deixa à prova de erro:
+                comLinhaNaParede: /com\s+linha\s+na\s+parede/i.test(tipoObra),
+            })
             } else {
                 resultado = await calcularMateriais(
                     tipoObra,
