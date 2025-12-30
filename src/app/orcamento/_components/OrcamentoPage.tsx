@@ -311,19 +311,22 @@ async function getMadeirasByFornecedor(fornecedorId: number): Promise<Array<{ no
         .map(r => ({ nome: r.descricao, preco: Number(r.preco_unitario ?? 0) }))
         .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
 }
-
+const ORCAMENTOS_ENDPOINT = "/api/Orcamentos"
 
 const updateOrcamentoAPI = (id: number, payload: UpdateOrcamentoInput) =>
-    putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
-
-
+    putJSON<{ ok: true }>(`${ORCAMENTOS_ENDPOINT}/${id}`, payload).then(() => true)
 
 const salvarOrcamentoAPI = (payload: SalvarPayload) =>
-    postJSON<{ id: number }>("/api/Orcamentos", payload).then(r => r.id)
+    postJSON<{ id: number }>(ORCAMENTOS_ENDPOINT, payload).then(r => r.id)
 
 const salvarRascunhoAPI = (payload: SalvarPayload) =>
-    postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
+    postJSON<{ id: number }>(`${ORCAMENTOS_ENDPOINT}/rascunho`, payload).then(r => r.id)
 
+const gerarPropostaAPI = (payload: SalvarPayload) =>
+    postJSON<{ id: number; links: { slideUrl: string; pdfUrl: string }; requestId?: string }>(
+        `${ORCAMENTOS_ENDPOINT}/gerar-proposta`,
+        payload
+    )
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -633,6 +636,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         orcamentoId = props.orcamentoId
         initialData = props.initialData
     }
+
     const [isSavingClient, setIsSavingClient] = useState(false)
 
     const [clienteModalOpen, setClienteModalOpen] = useState(false)
@@ -1552,114 +1556,122 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
 
     const handleGerarProposta = async (confirmedTitle?: string) => {
-        const snap = (confirmedTitle ?? tituloSnap)?.trim()
-        const confirmed = confirmedTitle ? true : tituloConfirmado
-        if (!confirmed || !snap) {
-            toast.error("Confirme o título antes de gerar a proposta.")
-            return
-        }
+    const snap = (confirmedTitle ?? tituloSnap)?.trim()
+    const confirmed = confirmedTitle ? true : tituloConfirmado
+    if (!confirmed || !snap) {
+        toast.error("Confirme o título antes de gerar a proposta.")
+        return
+    }
 
-        const valid = validatePreGerar(form, tipoObra, materiais)
-        if (!valid.ok) {
-            toast.error(valid.msg)
-            scrollToField(FIELD_IDS[valid.missing])
-            return
-        }
+    const valid = validatePreGerar(form, tipoObra, materiais)
+    if (!valid.ok) {
+        toast.error(valid.msg)
+        scrollToField(FIELD_IDS[valid.missing])
+        return
+    }
 
-        // exige cliente associado apenas na criação
-        if (mode === "create" && !ensureClienteAssociado()) return
+    if (mode === "create" && !ensureClienteAssociado()) return
 
-        try {
-            setLoadingPDF(true)
-            const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-            setTelhaValores(telhaValoresAtual)
-            const result = await gerarPDF({
-                cliente: form,
-                parametros: { tipoObra: tipoObra ?? "", ...dim },
-                materiais,
-                totais: totEdit,
-                telhaValoresDinamicos: telhaValoresAtual,
-                titulo: snap,
-            })
+    try {
+        setLoadingPDF(true)
+        const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
+        setTelhaValores(telhaValoresAtual)
 
-            const raw = result as any
-            const r = Array.isArray(raw) ? raw[0] : raw
-            const slide: string | undefined =
-                r?.slide ?? r?.slideUrl ?? r?.link_slide ?? r?.links?.slide ?? r?.links?.slideUrl ?? r?.data?.slide ?? r?.data?.slideUrl
-            const pdf: string | undefined =
-                r?.pdf ?? r?.pdfUrl ?? r?.link_pdf ?? r?.links?.pdf ?? r?.links?.pdfUrl ?? r?.data?.pdf ?? r?.data?.pdfUrl
+        if (mode === "create") {
+            try {
+                setLoadingSave(true)
 
-            setLinks({ slide, pdf })
-
-            if (slide && pdf) {
-                if (isEdit) {
-                    toast.info(
-                        "Links gerados, porém a edição está temporariamente bloqueada.",
-                        {
-                            description:
-                                "A edição deste orçamento não pode ser salva diretamente. Use 'Salvar Cópia' para registrar uma nova versão.",
-                            duration: Infinity,
-                        }
-                    )
+                if (!ensureClienteAssociado()) {
+                    setLoadingSave(false)
                     return
                 }
 
-                toast.success("Proposta gerada! Links prontos abaixo.")
-
-                try {
-                    setLoadingSave(true)
-
-                    if (!ensureClienteAssociado()) {
-                        setLoadingSave(false)
-                        return
-                    }
-
-                    const payloadCreate = {
-                        clienteId: Number(clienteId),
-                        cliente: form,
-                        parametros: { tipoObra: tipoObra ?? "", ...dim },
-                        materiais,
-                        totais: totEdit,
-                        telhaValores: telhaValoresAtual,
-                        links: { slideUrl: slide, pdfUrl: pdf },
-                        titulo: snap,
-                        fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
-                        observacoes: (observacoes || "").trim() || null,
-                    }
-                    console.log("payload create", payloadCreate)
-                    const novoId = await salvarOrcamentoAPI(payloadCreate)
-
-                    await logOrcamentoWebhook({
-                        acao: "CRIAR_ORCAMENTO",
-                        orcamentoId: novoId,
-                        titulo: snap,
-                        cliente: buildClienteLog(),
-                        usuario: usuarioLog,
-                        dadosOrcamento: payloadCreate,
-                    })
-
-                    toast.success("Orçamento salvo automaticamente.")
-                    setModalSucessoAberto(true)
-                } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
-                    toast.error(msg)
-                } finally {
-                    setLoadingSave(false)
+                const payloadCreate = {
+                    clienteId: Number(clienteId),
+                    cliente: form,
+                    parametros: { tipoObra: tipoObra ?? "", ...dim },
+                    materiais,
+                    totais: totEdit,
+                    telhaValores: telhaValoresAtual,
+                    titulo: snap,
+                    fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                    observacoes: (observacoes || "").trim() || null,
                 }
-            } else {
-                toast.error(
-                    "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
-                )
-                console.debug("[handleGerarProposta] retorno sem links completos:", result)
+
+                const { id: novoId, links } = await gerarPropostaAPI(payloadCreate)
+
+                setLinks({ slide: links.slideUrl, pdf: links.pdfUrl })
+
+                await logOrcamentoWebhook({
+                    acao: "CRIAR_ORCAMENTO",
+                    orcamentoId: novoId,
+                    titulo: snap,
+                    cliente: buildClienteLog(),
+                    usuario: usuarioLog,
+                    dadosOrcamento: { ...payloadCreate, links },
+                })
+
+                toast.success("Orçamento salvo automaticamente.")
+                toast.success("Proposta gerada! Links prontos abaixo.")
+                setModalSucessoAberto(true)
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
+                toast.error(msg)
+            } finally {
+                setLoadingSave(false)
             }
 
-        } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
-            toast.error(msg)
-        } finally {
-            setLoadingPDF(false)
+            return
         }
+
+        const result = await gerarPDF({
+            orcamentoId: Number(orcamentoId),
+            cliente: form,
+            parametros: { tipoObra: tipoObra ?? "", ...dim },
+            materiais,
+            totais: totEdit,
+            telhaValoresDinamicos: telhaValoresAtual,
+            titulo: snap,
+        })
+
+
+        const raw = result as any
+        const r = Array.isArray(raw) ? raw[0] : raw
+        const slide: string | undefined =
+            r?.slide ?? r?.slideUrl ?? r?.link_slide ?? r?.links?.slide ?? r?.links?.slideUrl ?? r?.data?.slide ?? r?.data?.slideUrl
+        const pdf: string | undefined =
+            r?.pdf ?? r?.pdfUrl ?? r?.link_pdf ?? r?.links?.pdf ?? r?.links?.pdfUrl ?? r?.data?.pdf ?? r?.data?.pdfUrl
+
+        setLinks({ slide, pdf })
+
+        if (slide && pdf) {
+            if (isEdit) {
+                toast.info(
+                    "Links gerados, porém a edição está temporariamente bloqueada.",
+                    {
+                        description:
+                            "A edição deste orçamento não pode ser salva diretamente. Use 'Salvar Cópia' para registrar uma nova versão.",
+                        duration: Infinity,
+                    }
+                )
+                return
+            }
+
+            toast.success("Proposta gerada! Links prontos abaixo.")
+        } else {
+            toast.error(
+                "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
+            )
+            console.debug("[handleGerarProposta] retorno sem links completos:", result)
+        }
+    } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
+        toast.error(msg)
+    } finally {
+        setLoadingPDF(false)
     }
+}
+
 
 
 
