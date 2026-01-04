@@ -67,7 +67,6 @@ export default function InfosGerais({
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      {/* CARD 1 — Tipo de obra */}
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
           <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">
@@ -157,7 +156,6 @@ export default function InfosGerais({
         </CardContent>
       </Card>
 
-      {/* CARD 2 — Cliente */}
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-4">
@@ -166,11 +164,15 @@ export default function InfosGerais({
               Cliente
             </h3>
 
-            {!isEditing && value.cliente?.nome && (
-              <Button variant="ghost" size="icon" onClick={onEditCliente}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEditCliente}
+              disabled={!value.cliente?.nome}
+              title={!value.cliente?.nome ? "Cliente não carregado" : "Editar cliente"}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="flex flex-col gap-1 mb-4">
@@ -192,7 +194,6 @@ export default function InfosGerais({
         </CardContent>
       </Card>
 
-      {/* CARD 3 — Endereço */}
       <Card className="rounded-2xl shadow-md bg-white border-0">
         <CardContent className="p-5">
           <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">

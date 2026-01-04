@@ -237,7 +237,8 @@ export default function ClienteModal({
       .then((c) => {
         if (!alive) return
         const cidadeNome =
-          c.cidade_nome ?? (c.cidade_id ? cidades.find((x) => x.id === c.cidade_id)?.nome ?? "" : "")
+          c.cidade_nome ??
+          (c.cidade_id ? cidades.find((x) => x.id === c.cidade_id)?.nome ?? "" : "")
 
         const base: Prefill = {
           nome: c.nome ?? "",
@@ -331,78 +332,124 @@ export default function ClienteModal({
     }
   }
 
+  const FieldLoadingIcon = ({ show }: { show: boolean }) => {
+    if (!show) return null
+    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+  }
+
+  const showSkeletonLoading = loadingCliente && (mode === "edit" || mode === "view")
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-2xl p-3 w-[92vw] max-w-[400px]">
+      <DialogContent className="rounded-2xl p-3 w-[92vw] max-w-[640px]">
         <DialogHeader className="space-y-1">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Icon className="h-4 w-4" />
-            {title}
+          <DialogTitle className="flex items-center justify-between gap-3 text-base">
+            <span className="flex items-center gap-2">
+              <Icon className="h-4 w-4" />
+              {title}
+            </span>
+
+            {showSkeletonLoading && (
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Carregando dados...
+              </span>
+            )}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid grid-cols-1 gap-2">
-          <div className="flex flex-col gap-1">
-            <Label>Nome</Label>
-            <Input
-              className="h-9"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              disabled={readonly || isBusy}
-            />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label>Nome</Label>
+              <div className="relative">
+                <Input
+                  className="h-9 pr-9"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  disabled={readonly || isBusy}
+                />
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <FieldLoadingIcon show={showSkeletonLoading} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label>Telefone</Label>
+              <div className="relative">
+                <Input
+                  className="h-9 pr-9"
+                  value={telefone}
+                  onChange={(e) => setTelefone(formatPhone(e.target.value))}
+                  disabled={readonly || isBusy}
+                />
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <FieldLoadingIcon show={showSkeletonLoading} />
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Label>Telefone</Label>
-            <Input
-              className="h-9"
-              value={telefone}
-              onChange={(e) => setTelefone(formatPhone(e.target.value))}
-              disabled={readonly || isBusy}
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label>Cidade</Label>
 
-          <div className="flex flex-col gap-1">
-            <Label>Cidade</Label>
+              <div className="relative">
+                <Select
+                  value={cidade || undefined}
+                  onValueChange={(v) => setCidade(v)}
+                  disabled={readonly || isBusy}
+                >
+                  <SelectTrigger className="h-9 w-full rounded-xl border-0 bg-cinza px-3 text-marromEscuro focus-visible:ring-2 focus-visible:ring-marromEscuro pr-9">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
 
-            <Select
-              value={cidade || undefined}
-              onValueChange={(v) => setCidade(v)}
-              disabled={readonly || isBusy}
-            >
-              <SelectTrigger className="h-9 w-full rounded-xl border-0 bg-cinza px-3 text-marromEscuro focus-visible:ring-2 focus-visible:ring-marromEscuro">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
+                  <SelectContent className="w-[var(--radix-select-trigger-width)]">
+                    {cidades.map((c) => (
+                      <SelectItem key={c.id} value={c.nome} className="rounded-xl">
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <SelectContent className="w-[var(--radix-select-trigger-width)]">
-                {cidades.map((c) => (
-                  <SelectItem key={c.id} value={c.nome} className="rounded-xl">
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <FieldLoadingIcon show={showSkeletonLoading} />
+                </div>
+              </div>
+            </div>
 
-          <div className="flex flex-col gap-1">
-            <Label>Bairro</Label>
-            <Input
-              className="h-9"
-              value={bairro}
-              onChange={(e) => setBairro(e.target.value)}
-              disabled={readonly || isBusy}
-            />
+            <div className="flex flex-col gap-1">
+              <Label>Bairro</Label>
+              <div className="relative">
+                <Input
+                  className="h-9 pr-9"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  disabled={readonly || isBusy}
+                />
+                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                  <FieldLoadingIcon show={showSkeletonLoading} />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1">
             <Label>CPF</Label>
-            <Input
-              className="h-9"
-              value={cpf}
-              onChange={(e) => setCpf(e.target.value)}
-              disabled={readonly || isBusy}
-              placeholder="Opcional"
-            />
+            <div className="relative">
+              <Input
+                className="h-9 pr-9"
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                disabled={readonly || isBusy}
+                placeholder="Opcional"
+              />
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                <FieldLoadingIcon show={showSkeletonLoading} />
+              </div>
+            </div>
           </div>
         </div>
 

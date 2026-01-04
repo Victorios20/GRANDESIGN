@@ -1,3 +1,4 @@
+// src/app/obras/ObrasPage.tsx
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -32,6 +33,7 @@ import type {
 import { createObra, updateObra } from "./lib/api"
 
 import ClienteModal from "@/components/modals/ClienteModal"
+import { uploadImagensObra } from "./lib/upload-imagens"
 
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
@@ -43,7 +45,6 @@ type Catalogo = {
   telhas: CatalogoItem[]
 }
 type Componente = { id?: number; nome: string; categoria?: string } | any
-
 type Cidade = { id: number; nome: string }
 
 type Props = {
@@ -157,7 +158,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-      ; (el as HTMLElement).focus?.()
+    ;(el as HTMLElement).focus?.()
   }
 }
 
@@ -202,6 +203,54 @@ function showApiError(err: any) {
   console.error("[ObrasPage] API error", { title, code, description: desc, raw: err })
 }
 
+function isFile(v: any): v is File {
+  return typeof File !== "undefined" && v instanceof File
+}
+
+function getImgFile(img: any): File | null {
+  const f = img?.file
+  return isFile(f) ? f : null
+}
+
+function normalizeImgsAfterUpload(current: ImgItem[], uploadedUrls: string[]): ImgItem[] {
+  let j = 0
+  return (current ?? []).map((img, i) => {
+    const f = getImgFile(img as any)
+    if (!f) return img
+    const nextUrl = uploadedUrls[j] ?? ""
+    j += 1
+
+    const base: any = { ...(img as any) }
+    base.url = nextUrl || String(base.url ?? "")
+    if ("file" in base) delete base.file
+    if ("previewUrl" in base) delete base.previewUrl
+    if ("localUrl" in base) delete base.localUrl
+    if ("isNew" in base) delete base.isNew
+    if ("loading" in base) delete base.loading
+    if ("error" in base) delete base.error
+
+    if (!base.ordem || !Number.isFinite(Number(base.ordem))) base.ordem = i + 1
+    return base as ImgItem
+  })
+}
+
+function resolveClienteIdFromInitial(initial: any): number | undefined {
+  const candidates = [
+    initial?.cliente?.id,
+    initial?.cliente_id,
+    initial?.clienteId,
+    initial?.orcamento?.cliente?.id,
+    initial?.orcamento?.cliente_id,
+    initial?.orcamento?.clienteId,
+  ]
+
+  for (const c of candidates) {
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return undefined
+}
+
 export default function ObrasPage({
   mode,
   obraId,
@@ -233,10 +282,15 @@ export default function ObrasPage({
 
   const [clienteModalOpen, setClienteModalOpen] = useState(false)
 
-  const clienteId = useMemo(() => {
+  const [clienteId, setClienteId] = useState<number | undefined>(() => {
     const anyInitial = initial as any
-    const id = anyInitial?.cliente?.id
-    return typeof id === "number" ? id : undefined
+    return resolveClienteIdFromInitial(anyInitial)
+  })
+
+  useEffect(() => {
+    const anyInitial = initial as any
+    const next = resolveClienteIdFromInitial(anyInitial)
+    setClienteId(next)
   }, [initial])
 
   const clientePrefill = useMemo(
@@ -275,7 +329,7 @@ export default function ObrasPage({
 
   const onEditCliente = () => {
     if (!clienteId) {
-      toast.error("Não foi possível identificar o ID do cliente desta obra.")
+      toast.error("Não foi possível identificar o ID do cliente (orçamento/obra).")
       return
     }
     setClienteModalOpen(true)
@@ -289,6 +343,8 @@ export default function ObrasPage({
     cidade_nome: string | null
     cpf?: string | null
   }) => {
+    setClienteId(c.id)
+
     patchInfos({
       cliente: {
         nome: c.nome ?? "",
@@ -432,7 +488,7 @@ export default function ObrasPage({
     }
     const qui = fin?.pagamento?.quitacao ?? {}
     if (!(Number(qui?.valor) > 0)) {
-      toast.error("Valor da quitação é obrigatório.")
+      toast.error("Valor da quitação é obrigatória.")
       focusById("fin.quitacao.valor")
       return false
     }
@@ -468,11 +524,31 @@ export default function ObrasPage({
     return true
   }
 
+  async function uploadImagensIfNeeded(): Promise<ImgItem[]> {
+    const imgs = (vm.imagens ?? []).filter((img) => img != null)
+    const filesToUpload = imgs.map((it) => getImgFile(it as any)).filter((f): f is File => !!f)
+
+    if (filesToUpload.length === 0) {
+      return imgs
+        .filter((img) => String((img as any)?.url ?? "").trim() !== "")
+        .map((img, i) => ({ ...(img as any), ordem: Number((img as any)?.ordem ?? i + 1) })) as ImgItem[]
+    }
+
+    toast.message(`Enviando ${filesToUpload.length} imagem(ns)…`)
+    const up = await uploadImagensObra(filesToUpload)
+    const normalized = normalizeImgsAfterUpload(imgs, up.urls)
+
+    setVm((d) => ({ ...(d as any), imagens: normalized as any }))
+    return normalized
+  }
+
   async function onSave() {
     try {
       setSaving(true)
 
       if (!validateAndFocus()) return
+
+      const imagensFinal = await uploadImagensIfNeeded()
 
       if (mode === "new") {
         if (!orcamentoId) {
@@ -539,11 +615,13 @@ export default function ObrasPage({
           data_prev_inicio: (exec.dataPrevInicio as any) ?? null,
           data_prev_conclusao: (exec.dataPrevConclusao as any) ?? null,
 
-          imagens: (vm.imagens ?? []).map((img, i) => ({
-            url: img.url.trim(),
-            ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-            legenda: img.legenda || null,
-          })),
+          imagens: (imagensFinal ?? [])
+            .filter((img) => String((img as any)?.url ?? "").trim() !== "")
+            .map((img: any, i: number) => ({
+              url: String(img.url ?? "").trim(),
+              ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
+              legenda: img.legenda || null,
+            })),
 
           area_telha: Number(pedido.telha?.area ?? 0),
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
@@ -630,14 +708,12 @@ export default function ObrasPage({
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
           previsao_madeira: (pedido.madeira?.previsao as any) ?? undefined,
           status_madeira: (pedido.madeira?.status as any) ?? undefined,
-          fornecedor_madeira_id:
-            pedido.madeira?.fornecedorId != null ? Number(pedido.madeira.fornecedorId) : undefined,
+          fornecedor_madeira_id: pedido.madeira?.fornecedorId != null ? Number(pedido.madeira.fornecedorId) : undefined,
 
           materiais_status: (pedido.materiais?.status as any) ?? undefined,
 
           andaimes_status: (pedido.andaimes?.status as any) ?? undefined,
-          andaimes_fornecedor_id:
-            pedido.andaimes?.fornecedorId != null ? Number(pedido.andaimes.fornecedorId) : undefined,
+          andaimes_fornecedor_id: pedido.andaimes?.fornecedorId != null ? Number(pedido.andaimes.fornecedorId) : undefined,
 
           itens: {
             telha: mapTelhaItens(pedido.telha?.itens),
@@ -649,16 +725,13 @@ export default function ObrasPage({
 
         const imagensReplace: UpdateObraPayload["imagens"] = {
           replace: true,
-          list: (vm.imagens ?? [])
-            .filter((img) => String(img?.url ?? "").trim() !== "")
-            .map((img, i) => ({
+          list: (imagensFinal ?? [])
+            .filter((img: any) => String(img?.url ?? "").trim() !== "")
+            .map((img: any, i: number) => ({
               id: img.id ?? undefined,
               url: String(img.url ?? "").trim(),
               ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-              legenda:
-                img?.legenda && String(img.legenda).trim() !== ""
-                  ? String(img.legenda).trim()
-                  : undefined,
+              legenda: img?.legenda && String(img.legenda).trim() !== "" ? String(img.legenda).trim() : undefined,
             })),
         }
 
@@ -793,12 +866,7 @@ export default function ObrasPage({
       />
 
       <div className="mt-6">
-        <ObsImagens
-          observacoes={vm.observacoes}
-          imagens={vm.imagens ?? []}
-          isEditing={isEditing}
-          onChange={patchInfos}
-        />
+        <ObsImagens observacoes={vm.observacoes} imagens={vm.imagens ?? []} isEditing={isEditing} onChange={patchInfos} />
       </div>
 
       <PedidoCompra
@@ -813,16 +881,9 @@ export default function ObrasPage({
         fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       />
 
-
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
-        <Execucao
-          className="lg:col-span-1"
-          value={exec}
-          onChange={patchExecucao}
-          isEditing={isEditing}
-          equipeOptions={equipeOptions}
-        />
+        <Execucao className="lg:col-span-1" value={exec} onChange={patchExecucao} isEditing={isEditing} equipeOptions={equipeOptions} />
       </div>
 
       <div className="mt-6">
