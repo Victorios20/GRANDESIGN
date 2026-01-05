@@ -52,7 +52,7 @@ export function calcularTotais({
     arrTelhas as Item[]
   )
 
-  const empresaGDBase = (valorTotalMateriais + maoDeObra) * 0.3
+  const empresaGDBase = (valorTotalMateriais + maoDeObra) * 0.2
   const empresaGD = Math.ceil(empresaGDBase / 100) * 100
 
   /* =======================
@@ -97,7 +97,7 @@ function calcularMaoDeObra(madeiras: Item[] = []): number {
   if (qtdColunas >= 4) return 2100
   if (qtdColunas >= 2) return 1800
 
-  if (qtdPontaletes >= 6) return 1500
+  if (qtdPontaletes >= 6) return 1800
   if (qtdPontaletes >= 4) return 1500
 
   return 1500
