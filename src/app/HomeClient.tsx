@@ -245,21 +245,39 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       },
     },
     {
-      name: "obra",
-      label: "",
-      options: {
-        sort: false,
-        searchable: false,
-        filter: false,
-        setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
-        setCellProps: () => ({ style: { textAlign: "center" } }),
-        customBodyRender: (_val, meta) => {
-          const r = rows[meta.rowIndex]
-          if (!r?.lancadoObra) return null
-          return <Hammer className="h-4 w-4 text-marromEscuro" aria-label="Obra lançada" />
-        },
-      },
+  name: "obra",
+  label: "",
+  options: {
+    sort: false,
+    searchable: false,
+    filter: false,
+    setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
+    setCellProps: () => ({ style: { textAlign: "center" } }),
+    customBodyRender: (_val, meta) => {
+      const r = rows[meta.rowIndex]
+      if (!r?.lancadoObra || r?.obraId == null) return null
+
+      return (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-marromEscuro hover:bg-marromClaro/20"
+          aria-label="Ir para a obra"
+          title="Ir para a obra"
+          data-no-row-nav
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            router.push(`/obras/${r.obraId}`)
+          }}
+        >
+          <Hammer className="h-4 w-4" />
+        </Button>
+      )
     },
+  },
+},
+
     { name: "titulo", label: "Título", options: { sort: false, searchable: true } },
     { name: "cliente", label: "Cliente", options: { sort: false, searchable: true } },
     {

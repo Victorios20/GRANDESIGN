@@ -49,6 +49,9 @@ const STATUS_OPTIONS: StatusOption<ObraStatus>[] = [
 const inputClass =
   "h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
 
+const labelText = "text-neutral-700 text-sm font-medium"
+const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-tight"
+
 export default function InfosGerais({
   value,
   onChange,
@@ -75,7 +78,7 @@ export default function InfosGerais({
           </h3>
 
           <div className="flex flex-col gap-1 mb-4">
-            <Label>Tipo de obra</Label>
+            <Label className={labelText}>Tipo de obra</Label>
             {isEditing ? (
               <ComboboxAdd
                 widthClass="w-full"
@@ -87,13 +90,13 @@ export default function InfosGerais({
                 showEmptyOption={false}
               />
             ) : (
-              <div className="font-semibold">{value.tipoObra || "-"}</div>
+              <div className={valueText}>{value.tipoObra || "-"}</div>
             )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="flex flex-col gap-1">
-              <Label>Largura</Label>
+              <Label className={labelText}>Largura</Label>
               {isEditing ? (
                 <Input
                   type="number"
@@ -103,12 +106,12 @@ export default function InfosGerais({
                   onChange={(e) => onChange({ largura: Number(e.target.value || 0) })}
                 />
               ) : (
-                <div className="font-semibold">{dims.L}</div>
+                <div className={valueText}>{dims.L}</div>
               )}
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label>Comprimento</Label>
+              <Label className={labelText}>Comprimento</Label>
               {isEditing ? (
                 <Input
                   type="number"
@@ -118,14 +121,14 @@ export default function InfosGerais({
                   onChange={(e) => onChange({ comprimento: Number(e.target.value || 0) })}
                 />
               ) : (
-                <div className="font-semibold">{dims.C}</div>
+                <div className={valueText}>{dims.C}</div>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
-              <Label>Telha</Label>
+              <Label className={labelText}>Telha</Label>
               {isEditing ? (
                 <ComboboxAdd
                   widthClass="w-full"
@@ -137,12 +140,12 @@ export default function InfosGerais({
                   showEmptyOption={false}
                 />
               ) : (
-                <div className="font-semibold">{value.telhaEscolhida || "-"}</div>
+                <div className={valueText}>{value.telhaEscolhida || "-"}</div>
               )}
             </div>
 
             <div className="flex flex-col gap-1">
-              <Label>Status</Label>
+              <Label className={labelText}>Status</Label>
               <StatusSelect<ObraStatus>
                 options={STATUS_OPTIONS}
                 value={value.status ?? null}
@@ -207,9 +210,7 @@ export default function InfosGerais({
               <Input
                 className={inputClass}
                 value={value.endereco?.logradouro ?? ""}
-                onChange={(e) =>
-                  onChange({ endereco: { ...value.endereco, logradouro: e.target.value } })
-                }
+                onChange={(e) => onChange({ endereco: { ...value.endereco, logradouro: e.target.value } })}
               />
             ) : (
               <Input disabled readOnly className={inputClass} value={value.endereco?.logradouro ?? ""} />
@@ -234,9 +235,7 @@ export default function InfosGerais({
               <Input
                 className={inputClass}
                 value={value.endereco?.mapsUrl ?? ""}
-                onChange={(e) =>
-                  onChange({ endereco: { ...value.endereco, mapsUrl: e.target.value } })
-                }
+                onChange={(e) => onChange({ endereco: { ...value.endereco, mapsUrl: e.target.value } })}
               />
             ) : (
               <Input disabled readOnly className={inputClass} value={value.endereco?.mapsUrl ?? ""} />
