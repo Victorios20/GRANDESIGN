@@ -413,9 +413,10 @@ async function calcularMateriaisNormal(
     descricao: r.descricao,
     componente: r.componente,
     quantidade: r.quantidade,
-    preco_unitario: r.descricao === "Impermeabilizante"
-      ? (mapaPrecos.get(r.descricao) ?? 0) * (qtdColunasLinhas || 0)
-      : (mapaPrecos.get(r.descricao) ?? 0),
+    preco_unitario:
+      r.descricao === "Impermeabilizante"
+        ? (mapaPrecos.get(r.descricao) ?? 0) * (qtdColunasLinhas || 0)
+        : (mapaPrecos.get(r.descricao) ?? 0),
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })
 
@@ -478,10 +479,11 @@ export async function calcularMateriaisCobertaL(
 
   /* ---------- 1) Pranchões ---------- */
   // Base: total 3 (2 no maior, 1 no menor)
-  // Variante com linha na parede: remove 1 pranchão (vou remover o menor)
-  add("Linha 30cm", "Pranchão (maior)", 2, LMaior)
-  const qtdPranchaoMenor = comLinhaNaParede ? 0 : 1
-  add("Linha 30cm", "Pranchão (menor)", qtdPranchaoMenor, LMenor)
+  // Variante com linha na parede: remove 1 pranchão MAIOR (fica 1 no maior, mantém 1 no menor)
+  const qtdPranchaoMaior = comLinhaNaParede ? 1 : 2
+  add("Linha 30cm", "Pranchão (maior)", qtdPranchaoMaior, LMaior)
+
+  add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
 
   /* ---------- 2) Pontaletes ---------- */
   // Base: fixo = 5 (2,5 m)
@@ -514,9 +516,11 @@ export async function calcularMateriaisCobertaL(
   addMaterial("Impermeabilizante", 1)
 
   /* ---------- 7) Parafuso Sextavado ---------- */
-  // Regra base usa 5 pontaletes *3 +2
-  // Ajusta conforme a quantidade de pontaletes na variante
-  const qtdSextavado = qtdPontaletes * 3 + 2
+  // Regra: 3 parafusos por pontalete + 1 por metro da linha na parede (usando a largura total da obra)
+  // Mantive a sobra +2 como estava.
+  const metrosLinhaParede = comLinhaNaParede ? ROUND_INT(LMaior) : 0
+
+  const qtdSextavado = (qtdPontaletes * 3) + metrosLinhaParede + 2
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
   /* ---------- 8) Telhas: Área1 + Área2, com 8% de perda por recorte ---------- */
@@ -583,7 +587,8 @@ export async function calcularMateriaisCobertaL(
   const telhasAgrup = agrupar(telhasRaw)
 
   const descricoesBuscaL = [...madeiraAgrupOrd, ...materiaisAgrup, ...telhasAgrup]
-    .map(r => r.descricao).filter((v, i, a) => a.indexOf(v) === i)
+    .map(r => r.descricao)
+    .filter((v, i, a) => a.indexOf(v) === i)
 
   let precosL: MaterialRow[]
   try {
@@ -601,9 +606,10 @@ export async function calcularMateriaisCobertaL(
     descricao: r.descricao,
     componente: r.componente,
     quantidade: r.quantidade,
-    preco_unitario: r.descricao === "Impermeabilizante"
-      ? (mapaPrecosL.get(r.descricao) ?? 0) * 1
-      : (mapaPrecosL.get(r.descricao) ?? 0),
+    preco_unitario:
+      r.descricao === "Impermeabilizante"
+        ? (mapaPrecosL.get(r.descricao) ?? 0) * 1
+        : (mapaPrecosL.get(r.descricao) ?? 0),
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })
 
