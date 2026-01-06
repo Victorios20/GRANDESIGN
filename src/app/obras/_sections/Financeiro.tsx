@@ -30,10 +30,13 @@ type Props = {
 }
 
 const inputBase =
-  "h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
+  "h-9 rounded-xl px-3 text-sm font-medium text-neutral-900 tabular-nums tracking-tight bg-neutral-100 border border-neutral-300 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
 
 const inputWhite =
-  "h-9 border border-green/40 bg-white rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
+  "h-9 rounded-xl px-3 text-sm font-medium text-neutral-900 tabular-nums tracking-tight bg-white border border-green/40 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
+
+const labelText = "text-neutral-700 text-sm font-medium"
+const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-tight"
 
 const FORMAS: Option[] = [
   { value: "Pix", label: "Pix" },
@@ -43,7 +46,6 @@ const FORMAS: Option[] = [
   { value: "16x", label: "16x" },
 ]
 
-// opções do StatusSelect (cores + ícones)
 const STATUS_OPTIONS: StatusOption<StatusPagamento>[] = [
   { label: "Efetuado", value: "Efetuado", color: "blue", icon: CheckCircle2 },
   { label: "Pendente", value: "Pendente", color: "yellow", icon: Clock },
@@ -73,83 +75,72 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
         </h3>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-          {/* Coluna esquerda: totais */}
+          {/* Totais */}
           <div className="lg:col-span-1 flex flex-col justify-center">
-            <div className="flex items-center gap-0.5 mb-3 sm:w-[520px]">
-              <Label htmlFor="fin.valorObra" className="text-black shrink-0 w-32">
-                Valor da obra
-              </Label>
+            <div className="flex items-center gap-1 mb-3 sm:w-[520px]">
+              <Label className={cn("w-32 shrink-0", labelText)}>Valor da obra</Label>
               {isEditing ? (
                 <Input
-                  id="fin.valorObra"
                   type="number"
                   className={cn(inputBase, "w-40")}
                   value={Number(value.valorObra ?? 0)}
                   onChange={(e) => patch({ valorObra: Number(e.target.value || 0) })}
                 />
               ) : (
-                <span className="font-bold inline-block w-40">
+                <span className={cn(valueText, "inline-block w-40")}>
                   <Money value={value.valorObra} />
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-0.5 sm:w-[520px]">
-              <Label htmlFor="fin.maoDeObra" className="text-black shrink-0 w-32">
-                Mão de obra
-              </Label>
+            <div className="flex items-center gap-1 sm:w-[520px]">
+              <Label className={cn("w-32 shrink-0", labelText)}>Mão de obra</Label>
               {isEditing ? (
                 <Input
-                  id="fin.maoDeObra"
                   type="number"
                   className={cn(inputBase, "w-40")}
                   value={Number(value.maoDeObra ?? 0)}
                   onChange={(e) => patch({ maoDeObra: Number(e.target.value || 0) })}
                 />
               ) : (
-                <span className="font-bold inline-block w-40">
+                <span className={cn(valueText, "inline-block w-40")}>
                   <Money value={value.maoDeObra} />
                 </span>
               )}
             </div>
           </div>
 
-          {/* Card Pagamento */}
+          {/* Pagamento */}
           <div className="lg:col-span-2">
             <div className="rounded-xl bg-neutral-100 p-5 h-full">
               <div className="mb-4 flex items-center gap-2">
                 <CreditCard className="h-6 w-6 text-green" />
-                <span className="text-2xl font-semibold text-green tracking-tight uppercase">Pagamento</span>
+                <span className="text-2xl font-semibold text-green tracking-tight uppercase">
+                  Pagamento
+                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Entrada */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.valor" className="text-black shrink-0 w-20">
-                      Entrada
-                    </Label>
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Entrada</Label>
                     {isEditing ? (
                       <Input
-                        id="fin.entrada.valor"
                         type="number"
                         className={cn(inputWhite, "w-40")}
                         value={Number(entrada.valor ?? 0)}
                         onChange={(e) => patchEntrada({ valor: Number(e.target.value || 0) })}
                       />
                     ) : (
-                      <span className="font-bold inline-block w-40">
+                      <span className={cn(valueText, "inline-block w-40")}>
                         <Money value={entrada.valor} />
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.forma" className="text-black shrink-0 w-20">
-                      Forma
-                    </Label>
-                    {/* Âncora invisível para foco/scroll */}
-                    <input id="fin.entrada.forma" className="sr-only" aria-hidden readOnly />
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Forma</Label>
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -163,18 +154,16 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                         />
                       </div>
                     ) : (
-                      <span className="font-semibold inline-block w-40">{entrada.forma || "-"}</span>
+                      <span className={cn(valueText, "inline-block w-40")}>
+                        {entrada.forma || "-"}
+                      </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.entrada.status" className="text-black shrink-0 w-20">
-                      Status
-                    </Label>
-                    {/* Âncora invisível para foco/scroll */}
-                    <input id="fin.entrada.status" className="sr-only" aria-hidden readOnly />
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Status</Label>
                     <div className="w-40">
-                      <StatusSelect<StatusPagamento>
+                      <StatusSelect
                         options={STATUS_OPTIONS}
                         value={entrada.status ?? null}
                         onChange={(v) => patchEntrada({ status: v })}
@@ -188,31 +177,24 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
 
                 {/* Quitação */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.valor" className="text-black shrink-0 w-20">
-                      Quitação
-                    </Label>
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Quitação</Label>
                     {isEditing ? (
                       <Input
-                        id="fin.quitacao.valor"
                         type="number"
                         className={cn(inputWhite, "w-40")}
                         value={Number(quitacao.valor ?? 0)}
                         onChange={(e) => patchQuitacao({ valor: Number(e.target.value || 0) })}
                       />
                     ) : (
-                      <span className="font-bold inline-block w-40">
+                      <span className={cn(valueText, "inline-block w-40")}>
                         <Money value={quitacao.valor} />
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.forma" className="text-black shrink-0 w-20">
-                      Forma
-                    </Label>
-                    {/* Âncora invisível para foco/scroll */}
-                    <input id="fin.quitacao.forma" className="sr-only" aria-hidden readOnly />
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Forma</Label>
                     {isEditing ? (
                       <div className="w-40">
                         <ComboboxAdd
@@ -226,18 +208,16 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
                         />
                       </div>
                     ) : (
-                      <span className="font-semibold inline-block w-40">{quitacao.forma || "-"}</span>
+                      <span className={cn(valueText, "inline-block w-40")}>
+                        {quitacao.forma || "-"}
+                      </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-0.5">
-                    <Label htmlFor="fin.quitacao.status" className="text-black shrink-0 w-20">
-                      Status
-                    </Label>
-                    {/* Âncora invisível para foco/scroll */}
-                    <input id="fin.quitacao.status" className="sr-only" aria-hidden readOnly />
+                  <div className="flex items-center gap-1">
+                    <Label className={cn("w-20 shrink-0", labelText)}>Status</Label>
                     <div className="w-40">
-                      <StatusSelect<StatusPagamento>
+                      <StatusSelect
                         options={STATUS_OPTIONS}
                         value={quitacao.status ?? null}
                         onChange={(v) => patchQuitacao({ status: v })}

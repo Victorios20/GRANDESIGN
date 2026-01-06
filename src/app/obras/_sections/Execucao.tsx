@@ -28,7 +28,9 @@ type Props = {
   className?: string
 }
 
-// adicione ao lado do inputWhite
+const labelText = "text-neutral-700 text-sm font-medium"
+const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-tight"
+
 const inputGrayGreen =
   "h-9 border border-green/40 bg-cinza text-green rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
 
@@ -46,22 +48,18 @@ function DateField({
   disabled?: boolean
 }) {
   const text = useMemo(() => (date ? format(date, "dd/MM/yyyy") : "Selecionar…"), [date])
+
   return (
     <div className="flex items-center gap-0.5">
-      <Label htmlFor={id} className="text-black shrink-0 w-40">
+      <Label htmlFor={id} className={cn("shrink-0 w-40", labelText)}>
         {label}
       </Label>
-      {/* Âncora invisível para foco/scroll */}
       <input id={id} className="sr-only" aria-hidden readOnly />
       <Popover>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
-            className={cn(
-              inputGrayGreen,
-              "w-48 justify-between font-semibold",
-              disabled && "pointer-events-none"
-            )}
+            className={cn(inputGrayGreen, "w-48 justify-between font-semibold", disabled && "pointer-events-none")}
           >
             {text}
             <CalendarIcon className="ml-2 h-4 w-4 opacity-70 text-green" />
@@ -69,7 +67,12 @@ function DateField({
         </PopoverTrigger>
         {!disabled && (
           <PopoverContent className="p-0" align="start">
-            <Calendar mode="single" selected={date ?? undefined} onSelect={onSelect} colorVariant="gray-green" />
+            <Calendar
+              mode="single"
+              selected={date ?? undefined}
+              onSelect={onSelect}
+              colorVariant="gray-green"
+            />
           </PopoverContent>
         )}
       </Popover>
@@ -98,12 +101,10 @@ export default function Execucao({
         </h3>
 
         <div className="grid grid-cols-1 gap-4">
-          {/* Equipe (obrigatório) */}
           <div className="flex items-center gap-0.5">
-            <Label htmlFor="exec.equipeId" className="text-black shrink-0 w-40">
+            <Label htmlFor="exec.equipeId" className={cn("shrink-0 w-40", labelText)}>
               Equipe
             </Label>
-            {/* Âncora invisível para foco/scroll */}
             <input id="exec.equipeId" className="sr-only" aria-hidden readOnly />
             {isEditing ? (
               <div className="w-64">
@@ -118,13 +119,12 @@ export default function Execucao({
                 />
               </div>
             ) : (
-              <span className="font-bold inline-block w-64">
+              <span className={cn(valueText, "inline-block w-64")}>
                 {equipeButtonText !== "Selecione" ? equipeButtonText : "-"}
               </span>
             )}
           </div>
 
-          {/* Datas (obrigatórias) */}
           <DateField
             id="exec.dataPrevInicio"
             label="Data prevista de início"

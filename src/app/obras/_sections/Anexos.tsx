@@ -36,10 +36,10 @@ function LinkField({ label, value, icon: Icon }: LinkFieldProps) {
   const hasValue = href.length > 0
 
   return (
-    <div className="min-w-0 w-full flex flex-col gap-2">
-      <Label className="inline-flex items-center gap-2 font-medium text-black text-sm">
+    <div className="w-full flex items-center gap-3 min-w-0">
+      <Label className="inline-flex items-center gap-2 font-medium text-black text-sm shrink-0">
         <Icon className="h-4 w-4" />
-        {label}
+        {label}:
       </Label>
 
       {hasValue ? (
@@ -102,7 +102,7 @@ export default function Anexos({
       </CardHeader>
 
       <CardContent className="px-7 pb-7 pt-3">
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-8 gap-y-5">
+        <div className="w-full flex flex-col gap-4">
           <LinkField label="Orçamento" value={orcamentoUrl} icon={FileText} />
 
           <LinkField
@@ -111,7 +111,11 @@ export default function Anexos({
             icon={FileSignature}
           />
 
-          <LinkField label="Proposta" value={propostaLink ?? ""} icon={FileSpreadsheet} />
+          <LinkField
+            label="Proposta"
+            value={propostaLink ?? ""}
+            icon={FileSpreadsheet}
+          />
 
           <LinkField
             label="Ordem de Serviço"
