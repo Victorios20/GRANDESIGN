@@ -1217,7 +1217,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
         if (isCobertaL) {
-            resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
+            // Para coberta em L, respeita o texto escolhido no select (pode ser "Coberta em L - Linha na Parede 15" ou "Coberta em L com linha na parede")
+            const tipoSelecionado = tipoObra ?? "Coberta em L"
+            resultado = await calcularMateriais(tipoSelecionado, undefined, undefined, {
                 larguraMaior: dim.larguraMaior,
                 comprimentoMaior: dim.comprimentoMaior,
                 larguraMenor: dim.larguraMenor,
