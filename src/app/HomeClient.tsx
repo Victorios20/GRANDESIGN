@@ -518,8 +518,8 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     sort: false,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
-    onRowClick: (rowData) => {
-      const id = Array.isArray(rowData) ? rowData[0] : null
+    onRowClick: (_rowData, rowMeta) => {
+      const id = rows[rowMeta.dataIndex]?.id
       if (id != null) router.push(`/orcamento/detalhes/${id}`)
     },
     setRowProps: () => ({

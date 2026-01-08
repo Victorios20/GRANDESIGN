@@ -474,7 +474,7 @@ export async function calcularMateriaisCobertaL(
   // Obs: por padrão eu usei LMenor como “comprimento” da linha na parede.
   // Se na sua regra for LMaior, troque LMenor por LMaior aqui.
   if (comLinhaNaParede) {
-    add("Linha 10cm", "Linha na Parede", 1, LMenor)
+    add("Linha 10cm", "Linha na Parede", 1, LMaior)
   }
 
   /* ---------- 1) Pranchões ---------- */
