@@ -157,6 +157,7 @@ async function calcularMateriaisNormal(
   const isCorredorQuedaLateral = /^Corredor Queda Lateral/i.test(tipoNorm)
   const isCorredorQuedaFrontal = /^Corredor Queda Frontal/i.test(tipoNorm)
   const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaFrontal
+  const isMaoFrancesa = /^Mão Francesa/i.test(tipoNorm)
 
   /* ------------------ Lógica principal ------------------ */
   switch (true) {
@@ -229,12 +230,52 @@ async function calcularMateriaisNormal(
       break
     }
 
+    // ===== MÃO FRANCESA =====
+    case /^Mão Francesa/i.test(tipoNorm): {
+      // Regras confirmadas:
+      // - Quantidade: ceil(largura / 2) (sem extremidades), espaçamento ao longo da largura
+      // - NÃO adiciona beiral aqui
+      // - 3 peças por mão francesa, descrição Pontalete (tamanhos proporcionais ao comprimento útil)
+      // - 2 barrotes (linha parede + extremidade) para o telhado inteiro, tamanho = largura
+      // - 1 barrote inclinado único: comprimento * 1,30
+      // - barrotes das telhas calculados pelo comprimento linear (ceil(comprimento))
+
+      const BEIRAL = 0.5
+      const mf = comprimento - BEIRAL
+      if (mf <= 0) {
+        throw new Error("Mão Francesa: comprimento deve ser maior que 0,50m (beiral).")
+      }
+
+      const qtdMF = ROUND_INT(largura / 2)
+
+      // 3 peças por mão francesa (tamanhos escalados pelo mf)
+      // Obs: componente deve ser estritamente existente: usa "Pontalete"
+      add("Pontalete", "Pontalete", qtdMF, 0.90 * mf)
+      add("Pontalete", "Pontalete", qtdMF, 0.67 * mf)
+      add("Pontalete", "Pontalete", qtdMF, 0.89 * mf)
+
+      // 2 barrotes do telhado inteiro (parede + extremidade) - sem criar novo componente
+      // Usa "Terças" (já existente) para classificar como estrutura
+      add("Barrote", "Terças", 2, largArred)
+
+      // Barrote inclinado único (30%)
+      add("Barrote", "Terças", 1, comprimento * 1.3)
+
+      // Barrotes que seguram telha: a cada 0,32m no comprimento linear
+      const compLinear = ROUND_INT(comprimento)
+      const qtdBarrotesTelha = ROUND_INT(compLinear / 0.32) + 1
+      add("Barrote", "Caibros", qtdBarrotesTelha, largArred)
+
+      break
+    }
+
     default:
       throw new Error(`Tipo de obra não reconhecido: ${tipoNorm}`)
   }
 
   /* ------------------ Madeira comum ------------------ */
-  if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
+  // IMPORTANTE: Mão Francesa não entra no bloco comum (evita pranchão/terças/caibro/beiral automáticos)
+  if (!/^(Pergolado|Caramanchão|Mão Francesa)/i.test(tipoNorm)) {
     const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
     const isCaibroRipa = isCaibroRipaBase || isCorredorQueda // corredores seguem lógica de caibro e ripa
     const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
@@ -308,19 +349,26 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Parafuso sextavado ------------------ */
   if (!adicionouSextavado) {
-    const qtdPontal = madeiraRaw
-      .filter(m => m.componente === "Pontalete")
-      .reduce((s, x) => s + x.quantidade, 0)
+    // REGRA ESPECIAL – MÃO FRANCESA:
+    // parafuso sextavado = 3 x quantidade de mãos francesas
+    if (isMaoFrancesa) {
+      const qtdMF = ROUND_INT(largura / 2)
+      if (qtdMF > 0) addMaterial("Parafuso Sextavado", qtdMF * 3)
+    } else {
+      const qtdPontal = madeiraRaw
+        .filter(m => m.componente === "Pontalete")
+        .reduce((s, x) => s + x.quantidade, 0)
 
-    const temLinhaParede = madeiraRaw.some(m => m.componente === "Linha na Parede")
+      const temLinhaParede = madeiraRaw.some(m => m.componente === "Linha na Parede")
 
-    let qtdSextavado = 0
-    if (qtdPontal) qtdSextavado += qtdPontal * 3
-    if (temLinhaParede) qtdSextavado += ROUND_INT(largura)
-    if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
+      let qtdSextavado = 0
+      if (qtdPontal) qtdSextavado += qtdPontal * 3
+      if (temLinhaParede) qtdSextavado += ROUND_INT(largura)
+      if (qtdSextavado > 0) addMaterial("Parafuso Sextavado", qtdSextavado + 2)
+    }
   }
 
-  /* ------------------ Telhas ------------------ */
+  * ------------------ Telhas ------------------ */
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
