@@ -368,7 +368,7 @@ async function calcularMateriaisNormal(
     }
   }
 
-  * ------------------ Telhas ------------------ */
+  /* ------------------ Telhas ------------------ */
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
