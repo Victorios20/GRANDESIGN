@@ -16,9 +16,9 @@ import {
     ArrowUpRight,
     Copy,
     ChevronsUpDown,
-    UserPlus,
-    UserCheck
 } from "lucide-react"
+
+import DadosPessoaisCard from "./DadosPessoaisCard"
 import { FATOR_10X, FATOR_18X } from "@/app/orcamento/_utils/fatoresCartao"
 
 import { Toaster, toast } from "sonner"
@@ -1211,83 +1211,83 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     }
 
     const calcular = async (): Promise<void> => {
-    if (!tipoObra || loadingCalc) return
-    setLoadingCalc(true)
-    try {
-        let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
+        if (!tipoObra || loadingCalc) return
+        setLoadingCalc(true)
+        try {
+            let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
-        if (isCobertaL) {
-            // Para coberta em L, respeita o texto escolhido no select (pode ser "Coberta em L - Linha na Parede 15" ou "Coberta em L com linha na parede")
-            const tipoSelecionado = tipoObra ?? "Coberta em L"
-            resultado = await calcularMateriais(tipoSelecionado, undefined, undefined, {
-                larguraMaior: dim.larguraMaior,
-                comprimentoMaior: dim.comprimentoMaior,
-                larguraMenor: dim.larguraMenor,
-                comprimentoMenor: dim.comprimentoMenor,
-                fornecedorId: Number(fornecedorSel),
+            if (isCobertaL) {
+                // Para coberta em L, respeita o texto escolhido no select (pode ser "Coberta em L - Linha na Parede 15" ou "Coberta em L com linha na parede")
+                const tipoSelecionado = tipoObra ?? "Coberta em L"
+                resultado = await calcularMateriais(tipoSelecionado, undefined, undefined, {
+                    larguraMaior: dim.larguraMaior,
+                    comprimentoMaior: dim.comprimentoMaior,
+                    larguraMenor: dim.larguraMenor,
+                    comprimentoMenor: dim.comprimentoMenor,
+                    fornecedorId: Number(fornecedorSel),
+                })
+            } else {
+                resultado = await calcularMateriais(
+                    tipoObra,
+                    dim.largura,
+                    dim.comprimento,
+                    { fornecedorId: Number(fornecedorSel) }
+                )
+            }
+
+            const { madeira, materiais: mats, telhas } = resultado
+
+            const mapRow = (r: MaterialCalculado, i: number): Material => ({
+                id: Date.now() + i + Math.random(),
+                nome: r.descricao,
+                componente: r.componente,
+                quantidade: r.quantidade,
+                preco: r.preco_unitario,
+                tamanho: r.tamanho,
+                frete: r.frete ?? 0,
             })
-        } else {
-            resultado = await calcularMateriais(
-                tipoObra,
-                dim.largura,
-                dim.comprimento,
-                { fornecedorId: Number(fornecedorSel) }
-            )
+
+            const madeirasNew = madeira.map(mapRow)
+            const materGNew = mats.map(mapRow)
+            let telhasNew = telhas.map(mapRow)
+
+            telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
+
+            setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
+
+            const madeirasSubtotal = subtotalMadeiras(madeirasNew)
+            const materiaisSubtotal = subtotalGeral(materGNew)
+
+            console.group("🟡 DEBUG Antes de calcularTotais")
+            console.log("madeirasNew:", madeirasNew)
+            console.log("materGNew:", materGNew)
+            console.log("telhasNew:", telhasNew)
+            console.groupEnd()
+
+            const { maoDeObra, empresaGD } = calcularTotais({
+                madeiras: madeirasNew,
+                materiais: materGNew,
+                telhas: telhasNew
+            })
+
+            setTotEdit({
+                madeiras: madeirasSubtotal,
+                materiais: materiaisSubtotal,
+                comissao: 0,
+                frete: 0,
+                empresaPS: maoDeObra,
+                empresaGD: empresaGD,
+            })
+
+            toast.success("Cálculo concluído com sucesso!")
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
+            toast.error(message)
+            console.error(err)
+        } finally {
+            setLoadingCalc(false)
         }
-
-        const { madeira, materiais: mats, telhas } = resultado
-
-        const mapRow = (r: MaterialCalculado, i: number): Material => ({
-            id: Date.now() + i + Math.random(),
-            nome: r.descricao,
-            componente: r.componente,
-            quantidade: r.quantidade,
-            preco: r.preco_unitario,
-            tamanho: r.tamanho,
-            frete: r.frete ?? 0,
-        })
-
-        const madeirasNew = madeira.map(mapRow)
-        const materGNew = mats.map(mapRow)
-        let telhasNew = telhas.map(mapRow)
-
-        telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
-
-        setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
-
-        const madeirasSubtotal = subtotalMadeiras(madeirasNew)
-        const materiaisSubtotal = subtotalGeral(materGNew)
-
-        console.group("🟡 DEBUG Antes de calcularTotais")
-        console.log("madeirasNew:", madeirasNew)
-        console.log("materGNew:", materGNew)
-        console.log("telhasNew:", telhasNew)
-        console.groupEnd()
-
-        const { maoDeObra, empresaGD } = calcularTotais({
-            madeiras: madeirasNew,
-            materiais: materGNew,
-            telhas: telhasNew
-        })
-
-        setTotEdit({
-            madeiras: madeirasSubtotal,
-            materiais: materiaisSubtotal,
-            comissao: 0,
-            frete: 0,
-            empresaPS: maoDeObra,
-            empresaGD: empresaGD,
-        })
-
-        toast.success("Cálculo concluído com sucesso!")
-    } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Erro inesperado no cálculo."
-        toast.error(message)
-        console.error(err)
-    } finally {
-        setLoadingCalc(false)
     }
-}
 
 
 
@@ -1558,121 +1558,121 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
 
     const handleGerarProposta = async (confirmedTitle?: string) => {
-    const snap = (confirmedTitle ?? tituloSnap)?.trim()
-    const confirmed = confirmedTitle ? true : tituloConfirmado
-    if (!confirmed || !snap) {
-        toast.error("Confirme o título antes de gerar a proposta.")
-        return
-    }
-
-    const valid = validatePreGerar(form, tipoObra, materiais)
-    if (!valid.ok) {
-        toast.error(valid.msg)
-        scrollToField(FIELD_IDS[valid.missing])
-        return
-    }
-
-    if (mode === "create" && !ensureClienteAssociado()) return
-
-    try {
-        setLoadingPDF(true)
-        const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
-        setTelhaValores(telhaValoresAtual)
-
-        if (mode === "create") {
-            try {
-                setLoadingSave(true)
-
-                if (!ensureClienteAssociado()) {
-                    setLoadingSave(false)
-                    return
-                }
-
-                const payloadCreate = {
-                    clienteId: Number(clienteId),
-                    cliente: form,
-                    parametros: { tipoObra: tipoObra ?? "", ...dim },
-                    materiais,
-                    totais: totEdit,
-                    telhaValores: telhaValoresAtual,
-                    titulo: snap,
-                    fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
-                    observacoes: (observacoes || "").trim() || null,
-                }
-
-                const { id: novoId, links } = await gerarPropostaAPI(payloadCreate)
-
-                setLinks({ slide: links.slideUrl, pdf: links.pdfUrl })
-
-                await logOrcamentoWebhook({
-                    acao: "CRIAR_ORCAMENTO",
-                    orcamentoId: novoId,
-                    titulo: snap,
-                    cliente: buildClienteLog(),
-                    usuario: usuarioLog,
-                    dadosOrcamento: { ...payloadCreate, links },
-                })
-
-                toast.success("Orçamento salvo automaticamente.")
-                toast.success("Proposta gerada! Links prontos abaixo.")
-                setModalSucessoAberto(true)
-            } catch (err: unknown) {
-                const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
-                toast.error(msg)
-            } finally {
-                setLoadingSave(false)
-            }
-
+        const snap = (confirmedTitle ?? tituloSnap)?.trim()
+        const confirmed = confirmedTitle ? true : tituloConfirmado
+        if (!confirmed || !snap) {
+            toast.error("Confirme o título antes de gerar a proposta.")
             return
         }
 
-        const result = await gerarPDF({
-            orcamentoId: Number(orcamentoId),
-            cliente: form,
-            parametros: { tipoObra: tipoObra ?? "", ...dim },
-            materiais,
-            totais: totEdit,
-            telhaValoresDinamicos: telhaValoresAtual,
-            titulo: snap,
-        })
+        const valid = validatePreGerar(form, tipoObra, materiais)
+        if (!valid.ok) {
+            toast.error(valid.msg)
+            scrollToField(FIELD_IDS[valid.missing])
+            return
+        }
 
+        if (mode === "create" && !ensureClienteAssociado()) return
 
-        const raw = result as any
-        const r = Array.isArray(raw) ? raw[0] : raw
-        const slide: string | undefined =
-            r?.slide ?? r?.slideUrl ?? r?.link_slide ?? r?.links?.slide ?? r?.links?.slideUrl ?? r?.data?.slide ?? r?.data?.slideUrl
-        const pdf: string | undefined =
-            r?.pdf ?? r?.pdfUrl ?? r?.link_pdf ?? r?.links?.pdf ?? r?.links?.pdfUrl ?? r?.data?.pdf ?? r?.data?.pdfUrl
+        try {
+            setLoadingPDF(true)
+            const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
+            setTelhaValores(telhaValoresAtual)
 
-        setLinks({ slide, pdf })
+            if (mode === "create") {
+                try {
+                    setLoadingSave(true)
 
-        if (slide && pdf) {
-            if (isEdit) {
-                toast.info(
-                    "Links gerados, porém a edição está temporariamente bloqueada.",
-                    {
-                        description:
-                            "A edição deste orçamento não pode ser salva diretamente. Use 'Salvar Cópia' para registrar uma nova versão.",
-                        duration: Infinity,
+                    if (!ensureClienteAssociado()) {
+                        setLoadingSave(false)
+                        return
                     }
-                )
+
+                    const payloadCreate = {
+                        clienteId: Number(clienteId),
+                        cliente: form,
+                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        materiais,
+                        totais: totEdit,
+                        telhaValores: telhaValoresAtual,
+                        titulo: snap,
+                        fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                        observacoes: (observacoes || "").trim() || null,
+                    }
+
+                    const { id: novoId, links } = await gerarPropostaAPI(payloadCreate)
+
+                    setLinks({ slide: links.slideUrl, pdf: links.pdfUrl })
+
+                    await logOrcamentoWebhook({
+                        acao: "CRIAR_ORCAMENTO",
+                        orcamentoId: novoId,
+                        titulo: snap,
+                        cliente: buildClienteLog(),
+                        usuario: usuarioLog,
+                        dadosOrcamento: { ...payloadCreate, links },
+                    })
+
+                    toast.success("Orçamento salvo automaticamente.")
+                    toast.success("Proposta gerada! Links prontos abaixo.")
+                    setModalSucessoAberto(true)
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
+                    toast.error(msg)
+                } finally {
+                    setLoadingSave(false)
+                }
+
                 return
             }
 
-            toast.success("Proposta gerada! Links prontos abaixo.")
-        } else {
-            toast.error(
-                "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
-            )
-            console.debug("[handleGerarProposta] retorno sem links completos:", result)
+            const result = await gerarPDF({
+                orcamentoId: Number(orcamentoId),
+                cliente: form,
+                parametros: { tipoObra: tipoObra ?? "", ...dim },
+                materiais,
+                totais: totEdit,
+                telhaValoresDinamicos: telhaValoresAtual,
+                titulo: snap,
+            })
+
+
+            const raw = result as any
+            const r = Array.isArray(raw) ? raw[0] : raw
+            const slide: string | undefined =
+                r?.slide ?? r?.slideUrl ?? r?.link_slide ?? r?.links?.slide ?? r?.links?.slideUrl ?? r?.data?.slide ?? r?.data?.slideUrl
+            const pdf: string | undefined =
+                r?.pdf ?? r?.pdfUrl ?? r?.link_pdf ?? r?.links?.pdf ?? r?.links?.pdfUrl ?? r?.data?.pdf ?? r?.data?.pdfUrl
+
+            setLinks({ slide, pdf })
+
+            if (slide && pdf) {
+                if (isEdit) {
+                    toast.info(
+                        "Links gerados, porém a edição está temporariamente bloqueada.",
+                        {
+                            description:
+                                "A edição deste orçamento não pode ser salva diretamente. Use 'Salvar Cópia' para registrar uma nova versão.",
+                            duration: Infinity,
+                        }
+                    )
+                    return
+                }
+
+                toast.success("Proposta gerada! Links prontos abaixo.")
+            } else {
+                toast.error(
+                    "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
+                )
+                console.debug("[handleGerarProposta] retorno sem links completos:", result)
+            }
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
+            toast.error(msg)
+        } finally {
+            setLoadingPDF(false)
         }
-    } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
-        toast.error(msg)
-    } finally {
-        setLoadingPDF(false)
     }
-}
 
 
 
@@ -1914,233 +1914,31 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
  * --------------------------------------------------------------- */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {/* Card: Dados Pessoais */}
-                <Card>
-                    <CardHeader className="p-4">
-                        <div className="flex justify-between items-start sm:items-center">
-                            <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                    Etapa 1
-                                </Badge>
-                                <CardTitle className="text-lg">Dados Pessoais</CardTitle>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={clearEtapa1}
-                                className="text-red-500 hover:text-red-700"
-                            >
-                                <Trash className="h-4 w-4 mr-1" /> Limpar
-                            </Button>
-                        </div>
-                    </CardHeader>
+                <DadosPessoaisCard
+                    fieldIds={FIELD_IDS}
+                    form={form}
+                    onFormChange={onFormChange}
+                    nomeBoxRef={nomeBoxRef}
+                    telBoxRef={telBoxRef}
+                    qNome={qNome}
+                    setQNome={setQNome}
+                    loadingNome={loadingNome}
+                    resNome={resNome}
+                    setResNome={setResNome}
+                    qTel={qTel}
+                    setQTel={setQTel}
+                    loadingTel={loadingTel}
+                    resTel={resTel}
+                    setResTel={setResTel}
+                    onPickCliente={onPickCliente}
+                    clearEtapa1={clearEtapa1}
+                    clienteId={clienteId}
+                    isSavingClient={isSavingClient}
+                    openClienteModalCreate={openClienteModalCreate}
+                    openClienteModalEdit={openClienteModalEdit}
+                />
 
-                    <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
-                            <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
-                            <Input
-                                id={FIELD_IDS.nome}
-                                name="nome"
-                                placeholder="Ex.: João Luiz"
-                                autoComplete="off"
-                                value={form.nome}
-                                onChange={(e) => {
-                                    onFormChange(e)
-                                    setQNome(e.target.value) // dispara busca
-                                }}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                            {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
-                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                    <Command shouldFilter={false}>
-                                        <CommandList>
-                                            {loadingNome && (
-                                                <CommandItem disabled>
-                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                    Buscando…
-                                                </CommandItem>
-                                            )}
 
-                                            {!loadingNome && resNome.length > 0 && (
-                                                <CommandGroup heading="Clientes">
-                                                    {resNome.map((c) => (
-                                                        <CommandItem
-                                                            key={c.id}
-                                                            value={String(c.id)}
-                                                            onSelect={() => {
-                                                                onPickCliente(c)
-                                                                setQNome("")        // fecha dropdown do Nome
-                                                                setResNome([])
-                                                            }}
-                                                        >
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{c.nome}</span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                                </span>
-                                                            </div>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            )}
-
-                                            {!loadingNome && resNome.length === 0 && (
-                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                            )}
-                                        </CommandList>
-                                    </Command>
-                                </div>
-                            )}
-                        </div>
-
-                        <div ref={telBoxRef} className="flex flex-col gap-1 relative">
-                            <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
-                            <Input
-                                id={FIELD_IDS.telefone}
-                                name="telefone"
-                                placeholder="Ex.: (85) 98765-4321"
-                                autoComplete="off"
-                                value={form.telefone}
-                                onChange={(e) => {
-                                    onFormChange(e)           // mantém máscara/estado atual
-                                    setQTel(e.target.value)   // dispara busca
-                                }}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                            {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
-                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                    <Command shouldFilter={false}>
-                                        <CommandList>
-                                            {loadingTel && (
-                                                <CommandItem disabled>
-                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                    Buscando…
-                                                </CommandItem>
-                                            )}
-
-                                            {!loadingTel && resTel.length > 0 && (
-                                                <CommandGroup heading="Clientes">
-                                                    {resTel.map((c) => (
-                                                        <CommandItem
-                                                            key={c.id}
-                                                            value={String(c.id)}
-                                                            onSelect={() => {
-                                                                onPickCliente(c)
-                                                                setQTel("")         // fecha dropdown do Telefone
-                                                                setResTel([])
-                                                            }}
-                                                        >
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{c.nome}</span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                                </span>
-                                                            </div>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            )}
-
-                                            {!loadingTel && resTel.length === 0 && (
-                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                            )}
-                                        </CommandList>
-                                    </Command>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
-                            {/* wrapper para “pintar” o trigger do ComboboxAdd sem alterar o componente */}
-                            <div className="rounded-xl [&_button]:bg-cinza [&_button]:border-0 [&_button]:rounded-xl [&_button]:h-9 [&_button]:px-3 focus-visible:[&_button]:ring-2 focus-visible:[&_button]:ring-marromEscuro">
-                                <ComboboxAdd
-                                    buttonText={form.cidade?.trim() || "Selecione"}
-                                    placeholder="Buscar cidade..."
-                                    widthClass="w-full"
-                                    items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
-                                    onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
-                                    showEmptyOption={false}
-                                    colorVariant="gray-brown"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
-                            <Input
-                                id={FIELD_IDS.bairro}
-                                name="bairro"
-                                placeholder="Ex.: Meireles"
-                                value={form.bairro}
-                                onChange={onFormChange}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                        </div>
-                    </CardContent>
-
-                    {/* Linha da Etapa 1: Status (esquerda) + Ação única (direita) */}
-                    <div className="p-4 pt-0 flex items-center justify-between gap-3">
-                        {/* ESQUERDA: status do cliente */}
-                        <Button
-                            id={FIELD_IDS.cadastrarCliente}
-                            type="button"
-                            variant="outline"
-                            disabled
-                            className={[
-                                "min-w-[200px] justify-start disabled:opacity-100 disabled:cursor-default",
-                                clienteId
-                                    ? "border-emerald-500 text-emerald-600 bg-white"
-                                    : "border-red-500 text-red-600 bg-white",
-                            ].join(" ")}
-                            title={clienteId ? "Cliente associado" : "Nenhum cliente associado"}
-                        >
-                            {clienteId ? (
-                                <>
-                                    <UserCheck className="h-4 w-4 mr-2 text-emerald-600" />
-                                    <span className="text-emerald-600">Cliente associado</span>
-                                </>
-                            ) : (
-                                <>
-                                    <UserPlus className="h-4 w-4 mr-2 text-red-600" />
-                                    <span className="text-red-600">Sem cliente</span>
-                                </>
-                            )}
-                        </Button>
-
-                        {/* DIREITA: ação única (criar / editar) */}
-                        <Button
-                            type="button"
-                            size="sm"
-                            className="min-w-[160px]"
-                            variant={clienteId ? "secondary" : "outline"}
-                            onClick={() => {
-                                if (clienteId) openClienteModalEdit()
-                                else openClienteModalCreate()
-                            }}
-                            disabled={isSavingClient}
-                            aria-busy={isSavingClient ? "true" : "false"}
-                            title={clienteId ? "Editar o cliente associado" : "Cadastrar/associar cliente"}
-                        >
-                            {isSavingClient ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Abrindo...
-                                </>
-                            ) : clienteId ? (
-                                <>
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Editar cliente
-                                </>
-                            ) : (
-                                <>
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    Cadastrar cliente
-                                </>
-                            )}
-                        </Button>
-                    </div>
-
-                </Card>
 
                 {/* Card: Observações */}
                 <Card>
