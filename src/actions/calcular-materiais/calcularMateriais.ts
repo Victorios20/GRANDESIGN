@@ -240,19 +240,13 @@ async function calcularMateriaisNormal(
       // - 1 barrote inclinado único: comprimento * 1,30
       // - barrotes das telhas calculados pelo comprimento linear (ceil(comprimento))
 
-      const BEIRAL = 0.5
-      const mf = comprimento - BEIRAL
-      if (mf <= 0) {
-        throw new Error("Mão Francesa: comprimento deve ser maior que 0,50m (beiral).")
-      }
-
       const qtdMF = ROUND_INT(largura / 2)
 
-      // 3 peças por mão francesa (tamanhos escalados pelo mf)
+      // 3 peças por mão francesa (tamanhos fixos)
       // Obs: componente deve ser estritamente existente: usa "Pontalete"
-      add("Linha 15cm", "Mão francesa", qtdMF, ROUND_HALF(0.90 * mf))
-      add("Linha 15cm", "Mão francesa", qtdMF, ROUND_HALF(0.67 * mf))
-      add("Linha 15cm", "Mão francesa", qtdMF, ROUND_HALF(0.89 * mf))
+      add("Linha 15cm", "Mão francesa", qtdMF, 2)
+      add("Linha 15cm", "Mão francesa", qtdMF, 2)
+      add("Linha 15cm", "Mão francesa", qtdMF, 1.5)
 
       // 2 barrotes do telhado inteiro (parede + extremidade) - sem criar novo componente
       // Usa "Terças" (já existente) para classificar como estrutura
