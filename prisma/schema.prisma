@@ -104,9 +104,7 @@ model fornecedores {
   tipo      String?     @db.VarChar(50)
   materiais materiais[]
 
-  pedidosMadeira  pedido_compra[] @relation("FornecedorMadeira")
-  pedidosAndaimes pedido_compra[] @relation("FornecedorAndaimes")
-  pedidosTelha    pedido_compra[] @relation("FornecedorTelha")
+  pedidosCompra pedido_compra[] @relation("FornecedorPedidoCompra")
 
   orcamentosFornecedor orcamento[] @relation("FornecedorOrcamentos")
 
@@ -290,60 +288,6 @@ model AuditLog {
   @@map("audit_log")
 }
 
-model pedido_compra {
-  id Int @id @default(autoincrement())
-
-  // 1:1 com Obra — cai se a obra cair
-  obra_id Int   @unique
-  obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-
-  // TELHA
-  orcamento_telha     Decimal            @default(0) @db.Decimal(10, 2)
-  previsao_telha      DateTime?          @db.Date
-  status_telha        PedidoStatusPadrao @default(PENDENTE)
-  area_telha          Decimal            @default(0) @db.Decimal(10, 2)
-  fornecedor_telha_id Int?
-  fornecedor_telha    fornecedores?      @relation("FornecedorTelha", fields: [fornecedor_telha_id], references: [id], onDelete: SetNull)
-
-  // MADEIRA
-  orcamento_madeira     Decimal            @default(0) @db.Decimal(10, 2)
-  previsao_madeira      DateTime?          @db.Date
-  status_madeira        PedidoStatusPadrao @default(PENDENTE)
-  fornecedor_madeira_id Int?
-  fornecedor_madeira    fornecedores?      @relation("FornecedorMadeira", fields: [fornecedor_madeira_id], references: [id], onDelete: SetNull)
-
-  // MATERIAIS
-  materiais_status PedidoStatusMateriais @default(PENDENTE)
-
-  // ANDAIMES
-  andaimes_status        PedidoStatusAndaimes @default(PENDENTE)
-  andaimes_fornecedor_id Int?
-  andaimes_fornecedor    fornecedores?        @relation("FornecedorAndaimes", fields: [andaimes_fornecedor_id], references: [id], onDelete: SetNull)
-
-  // LINKS 1–1 (opcionais e únicos)
-  pedido_telha_id     Int? @unique
-  pedido_madeira_id   Int? @unique
-  pedido_materiais_id Int? @unique
-  pedido_andaimes_id  Int? @unique
-
-  // Relações 1–1 nomeadas (back-fields nos itens)
-  pedido_telha_link     pedido_telha?     @relation("PC_to_PT_Link", fields: [pedido_telha_id], references: [id])
-  pedido_madeira_link   pedido_madeira?   @relation("PC_to_PM_Link", fields: [pedido_madeira_id], references: [id])
-  pedido_materiais_link pedido_materiais? @relation("PC_to_PMat_Link", fields: [pedido_materiais_id], references: [id])
-  pedido_andaimes_link  pedido_andaimes?  @relation("PC_to_PA_Link", fields: [pedido_andaimes_id], references: [id])
-
-  // Coleções 1–N — caem se o pedido cair
-  pedido_telha_itens     pedido_telha[]     @relation("PC_to_PT_Items")
-  pedido_madeira_itens   pedido_madeira[]   @relation("PC_to_PM_Items")
-  pedido_materiais_itens pedido_materiais[] @relation("PC_to_PMat_Items")
-  pedido_andaimes_itens  pedido_andaimes[]  @relation("PC_to_PA_Items")
-
-  @@index([obra_id])
-  @@index([fornecedor_telha_id])
-  @@index([fornecedor_madeira_id])
-  @@index([andaimes_fornecedor_id])
-}
-
 model ordem_servico {
   id                  Int      @id @default(autoincrement())
   equipe_id           Int
@@ -369,65 +313,75 @@ model equipes {
   obras         obras[]
 }
 
-model pedido_telha {
-  id               Int     @id @default(autoincrement())
-  pedido_compra_id Int
-  descricao        String  @db.VarChar(150)
-  quantidade       Decimal @db.Decimal(10, 2)
-  preco_unitario   Decimal @db.Decimal(10, 2)
-  total            Decimal @db.Decimal(10, 2)
-
-  // Itens (1:N) — caem se o pedido cair
-  pedido_compra      pedido_compra  @relation("PC_to_PT_Items", fields: [pedido_compra_id], references: [id], onDelete: Cascade)
-  // “Link” 1:1 (back-field do head)
-  pedido_compra_link pedido_compra? @relation("PC_to_PT_Link")
-
-  @@index([pedido_compra_id])
+enum PedidoCategoria {
+  TELHA
+  MADEIRA
+  MATERIAIS
+  ANDAIMES
 }
 
-model pedido_madeira {
-  id               Int     @id @default(autoincrement())
-  pedido_compra_id Int
-  componente       String  @db.VarChar(100)
-  madeira_nome     String  @db.VarChar(120)
-  descricao        String  @db.VarChar(150)
-  quantidade       Decimal @db.Decimal(10, 2)
-  tamanho          Decimal @db.Decimal(10, 2)
-  preco_unitario   Decimal @db.Decimal(10, 2)
-  total            Decimal @db.Decimal(10, 2)
-
-  pedido_compra      pedido_compra  @relation("PC_to_PM_Items", fields: [pedido_compra_id], references: [id], onDelete: Cascade)
-  pedido_compra_link pedido_compra? @relation("PC_to_PM_Link")
-
-  @@index([pedido_compra_id])
+enum PedidoCompraStatus {
+  RASCUNHO             @map("Rascunho")
+  PENDENTE             @map("Pendente")
+  APROVADO             @map("Aprovado")
+  EM_COMPRA            @map("Em compra")
+  AGUARDANDO_PAGAMENTO @map("Aguardando pagamento")
+  AGUARDANDO_ENTREGA   @map("Aguardando entrega")
+  ENTREGUE             @map("Entregue")
+  CANCELADO            @map("Cancelado")
 }
 
-model pedido_materiais {
-  id               Int     @id @default(autoincrement())
-  pedido_compra_id Int
-  descricao        String  @db.VarChar(150)
-  quantidade       Decimal @db.Decimal(10, 2)
-  preco_unitario   Decimal @db.Decimal(10, 2)
-  total            Decimal @db.Decimal(10, 2)
+model pedido_compra {
+  id Int @id @default(autoincrement())
 
-  pedido_compra      pedido_compra  @relation("PC_to_PMat_Items", fields: [pedido_compra_id], references: [id], onDelete: Cascade)
-  pedido_compra_link pedido_compra? @relation("PC_to_PMat_Link")
+  obra_id Int
+  obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
-  @@index([pedido_compra_id])
+  categoria PedidoCategoria
+  status    PedidoCompraStatus @default(RASCUNHO)
+
+  valor_orcado    Decimal? @db.Decimal(10, 2)
+  valor_realizado Decimal? @db.Decimal(10, 2)
+  frete           Decimal? @db.Decimal(10, 2)
+
+  descricao   String? @db.VarChar(500)
+  observacoes String? @db.Text
+
+  fornecedor_id Int?
+  fornecedor    fornecedores? @relation("FornecedorPedidoCompra", fields: [fornecedor_id], references: [id], onDelete: SetNull)
+
+  data_entrega      DateTime? @db.Date
+  endereco_entrega  String?   @db.VarChar(500)
+  nome_receptor     String?   @db.VarChar(150)
+  telefone_receptor String?   @db.VarChar(20)
+  link_maps         String?   @db.VarChar(500)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  itens pedido_itens[]
+
+  @@index([obra_id], map: "idx_pedido_compra_obra_id")
+  @@index([fornecedor_id], map: "idx_pedido_compra_fornecedor_id")
+  @@index([obra_id, categoria], map: "idx_pedido_compra_obra_categoria")
 }
 
-model pedido_andaimes {
-  id               Int     @id @default(autoincrement())
+model pedido_itens {
+  id Int @id @default(autoincrement())
+
   pedido_compra_id Int
-  descricao        String  @db.VarChar(150)
-  quantidade       Decimal @db.Decimal(10, 2)
-  preco_unitario   Decimal @db.Decimal(10, 2)
-  total            Decimal @db.Decimal(10, 2)
+  pedido_compra    pedido_compra @relation(fields: [pedido_compra_id], references: [id], onDelete: Cascade)
 
-  pedido_compra      pedido_compra  @relation("PC_to_PA_Items", fields: [pedido_compra_id], references: [id], onDelete: Cascade)
-  pedido_compra_link pedido_compra? @relation("PC_to_PA_Link")
+  descricao      String   @db.VarChar(150)
+  quantidade     Decimal  @db.Decimal(10, 2)
+  tamanho        Decimal? @db.Decimal(10, 2)
+  preco_unitario Decimal  @db.Decimal(10, 2)
+  total          Decimal  @db.Decimal(10, 2)
 
-  @@index([pedido_compra_id])
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([pedido_compra_id], map: "idx_pedido_itens_pedido_compra_id")
 }
 
 model obras {
@@ -449,7 +403,7 @@ model obras {
   ordem_servico ordem_servico?
 
   // 1:1 com Pedido de Compra — FK fica no filho (pedido_compra)
-  pedido_compra pedido_compra?
+  pedidos_compra pedido_compra[]
 
   // NOVO — título espelho do orçamento (igual ao orcamento.titulo)
   titulo String? @db.VarChar(150)
