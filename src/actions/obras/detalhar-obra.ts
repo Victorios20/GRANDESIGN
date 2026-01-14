@@ -1,8 +1,4 @@
-// src/actions/obras/detalhar-obra.ts
-"use server"
-
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
 
 export class AppError extends Error {
   code: "INVALID_ID" | "OBRA_NOT_FOUND" | "UNEXPECTED_ERROR"
@@ -50,6 +46,22 @@ export type ObraDetalheDTO = {
   id: number
   titulo: string | null
   status: string
+
+  orcamentoId: number | null
+  orcamento: {
+    id: number
+    linkSlide: string | null
+    linkPdf: string | null
+    titulo: string | null
+  } | null
+
+  anexos: {
+    propostaSlide: string | null
+    orcamentoPdf: string | null
+    contrato: string | null
+    ordemServico: string | null
+  }
+
   cliente: {
     id: number
     nome: string
@@ -83,6 +95,20 @@ export type ObraDetalheDTO = {
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null }>
 }
 
+function pickOrcamentoIdFromObraRow(obra: any): number | null {
+  const candidates = [
+    obra?.orcamento_id,
+    obra?.orcamentoId,
+    obra?.orcamento?.id,
+    obra?.orcamento?.orcamento_id,
+  ]
+  for (const c of candidates) {
+    const v = Number(c)
+    if (Number.isFinite(v) && v > 0) return v
+  }
+  return null
+}
+
 export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
   if (!Number.isFinite(obraId) || obraId <= 0) {
     throw new AppError("INVALID_ID", "ID inválido", "validate-id")
@@ -108,10 +134,45 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     throw new AppError("OBRA_NOT_FOUND", "Obra não encontrada", "find-obra")
   }
 
+  const orcamentoId = pickOrcamentoIdFromObraRow(obra)
+
+  const orcamento = orcamentoId
+    ? await prisma.orcamento.findUnique({
+        where: { id: orcamentoId },
+        select: {
+          id: true,
+          link_slide: true,
+          link_pdf: true,
+          titulo: true,
+        },
+      })
+    : null
+
+  const orcamentoOut = orcamento
+    ? {
+        id: orcamento.id,
+        linkSlide: orcamento.link_slide ?? null,
+        linkPdf: orcamento.link_pdf ?? null,
+        titulo: orcamento.titulo ?? null,
+      }
+    : null
+
+  const anexos = {
+    propostaSlide: orcamentoOut?.linkSlide ?? null,
+    orcamentoPdf: orcamentoOut?.linkPdf ?? null,
+    contrato: null,
+    ordemServico: null,
+  }
+
   return {
     id: obra.id,
     titulo: obra.titulo,
     status: obra.status,
+
+    orcamentoId,
+    orcamento: orcamentoOut,
+    anexos,
+
     cliente: {
       id: obra.cliente.id,
       nome: obra.cliente.nome,

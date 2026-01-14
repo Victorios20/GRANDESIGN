@@ -1,4 +1,3 @@
-// app/obras/[id]/page.tsx
 import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
@@ -124,7 +123,7 @@ function normalizeCidades(payload: unknown): CidadeRow[] {
 }
 
 function normalizeImagens(dto: ObraDetalheDTO | null | undefined): ImgItem[] {
-  const arr = (dto?.imagens ?? []) as Array<any>
+  const arr = (dto as any)?.imagens ?? []
   if (!Array.isArray(arr) || arr.length === 0) return []
 
   const mapped = arr
@@ -153,6 +152,28 @@ function normalizeImagens(dto: ObraDetalheDTO | null | undefined): ImgItem[] {
   })
 
   return mapped
+}
+
+function getPedidoByCategoria(dto: any, categoria: string) {
+  const arr = (dto?.pedidosCompra ?? dto?.pedidos_compra ?? []) as any[]
+  if (!Array.isArray(arr)) return null
+  const norm = (s: any) => String(s ?? "").trim().toUpperCase()
+  return arr.find((p) => norm(p?.categoria) === norm(categoria)) ?? null
+}
+
+function parseISODate(s?: string | null) {
+  if (!s) return null
+  const d = new Date(s)
+  return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : null
+}
+
+function pickOrcamentoId(dto: any): number | undefined {
+  const candidates = [dto?.orcamentoId, dto?.orcamento?.id, dto?.orcamento_id, dto?.orcamento?.orcamentoId]
+  for (const c of candidates) {
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return undefined
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -221,9 +242,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   if (!resObra.ok) notFound()
 
   const dtoJson = await resObra.json()
-  const dto = (dtoJson?.data ?? dtoJson) as ObraDetalheDTO
+  const dto = (dtoJson?.data ?? dtoJson) as any as ObraDetalheDTO
 
-  // eslint-disable-next-line no-console
   console.log("[/obras/[id]] DTO recebido:", JSON.stringify(dto, null, 2))
 
   const cidadesRaw = await resCidades.json().catch(() => [])
@@ -245,37 +265,39 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
-  const cidadeIdDTO = dto?.cliente?.cidade?.id ?? null
-  const cidadeNomeDTO = dto?.cliente?.cidade?.nome ?? null
+  const cidadeIdDTO = (dto as any)?.cliente?.cidade?.id ?? null
+  const cidadeNomeDTO = (dto as any)?.cliente?.cidade?.nome ?? null
   const cidadeNomeFinal =
     (cidadeNomeDTO ? String(cidadeNomeDTO).trim() : "") ||
     (Number.isFinite(Number(cidadeIdDTO)) && cidadeIdDTO != null ? cidadeMap.get(Number(cidadeIdDTO)) ?? "" : "")
 
   const imagensInit = normalizeImagens(dto)
 
+  const obraDTO = (dto as any)?.obra ?? null
+
   const initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] } = {
-    titulo: dto.titulo ?? "",
-    tipoObra: dto.dadosObra?.tipoObra ?? "",
-    largura: dto.dadosObra?.largura ?? 0,
-    comprimento: dto.dadosObra?.comprimento ?? 0,
-    telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
-    status: mapObraStatus(dto.dadosObra?.status),
+    titulo: (dto as any)?.titulo ?? "",
+    tipoObra: String(obraDTO?.tipo ?? ""),
+    largura: Number(obraDTO?.largura ?? 0),
+    comprimento: Number(obraDTO?.comprimento ?? 0),
+    telhaEscolhida: String(obraDTO?.telha ?? ""),
+    status: mapObraStatus((dto as any)?.status),
     cliente: {
-      id: dto.cliente?.id ?? undefined,
-      nome: dto.cliente?.nome ?? "",
-      telefone: dto.cliente?.telefone ?? "",
-      cpf: dto.cliente?.cpf ?? "",
-      bairro: dto.cliente?.bairro ?? "",
-      cidadeId: dto.cliente?.cidade?.id ?? null,
+      id: (dto as any)?.cliente?.id ?? undefined,
+      nome: (dto as any)?.cliente?.nome ?? "",
+      telefone: (dto as any)?.cliente?.telefone ?? "",
+      cpf: (dto as any)?.cliente?.cpf ?? "",
+      bairro: (dto as any)?.cliente?.bairro ?? "",
+      cidadeId: (dto as any)?.cliente?.cidade?.id ?? null,
       cidade: cidadeNomeFinal || "",
     },
     endereco: {
-      logradouro: dto.dadosObra?.endereco ?? "",
-      bairro: dto.cliente?.bairro ?? "",
+      logradouro: String(obraDTO?.endereco ?? ""),
+      bairro: (dto as any)?.cliente?.bairro ?? "",
       cidade: cidadeNomeFinal || "",
-      mapsUrl: dto.dadosObra?.mapsUrl ?? "",
+      mapsUrl: String(obraDTO?.mapsUrl ?? ""),
     },
-    observacoes: dto.dadosObra?.observacoes ?? null,
+    observacoes: obraDTO?.observacoes ?? null,
     imagens: imagensInit,
   }
 
@@ -309,8 +331,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   )
 
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
-  const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
-    ? (equipesJson.data as any[])
+  const equipesOptions: Option[] = Array.isArray((equipesJson as any)?.data)
+    ? ((equipesJson as any).data as any[])
         .map((e: any) => {
           const label = String(e?.nome ?? "").trim()
           const value = String(e?.id ?? "")
@@ -319,121 +341,134 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean) as Option[]
     : []
 
-  const orcId = dto?.orcamento?.id
-  const orcamentoLink = Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
-
-  const anexosInit = {
-    orcamento: orcamentoLink,
-    proposta: String(dto?.anexos?.propostaSlide ?? ""),
-    contrato: String(dto?.anexos?.contrato ?? ""),
-    ordemServico: String(dto?.anexos?.ordemServico ?? ""),
-  }
-
   const ordemServicoIdRaw =
     (dto as any)?.ordemServico?.id ?? (dto as any)?.ordemServico?.ordemServicoId ?? (dto as any)?.ordem_servico?.id
 
   const ordemServicoId = Number.isFinite(Number(ordemServicoIdRaw)) ? Number(ordemServicoIdRaw) : null
 
-  const fin = (dto as any)?.financeiro ?? {}
+  const finDTO = (dto as any)?.financeiro ?? {}
   const financeiroInit = {
-    valorObra: Number(dto?.dadosObra?.valorObra ?? 0),
-    maoDeObra: Number(dto?.dadosObra?.valorMaoDeObra ?? 0),
+    valorObra: Number(obraDTO?.valorObra ?? 0),
+    maoDeObra: Number(obraDTO?.valorMaoDeObra ?? 0),
     pagamento: {
       entrada: {
-        valor: Number(fin?.entrada?.valor ?? 0),
-        forma: mapFormaPagamento(fin?.entrada?.forma),
-        status: mapStatusPagamento(fin?.entrada?.status),
+        valor: Number(finDTO?.entrada?.valor ?? 0),
+        forma: mapFormaPagamento(finDTO?.entrada?.forma),
+        status: mapStatusPagamento(finDTO?.entrada?.status),
       },
       quitacao: {
-        valor: Number(fin?.quitacao?.valor ?? 0),
-        forma: mapFormaPagamento(fin?.quitacao?.forma),
-        status: mapStatusPagamento(fin?.quitacao?.status),
+        valor: Number(finDTO?.quitacao?.valor ?? 0),
+        forma: mapFormaPagamento(finDTO?.quitacao?.forma),
+        status: mapStatusPagamento(finDTO?.quitacao?.status),
       },
     },
   }
 
-  const pc = dto?.pedidoCompra
-  const pedidoInit: Partial<PedidoCompraVM> | undefined = pc
-    ? {
-        telha: {
-          status: mapPedidoStatusPadrao(pc.telha?.status),
-          previsao: pc.telha?.previsao ?? null,
-          orcamento: Number(pc.telha?.orcamento ?? 0),
-          area: Number(pc.telha?.area ?? 0),
-          fornecedorId: (pc as any)?.fornecedores?.telha?.id ?? null,
-          itens: Array.isArray(pc.itens?.telha)
-            ? pc.itens.telha.map((it) => ({
-                id: it.id,
-                descricao: it.descricao,
-                quantidade: Number(it.quantidade ?? 0),
-                precoUnitario: Number(it.precoUnitario ?? 0),
-                total: Number(it.total ?? 0),
-              }))
-            : [],
-        },
-        madeira: {
-          status: mapPedidoStatusPadrao(pc.madeira?.status),
-          previsao: pc.madeira?.previsao ?? null,
-          fornecedorId: pc.fornecedores?.madeira?.id ?? null,
-          orcamento: Number(pc.madeira?.orcamento ?? 0),
-          itens: Array.isArray(pc.itens?.madeira)
-            ? pc.itens.madeira.map((it) => ({
-                id: it.id,
-                componente: it.componente,
-                madeiraNome: it.madeiraNome,
-                descricao: it.descricao,
-                quantidade: Number(it.quantidade ?? 0),
-                tamanho: Number(it.tamanho ?? 0),
-                precoUnitario: Number(it.precoUnitario ?? 0),
-                total: Number(it.total ?? 0),
-              }))
-            : [],
-        },
-        materiais: {
-          status: mapPedidoStatusMateriais(pc.materiais?.status),
-          itens: Array.isArray(pc.itens?.materiais)
-            ? pc.itens.materiais.map((it) => ({
-                id: it.id,
-                descricao: it.descricao,
-                quantidade: Number(it.quantidade ?? 0),
-                precoUnitario: Number(it.precoUnitario ?? 0),
-                total: Number(it.total ?? 0),
-              }))
-            : [],
-        },
-        andaimes: {
-          status: mapPedidoStatusAndaimes(pc.andaimes?.status),
-          fornecedorId: pc.fornecedores?.andaimes?.id ?? null,
-          itens: Array.isArray(pc.itens?.andaimes)
-            ? pc.itens.andaimes.map((it) => ({
-                id: it.id,
-                descricao: it.descricao,
-                quantidade: Number(it.quantidade ?? 0),
-                precoUnitario: Number(it.precoUnitario ?? 0),
-                total: Number(it.total ?? 0),
-              }))
-            : [],
-        },
-      }
-    : undefined
+  const byCategoria = {
+    telha: getPedidoByCategoria(dto, "TELHA"),
+    madeira: getPedidoByCategoria(dto, "MADEIRA"),
+    materiais: getPedidoByCategoria(dto, "MATERIAIS"),
+    andaimes: getPedidoByCategoria(dto, "ANDAIMES"),
+  }
 
-  const execucaoInit = dto?.ordemServico
+  const pedidoInit: Partial<PedidoCompraVM> | undefined = {
+    telha: {
+      status: mapPedidoStatusPadrao(byCategoria.telha?.status),
+      previsao: parseISODate(byCategoria.telha?.entrega?.data ?? null),
+      orcamento: Number(byCategoria.telha?.valores?.orcado ?? 0),
+      area: Number(byCategoria.telha?.area ?? 0),
+      fornecedorId: byCategoria.telha?.fornecedor?.id ?? null,
+      itens: Array.isArray(byCategoria.telha?.itens)
+        ? byCategoria.telha.itens.map((it: any) => ({
+            id: it.id,
+            descricao: it.descricao,
+            quantidade: Number(it.quantidade ?? 0),
+            precoUnitario: Number(it.precoUnitario ?? 0),
+            total: Number(it.total ?? 0),
+          }))
+        : [],
+    },
+    madeira: {
+      status: mapPedidoStatusPadrao(byCategoria.madeira?.status),
+      previsao: parseISODate(byCategoria.madeira?.entrega?.data ?? null),
+      fornecedorId: byCategoria.madeira?.fornecedor?.id ?? null,
+      orcamento: Number(byCategoria.madeira?.valores?.orcado ?? 0),
+      itens: Array.isArray(byCategoria.madeira?.itens)
+        ? byCategoria.madeira.itens.map((it: any) => ({
+            id: it.id,
+            componente: it?.componente ?? undefined,
+            madeiraNome: it?.madeiraNome ?? undefined,
+            descricao: it.descricao,
+            quantidade: Number(it.quantidade ?? 0),
+            tamanho: it?.tamanho != null ? Number(it.tamanho) : 0,
+            precoUnitario: Number(it.precoUnitario ?? 0),
+            total: Number(it.total ?? 0),
+          }))
+        : [],
+    },
+    materiais: {
+      status: mapPedidoStatusMateriais(byCategoria.materiais?.status),
+      itens: Array.isArray(byCategoria.materiais?.itens)
+        ? byCategoria.materiais.itens.map((it: any) => ({
+            id: it.id,
+            descricao: it.descricao,
+            quantidade: Number(it.quantidade ?? 0),
+            precoUnitario: Number(it.precoUnitario ?? 0),
+            total: Number(it.total ?? 0),
+          }))
+        : [],
+    },
+    andaimes: {
+      status: mapPedidoStatusAndaimes(byCategoria.andaimes?.status),
+      fornecedorId: byCategoria.andaimes?.fornecedor?.id ?? null,
+      itens: Array.isArray(byCategoria.andaimes?.itens)
+        ? byCategoria.andaimes.itens.map((it: any) => ({
+            id: it.id,
+            descricao: it.descricao,
+            quantidade: Number(it.quantidade ?? 0),
+            precoUnitario: Number(it.precoUnitario ?? 0),
+            total: Number(it.total ?? 0),
+          }))
+        : [],
+    },
+  }
+
+  const execucaoInit = (dto as any)?.ordemServico
     ? {
-        equipeId: dto.ordemServico.equipe?.id ?? dto.ordemServico.equipeId ?? null,
-        dataPrevInicio: dto.ordemServico.dataPrevInicio ?? null,
-        dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
+        equipeId: (dto as any).ordemServico.equipe?.id ?? (dto as any).ordemServico.equipeId ?? null,
+        dataPrevInicio: (dto as any).ordemServico.dataPrevInicio ?? null,
+        dataPrevConclusao: (dto as any).ordemServico.dataPrevConclusao ?? null,
       }
     : {
-        equipeId: dto?.equipe?.id ?? null,
+        equipeId: null,
         dataPrevInicio: null,
         dataPrevConclusao: null,
       }
+
+  const orcamentoId = pickOrcamentoId(dto)
+  const orcamentoLink = orcamentoId ? `${proto}://${host}/orcamento/detalhes/${orcamentoId}` : ""
+
+  const proposta =
+    String((dto as any)?.anexos?.propostaSlide ?? "") ||
+    String((dto as any)?.orcamento?.linkSlide ?? "") ||
+    String((dto as any)?.orcamento?.link_slide ?? "")
+
+  const contrato =
+    String((dto as any)?.anexos?.contrato ?? "") ||
+    String((dto as any)?.anexos?.contratoLink ?? "")
+
+  const anexosInit = {
+    orcamento: orcamentoLink,
+    proposta: proposta,
+    contrato: contrato,
+    ordemServico: String((dto as any)?.anexos?.ordemServico ?? ""),
+  }
 
   return (
     <ObrasPage
       mode="view"
       obraId={obraId}
-      orcamentoId={dto?.orcamento?.id ?? undefined}
+      orcamentoId={orcamentoId}
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
