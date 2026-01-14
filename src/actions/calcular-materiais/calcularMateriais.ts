@@ -53,6 +53,20 @@ type CobertaLOpts = {
 }
 
 /* ============================================================
+ *  TELHAS: DESCRIÇÕES REAIS DO SEU BANCO (exceto PVC/Policarbonato)
+ *  (descrição = chave do preço)
+ *  Ajuste aqui caso mude o cadastro.
+ * ============================================================ */
+const telhaDescricoesPorTipoBase = {
+  Romana: ["Romana marfim resinada", "Super romana vermelha natural"],
+  Americana: ["Americana marfim resinada", "Americana vermelha natural"],
+  Colonial: ["Colonial"],
+  Maxxi: ["Maxxi"],
+} as const
+
+type TelhaNome = keyof typeof telhaDescricoesPorTipoBase
+
+/* ============================================================
  *  PONTO DE ENTRADA PÚBLICO – dispatcher
  *  calcularMateriais(tipoObra, largura, comprimento, opts?)
  * ============================================================ */
@@ -232,30 +246,16 @@ async function calcularMateriaisNormal(
 
     // ===== MÃO FRANCESA =====
     case /^Mão Francesa/i.test(tipoNorm): {
-      // Regras confirmadas:
-      // - Quantidade: ceil(largura / 2) (sem extremidades), espaçamento ao longo da largura
-      // - NÃO adiciona beiral aqui
-      // - 3 peças por mão francesa, descrição Pontalete (tamanhos proporcionais ao comprimento útil)
-      // - 2 barrotes (linha parede + extremidade) para o telhado inteiro, tamanho = largura
-      // - 1 barrote inclinado único: comprimento * 1,30
-      // - barrotes das telhas calculados pelo comprimento linear (ceil(comprimento))
-
       const qtdMF = ROUND_INT(largura / 2)
 
-      // 3 peças por mão francesa (tamanhos fixos)
-      // Obs: componente deve ser estritamente existente: usa "Pontalete"
       add("Linha 15cm", "Mão francesa", qtdMF, 2)
       add("Linha 15cm", "Mão francesa", qtdMF, 2)
       add("Linha 15cm", "Mão francesa", qtdMF, 1.5)
 
-      // 2 barrotes do telhado inteiro (parede + extremidade) - sem criar novo componente
-      // Usa "Terças" (já existente) para classificar como estrutura
       add("Barrote", "barrote", 2, largArred)
 
-      // Barrote inclinado único (30%)
       add("Barrote", "barrote", qtdMF, ROUND_HALF(comprimento * 1.3))
 
-      // Barrotes que seguram telha: a cada 0,32m no comprimento linear
       const compLinear = ROUND_INT(comprimento)
       const qtdBarrotesTelha = ROUND_INT(compLinear / 0.32) + 1
       add("Barrote", "barrote", qtdBarrotesTelha, largArred)
@@ -268,30 +268,25 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Madeira comum ------------------ */
-  // IMPORTANTE: Mão Francesa não entra no bloco comum (evita pranchão/terças/caibro/beiral automáticos)
   if (!/^(Pergolado|Caramanchão|Mão Francesa)/i.test(tipoNorm)) {
     const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
-    const isCaibroRipa = isCaibroRipaBase || isCorredorQueda // corredores seguem lógica de caibro e ripa
+    const isCaibroRipa = isCaibroRipaBase || isCorredorQueda
     const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
     const isLinhaParedeComCol = /^Linha na Parede \+ Coluna/i.test(tipoNorm)
 
     // ===== PRANCHÃO =====
-    // Regra NOVA: nos corredores queda (lateral/frontal), NÃO vai pranchão nem pontalete
     if (isCaibroRipa) {
       if (!isCorredorQueda) {
-        // Pranchão 25 cm a cada 2 m (sem limitação de quantidade)
         const qtdPranchao20 = ROUND_INT(comprimento / 2)
         if (qtdPranchao20 > 0) add("Linha 25cm", "Pranchão", qtdPranchao20, largArred)
 
-        // 2 pontaletes por pranchão (sem limite)
         const qtdPontalete = qtdPranchao20 * 2
         if (qtdPontalete > 0) add(`Linha ${espessura}`, "Pontalete", qtdPontalete, 2.5)
       }
     } else {
       const pranchaoBase = comprimento >= 6 ? 3 : 2
-      const pranchaoEfetivo = (isLinhaParede || isLinhaParedeComCol)
-        ? Math.max(0, pranchaoBase - 1)
-        : pranchaoBase
+      const pranchaoEfetivo =
+        isLinhaParede || isLinhaParedeComCol ? Math.max(0, pranchaoBase - 1) : pranchaoBase
       if (pranchaoEfetivo > 0) add("Linha 30cm", "Pranchão", pranchaoEfetivo, largArred)
     }
 
@@ -299,18 +294,16 @@ async function calcularMateriaisNormal(
     if (!isCaibroRipa && isLinhaParede) {
       const pranchaoBase = comprimento >= 6 ? 3 : 2
       const pranchaoEfetivoLP = Math.max(0, pranchaoBase - 1)
-      if (pranchaoEfetivoLP > 0) add(`Linha ${espessura}`, "Pontalete", pranchaoEfetivoLP * 2, 2.5)
+      if (pranchaoEfetivoLP > 0)
+        add(`Linha ${espessura}`, "Pontalete", pranchaoEfetivoLP * 2, 2.5)
     }
 
     // ===== TERÇAS =====
-    // não aplica para Caibro e Ripa (inclui corredores)
     if (!isCaibroRipa) {
       let tipoTerca = "Linha 11,5cm"
-      const hasThreePranchao = (comprimento >= 6)
+      const hasThreePranchao = comprimento >= 6
       if (comprimento > 4.5) {
-        tipoTerca = (hasThreePranchao && comprimento <= 7)
-          ? "Linha 11,5cm"
-          : "Linha 15cm"
+        tipoTerca = hasThreePranchao && comprimento <= 7 ? "Linha 11,5cm" : "Linha 15cm"
       }
       add(tipoTerca, "Terças", ROUND_INT(largura) + 1, ROUND_HALF(comprimento + 0.5))
     }
@@ -343,8 +336,6 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Parafuso sextavado ------------------ */
   if (!adicionouSextavado) {
-    // REGRA ESPECIAL – MÃO FRANCESA:
-    // parafuso sextavado = 3 x quantidade de mãos francesas
     if (isMaoFrancesa) {
       const qtdMF = ROUND_INT(largura / 2)
       if (qtdMF > 0) addMaterial("Parafuso Sextavado", qtdMF * 3)
@@ -362,7 +353,7 @@ async function calcularMateriaisNormal(
     }
   }
 
-  /* ------------------ Telhas ------------------ */
+  /* ------------------ Telhas (descrições reais do banco) ------------------ */
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
@@ -371,10 +362,14 @@ async function calcularMateriaisNormal(
       Maxxi: { factor: 8, offset: 10 },
     } as const
 
-    ;(Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
+    ;(Object.keys(formulas) as TelhaNome[]).forEach(nome => {
       const { factor, offset } = formulas[nome]
       const qtd = ROUND_INT(area * factor + offset)
-      telhasRaw.push({ descricao: nome, componente: "", quantidade: qtd })
+
+      // gera exatamente as descrições cadastradas (preço por descrição)
+      telhaDescricoesPorTipoBase[nome].forEach(descricao => {
+        telhasRaw.push({ descricao, componente: "", quantidade: qtd })
+      })
     })
   }
 
@@ -513,23 +508,16 @@ export async function calcularMateriaisCobertaL(
   }
 
   /* ---------- 0) Linha na parede (VARIANTE) ---------- */
-  // Obs: por padrão eu usei LMenor como “comprimento” da linha na parede.
-  // Se na sua regra for LMaior, troque LMenor por LMaior aqui.
   if (comLinhaNaParede) {
     add("Linha 10cm", "Linha na Parede", 1, LMaior)
   }
 
   /* ---------- 1) Pranchões ---------- */
-  // Base: total 3 (2 no maior, 1 no menor)
-  // Variante com linha na parede: remove 1 pranchão MAIOR (fica 1 no maior, mantém 1 no menor)
   const qtdPranchaoMaior = comLinhaNaParede ? 1 : 2
   add("Linha 30cm", "Pranchão (maior)", qtdPranchaoMaior, LMaior)
-
   add("Linha 30cm", "Pranchão (menor)", 1, LMenor)
 
   /* ---------- 2) Pontaletes ---------- */
-  // Base: fixo = 5 (2,5 m)
-  // Variante com linha na parede: remove 2 => 3
   const qtdPontaletes = comLinhaNaParede ? 3 : 5
   add(`Linha ${espessura}`, "Pontalete", qtdPontaletes, 2.5)
 
@@ -541,7 +529,7 @@ export async function calcularMateriaisCobertaL(
   add(tipoTercaL, "Terça (menor)", tercasMenor, CMenor + 0.5)
 
   /* ---------- 4) Caibros ---------- */
-  const caibrosMaior = ROUND_INT(Math.max(0, (CMenor) / 0.32 + 1))
+  const caibrosMaior = ROUND_INT(Math.max(0, CMenor / 0.32 + 1))
   const caibrosMenor = ROUND_INT(Math.max(0, (CMaior - CMenor) / 0.32))
   add("Caibro", "Caibro (maior)", caibrosMaior, LMaior)
   add("Caibro", "Caibro (menor)", caibrosMenor, LMenor)
@@ -558,14 +546,11 @@ export async function calcularMateriaisCobertaL(
   addMaterial("Impermeabilizante", 1)
 
   /* ---------- 7) Parafuso Sextavado ---------- */
-  // Regra: 3 parafusos por pontalete + 1 por metro da linha na parede (usando a largura total da obra)
-  // Mantive a sobra +2 como estava.
   const metrosLinhaParede = comLinhaNaParede ? ROUND_INT(LMaior) : 0
-
-  const qtdSextavado = (qtdPontaletes * 3) + metrosLinhaParede + 2
+  const qtdSextavado = qtdPontaletes * 3 + metrosLinhaParede + 2
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
-  /* ---------- 8) Telhas: Área1 + Área2, com 8% de perda por recorte ---------- */
+  /* ---------- 8) Telhas (POR COR / descrições do banco) ---------- */
   const area1 = CMenor * LMaior
   const area2 = (CMaior - CMenor) * LMenor
   const areaComPerda = (area1 + area2) * 1.08
@@ -577,10 +562,13 @@ export async function calcularMateriaisCobertaL(
     Maxxi: { factor: 8, offset: 10 },
   } as const
 
-  ;(Object.keys(formulas) as (keyof typeof formulas)[]).forEach(nome => {
+  ;(Object.keys(formulas) as TelhaNome[]).forEach(nome => {
     const { factor, offset } = formulas[nome]
     const qtd = ROUND_INT(areaComPerda * factor + offset)
-    telhasRaw.push({ descricao: nome, componente: "", quantidade: qtd })
+
+    telhaDescricoesPorTipoBase[nome].forEach(descricao => {
+      telhasRaw.push({ descricao, componente: "", quantidade: qtd })
+    })
   })
 
   /* ---------- Agrupar / ordenar / preços / retorno ---------- */
