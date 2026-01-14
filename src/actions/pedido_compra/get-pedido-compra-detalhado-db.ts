@@ -32,6 +32,8 @@ export type PedidoCompraItemDTO = {
 export type PedidoCompraDetalhadoDTO = {
   id: number
   obra_id: number
+  obra: { titulo: string | null }
+
   categoria: any
   status: any
 
@@ -66,6 +68,7 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
     const pedido = await prisma.pedido_compra.findUnique({
       where: { id: Number(pedidoCompraId) },
       include: {
+        obra: { select: { titulo: true } },
         fornecedor: { select: { id: true, nome: true, tipo: true } },
         itens: {
           orderBy: { id: "asc" },

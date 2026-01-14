@@ -66,6 +66,8 @@ type FormData = {
 type PedidoCompraDetalhadoSnake = {
   id: number
   obra_id: number
+  obra?: { titulo: string | null } | null
+
   categoria: PedidoCategoria
   status: PedidoStatus
   valor_orcado: string | null
@@ -147,6 +149,32 @@ function ObraOptionLabelBottom(o: ObraSearchItem) {
   return parts.length ? parts.join(" • ") : "Sem dados do cliente"
 }
 
+const allowedCategorias = new Set<PedidoCategoria>(["MADEIRA", "TELHA", "ANDAIMES", "MATERIAIS", "ANDAIME"])
+const allowedStatus = new Set<PedidoStatus>([
+  "RASCUNHO",
+  "PENDENTE",
+  "APROVADO",
+  "EM_COMPRA",
+  "AGUARDANDO_PAGAMENTO",
+  "AGUARDANDO_ENTREGA",
+  "ENTREGUE",
+  "CANCELADO",
+])
+
+function normalizeCategoria(raw: any): PedidoCategoria | "" {
+  const v = String(raw ?? "").trim().toUpperCase()
+  if (!v) return ""
+  if (v === "ANDAIME") return "ANDAIMES"
+  if (allowedCategorias.has(v as PedidoCategoria)) return v as PedidoCategoria
+  return ""
+}
+
+function normalizeStatus(raw: any): PedidoStatus {
+  const v = String(raw ?? "").trim().toUpperCase()
+  if (allowedStatus.has(v as PedidoStatus)) return v as PedidoStatus
+  return "RASCUNHO"
+}
+
 type Props = {
   mode: Mode
   pedidoCompraId?: number
@@ -197,15 +225,19 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
     if (mode !== "edit") return
     if (!initialData) return
 
+    const categoriaNorm = normalizeCategoria(initialData.categoria)
+    const statusNorm = normalizeStatus(initialData.status)
+    const fornecedorIdStr = initialData.fornecedor_id ? String(initialData.fornecedor_id) : ""
+
     setFormData({
       obraId: String(initialData.obra_id ?? ""),
-      categoria: (initialData.categoria ?? "") as any,
-      fornecedorId: initialData.fornecedor_id ? String(initialData.fornecedor_id) : "",
+      categoria: categoriaNorm,
+      fornecedorId: fornecedorIdStr,
       descricao: initialData.descricao ?? "",
       valorOrcado: initialData.valor_orcado == null ? "" : String(initialData.valor_orcado),
       valorRealizado: initialData.valor_realizado == null ? "" : String(initialData.valor_realizado),
       dataEntrega: initialData.data_entrega ? String(initialData.data_entrega).slice(0, 10) : "",
-      status: (initialData.status ?? "RASCUNHO") as any,
+      status: statusNorm,
       frete: initialData.frete == null ? "0" : String(initialData.frete),
       observacoes: initialData.observacoes ?? "",
     })
@@ -231,7 +263,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
     setObraSelected({
       id: Number(initialData.obra_id),
-      titulo: null,
+      titulo: initialData.obra?.titulo ?? null,
       nomeReceptor: initialData.nome_receptor ?? null,
       telefoneReceptor: initialData.telefone_receptor ?? null,
       enderecoEntrega: initialData.endereco_entrega ?? null,
@@ -249,8 +281,10 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
   const headerTitle = useMemo(() => {
     if (mode === "create") return "Criar Pedido de Compra"
-    return pedidoCompraId ? `#PC-${pedidoCompraId}` : "Editar Pedido de Compra"
-  }, [mode, pedidoCompraId])
+    const obraLabel = obraSelected ? ObraOptionLabelTop(obraSelected) : formData.obraId ? `#${formData.obraId}` : ""
+    if (pedidoCompraId) return obraLabel ? `#PC-${pedidoCompraId} — ${obraLabel}` : `#PC-${pedidoCompraId}`
+    return "Editar Pedido de Compra"
+  }, [mode, pedidoCompraId, obraSelected, formData.obraId])
 
   useEffect(() => {
     if (mode === "edit") return
@@ -397,7 +431,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
       }
 
       const isEdit = mode === "edit"
-      const url = isEdit ? `/api/pedido_compra/edit/${pedidoCompraId}` : "/api/pedido_compra/cadastrar"
+      const url = isEdit ? `/api/pedido_compra/editar/${pedidoCompraId}` : "/api/pedido_compra/cadastrar"
       const method = isEdit ? "PUT" : "POST"
 
       const res = await fetch(url, {
@@ -540,7 +574,11 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
                 <div className="space-y-2">
                   <Label htmlFor="categoria">Categoria</Label>
-                  <Select value={formData.categoria} onValueChange={(v) => setFormData((p) => ({ ...p, categoria: v as PedidoCategoria }))}>
+                  <Select
+                    key={`cat-${String(formData.categoria)}`}
+                    value={formData.categoria}
+                    onValueChange={(v) => setFormData((p) => ({ ...p, categoria: v as PedidoCategoria }))}
+                  >
                     <SelectTrigger id="categoria">
                       <SelectValue placeholder="Selecione uma categoria" />
                     </SelectTrigger>
@@ -569,6 +607,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
                 <div className="space-y-2">
                   <Label htmlFor="fornecedor">Fornecedor</Label>
                   <Select
+                    key={`forn-${String(formData.fornecedorId)}-${fornecedores.length}`}
                     value={formData.fornecedorId || "none"}
                     onValueChange={(v) => setFormData((p) => ({ ...p, fornecedorId: v === "none" ? "" : v }))}
                   >
@@ -588,9 +627,13 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
                 <div className="space-y-2">
                   <Label htmlFor="status">Status do Pedido</Label>
-                  <Select value={formData.status} onValueChange={(v) => setFormData((p) => ({ ...p, status: v as PedidoStatus }))}>
+                  <Select
+                    key={`st-${String(formData.status)}`}
+                    value={formData.status}
+                    onValueChange={(v) => setFormData((p) => ({ ...p, status: v as PedidoStatus }))}
+                  >
                     <SelectTrigger id="status">
-                      <SelectValue />
+                      <SelectValue placeholder="Selecione um status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="RASCUNHO">Rascunho</SelectItem>
@@ -636,7 +679,12 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="dataEntrega">Data de Entrega</Label>
-                  <Input id="dataEntrega" type="date" value={formData.dataEntrega} onChange={(e) => setFormData((p) => ({ ...p, dataEntrega: e.target.value }))} />
+                  <Input
+                    id="dataEntrega"
+                    type="date"
+                    value={formData.dataEntrega}
+                    onChange={(e) => setFormData((p) => ({ ...p, dataEntrega: e.target.value }))}
+                  />
                 </div>
 
                 <div className="space-y-2">
