@@ -24,14 +24,20 @@ function json(resBody: any, status = 200, requestId?: string) {
   return new NextResponse(JSON.stringify(resBody), { status, headers })
 }
 
-export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+
   try {
     const session = (await getServerSession(authOptions as any)) as SessionLike
     const actorId = getActorId(session)
     if (!actorId) return json({ error: "unauthorized", requestId }, 401, requestId)
 
-    const pedidoCompraId = Number(ctx?.params?.id)
+    const { id } = await params
+    const pedidoCompraId = Number(id)
+
     if (!Number.isFinite(pedidoCompraId)) {
       return json(
         { error: "PAYLOAD_INVALIDO", code: "PARAM_INVALID", step: "validate", details: { param: "id" }, requestId },
@@ -111,7 +117,11 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
         AUDIT_FAILED: 500,
       }
       const status = map[err.code] ?? 500
-      return json({ error: err.message, code: err.code, step: err.step, details: err.details, requestId }, status, requestId)
+      return json(
+        { error: err.message, code: err.code, step: err.step, details: err.details, requestId },
+        status,
+        requestId
+      )
     }
 
     console.error("[PUT /api/pedido_compra/editar/[id]] unexpected", err)
