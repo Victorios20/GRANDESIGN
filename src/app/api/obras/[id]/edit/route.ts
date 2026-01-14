@@ -24,7 +24,10 @@ function json(body: any, status = 200) {
   })
 }
 
-export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const session = (await getServerSession(authOptions as any)) as SessionLike
   const actorId = getActorId(session)
 
@@ -32,8 +35,9 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     return json({ error: "UNAUTHORIZED" }, 401)
   }
 
-  const obraId = Number(ctx.params.id)
-  if (!Number.isFinite(obraId)) {
+  const { id } = await params
+  const obraId = Number(id)
+  if (!Number.isFinite(obraId) || obraId <= 0) {
     return json({ error: "OBRA_ID_INVALIDO" }, 400)
   }
 
@@ -47,10 +51,7 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
   const result = await updateObraDB(obraId, payload, actorId)
 
   if (!result.ok) {
-    return json(
-      { error: result.code },
-      result.status ?? 500
-    )
+    return json({ error: result.code }, result.status ?? 500)
   }
 
   return json({ data: result.data }, 200)
