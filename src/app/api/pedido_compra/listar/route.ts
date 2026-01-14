@@ -31,6 +31,12 @@ function clampInt(v: string | null, def: number, min: number, max: number) {
   return Math.min(max, Math.max(min, Math.trunc(n)))
 }
 
+function parseBool(v: string | null) {
+  const s = String(v ?? "").trim().toLowerCase()
+  if (!s) return false
+  return s === "1" || s === "true" || s === "yes" || s === "sim"
+}
+
 export async function GET(req: NextRequest) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
   try {
@@ -46,23 +52,29 @@ export async function GET(req: NextRequest) {
     const obraIdRaw = searchParams.get("obraId")
     const obraId = obraIdRaw != null && obraIdRaw !== "" ? Number(obraIdRaw) : null
 
+    const fornecedorIdRaw = searchParams.get("fornecedorId")
+    const fornecedorId = fornecedorIdRaw != null && fornecedorIdRaw !== "" ? Number(fornecedorIdRaw) : null
+
     const status = searchParams.get("status")
     const categoria = searchParams.get("categoria")
-
     const q = searchParams.get("q")
 
     const orderBy = searchParams.get("orderBy") as any
     const orderDir = (searchParams.get("orderDir") as any) ?? "desc"
 
+    const includeCounts = parseBool(searchParams.get("includeCounts"))
+
     const result = await listarPedidosCompra({
       page,
       pageSize,
       obraId: Number.isFinite(Number(obraId)) ? Number(obraId) : null,
+      fornecedorId: Number.isFinite(Number(fornecedorId)) ? Number(fornecedorId) : null,
       status,
       categoria,
       q,
       orderBy,
       orderDir,
+      includeCounts,
     })
 
     return json({ data: result, requestId }, 200, requestId)
