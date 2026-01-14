@@ -1,4 +1,4 @@
-// src/components/orcamento/OrcamentoPage.tsx
+﻿// src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from "react"
@@ -2475,7 +2475,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     {/* Telhas – valores fixos */}
                     <Card className="shadow-sm">
                         <CardHeader className="p-3">
-                            <CardTitle className="text-sm">Telhas – valores fixos</CardTitle>
+                            <CardTitle className="text-sm">Telhas – valores fixos*</CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
                             <Table>
@@ -2502,6 +2502,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 </TableBody>
 
                             </Table>
+                            <p className="mt-2 text-xs text-marromEscuro/60">
+                                * A proposta ira com o valor maior de cada grupo de telha para preservar a margem de lucro
+                            </p>
                         </CardContent>
                     </Card>
                 </CardContent>
@@ -2825,3 +2828,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         </PageLayout>
     )
 }
+
+
+
+
+
