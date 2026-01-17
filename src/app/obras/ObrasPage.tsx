@@ -1,4 +1,3 @@
-// src/app/obras/ObrasPage.tsx
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
@@ -25,12 +24,7 @@ import Execucao, { type ExecucaoVM } from "./_sections/Execucao"
 import { PedidoCompraCardSection } from "@/components/obras/pedido-compra/PedidoCompraCardSection"
 import type { PedidoCompraVM } from "@/components/obras/pedido-compra/types"
 
-import type {
-  ObraInfosVM,
-  CreateObraPayload,
-  UpdateObraPayload,
-  OrdemServicoPayload,
-} from "./lib/types"
+import type { ObraInfosVM, CreateObraPayload, UpdateObraPayload, OrdemServicoPayload } from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
 
 import ClienteModal from "@/components/modals/ClienteModal"
@@ -278,30 +272,68 @@ function dtoToPedidoVM(p: PedidoCompraDTO): PedidoCompraVM {
   }
 }
 
-function ensureFourCats(list: PedidoCompraVM[]): PedidoCompraVM[] {
-  const cats = ["TELHA", "MADEIRA", "MATERIAIS", "ANDAIMES"] as const
-  const byCat = (c: string) => list.find((p) => normCategoria((p as any)?.categoria) === c) ?? null
+function isMeaningfulPedidoVM(p: Partial<PedidoCompraVM> | null | undefined) {
+  if (!p) return false
+  const id = Number((p as any)?.id ?? 0)
+  if (Number.isFinite(id) && id > 0) return true
 
+  const desc = String((p as any)?.descricao ?? "").trim()
+  const fornecedorId = Number((p as any)?.fornecedorId ?? 0)
+  const dataEntrega = String((p as any)?.dataEntrega ?? "").trim()
+  const valorOrcado = toNum((p as any)?.valorOrcado ?? 0)
+  const valorRealizado = (p as any)?.valorRealizado
+  const frete = (p as any)?.frete
+  const itens = Array.isArray((p as any)?.itens) ? (p as any).itens : []
+
+  const hasMoney =
+    (Number.isFinite(valorOrcado) && valorOrcado > 0) ||
+    (valorRealizado != null && String(valorRealizado) !== "" && Number(valorRealizado) !== 0) ||
+    (frete != null && String(frete) !== "" && Number(frete) !== 0)
+
+  const hasFornecedor = Number.isFinite(fornecedorId) && fornecedorId > 0
+  const hasEntrega = !!dataEntrega
+  const hasDesc = !!desc
+  const hasItens = itens.length > 0
+
+  return hasMoney || hasFornecedor || hasEntrega || hasDesc || hasItens
+}
+
+function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
+  const src = pedidoInit ?? {}
   const out: PedidoCompraVM[] = []
-  for (const c of cats) {
-    const found = byCat(c)
-    if (found) {
-      out.push(found)
-    } else {
-      out.push({
-        descricao: "",
-        categoria: c as any,
-        status: "PENDENTE" as any,
-        fornecedorNome: null,
-        fornecedorId: null,
-        valorOrcado: 0,
-        valorRealizado: null,
-        frete: null,
-        dataEntrega: null,
-        itens: [],
-      })
+
+  const pushIf = (cat: "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES", raw: any) => {
+    const p: PedidoCompraVM = {
+      id: Number(raw?.id ?? 0) || undefined,
+      descricao: String(raw?.descricao ?? raw?.observacoes ?? "").trim(),
+      categoria: cat as any,
+      status: (raw?.status ?? "PENDENTE") as any,
+      fornecedorNome: raw?.fornecedorNome ?? null,
+      fornecedorId: raw?.fornecedorId ?? null,
+      valorOrcado: toNum(raw?.orcamento ?? raw?.valorOrcado ?? raw?.valor_orcado ?? raw?.valores?.orcado ?? 0),
+      valorRealizado: raw?.valorRealizado ?? raw?.valor_realizado ?? raw?.valores?.realizado ?? null,
+      frete: raw?.frete ?? raw?.valores?.frete ?? null,
+      dataEntrega: raw?.previsao ?? raw?.dataEntrega ?? raw?.data_entrega ?? raw?.entrega?.data ?? null,
+      itens: Array.isArray(raw?.itens)
+        ? raw.itens.map((it: any, idx: number) => ({
+            id: Number(it?.id ?? idx),
+            descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+            quantidade: toNum(it?.quantidade ?? 0),
+            tamanho: it?.tamanho ?? null,
+            precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
+            total: toNum(it?.total ?? 0),
+          }))
+        : [],
     }
+
+    if (isMeaningfulPedidoVM(p)) out.push(p)
   }
+
+  pushIf("TELHA", src?.telha)
+  pushIf("MADEIRA", src?.madeira)
+  pushIf("MATERIAIS", src?.materiais)
+  pushIf("ANDAIMES", src?.andaimes)
+
   return out
 }
 
@@ -313,6 +345,7 @@ export default function ObrasPage({
   initial,
   tiposObraOptions,
   telhaOptions,
+  pedidoInit,
   pedidosCompraInit,
   financeiroInit,
   execucaoInit,
@@ -328,7 +361,9 @@ export default function ObrasPage({
 
   const [pedidos, setPedidos] = useState<PedidoCompraVM[]>(() => {
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
-    return ensureFourCats(fromDto)
+    if (fromDto.length > 0) return fromDto
+    const fromInit = pedidoInitToPedidosVM(pedidoInit)
+    return fromInit
   })
 
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
@@ -348,9 +383,10 @@ export default function ObrasPage({
   }, [initial])
 
   useEffect(() => {
+    if (mode !== "view") return
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
-    setPedidos(ensureFourCats(fromDto))
-  }, [pedidosCompraInit])
+    setPedidos(fromDto)
+  }, [pedidosCompraInit, mode])
 
   const clientePrefill = useMemo(
     () => ({
@@ -383,14 +419,7 @@ export default function ObrasPage({
     setClienteModalOpen(true)
   }
 
-  const onClienteSaved = (c: {
-    id: number
-    nome: string
-    telefone: string | null
-    bairro: string | null
-    cidade_nome: string | null
-    cpf?: string | null
-  }) => {
+  const onClienteSaved = (c: { id: number; nome: string; telefone: string | null; bairro: string | null; cidade_nome: string | null; cpf?: string | null }) => {
     setClienteId(c.id)
 
     patchInfos({
@@ -447,7 +476,7 @@ export default function ObrasPage({
       return false
     }
     if (!(Number(vm.comprimento) > 0)) {
-      toast.error("Comprimento é obrigatório.")
+      toast.error("Comprimento é obrigatória.")
       focusById("infos.comprimento")
       return false
     }
@@ -739,8 +768,14 @@ export default function ObrasPage({
 
   function onCancel() {
     setVm(hydrateInfos(initial))
-    const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
-    setPedidos(ensureFourCats(fromDto))
+
+    if (mode === "view") {
+      const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
+      setPedidos(fromDto)
+    } else {
+      setPedidos(pedidoInitToPedidosVM(pedidoInit))
+    }
+
     setFin(hydrateFinanceiro(financeiroInit))
     setExec(hydrateExecucao(execucaoInit))
     setIsEditing(false)
@@ -760,11 +795,10 @@ export default function ObrasPage({
   const onCreatePedido = (draft: Partial<PedidoCompraVM>) => {
     setPedidos((prev) => {
       const list = Array.isArray(prev) ? [...prev] : []
-      const cat = normCategoria((draft as any)?.categoria)
-      const idx = list.findIndex((p) => normCategoria((p as any)?.categoria) === cat)
       const next: PedidoCompraVM = {
+        id: (draft as any)?.id ?? undefined,
         descricao: String((draft as any)?.descricao ?? "").trim(),
-        categoria: (draft as any)?.categoria ?? "MATERIAIS",
+        categoria: (draft as any)?.categoria ?? ("MATERIAIS" as any),
         status: (draft as any)?.status ?? ("PENDENTE" as any),
         fornecedorNome: (draft as any)?.fornecedorNome ?? null,
         fornecedorId: (draft as any)?.fornecedorId ?? null,
@@ -775,12 +809,9 @@ export default function ObrasPage({
         itens: (draft as any)?.itens ?? [],
       }
 
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], ...next }
-        return list
-      }
+      if (!isMeaningfulPedidoVM(next)) return list
       list.push(next)
-      return ensureFourCats(list)
+      return list
     })
   }
 
@@ -855,12 +886,7 @@ export default function ObrasPage({
       />
 
       <div className="mt-6">
-        <ObsImagens
-          observacoes={vm.observacoes}
-          imagens={vm.imagens ?? []}
-          isEditing={isEditing}
-          onChange={patchInfos}
-        />
+        <ObsImagens observacoes={vm.observacoes} imagens={vm.imagens ?? []} isEditing={isEditing} onChange={patchInfos} />
       </div>
 
       <div className="mt-6">
@@ -875,13 +901,7 @@ export default function ObrasPage({
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
-        <Execucao
-          className="lg:col-span-1"
-          value={exec}
-          onChange={patchExecucao}
-          isEditing={isEditing}
-          equipeOptions={equipeOptions}
-        />
+        <Execucao className="lg:col-span-1" value={exec} onChange={patchExecucao} isEditing={isEditing} equipeOptions={equipeOptions} />
       </div>
 
       <div className="mt-6">
