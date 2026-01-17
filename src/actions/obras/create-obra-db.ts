@@ -69,8 +69,52 @@ function mapPagamentoStatus(raw?: string | PagamentoStatus | null): PagamentoSta
   return undefined
 }
 
+function mapPedidoCategoria(raw?: string | PedidoCategoria | null): PedidoCategoria | undefined {
+  if (!raw) return undefined
+  if (Object.values(PedidoCategoria).includes(raw as PedidoCategoria)) return raw as PedidoCategoria
+  const n = normalizeStr(String(raw))
+  if (n === "telha") return PedidoCategoria.TELHA
+  if (n === "madeira") return PedidoCategoria.MADEIRA
+  if (n === "materiais" || n === "material") return PedidoCategoria.MATERIAIS
+  if (n === "andaimes" || n === "andaime") return PedidoCategoria.ANDAIMES
+  return undefined
+}
+
+function mapPedidoCompraStatus(raw?: string | PedidoCompraStatus | null): PedidoCompraStatus | undefined {
+  if (!raw) return undefined
+  if (Object.values(PedidoCompraStatus).includes(raw as PedidoCompraStatus)) return raw as PedidoCompraStatus
+
+  const n = normalizeStr(String(raw))
+  if (n === "rascunho") return PedidoCompraStatus.RASCUNHO
+  if (n === "pendente") return PedidoCompraStatus.PENDENTE
+  if (n === "aprovado") return PedidoCompraStatus.APROVADO
+  if (n === "em compra" || n === "em_compra" || n === "emcompra") return PedidoCompraStatus.EM_COMPRA
+  if (n === "aguardando pagamento" || n === "aguardando_pagamento") return PedidoCompraStatus.AGUARDANDO_PAGAMENTO
+  if (n === "aguardando entrega" || n === "aguardando_entrega") return PedidoCompraStatus.AGUARDANDO_ENTREGA
+  if (n === "entregue") return PedidoCompraStatus.ENTREGUE
+  if (n === "cancelado") return PedidoCompraStatus.CANCELADO
+  return undefined
+}
+
 export type ImagemInput = { url: string; ordem?: number | null; legenda?: string | null }
 export type PedidoItemInput = { descricao: string; quantidade: Decimalish; tamanho?: Decimalish; preco_unitario: Decimalish; total: Decimalish }
+
+export type PedidoCompraInput = {
+  categoria: PedidoCategoria | string
+  status?: PedidoCompraStatus | string | null
+  valor_orcado?: Decimalish | null
+  valor_realizado?: Decimalish | null
+  frete?: Decimalish | null
+  descricao?: string | null
+  observacoes?: string | null
+  fornecedor_id?: number | string | null
+  data_entrega?: string | Date | null
+  endereco_entrega?: string | null
+  nome_receptor?: string | null
+  telefone_receptor?: string | null
+  link_maps?: string | null
+  itens?: PedidoItemInput[]
+}
 
 export type CriarObraInput = {
   orcamentoId: number
@@ -105,6 +149,8 @@ export type CriarObraInput = {
   fornecedor_telha_id?: number | null
   fornecedor_madeira_id?: number | null
   andaimes_fornecedor_id?: number | null
+
+  pedidosCompra?: PedidoCompraInput[]
 
   data_prev_inicio?: string | Date | null
   data_prev_conclusao?: string | Date | null
@@ -162,40 +208,109 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     const pedidos: Partial<Record<PedidoCategoria, number>> = {}
     let primeiroPedidoId: number | null = null
 
-    const grupos: { categoria: PedidoCategoria; itens?: PedidoItemInput[]; fornecedor?: number | null }[] = [
-      { categoria: PedidoCategoria.TELHA, itens: input.telhaItens, fornecedor: input.fornecedor_telha_id },
-      { categoria: PedidoCategoria.MADEIRA, itens: input.madeiraItens, fornecedor: input.fornecedor_madeira_id },
-      { categoria: PedidoCategoria.MATERIAIS, itens: input.materiaisItens },
-      { categoria: PedidoCategoria.ANDAIMES, itens: input.andaimesItens, fornecedor: input.andaimes_fornecedor_id },
-    ]
+    const pedidosCompra = Array.isArray(input.pedidosCompra) ? input.pedidosCompra : []
 
-    for (const g of grupos) {
-      if (!Array.isArray(g.itens) || g.itens.length === 0) continue
+    if (pedidosCompra.length > 0) {
+      for (const p of pedidosCompra) {
+        const cat = mapPedidoCategoria((p as any)?.categoria)
+        if (!cat) continue
 
-      const pedido = await tx.pedido_compra.create({
-        data: {
-          obra: { connect: { id: obra.id } },
-          categoria: g.categoria,
-          status: PedidoCompraStatus.RASCUNHO,
-          ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
-        },
-        select: { id: true },
-      })
+        const itens = Array.isArray((p as any)?.itens) ? ((p as any).itens as PedidoItemInput[]) : []
 
-      if (!primeiroPedidoId) primeiroPedidoId = pedido.id
-      pedidos[g.categoria] = pedido.id
+        const hasAnyHeaderValue =
+          (p as any)?.status != null ||
+          (p as any)?.valor_orcado != null ||
+          (p as any)?.valor_realizado != null ||
+          (p as any)?.frete != null ||
+          String((p as any)?.descricao ?? "").trim() ||
+          String((p as any)?.observacoes ?? "").trim() ||
+          (p as any)?.fornecedor_id != null ||
+          (p as any)?.data_entrega != null ||
+          String((p as any)?.endereco_entrega ?? "").trim() ||
+          String((p as any)?.nome_receptor ?? "").trim() ||
+          String((p as any)?.telefone_receptor ?? "").trim() ||
+          String((p as any)?.link_maps ?? "").trim()
 
-      for (const it of g.itens) {
-        await tx.pedido_itens.create({
+        if (!hasAnyHeaderValue && itens.length === 0) continue
+
+        const fornRaw = (p as any)?.fornecedor_id
+        const fornId = Number.isFinite(Number(fornRaw)) ? Number(fornRaw) : null
+
+        const pedidoStatus = mapPedidoCompraStatus((p as any)?.status)
+        const dataEntrega = parseDateLoose((p as any)?.data_entrega)
+
+        const pedido = await tx.pedido_compra.create({
           data: {
-            pedido_compra_id: pedido.id,
-            descricao: it.descricao,
-            quantidade: d(it.quantidade),
-            tamanho: it.tamanho != null ? d(it.tamanho) : null,
-            preco_unitario: d(it.preco_unitario),
-            total: d(it.total),
+            obra: { connect: { id: obra.id } },
+            categoria: cat,
+            ...(pedidoStatus ? { status: pedidoStatus } : {}),
+            ...((p as any)?.valor_orcado != null ? { valor_orcado: d((p as any).valor_orcado) } : {}),
+            ...((p as any)?.valor_realizado != null ? { valor_realizado: d((p as any).valor_realizado) } : {}),
+            ...((p as any)?.frete != null ? { frete: d((p as any).frete) } : {}),
+            descricao: (p as any)?.descricao ?? null,
+            observacoes: (p as any)?.observacoes ?? null,
+            ...(fornId ? { fornecedor: { connect: { id: fornId } } } : {}),
+            data_entrega: dataEntrega,
+            endereco_entrega: (p as any)?.endereco_entrega ?? null,
+            nome_receptor: (p as any)?.nome_receptor ?? null,
+            telefone_receptor: (p as any)?.telefone_receptor ?? null,
+            link_maps: (p as any)?.link_maps ?? null,
           },
+          select: { id: true },
         })
+
+        if (!primeiroPedidoId) primeiroPedidoId = pedido.id
+        pedidos[cat] = pedido.id
+
+        for (const it of itens) {
+          await tx.pedido_itens.create({
+            data: {
+              pedido_compra_id: pedido.id,
+              descricao: it.descricao,
+              quantidade: d(it.quantidade),
+              tamanho: cat === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
+              preco_unitario: d(it.preco_unitario),
+              total: d(it.total),
+            },
+          })
+        }
+      }
+    } else {
+      const grupos: { categoria: PedidoCategoria; itens?: PedidoItemInput[]; fornecedor?: number | null }[] = [
+        { categoria: PedidoCategoria.TELHA, itens: input.telhaItens, fornecedor: input.fornecedor_telha_id },
+        { categoria: PedidoCategoria.MADEIRA, itens: input.madeiraItens, fornecedor: input.fornecedor_madeira_id },
+        { categoria: PedidoCategoria.MATERIAIS, itens: input.materiaisItens },
+        { categoria: PedidoCategoria.ANDAIMES, itens: input.andaimesItens, fornecedor: input.andaimes_fornecedor_id },
+      ]
+
+      for (const g of grupos) {
+        if (!Array.isArray(g.itens) || g.itens.length === 0) continue
+
+        const pedido = await tx.pedido_compra.create({
+          data: {
+            obra: { connect: { id: obra.id } },
+            categoria: g.categoria,
+            status: PedidoCompraStatus.RASCUNHO,
+            ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
+          },
+          select: { id: true },
+        })
+
+        if (!primeiroPedidoId) primeiroPedidoId = pedido.id
+        pedidos[g.categoria] = pedido.id
+
+        for (const it of g.itens) {
+          await tx.pedido_itens.create({
+            data: {
+              pedido_compra_id: pedido.id,
+              descricao: it.descricao,
+              quantidade: d(it.quantidade),
+              tamanho: g.categoria === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
+              preco_unitario: d(it.preco_unitario),
+              total: d(it.total),
+            },
+          })
+        }
       }
     }
 

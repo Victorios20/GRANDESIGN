@@ -47,6 +47,36 @@ type Catalogo = {
 type Componente = { id?: number; nome: string; categoria?: string } | any
 type Cidade = { id: number; nome: string }
 
+/* ================= NOVO DTO (detalhado) =================
+   Se você já tiver esse type no ./lib/types, remova daqui e importe de lá.
+*/
+type PedidoCompraDTO = {
+  id: number
+  categoria: string
+  status: string
+  fornecedor: { id: number; nome: string } | null
+  valores: {
+    orcado: number | null
+    realizado: number | null
+    frete: number | null
+  }
+  entrega: {
+    data: string | null
+    endereco: string | null
+    receptor: string | null
+    telefone: string | null
+    maps: string | null
+  }
+  itens: Array<{
+    id: number
+    descricao: string
+    quantidade: number
+    tamanho: number | null
+    precoUnitario: number
+    total: number
+  }>
+}
+
 type Props = {
   mode: "new" | "view"
   obraId?: number
@@ -56,6 +86,10 @@ type Props = {
   tiposObraOptions: Option[]
   telhaOptions: Option[]
   pedidoInit?: Partial<PedidoCompraVM>
+
+  // NOVO: vem do page.tsx (detalhado)
+  pedidosCompraInit?: PedidoCompraDTO[]
+
   catalogo?: Catalogo
   componentes?: Componente[]
   fornecedoresTelhaOptions?: Option[]
@@ -118,7 +152,94 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
   }
 }
 
-function hydratePedido(initial?: Partial<PedidoCompraVM>): PedidoCompraVM {
+function normCategoria(raw: string) {
+  const s = String(raw ?? "").trim().toUpperCase()
+  if (s.includes("TELHA")) return "TELHA"
+  if (s.includes("MADEIRA")) return "MADEIRA"
+  if (s.includes("ANDAIME")) return "ANDAIMES"
+  if (s.includes("MATERIAL")) return "MATERIAIS"
+  return s
+}
+
+function hydratePedidoFromDTOs(pedidos?: PedidoCompraDTO[]): PedidoCompraVM {
+  const list = Array.isArray(pedidos) ? pedidos : []
+
+  const byCat = (cat: string) => list.find((p) => normCategoria(p.categoria) === cat) ?? null
+
+  const telha = byCat("TELHA")
+  const madeira = byCat("MADEIRA")
+  const materiais = byCat("MATERIAIS")
+  const andaimes = byCat("ANDAIMES")
+
+  return {
+    telha: {
+      status: (telha?.status as any) ?? "Pendente",
+      previsao: telha?.entrega?.data ?? null,
+      orcamento: Number(telha?.valores?.orcado ?? 0),
+      area: 0,
+      fornecedorId: telha?.fornecedor?.id ?? null,
+      itens: (telha?.itens ?? []).map((i) => ({
+        id: i.id,
+        descricao: i.descricao,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario,
+        total: i.total,
+      })),
+    },
+
+    madeira: {
+      status: (madeira?.status as any) ?? "Pendente",
+      previsao: madeira?.entrega?.data ?? null,
+      fornecedorId: madeira?.fornecedor?.id ?? null,
+      orcamento: Number(madeira?.valores?.orcado ?? 0),
+      itens: (madeira?.itens ?? []).map((i) => ({
+        id: i.id,
+        componente: "",
+        madeiraNome: "",
+        descricao: i.descricao,
+        quantidade: i.quantidade,
+        tamanho: Number(i.tamanho ?? 0),
+        precoUnitario: i.precoUnitario,
+        total: i.total,
+      })),
+    },
+
+    materiais: {
+      status: (materiais?.status as any) ?? "Pendente",
+      itens: (materiais?.itens ?? []).map((i) => ({
+        id: i.id,
+        descricao: i.descricao,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario,
+        total: i.total,
+      })),
+    },
+
+    andaimes: {
+      status: (andaimes?.status as any) ?? "Pendente",
+      fornecedorId: andaimes?.fornecedor?.id ?? null,
+      itens: (andaimes?.itens ?? []).map((i) => ({
+        id: i.id,
+        descricao: i.descricao,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario,
+        total: i.total,
+      })),
+    },
+  }
+}
+
+
+function hydratePedido(params: {
+  pedidoInit?: Partial<PedidoCompraVM>
+  pedidosCompraInit?: PedidoCompraDTO[]
+}): PedidoCompraVM {
+  if (params?.pedidosCompraInit && Array.isArray(params.pedidosCompraInit) && params.pedidosCompraInit.length > 0) {
+    return hydratePedidoFromDTOs(params.pedidosCompraInit)
+  }
+
+  const initial = params?.pedidoInit
+
   return {
     telha: {
       status: initial?.telha?.status ?? "Pendente",
@@ -260,6 +381,7 @@ export default function ObrasPage({
   tiposObraOptions,
   telhaOptions,
   pedidoInit,
+  pedidosCompraInit,
   catalogo,
   componentes,
   fornecedoresTelhaOptions,
@@ -276,7 +398,9 @@ export default function ObrasPage({
   const [saving, setSaving] = useState(false)
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
-  const [pedido, setPedido] = useState<PedidoCompraVM>(() => hydratePedido(pedidoInit))
+  const [pedido, setPedido] = useState<PedidoCompraVM>(() =>
+    hydratePedido({ pedidoInit, pedidosCompraInit })
+  )
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
   const [exec, setExec] = useState<ExecucaoVM>(() => hydrateExecucao(execucaoInit))
 
@@ -647,8 +771,6 @@ export default function ObrasPage({
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
 
-        console.log("[Obras] Payload de criação enviado ao back:", payload)
-
         const r = await createObra(payload)
         toast.success("Obra criada.")
         router.push(`/obras/${r.obraId}`)
@@ -778,7 +900,7 @@ export default function ObrasPage({
 
   function onCancel() {
     setVm(hydrateInfos(initial))
-    setPedido(hydratePedido(pedidoInit))
+    setPedido(hydratePedido({ pedidoInit, pedidosCompraInit }))
     setFin(hydrateFinanceiro(financeiroInit))
     setExec(hydrateExecucao(execucaoInit))
     setIsEditing(false)

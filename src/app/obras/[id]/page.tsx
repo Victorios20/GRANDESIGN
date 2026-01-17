@@ -7,11 +7,8 @@ import type {
   ObraInfosVM,
   FormaPagamento,
   PagamentoStatus,
-  PedidoCompraVM,
   ObraStatus,
-  PedidoStatusPadrao,
-  PedidoStatusMateriais,
-  PedidoStatusAndaimes,
+  PedidoCompraDTO,
 } from "@/app/obras/lib/types"
 import type { ImgItem } from "@/app/obras/_sections/ObsImagens"
 
@@ -65,48 +62,6 @@ function mapStatusPagamento(raw: unknown): PagamentoStatus {
   return s === "EFETUADO" ? "Efetuado" : "Pendente"
 }
 
-function mapPedidoStatusPadrao(raw: unknown): PedidoStatusPadrao {
-  const s = String(raw ?? "").toUpperCase()
-  switch (s) {
-    case "AGUARDANDO_PAGAMENTO":
-      return "Aguardando pagamento"
-    case "PEDIDO_FEITO":
-      return "Pedido feito"
-    case "ENTREGUE":
-      return "Entregue"
-    default:
-      return "Pendente"
-  }
-}
-
-function mapPedidoStatusMateriais(raw: unknown): PedidoStatusMateriais {
-  const s = String(raw ?? "").toUpperCase()
-  switch (s) {
-    case "EM_ESTOQUE":
-      return "Em estoque"
-    case "ENTREGUE":
-      return "Entregue"
-    default:
-      return "Pendente"
-  }
-}
-
-function mapPedidoStatusAndaimes(raw: unknown): PedidoStatusAndaimes {
-  const s = String(raw ?? "").toUpperCase()
-  switch (s) {
-    case "PEDIDO_FEITO":
-      return "Pedido feito"
-    case "ENTREGUE":
-      return "Entregue"
-    case "A_COLETAR":
-      return "À coletar"
-    case "COLETADO":
-      return "Coletado"
-    default:
-      return "Pendente"
-  }
-}
-
 type CidadeRow = { id: number; nome: string }
 
 function normalizeCidades(payload: unknown): CidadeRow[] {
@@ -154,19 +109,6 @@ function normalizeImagens(dto: ObraDetalheDTO | null | undefined): ImgItem[] {
   return mapped
 }
 
-function getPedidoByCategoria(dto: any, categoria: string) {
-  const arr = (dto?.pedidosCompra ?? dto?.pedidos_compra ?? []) as any[]
-  if (!Array.isArray(arr)) return null
-  const norm = (s: any) => String(s ?? "").trim().toUpperCase()
-  return arr.find((p) => norm(p?.categoria) === norm(categoria)) ?? null
-}
-
-function parseISODate(s?: string | null) {
-  if (!s) return null
-  const d = new Date(s)
-  return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : null
-}
-
 function pickOrcamentoId(dto: any): number | undefined {
   const candidates = [dto?.orcamentoId, dto?.orcamento?.id, dto?.orcamento_id, dto?.orcamento?.orcamentoId]
   for (const c of candidates) {
@@ -174,6 +116,12 @@ function pickOrcamentoId(dto: any): number | undefined {
     if (Number.isFinite(n) && n > 0) return n
   }
   return undefined
+}
+
+function normalizePedidosCompra(dto: any): PedidoCompraDTO[] {
+  const arr = (dto as any)?.pedidosCompra ?? (dto as any)?.pedidos_compra ?? []
+  if (!Array.isArray(arr)) return []
+  return arr as PedidoCompraDTO[]
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -364,75 +312,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     },
   }
 
-  const byCategoria = {
-    telha: getPedidoByCategoria(dto, "TELHA"),
-    madeira: getPedidoByCategoria(dto, "MADEIRA"),
-    materiais: getPedidoByCategoria(dto, "MATERIAIS"),
-    andaimes: getPedidoByCategoria(dto, "ANDAIMES"),
-  }
-
-  const pedidoInit: Partial<PedidoCompraVM> | undefined = {
-    telha: {
-      status: mapPedidoStatusPadrao(byCategoria.telha?.status),
-      previsao: parseISODate(byCategoria.telha?.entrega?.data ?? null),
-      orcamento: Number(byCategoria.telha?.valores?.orcado ?? 0),
-      area: Number(byCategoria.telha?.area ?? 0),
-      fornecedorId: byCategoria.telha?.fornecedor?.id ?? null,
-      itens: Array.isArray(byCategoria.telha?.itens)
-        ? byCategoria.telha.itens.map((it: any) => ({
-            id: it.id,
-            descricao: it.descricao,
-            quantidade: Number(it.quantidade ?? 0),
-            precoUnitario: Number(it.precoUnitario ?? 0),
-            total: Number(it.total ?? 0),
-          }))
-        : [],
-    },
-    madeira: {
-      status: mapPedidoStatusPadrao(byCategoria.madeira?.status),
-      previsao: parseISODate(byCategoria.madeira?.entrega?.data ?? null),
-      fornecedorId: byCategoria.madeira?.fornecedor?.id ?? null,
-      orcamento: Number(byCategoria.madeira?.valores?.orcado ?? 0),
-      itens: Array.isArray(byCategoria.madeira?.itens)
-        ? byCategoria.madeira.itens.map((it: any) => ({
-            id: it.id,
-            componente: it?.componente ?? undefined,
-            madeiraNome: it?.madeiraNome ?? undefined,
-            descricao: it.descricao,
-            quantidade: Number(it.quantidade ?? 0),
-            tamanho: it?.tamanho != null ? Number(it.tamanho) : 0,
-            precoUnitario: Number(it.precoUnitario ?? 0),
-            total: Number(it.total ?? 0),
-          }))
-        : [],
-    },
-    materiais: {
-      status: mapPedidoStatusMateriais(byCategoria.materiais?.status),
-      itens: Array.isArray(byCategoria.materiais?.itens)
-        ? byCategoria.materiais.itens.map((it: any) => ({
-            id: it.id,
-            descricao: it.descricao,
-            quantidade: Number(it.quantidade ?? 0),
-            precoUnitario: Number(it.precoUnitario ?? 0),
-            total: Number(it.total ?? 0),
-          }))
-        : [],
-    },
-    andaimes: {
-      status: mapPedidoStatusAndaimes(byCategoria.andaimes?.status),
-      fornecedorId: byCategoria.andaimes?.fornecedor?.id ?? null,
-      itens: Array.isArray(byCategoria.andaimes?.itens)
-        ? byCategoria.andaimes.itens.map((it: any) => ({
-            id: it.id,
-            descricao: it.descricao,
-            quantidade: Number(it.quantidade ?? 0),
-            precoUnitario: Number(it.precoUnitario ?? 0),
-            total: Number(it.total ?? 0),
-          }))
-        : [],
-    },
-  }
-
   const execucaoInit = (dto as any)?.ordemServico
     ? {
         equipeId: (dto as any).ordemServico.equipe?.id ?? (dto as any).ordemServico.equipeId ?? null,
@@ -464,6 +343,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     ordemServico: String((dto as any)?.anexos?.ordemServico ?? ""),
   }
 
+  const pedidosCompra = normalizePedidosCompra(dto)
+
   return (
     <ObrasPage
       mode="view"
@@ -472,7 +353,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
-      pedidoInit={pedidoInit}
       catalogo={catalogo}
       componentes={componentes}
       fornecedoresTelhaOptions={fornecedoresTelhaOptions}
@@ -484,6 +364,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       execucaoInit={execucaoInit}
       cidades={cidades}
       ordemServicoId={ordemServicoId}
+      pedidosCompraInit={pedidosCompra}
     />
   )
 }

@@ -66,6 +66,73 @@ export type GetOrcamentoResult = {
   updatedBy: { id: number; name: string; email: string } | null
 }
 
+/* ===== NOVO (Detalhado): Pedido de Compra completo ===== */
+export type PedidoCategoria = 'TELHA' | 'MADEIRA' | 'MATERIAIS' | 'ANDAIMES'
+
+export type PedidoCompraStatus =
+  | 'RASCUNHO'
+  | 'PENDENTE'
+  | 'APROVADO'
+  | 'EM_COMPRA'
+  | 'AGUARDANDO_PAGAMENTO'
+  | 'AGUARDANDO_ENTREGA'
+  | 'ENTREGUE'
+  | 'CANCELADO'
+
+export type PedidoItemDTO = {
+  id: number
+  pedidoCompraId: number
+  descricao: string
+  quantidade: number
+  tamanho: number | null
+  precoUnitario: number
+  total: number
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export type PedidoCompraDTO = {
+  id: number
+  obraId: number
+  categoria: PedidoCategoria | string
+  status: PedidoCompraStatus | string
+
+  fornecedorId: number | null
+  fornecedor: { id: number; nome: string } | null
+
+  valorOrcado: number | null
+  valorRealizado: number | null
+  frete: number | null
+
+  descricao: string | null
+  observacoes: string | null
+
+  dataEntrega: string | null
+  enderecoEntrega: string | null
+  nomeReceptor: string | null
+  telefoneReceptor: string | null
+  linkMaps: string | null
+
+  createdAt: string | null
+  updatedAt: string | null
+
+  valores: {
+    orcado: number | null
+    realizado: number | null
+    frete: number | null
+  }
+
+  entrega: {
+    data: string | null
+    endereco: string | null
+    receptor: string | null
+    telefone: string | null
+    maps: string | null
+  }
+
+  itens: PedidoItemDTO[]
+}
+
 export type ObraDetalheDTO = {
   id: number
   titulo: string | null
@@ -111,48 +178,8 @@ export type ObraDetalheDTO = {
     quitacao: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
   }
 
-  pedidoCompra: {
-    id: number
-    links: { telhaId: number | null; madeiraId: number | null; materiaisId: number | null; andaimesId: number | null }
-    linksData: {
-      telha?: { id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }
-      madeira?: {
-        id: number
-        componente: string
-        madeiraNome: string
-        descricao: string
-        quantidade: number
-        tamanho: number
-        precoUnitario: number
-        total: number
-      }
-      materiais?: { id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }
-      andaimes?: { id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }
-    }
-    telha: { orcamento: number; area: number; status: PedidoStatusPadrao; previsao: string | null }
-    madeira: { orcamento: number; status: PedidoStatusPadrao; previsao: string | null }
-    materiais: { status: PedidoStatusMateriais }
-    andaimes: { status: PedidoStatusAndaimes }
-    fornecedores: {
-      madeira: { id: number; nome: string } | null
-      andaimes: { id: number; nome: string } | null
-    }
-    itens: {
-      telha: Array<{ id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
-      madeira: Array<{
-        id: number
-        componente: string
-        madeiraNome: string
-        descricao: string
-        quantidade: number
-        tamanho: number
-        precoUnitario: number
-        total: number
-      }>
-      materiais: Array<{ id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
-      andaimes: Array<{ id: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
-    }
-  } | null
+  // ⇣ NOVO: lista de pedidos de compra completos
+  pedidosCompra: PedidoCompraDTO[]
 
   ordemServico: {
     id: number
@@ -230,7 +257,6 @@ export type CreateObraPayload = {
   forceUpdateClienteCpf?: boolean
 }
 
-
 export type CriarObraResult = {
   obraId: number
   orcamentoId: number
@@ -258,7 +284,6 @@ export type ObraInfosVM = {
   observacoes?: string | null
 }
 
-
 export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
 
 export type PedidoCompraVM = {
@@ -280,7 +305,6 @@ export type PedidoCompraVM = {
   materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
   andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
 }
-
 
 export type FinanceiroExecVM = {
   financeiro: {
@@ -344,7 +368,6 @@ export type PedidoCompraPayload = {
     andaimes?: PedidoItensUpsert[]
   }
 }
-
 
 export type OrdemServicoPayload = {
   _delete?: boolean

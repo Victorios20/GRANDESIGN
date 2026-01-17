@@ -93,16 +93,12 @@ export async function POST(req: NextRequest) {
       valor_obra: Number(body.valor_obra),
       valor_mao_de_obra: Number(body.valor_mao_de_obra),
 
-      pagamento_entrada:
-        body.pagamento_entrada != null ? Number(body.pagamento_entrada) : undefined,
-      forma_pagamento_entrada:
-        body.forma_pagamento_entrada != null ? String(body.forma_pagamento_entrada) : null,
+      pagamento_entrada: body.pagamento_entrada != null ? Number(body.pagamento_entrada) : undefined,
+      forma_pagamento_entrada: body.forma_pagamento_entrada != null ? String(body.forma_pagamento_entrada) : null,
       status_pagamento_entrada: body.status_pagamento_entrada ?? null,
 
-      pagamento_quitacao:
-        body.pagamento_quitacao != null ? Number(body.pagamento_quitacao) : undefined,
-      forma_pagamento_quitacao:
-        body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
+      pagamento_quitacao: body.pagamento_quitacao != null ? Number(body.pagamento_quitacao) : undefined,
+      forma_pagamento_quitacao: body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
       status_pagamento_quitacao: body.status_pagamento_quitacao ?? null,
 
       imagens: Array.isArray(body.imagens) ? body.imagens : undefined,
@@ -111,6 +107,8 @@ export async function POST(req: NextRequest) {
       madeiraItens: Array.isArray(body.madeiraItens) ? body.madeiraItens : undefined,
       materiaisItens: Array.isArray(body.materiaisItens) ? body.materiaisItens : undefined,
       andaimesItens: Array.isArray(body.andaimesItens) ? body.andaimesItens : undefined,
+
+      pedidosCompra: Array.isArray(body.pedidosCompra) ? body.pedidosCompra : undefined,
 
       clienteCpf: body.clienteCpf ?? null,
       forceUpdateClienteCpf: !!body.forceUpdateClienteCpf,
