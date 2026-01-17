@@ -1,23 +1,22 @@
 // app/obras/lib/types.ts
 
 export type ObraStatus =
-  | 'Assinatura de contrato'
-  | 'Aguardando validação técnica'
-  | 'Compras'
-  | 'À iniciar'
-  | 'Execução'
-  | 'Aguardando pagamento'
-  | 'Pendência'
-  | 'Finalizado'
+  | "Assinatura de contrato"
+  | "Aguardando validação técnica"
+  | "Compras"
+  | "À iniciar"
+  | "Execução"
+  | "Aguardando pagamento"
+  | "Pendência"
+  | "Finalizado"
 
-export type PagamentoStatus = 'Pendente' | 'Efetuado'
+export type PagamentoStatus = "Pendente" | "Efetuado"
 
-// ⇣ ADICIONADO: manter igual ao componente Financeiro
-export type FormaPagamento = 'Pix' | '6x' | '10x' | '12x' | '16x'
+export type FormaPagamento = "Pix" | "6x" | "10x" | "12x" | "16x"
 
-export type PedidoStatusPadrao = 'Pendente' | 'Aguardando pagamento' | 'Pedido feito' | 'Entregue'
-export type PedidoStatusMateriais = 'Pendente' | 'Em estoque' | 'Entregue'
-export type PedidoStatusAndaimes = 'Pendente' | 'Pedido feito' | 'Entregue' | 'À coletar' | 'Coletado'
+export type PedidoStatusPadrao = "Pendente" | "Aguardando pagamento" | "Pedido feito" | "Entregue"
+export type PedidoStatusMateriais = "Pendente" | "Em estoque" | "Entregue"
+export type PedidoStatusAndaimes = "Pendente" | "Pedido feito" | "Entregue" | "À coletar" | "Coletado"
 
 export type UIMaterial = {
   id: string | number
@@ -66,18 +65,17 @@ export type GetOrcamentoResult = {
   updatedBy: { id: number; name: string; email: string } | null
 }
 
-/* ===== NOVO (Detalhado): Pedido de Compra completo ===== */
-export type PedidoCategoria = 'TELHA' | 'MADEIRA' | 'MATERIAIS' | 'ANDAIMES'
+export type PedidoCategoria = "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES"
 
 export type PedidoCompraStatus =
-  | 'RASCUNHO'
-  | 'PENDENTE'
-  | 'APROVADO'
-  | 'EM_COMPRA'
-  | 'AGUARDANDO_PAGAMENTO'
-  | 'AGUARDANDO_ENTREGA'
-  | 'ENTREGUE'
-  | 'CANCELADO'
+  | "RASCUNHO"
+  | "PENDENTE"
+  | "APROVADO"
+  | "EM_COMPRA"
+  | "AGUARDANDO_PAGAMENTO"
+  | "AGUARDANDO_ENTREGA"
+  | "ENTREGUE"
+  | "CANCELADO"
 
 export type PedidoItemDTO = {
   id: number
@@ -172,13 +170,11 @@ export type ObraDetalheDTO = {
     dataUltimaAlteracao: string | null
   }
 
-  // ⇣ AJUSTADO: forma agora é FormaPagamento | null
   financeiro: {
     entrada: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
     quitacao: { valor: number | null; forma: FormaPagamento | null; status: PagamentoStatus }
   }
 
-  // ⇣ NOVO: lista de pedidos de compra completos
   pedidosCompra: PedidoCompraDTO[]
 
   ordemServico: {
@@ -192,7 +188,6 @@ export type ObraDetalheDTO = {
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null; createdAt: string }>
 }
 
-/* ===== Payload de criação ===== */
 export type CreateObraPayload = {
   orcamentoId: number
   endereco_obra: string
@@ -208,7 +203,6 @@ export type CreateObraPayload = {
   status?: ObraStatus
   observacoes?: string | null
 
-  // Execução (OS)
   equipe_id?: number | null
   data_prev_inicio?: string | Date | null
   data_prev_conclusao?: string | Date | null
@@ -244,7 +238,6 @@ export type CreateObraPayload = {
   materiaisItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
   andaimesItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
 
-  // ⇣ forma agora é FormaPagamento
   pagamento_entrada?: number | string
   forma_pagamento_entrada?: FormaPagamento | null
   status_pagamento_entrada?: PagamentoStatus | null
@@ -284,26 +277,9 @@ export type ObraInfosVM = {
   observacoes?: string | null
 }
 
-export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
-
-export type PedidoCompraVM = {
-  telha: {
-    status: PedidoStatusPadrao
-    previsao: string | null
-    orcamento: number
-    area: number
-    fornecedorId?: number | null
-    itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
-  }
-  madeira: {
-    status: PedidoStatusPadrao
-    previsao: string | null
-    fornecedorId?: number | null
-    orcamento?: number
-    itens: Array<{ id?: number; componente: string; madeiraNome: string; descricao: string; quantidade: number; tamanho: number; precoUnitario: number; total: number }>
-  }
-  materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
-  andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
+export type ObsImagensVM = {
+  observacoes?: string | null
+  imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }>
 }
 
 export type FinanceiroExecVM = {
@@ -317,57 +293,6 @@ export type FinanceiroExecVM = {
 }
 
 export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }
-
-/* ===== Update payloads ===== */
-export type PedidoLinksPayload = {
-  telha?: { id?: number | string; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
-  madeira?: {
-    id?: number | string
-    componente?: string
-    madeira_nome?: string
-    descricao?: string
-    quantidade?: number | string
-    tamanho?: number | string
-    preco_unitario?: number | string
-    total?: number | string
-  }
-  materiais?: { id?: number | string; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
-  andaimes?: { id?: number | string; descricao?: string; quantidade?: number | string; preco_unitario?: number | string; total?: number | string }
-}
-
-export type PedidoItensUpsert = {
-  id?: number | string
-  _delete?: boolean
-  descricao?: string
-  quantidade?: number | string
-  preco_unitario?: number | string
-  total?: number | string
-  componente?: string
-  madeira_nome?: string
-  tamanho?: number | string
-}
-
-export type PedidoCompraPayload = {
-  orcamento_telha?: number | string
-  previsao_telha?: string | Date
-  status_telha?: PedidoStatusPadrao
-  area_telha?: number | string
-  fornecedor_telha_id?: number | string | null
-  orcamento_madeira?: number | string
-  previsao_madeira?: string | Date
-  status_madeira?: PedidoStatusPadrao
-  fornecedor_madeira_id?: number | string | null
-  materiais_status?: PedidoStatusMateriais
-  andaimes_status?: PedidoStatusAndaimes
-  andaimes_fornecedor_id?: number | string | null
-  links?: PedidoLinksPayload
-  itens?: {
-    telha?: PedidoItensUpsert[]
-    madeira?: PedidoItensUpsert[]
-    materiais?: PedidoItensUpsert[]
-    andaimes?: PedidoItensUpsert[]
-  }
-}
 
 export type OrdemServicoPayload = {
   _delete?: boolean
@@ -395,14 +320,12 @@ export type UpdateObraPayload = {
     valor_obra?: number | string
     valor_mao_de_obra?: number | string
     pagamento_entrada?: number | string
-    // ⇣ AJUSTADO: forma como FormaPagamento
     forma_pagamento_entrada?: FormaPagamento
     status_pagamento_entrada?: PagamentoStatus
     pagamento_quitacao?: number | string
     forma_pagamento_quitacao?: FormaPagamento
     status_pagamento_quitacao?: PagamentoStatus
   }
-  pedidoCompra?: PedidoCompraPayload
   ordemServico?: OrdemServicoPayload
   imagens?: ImagensPayload
 }
