@@ -2,7 +2,14 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Plus, MoreVertical, Calendar, TrendingDown, TrendingUp } from "lucide-react"
+import {
+  Plus,
+  MoreVertical,
+  Calendar,
+  TrendingDown,
+  TrendingUp,
+  ShoppingCart,
+} from "lucide-react"
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -152,14 +159,22 @@ export function PedidoCompraCardSection({
 
   return (
     <>
-      <Card className="p-6">
+      <Card className="p-6 rounded-2xl shadow-md bg-white border-0">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Pedidos de Compra</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-green">
+              <ShoppingCart className="h-5 w-5" />
+              Pedidos de Compra
+            </h2>
             <p className="mt-1 text-xs text-muted-foreground">Gerencie pedidos e integrações financeiras da obra</p>
           </div>
 
-          <Button type="button" onClick={handleNovoPedido} size="sm" className="gap-2">
+          <Button
+            type="button"
+            onClick={handleNovoPedido}
+            size="sm"
+            className="gap-2 bg-green text-white hover:bg-green/80"
+          >
             <Plus className="size-4" />
             Novo Pedido
           </Button>
@@ -168,12 +183,12 @@ export function PedidoCompraCardSection({
         {visiblePedidos.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
             <p className="text-sm text-muted-foreground">Nenhum pedido de compra cadastrado ainda</p>
+
             <Button
               type="button"
               onClick={handleNovoPedido}
               size="sm"
-              variant="outline"
-              className="mt-2 bg-transparent"
+              className="mt-2 bg-green text-white hover:bg-green/80"
             >
               Adicionar primeiro pedido
             </Button>
@@ -381,7 +396,14 @@ export function PedidoCompraCardSection({
         )}
       </Card>
 
-      <PedidoCompraCreateModal open={createOpen} onOpenChange={setCreateOpen} obraId={obraId ?? null} onCreate={handleCreate} />
+      {mode === "create" && (
+        <PedidoCompraCreateModal
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          obraId={obraId ?? null}
+          onCreate={handleCreate}
+        />
+      )}
 
       {selected && (
         <PedidoCompraDetailsModal

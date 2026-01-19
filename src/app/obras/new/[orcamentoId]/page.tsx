@@ -64,6 +64,8 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   if (!resOrc.ok) notFound()
   const orc = (await resOrc.json()) as GetOrcamentoResult
 
+  console.log("[ObraCreatePage] DTO /api/Orcamentos:", JSON.stringify(orc, null, 2))
+
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? ((tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw) as any[])
@@ -83,6 +85,9 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
     )
   ).map((n) => ({ value: n, label: n }))
 
+  const clienteId =
+    Number((orc as any)?.cliente?.id ?? (orc as any)?.cliente_id ?? (orc as any)?.clienteId ?? 0) || undefined
+
   const initial: Partial<ObraInfosVM> = {
     titulo: orc.titulo ?? undefined,
     tipoObra: orc.parametros?.tipoObra ?? "",
@@ -91,6 +96,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
     telhaEscolhida: telhaOptions[0]?.value || "",
     status: "Assinatura de contrato" as any,
     cliente: {
+      id: clienteId,
       nome: orc.cliente?.nome ?? "",
       telefone: orc.cliente?.telefone ?? "",
       cpf: (orc as any)?.cliente?.cpf ?? "",

@@ -159,7 +159,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-    ;(el as HTMLElement).focus?.()
+      ; (el as HTMLElement).focus?.()
   }
 }
 
@@ -316,13 +316,13 @@ function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
       dataEntrega: raw?.previsao ?? raw?.dataEntrega ?? raw?.data_entrega ?? raw?.entrega?.data ?? null,
       itens: Array.isArray(raw?.itens)
         ? raw.itens.map((it: any, idx: number) => ({
-            id: Number(it?.id ?? idx),
-            descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
-            quantidade: toNum(it?.quantidade ?? 0),
-            tamanho: it?.tamanho ?? null,
-            precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
-            total: toNum(it?.total ?? 0),
-          }))
+          id: Number(it?.id ?? idx),
+          descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+          quantidade: toNum(it?.quantidade ?? 0),
+          tamanho: it?.tamanho ?? null,
+          precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
+          total: toNum(it?.total ?? 0),
+        }))
         : [],
     }
 
@@ -891,12 +891,14 @@ export default function ObrasPage({
 
       <div className="mt-6">
         <PedidoCompraCardSection
+          mode={mode === "new" ? "create" : isEditing ? "edit" : "view"}
           pedidos={pedidos ?? []}
           obraId={obraId ?? null}
           onCreate={onCreatePedido}
           onCancelar={(id) => toast.message(`Cancelar pedido ${id} (ação pendente de endpoint)`)}
           onIntegrar={(id) => toast.message(`Integrar pedido ${id} (ação pendente de endpoint)`)}
         />
+
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">

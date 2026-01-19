@@ -48,7 +48,7 @@ type Props = {
   mode: Mode
   clienteId?: number
   prefill?: Prefill
-  cidades: Cidade[]
+  cidades?: Cidade[]
   onClose: () => void
   onSaved: (c: {
     id: number
@@ -74,11 +74,13 @@ function formatPhone(raw: string) {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
 
-async function buscarClientes(
-  by: "name" | "phone",
-  q: string,
-  limit = 10
-): Promise<ClienteSearchResult[]> {
+async function buscarCidades(): Promise<Cidade[]> {
+  const r = await fetch("/api/cidades", { cache: "no-store" })
+  if (!r.ok) throw new Error("Falha ao listar cidades")
+  return r.json()
+}
+
+async function buscarClientes(by: "name" | "phone", q: string, limit = 10): Promise<ClienteSearchResult[]> {
   const url = `/api/clientes/search?by=${by}&q=${encodeURIComponent(q)}&limit=${limit}`
   const r = await fetch(url, { cache: "no-store" })
   if (!r.ok) throw new Error("Falha na busca de clientes")
@@ -193,12 +195,15 @@ export default function ClienteModal({
   mode,
   clienteId,
   prefill,
-  cidades,
+  cidades: cidadesProp,
   onClose,
   onSaved,
 }: Props) {
   const [saving, setSaving] = React.useState(false)
   const [loadingCliente, setLoadingCliente] = React.useState(false)
+  const [loadingCidades, setLoadingCidades] = React.useState(false)
+
+  const [cidades, setCidades] = React.useState<Cidade[]>(cidadesProp ?? [])
 
   const [nome, setNome] = React.useState("")
   const [telefone, setTelefone] = React.useState("")
@@ -207,7 +212,39 @@ export default function ClienteModal({
   const [cpf, setCpf] = React.useState<string>("")
 
   const readonly = mode === "view"
-  const isBusy = saving || loadingCliente
+  const isBusy = saving || loadingCliente || loadingCidades
+
+  React.useEffect(() => {
+    if (!open) return
+
+    if (Array.isArray(cidadesProp) && cidadesProp.length > 0) {
+      setCidades(cidadesProp)
+      return
+    }
+
+    let alive = true
+    setLoadingCidades(true)
+
+    buscarCidades()
+      .then((rows) => {
+        if (!alive) return
+        setCidades(Array.isArray(rows) ? rows : [])
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof Error ? e.message : "Falha ao carregar cidades"
+        toast.error(msg)
+        if (!alive) return
+        setCidades([])
+      })
+      .finally(() => {
+        if (!alive) return
+        setLoadingCidades(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [open, cidadesProp])
 
   React.useEffect(() => {
     if (!open) return
@@ -337,7 +374,7 @@ export default function ClienteModal({
     return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
   }
 
-  const showSkeletonLoading = loadingCliente && (mode === "edit" || mode === "view")
+  const showSkeletonLoading = (loadingCliente && (mode === "edit" || mode === "view")) || loadingCidades
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -402,7 +439,7 @@ export default function ClienteModal({
                   disabled={readonly || isBusy}
                 >
                   <SelectTrigger className="h-9 w-full rounded-xl border-0 bg-cinza px-3 text-marromEscuro focus-visible:ring-2 focus-visible:ring-marromEscuro pr-9">
-                    <SelectValue placeholder="Selecione" />
+                    <SelectValue placeholder={loadingCidades ? "Carregando..." : "Selecione"} />
                   </SelectTrigger>
 
                   <SelectContent className="w-[var(--radix-select-trigger-width)]">
