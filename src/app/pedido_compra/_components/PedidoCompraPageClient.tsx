@@ -594,7 +594,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 border rounded-lg p-1">
             <Button
-              variant={viewMode === "list" ? "default" : "ghost"}
+              variant={viewMode === "list" ? "success" : "ghost"}
               size="sm"
               onClick={() => setViewMode("list")}
               className="h-8 px-3"
@@ -603,7 +603,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
               Lista
             </Button>
             <Button
-              variant={viewMode === "kanban" ? "default" : "ghost"}
+              variant={viewMode === "kanban" ? "success" : "ghost"}
               size="sm"
               onClick={() => setViewMode("kanban")}
               className="h-8 px-3"
@@ -613,7 +613,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
             </Button>
           </div>
 
-          <Button onClick={() => router.push("/pedido_compra/cadastrar")} className="bg-marromEscuro border-marromEscuro text-white">
+          <Button onClick={() => router.push("/pedido_compra/cadastrar")} variant={"success"}>
             <Plus className="w-4 h-4 mr-2" />
             Novo Pedido
           </Button>
@@ -624,7 +624,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight">Pedidos de Compra</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-green">Pedidos de Compra</h1>
             <p className="text-sm text-muted-foreground">Acompanhe, filtre e organize seus pedidos (lista ou kanban).</p>
           </div>
 
@@ -647,7 +647,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium">Mostrar colunas vazias:</span>
                   <Button
-                    variant={showEmptyColumns ? "default" : "outline"}
+                    variant={showEmptyColumns ? "success" : "default"}
                     size="sm"
                     onClick={() => setShowEmptyColumns(!showEmptyColumns)}
                     className="h-8"
@@ -672,6 +672,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
                   <Button
                     size="sm"
+                    variant={"success"}
                     onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                     className="h-8 w-8 p-0"
                   >
@@ -834,6 +835,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
               </Select>
               <Button
                 size="sm"
+                variant={"success"}
                 onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                 className="h-9 w-9 p-0"
               >

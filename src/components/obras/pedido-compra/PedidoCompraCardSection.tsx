@@ -9,6 +9,7 @@ import {
   TrendingDown,
   TrendingUp,
   ShoppingCart,
+  ExternalLink,
 } from "lucide-react"
 
 import { Card } from "@/components/ui/card"
@@ -165,7 +166,20 @@ export function PedidoCompraCardSection({
             <h2 className="flex items-center gap-2 text-lg font-semibold text-green">
               <ShoppingCart className="h-5 w-5" />
               Pedidos de Compra
+              <Button
+                type="button"
+                variant="ghost-green"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  router.push("/pedido_compra")
+                }}
+              >
+                <ExternalLink className="w-4 h-4" />
+              </Button>
             </h2>
+
             <p className="mt-1 text-xs text-muted-foreground">Gerencie pedidos e integrações financeiras da obra</p>
           </div>
 

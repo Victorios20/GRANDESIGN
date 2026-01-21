@@ -159,7 +159,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-      ; (el as HTMLElement).focus?.()
+    ;(el as HTMLElement).focus?.()
   }
 }
 
@@ -316,13 +316,13 @@ function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
       dataEntrega: raw?.previsao ?? raw?.dataEntrega ?? raw?.data_entrega ?? raw?.entrega?.data ?? null,
       itens: Array.isArray(raw?.itens)
         ? raw.itens.map((it: any, idx: number) => ({
-          id: Number(it?.id ?? idx),
-          descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
-          quantidade: toNum(it?.quantidade ?? 0),
-          tamanho: it?.tamanho ?? null,
-          precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
-          total: toNum(it?.total ?? 0),
-        }))
+            id: Number(it?.id ?? idx),
+            descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+            quantidade: toNum(it?.quantidade ?? 0),
+            tamanho: it?.tamanho ?? null,
+            precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
+            total: toNum(it?.total ?? 0),
+          }))
         : [],
     }
 
@@ -419,7 +419,14 @@ export default function ObrasPage({
     setClienteModalOpen(true)
   }
 
-  const onClienteSaved = (c: { id: number; nome: string; telefone: string | null; bairro: string | null; cidade_nome: string | null; cpf?: string | null }) => {
+  const onClienteSaved = (c: {
+    id: number
+    nome: string
+    telefone: string | null
+    bairro: string | null
+    cidade_nome: string | null
+    cpf?: string | null
+  }) => {
     setClienteId(c.id)
 
     patchInfos({
@@ -460,9 +467,6 @@ export default function ObrasPage({
       toast.error("Não foi possível copiar os dados do cliente.")
     }
   }
-
-  const getPedidoByCat = (cat: string) =>
-    (pedidos ?? []).find((p) => normCategoria((p as any)?.categoria) === cat) ?? null
 
   function validateAndFocus(): boolean {
     if (isEmpty(vm.tipoObra)) {
@@ -600,30 +604,53 @@ export default function ObrasPage({
     return normalized
   }
 
-  const mapItensToCreate = (arr: any[] = []) =>
-    arr.map((it) => ({
-      descricao: String(it?.descricao ?? "").trim(),
-      quantidade: Number(it?.quantidade ?? 0),
-      preco_unitario: Number(it?.precoUnitario ?? 0),
-      total:
+  const mapPedidoVMItensToCreate = (categoria: any, arr: any[] = []) =>
+    arr.map((it) => {
+      const quantidade = Number(it?.quantidade ?? 0)
+      const precoUnitario = Number(it?.precoUnitario ?? 0)
+      const total =
         it?.total !== undefined && it?.total !== null && String(it.total) !== ""
           ? Number(it.total)
-          : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
-    }))
+          : precoUnitario * quantidade
 
-  const mapMadeiraToCreate = (arr: any[] = []) =>
-    arr.map((it) => ({
-      componente: String(it?.componente ?? "").trim(),
-      madeira_nome: String(it?.madeiraNome ?? it?.descricao ?? "").trim(),
-      descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
-      quantidade: Number(it?.quantidade ?? 0),
-      tamanho: Number(it?.tamanho ?? 0),
-      preco_unitario: Number(it?.precoUnitario ?? 0),
-      total:
-        it?.total !== undefined && it?.total !== null && String(it.total) !== ""
-          ? Number(it.total)
-          : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
-    }))
+      const base: any = {
+        descricao: String(it?.descricao ?? "").trim(),
+        quantidade,
+        preco_unitario: precoUnitario,
+        total,
+      }
+
+      const cat = normCategoria(String(categoria ?? ""))
+      const tamanhoRaw = it?.tamanho
+      if (cat === "MADEIRA" && tamanhoRaw !== undefined && tamanhoRaw !== null && String(tamanhoRaw) !== "") {
+        const t = Number(tamanhoRaw)
+        base.tamanho = Number.isFinite(t) ? t : undefined
+      }
+
+      return base
+    })
+
+  const buildPedidosCompraPayload = (list: PedidoCompraVM[]) => {
+    const safe = Array.isArray(list) ? list : []
+    return safe
+      .filter((p) => isMeaningfulPedidoVM(p))
+      .map((p) => ({
+        categoria: normCategoria((p as any)?.categoria ?? "MATERIAIS"),
+        status: (p as any)?.status ?? null,
+        valor_orcado: Number((p as any)?.valorOrcado ?? 0),
+        valor_realizado: (p as any)?.valorRealizado ?? null,
+        frete: (p as any)?.frete ?? null,
+        descricao: String((p as any)?.descricao ?? "").trim() || null,
+        observacoes: null,
+        fornecedor_id: (p as any)?.fornecedorId != null ? Number((p as any).fornecedorId) : null,
+        data_entrega: (p as any)?.dataEntrega ?? null,
+        endereco_entrega: null,
+        nome_receptor: null,
+        telefone_receptor: null,
+        link_maps: null,
+        itens: mapPedidoVMItensToCreate((p as any)?.categoria, (p as any)?.itens ?? []),
+      }))
+  }
 
   async function onSave() {
     try {
@@ -637,11 +664,6 @@ export default function ObrasPage({
           toast.error("Orçamento não informado.")
           return
         }
-
-        const telha = getPedidoByCat("TELHA")
-        const madeira = getPedidoByCat("MADEIRA")
-        const materiais = getPedidoByCat("MATERIAIS")
-        const andaimes = getPedidoByCat("ANDAIMES")
 
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
@@ -679,26 +701,7 @@ export default function ObrasPage({
               legenda: img.legenda || null,
             })),
 
-          area_telha: 0,
-          orcamento_telha: Number((telha as any)?.valorOrcado ?? 0),
-          previsao_telha: (telha as any)?.dataEntrega ?? null,
-          status_telha: (telha as any)?.status ?? "Pendente",
-          fornecedor_telha_id: (telha as any)?.fornecedorId != null ? Number((telha as any).fornecedorId) : null,
-
-          orcamento_madeira: Number((madeira as any)?.valorOrcado ?? 0),
-          previsao_madeira: (madeira as any)?.dataEntrega ?? null,
-          status_madeira: (madeira as any)?.status ?? "Pendente",
-          fornecedor_madeira_id: (madeira as any)?.fornecedorId != null ? Number((madeira as any).fornecedorId) : null,
-
-          materiais_status: (materiais as any)?.status ?? "Pendente",
-
-          andaimes_status: (andaimes as any)?.status ?? "Pendente",
-          andaimes_fornecedor_id: (andaimes as any)?.fornecedorId != null ? Number((andaimes as any).fornecedorId) : null,
-
-          telhaItens: mapItensToCreate((telha as any)?.itens ?? []),
-          madeiraItens: mapMadeiraToCreate((madeira as any)?.itens ?? []),
-          materiaisItens: mapItensToCreate((materiais as any)?.itens ?? []),
-          andaimesItens: mapItensToCreate((andaimes as any)?.itens ?? []),
+          pedidosCompra: buildPedidosCompraPayload(pedidos ?? []),
 
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
@@ -898,12 +901,17 @@ export default function ObrasPage({
           onCancelar={(id) => toast.message(`Cancelar pedido ${id} (ação pendente de endpoint)`)}
           onIntegrar={(id) => toast.message(`Integrar pedido ${id} (ação pendente de endpoint)`)}
         />
-
       </div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
-        <Execucao className="lg:col-span-1" value={exec} onChange={patchExecucao} isEditing={isEditing} equipeOptions={equipeOptions} />
+        <Execucao
+          className="lg:col-span-1"
+          value={exec}
+          onChange={patchExecucao}
+          isEditing={isEditing}
+          equipeOptions={equipeOptions}
+        />
       </div>
 
       <div className="mt-6">

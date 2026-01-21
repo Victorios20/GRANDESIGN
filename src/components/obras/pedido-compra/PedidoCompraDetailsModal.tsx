@@ -92,12 +92,24 @@ export function PedidoCompraDetailsModal({ pedido, obraId, onClose, onEdit, onIn
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className="font-mono">{numero}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                asChild
+              >
+                <a href="/pedido_compra" aria-label="Ir para Pedidos de Compra">
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </Button>
               <Badge className={`${statusChip(status)} text-white`}>{statusLabel(status)}</Badge>
             </div>
           </DialogTitle>
         </DialogHeader>
+
 
         <div className="space-y-6">
           <div>

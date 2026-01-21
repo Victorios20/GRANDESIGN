@@ -168,7 +168,7 @@ export default function InfosGerais({
             </h3>
 
             <Button
-              variant="ghost"
+              variant="ghost-green"
               size="icon"
               onClick={onEditCliente}
               disabled={!value.cliente?.nome}

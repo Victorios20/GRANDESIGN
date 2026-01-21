@@ -187,6 +187,30 @@ export type ObraDetalheDTO = {
 
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null; createdAt: string }>
 }
+export type PedidoItemCreatePayload = {
+  descricao: string
+  quantidade: number | string
+  preco_unitario: number | string
+  total: number | string
+  tamanho?: number | string
+}
+
+export type PedidoCompraCreatePayload = {
+  categoria: "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES" | string
+  status?: string | null
+  valor_orcado?: number | string | null
+  valor_realizado?: number | string | null
+  frete?: number | string | null
+  descricao?: string | null
+  observacoes?: string | null
+  fornecedor_id?: number | string | null
+  data_entrega?: string | Date | null
+  endereco_entrega?: string | null
+  nome_receptor?: string | null
+  telefone_receptor?: string | null
+  link_maps?: string | null
+  itens?: PedidoItemCreatePayload[]
+}
 
 export type CreateObraPayload = {
   orcamentoId: number
@@ -238,6 +262,8 @@ export type CreateObraPayload = {
   materiaisItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
   andaimesItens?: Array<{ descricao: string; quantidade: number | string; preco_unitario: number | string; total: number | string }>
 
+  pedidosCompra?: PedidoCompraCreatePayload[]
+
   pagamento_entrada?: number | string
   forma_pagamento_entrada?: FormaPagamento | null
   status_pagamento_entrada?: PagamentoStatus | null
@@ -249,6 +275,7 @@ export type CreateObraPayload = {
   clienteCpf?: string | null
   forceUpdateClienteCpf?: boolean
 }
+
 
 export type CriarObraResult = {
   obraId: number

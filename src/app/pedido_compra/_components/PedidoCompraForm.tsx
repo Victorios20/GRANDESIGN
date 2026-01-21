@@ -222,6 +222,34 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
   }, [initialFornecedores])
 
   useEffect(() => {
+    let canceled = false
+    const load = async () => {
+      try {
+        const res = await fetch("/api/fornecedores", { cache: "no-store" })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) {
+          const msg = body?.error || body?.message || "Falha ao listar fornecedores"
+          throw new Error(msg)
+        }
+        const arr: any[] = Array.isArray(body) ? body : []
+        const mapped: FornecedorOption[] = arr
+          .map((x) => ({
+            id: Number(x?.id),
+            nome: String(x?.nome ?? ""),
+          }))
+          .filter((x) => Number.isFinite(x.id) && x.id > 0 && x.nome.trim() !== "")
+        if (!canceled) setFornecedores(mapped)
+      } catch {
+        if (!canceled) setFornecedores([])
+      }
+    }
+    load()
+    return () => {
+      canceled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (mode !== "edit") return
     if (!initialData) return
 
