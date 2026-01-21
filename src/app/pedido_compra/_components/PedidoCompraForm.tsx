@@ -33,6 +33,8 @@ type PedidoStatus =
 
 type FornecedorOption = { id: number; nome: string }
 
+type FornecedorItem = { id: number; nome: string; tipo: string | null }
+
 type OrderItem = {
   id?: number
   clientId: string
@@ -175,6 +177,17 @@ function normalizeStatus(raw: any): PedidoStatus {
   return "RASCUNHO"
 }
 
+function normTipo(v: string | null | undefined) {
+  return (v ?? "").trim().toUpperCase()
+}
+
+function categoriaToTipos(categoria: string) {
+  const c = normTipo(categoria)
+  if (!c) return null
+  if (c === "ANDAIMES" || c === "ANDAIME") return ["ANDAIME", "ANDAIMES"]
+  return [c]
+}
+
 type Props = {
   mode: Mode
   pedidoCompraId?: number
@@ -187,6 +200,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
   const [saving, setSaving] = useState(false)
 
+  const [fornecedoresRaw, setFornecedoresRaw] = useState<FornecedorItem[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>(() => initialFornecedores ?? [])
 
   const [formData, setFormData] = useState<FormData>({
@@ -231,16 +245,27 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
           const msg = body?.error || body?.message || "Falha ao listar fornecedores"
           throw new Error(msg)
         }
+
         const arr: any[] = Array.isArray(body) ? body : []
-        const mapped: FornecedorOption[] = arr
+
+        const rawMapped: FornecedorItem[] = arr
           .map((x) => ({
             id: Number(x?.id),
             nome: String(x?.nome ?? ""),
+            tipo: x?.tipo == null ? null : String(x.tipo),
           }))
           .filter((x) => Number.isFinite(x.id) && x.id > 0 && x.nome.trim() !== "")
-        if (!canceled) setFornecedores(mapped)
+
+        if (canceled) return
+        setFornecedoresRaw(rawMapped)
+
+        const mapped: FornecedorOption[] = rawMapped.map((x) => ({ id: x.id, nome: x.nome }))
+        setFornecedores(mapped)
       } catch {
-        if (!canceled) setFornecedores([])
+        if (!canceled) {
+          setFornecedoresRaw([])
+          setFornecedores([])
+        }
       }
     }
     load()
@@ -248,6 +273,18 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
       canceled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!formData.categoria) return
+    setFormData((p) => ({ ...p, fornecedorId: "" }))
+  }, [formData.categoria])
+
+  const fornecedoresFiltrados = useMemo(() => {
+    const allowed = categoriaToTipos(String(formData.categoria))
+    if (!allowed) return fornecedoresRaw
+    const setAllowed = new Set(allowed.map((x) => normTipo(x)))
+    return fornecedoresRaw.filter((f) => setAllowed.has(normTipo(f.tipo)))
+  }, [fornecedoresRaw, formData.categoria])
 
   useEffect(() => {
     if (mode !== "edit") return
@@ -635,7 +672,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
                 <div className="space-y-2">
                   <Label htmlFor="fornecedor">Fornecedor</Label>
                   <Select
-                    key={`forn-${String(formData.fornecedorId)}-${fornecedores.length}`}
+                    key={`forn-${String(formData.fornecedorId)}-${fornecedoresFiltrados.length}`}
                     value={formData.fornecedorId || "none"}
                     onValueChange={(v) => setFormData((p) => ({ ...p, fornecedorId: v === "none" ? "" : v }))}
                   >
@@ -644,7 +681,7 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum</SelectItem>
-                      {fornecedores.map((f) => (
+                      {fornecedoresFiltrados.map((f) => (
                         <SelectItem key={f.id} value={String(f.id)}>
                           {f.nome}
                         </SelectItem>

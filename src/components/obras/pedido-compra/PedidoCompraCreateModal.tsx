@@ -37,6 +37,17 @@ function moneyBRL(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function normTipo(v: string | null | undefined) {
+  return (v ?? "").trim().toUpperCase()
+}
+
+function categoriaToTipos(categoria: string) {
+  const c = normTipo(categoria)
+  if (!c || c === "OUTROS") return null
+  if (c === "ANDAIMES") return ["ANDAIME", "ANDAIMES"]
+  return [c]
+}
+
 export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }: Props) {
   const [descricao, setDescricao] = React.useState("")
   const [categoria, setCategoria] = React.useState<string>("")
@@ -56,6 +67,14 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
   const [fornecedoresLoading, setFornecedoresLoading] = React.useState(false)
 
   const isMadeira = categoria === "MADEIRA"
+
+  const fornecedoresFiltrados = React.useMemo(() => {
+    const allowed = categoriaToTipos(categoria)
+    if (!allowed) return fornecedores
+
+    const allowedSet = new Set(allowed.map((x) => normTipo(x)))
+    return fornecedores.filter((f) => allowedSet.has(normTipo(f.tipo)))
+  }, [categoria, fornecedores])
 
   React.useEffect(() => {
     if (!open) return
@@ -95,6 +114,11 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
     const f = fornecedores.find((x) => x.id === idNum)
     setFornecedorNome(f?.nome ?? "")
   }, [fornecedorId, fornecedores])
+
+  React.useEffect(() => {
+    setFornecedorId("")
+    setFornecedorNome("")
+  }, [categoria])
 
   const addItem = () => {
     setItems((prev) => [
@@ -224,7 +248,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  {fornecedores.map((f) => (
+                  {fornecedoresFiltrados.map((f) => (
                     <SelectItem key={f.id} value={String(f.id)}>
                       {f.nome}
                       {f.tipo ? ` • ${f.tipo}` : ""}
