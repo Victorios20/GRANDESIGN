@@ -58,7 +58,8 @@ type CobertaLOpts = {
  *  Ajuste aqui caso mude o cadastro.
  * ============================================================ */
 const telhaDescricoesPorTipoBase = {
-  Romana: ["Romana marfim resinada", "Super romana vermelha natural"],
+  Romana: ["Romana marfim resinada"],
+  SuperRomana: ["Super romana vermelha natural"],
   Americana: ["Americana marfim resinada", "Americana vermelha natural"],
   Colonial: ["Colonial"],
   Maxxi: ["Maxxi"],
@@ -357,6 +358,7 @@ async function calcularMateriaisNormal(
   if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
+      SuperRomana: { factor: 12, offset: 10 },
       Americana: { factor: 12, offset: 10 },
       Colonial: { factor: 33, offset: 10 },
       Maxxi: { factor: 8, offset: 10 },
@@ -557,6 +559,7 @@ export async function calcularMateriaisCobertaL(
 
   const formulas = {
     Romana: { factor: 17, offset: 10 },
+    SuperRomana: { factor: 12, offset: 10 },
     Americana: { factor: 12, offset: 10 },
     Colonial: { factor: 33, offset: 10 },
     Maxxi: { factor: 8, offset: 10 },
