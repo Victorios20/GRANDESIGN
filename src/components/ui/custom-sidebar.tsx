@@ -12,7 +12,19 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { HomeIcon, PlusIcon, EditIcon, LogOutIcon, PackageIcon, ChevronDown, ClockIcon, Loader2, Users2 } from "lucide-react"
+import {
+  HomeIcon,
+  PlusIcon,
+  EditIcon,
+  LogOutIcon,
+  PackageIcon,
+  ChevronDown,
+  ClockIcon,
+  Loader2,
+  Users2,
+  HardHat,
+  ShoppingCart,
+} from "lucide-react"
 
 import Link from "next/link"
 import Image from "next/image"
@@ -194,8 +206,54 @@ export function CustomSidebar() {
                 </SidebarMenuItem>
               </motion.div>
 
+              <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
+                <SidebarMenuItem>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link href="/obras">
+                        <SidebarMenuButton
+                          isActive={false}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <HardHat className={iconClass(isActive("/obras"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Obras
+                            </motion.span>
+                          )}
+                        </SidebarMenuButton>
+                      </Link>
+                    </TooltipTrigger>
+                    {!isOpen && <TooltipContent side="right">Obras</TooltipContent>}
+                  </Tooltip>
+                </SidebarMenuItem>
+              </motion.div>
+
+              <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
+                <SidebarMenuItem>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Link href="/pedido_compra">
+                        <SidebarMenuButton
+                          isActive={false}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Pedido de Compra
+                            </motion.span>
+                          )}
+                        </SidebarMenuButton>
+                      </Link>
+                    </TooltipTrigger>
+                    {!isOpen && <TooltipContent side="right">Pedido de Compra</TooltipContent>}
+                  </Tooltip>
+                </SidebarMenuItem>
+              </motion.div>
+
               {canSeeAdmin && (
-                <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
+                <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
                   <SidebarMenuItem>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -224,7 +282,7 @@ export function CustomSidebar() {
           <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="h-px w-full bg-black opacity-10 my-1 origin-left" />
 
           <SidebarGroup>
-            <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
+            <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
