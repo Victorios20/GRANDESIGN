@@ -111,7 +111,7 @@ export default function FilterCardObras({
     <div className={cn("flex items-center gap-2", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="gap-2">
+          <Button variant="success" className="gap-2">
             <Filter className="h-4 w-4" />
             filtros
           </Button>
@@ -229,10 +229,10 @@ export default function FilterCardObras({
               <Separator />
 
               <div className="flex items-center justify-end gap-2 pt-1">
-                <Button variant="ghost" onClick={() => setOpen(false)}>
+                <Button variant="ghost" className="text-green" onClick={() => setOpen(false)}>
                   cancelar
                 </Button>
-                <Button variant="outline" onClick={applyAndClose} disabled={loading}>
+                <Button variant="outline" onClick={applyAndClose} disabled={loading} className="text-white border-green bg-green" >
                   aplicar
                 </Button>
               </div>
@@ -246,7 +246,7 @@ export default function FilterCardObras({
         variant="outlined-bege"
         disabled={loading}
         onClick={clearAll}
-        className="gap-2"
+        className="gap-2 text-green border-green"
       >
         <MinusCircle className="h-4 w-4" />
         limpar filtros

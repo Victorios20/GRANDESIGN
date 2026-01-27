@@ -104,6 +104,8 @@ type InitialData = {
 const BEGE = "#E8C99A"
 const MARROM = "#8B5E3C"
 const VERDE_HEADER = "#376139"
+const CINZA_TEXTO = "#737373"
+
 
 export type ObraStatusFilter =
   | ""
@@ -291,7 +293,12 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         searchable: false,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex]
-          return <span className="font-medium text-marromEscuro">{statusLabel(r?.status ?? null)}</span>
+          return (
+            <span className="font-medium" style={{ color: CINZA_TEXTO }}>
+              {statusLabel(r?.status ?? null)}
+            </span>
+          )
+
         },
       },
     },
@@ -509,7 +516,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                 minHeight: 36,
                 paddingLeft: 8,
                 paddingRight: 8,
-                color: MARROM,
+                color: VERDE_HEADER,
               },
             },
           },
@@ -522,7 +529,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
             styleOverrides: {
               head: {
                 backgroundColor: VERDE_HEADER,
-                color: MARROM,
+                color: "#f4f4f4",
                 fontWeight: 700,
                 paddingTop: 6,
                 paddingBottom: 6,
@@ -530,23 +537,25 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                 whiteSpace: "nowrap",
               },
               root: {
-                color: MARROM,
+                color: CINZA_TEXTO,
                 borderBottom: "1px solid rgba(0,0,0,0.06)",
                 paddingTop: 6,
                 paddingBottom: 6,
               },
+
             },
           },
 
           MuiIconButton: {
             styleOverrides: {
-              root: { color: MARROM, "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" } },
+              root: { color: VERDE_HEADER, "&:hover": { backgroundColor: "rgba(55,97,57,0.12)" } },
               colorPrimary: {
-                color: MARROM,
-                "&:hover": { backgroundColor: "rgba(232,201,154,0.35)" },
+                color: CINZA_TEXTO,
+                "&:hover": { backgroundColor: "rgba(55,97,57,0.12)" },
               },
             },
           },
+
           MuiSvgIcon: { styleOverrides: { root: { color: "inherit" } } },
           MuiCheckbox: {
             styleOverrides: {
@@ -598,10 +607,11 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           <CardHeader className="py-2">
             <div className="flex items-center justify-between gap-2">
               <div className="space-y-0.5">
-                <CardTitle className="text-2xl leading-tight text-marromEscuro">Obras</CardTitle>
-                <CardDescription className="text-[13px] leading-tight text-marromClaro">
+                <CardTitle className="text-2xl leading-tight text-green">Obras</CardTitle>
+                <CardDescription className="text-[13px] leading-tight" style={{ color: CINZA_TEXTO }}>
                   Tabela com as obras cadastradas.
                 </CardDescription>
+
               </div>
 
               <div className="flex items-center gap-2">
@@ -648,15 +658,16 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                     // ✅ só o cabeçalho da tabela com o verde do sistema
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: VERDE_HEADER + " !important",
-                      color: MARROM + " !important",
+                      color: "#f4f4f4 !important",
                     },
 
                     ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
-                      color: MARROM + " !important",
+                      color: CINZA_TEXTO + " !important",
                     },
                     ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
-                      backgroundColor: "rgba(232,201,154,0.35) !important",
+                      backgroundColor: "rgba(55,97,57,0.12) !important",
                     },
+
                   }}
                 />
                 <MUIDataTable title={""} data={rows as any} columns={columns} options={options} />
