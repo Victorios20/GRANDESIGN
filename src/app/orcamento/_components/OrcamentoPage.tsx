@@ -1,4 +1,4 @@
-﻿// src/components/orcamento/OrcamentoPage.tsx
+// src/components/orcamento/OrcamentoPage.tsx
 "use client"
 
 import { useState, useEffect, useMemo, ChangeEvent, useRef } from "react"
@@ -79,9 +79,27 @@ import ModalSucessoProposta from "@/components/modals/ModalSucessoProposta"
 
 import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
 
-/* ===================================================================
- *                                Tipos
- * =================================================================== */
+// ===========================================
+//               CONSTANTES TELHAS
+// ===========================================
+const GRUPO_NATURAIS = ["super romana vermelha", "colonial", "americana vermelha"]
+const GRUPO_RESINADAS = ["maxxi", "romana marfim", "americana marfim"]
+
+type TileGroup = "naturais" | "resinadas" | null
+
+function getTileGroup(nome: string): TileGroup {
+    const n = nome.toLowerCase().trim()
+    if (GRUPO_NATURAIS.some(x => n.includes(x))) return "naturais"
+    if (GRUPO_RESINADAS.some(x => n.includes(x))) return "resinadas"
+    return null
+}
+
+const GROUP_CONFIG = {
+    naturais: { color: "bg-red-600", label: "Vermelha" },
+    resinadas: { color: "bg-[#FFFFF0] border border-gray-300", label: "Marfim" }, // Ivory-ish
+}
+
+
 export type Material = {
     id: number
     nome: string
@@ -1439,7 +1457,21 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     const telhaTipos = Array.from(
         new Set(materiais.telhas.map(t => (t.nome ?? "").trim()).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    ).sort((a, b) => {
+        // Ordem de prioridade: Naturais (1) -> Resinadas (2) -> Outros (3)
+        const getPriority = (name: string) => {
+            const g = getTileGroup(name)
+            if (g === "naturais") return 1
+            if (g === "resinadas") return 2
+            return 3
+        }
+
+        const pA = getPriority(a)
+        const pB = getPriority(b)
+
+        if (pA !== pB) return pA - pB
+        return a.localeCompare(b, "pt-BR")
+    })
 
 
     const ensureTelha = (tipo: string): Pagto => ({
@@ -2490,9 +2522,40 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 <TableBody>
                                     {telhaTipos.map((tipo) => {
                                         const v = ensureTelha(tipo)
+                                        const group = getTileGroup(tipo)
+
+                                        // Lógica de destaque (maior preço do grupo)
+                                        // Precisamos saber se este 'tipo' é o mais caro do seu grupo
+                                        let isMostExpensive = false
+                                        if (group) {
+                                            // Filtra todos dste grupo
+                                            const sameGroup = telhaTipos.filter(t => getTileGroup(t) === group)
+                                            // Encontra o maior preço pix
+                                            const maxPix = Math.max(...sameGroup.map(t => ensureTelha(t).pix))
+                                            // Se o atual for igual ao max
+                                            if (v.pix > 0 && v.pix >= maxPix) {
+                                                isMostExpensive = true
+                                            }
+                                        }
+
+                                        const styleRow = isMostExpensive ? "bg-yellow-50 font-medium" : ""
+
                                         return (
-                                            <TableRow key={tipo}>
-                                                <TableCell>{tipo}</TableCell>
+                                            <TableRow key={tipo} className={styleRow}>
+                                                <TableCell className="flex items-center gap-2">
+                                                    {group && (
+                                                        <div
+                                                            className={`w-3 h-3 rounded-full ${GROUP_CONFIG[group].color}`}
+                                                            title={`Grupo: ${group}`}
+                                                        />
+                                                    )}
+                                                    {tipo}
+                                                    {isMostExpensive && (
+                                                        <Badge variant="outline" className="ml-auto text-[10px] h-5 px-1 bg-yellow-100 text-yellow-800 border-yellow-200">
+                                                            Maior Valor
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
                                                 <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
                                                 <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
@@ -2828,8 +2891,3 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         </PageLayout>
     )
 }
-
-
-
-
-
