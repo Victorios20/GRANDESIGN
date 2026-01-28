@@ -192,7 +192,7 @@ export function CustomSidebar() {
                           isActive={false}
                           className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                         >
-                          <ClockIcon className={iconClass(isActive("/"))} />
+                          <ClockIcon className={iconClass(isActive("/orcamento"))} />
                           {isOpen && (
                             <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
                               Histórico Orçamento

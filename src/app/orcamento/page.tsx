@@ -1,7 +1,7 @@
 // app/page.tsx (SERVER COMPONENT)
 export const dynamic = "force-dynamic"
 
-import HomeClient from "./orcamento/HomeClient"
+import HomeClient from "./HomeClient"
 import { ssrJSON } from "@/lib/ssrFetch"
 
 export default async function Page() {
