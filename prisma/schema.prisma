@@ -162,6 +162,7 @@ model orcamento {
   @@index([updated_by], map: "idx_orcamento_updated_by")
   @@index([lancado_obra], map: "idx_orcamento_lancado_obra")
   @@index([id_fornecedor], map: "idx_orcamento_id_fornecedor")
+  @@index([excluido, data_criacao(sort: Desc)], map: "idx_orcamento_excluido_data_criacao")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -364,6 +365,9 @@ model pedido_compra {
   @@index([obra_id], map: "idx_pedido_compra_obra_id")
   @@index([fornecedor_id], map: "idx_pedido_compra_fornecedor_id")
   @@index([obra_id, categoria], map: "idx_pedido_compra_obra_categoria")
+  @@index([status], map: "idx_pedido_compra_status")
+  @@index([status, created_at(sort: Desc)], map: "idx_pedido_compra_status_created_at")
+
 }
 
 model pedido_itens {
@@ -454,6 +458,9 @@ model obras {
   @@index([created_by])
   @@index([updated_by])
   @@index([titulo], map: "idx_obras_titulo")
+  @@index([data_criacao(sort: Desc)], map: "idx_obras_data_criacao")
+  @@index([status], map: "idx_obras_status")
+  @@index([status, data_criacao(sort: Desc)], map: "idx_obras_status_data_criacao")
 }
 
 model obra_imagens {
