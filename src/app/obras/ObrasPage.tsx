@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Save, Pencil, X, Copy, MoreHorizontal } from "lucide-react"
+import { Save, Pencil, X, Copy, MoreHorizontal, FileText, FileSignature, ScrollText } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ import { createObra, updateObra } from "./lib/api"
 
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
+import { gerarContratoN8nESalvar } from "./lib/useGerarContrato"
 
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
@@ -356,6 +357,7 @@ export default function ObrasPage({
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
   const [saving, setSaving] = useState(false)
+  const [gerandoContrato, setGerandoContrato] = useState(false)
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
 
@@ -466,6 +468,96 @@ export default function ObrasPage({
     } catch {
       toast.error("Não foi possível copiar os dados do cliente.")
     }
+  }
+
+  async function onAcessarOrcamentoOrigem() {
+    if (!orcamentoId || Number(orcamentoId) <= 0) {
+      toast.error("Orçamento de origem não encontrado nesta obra.")
+      return
+    }
+    router.push(`/orcamento/detalhes/${orcamentoId}`)
+  }
+
+  async function onGerarContrato() {
+    if (!obraId || Number(obraId) <= 0) {
+      toast.error("ID da obra inválido.")
+      return
+    }
+
+    if (!orcamentoId || Number(orcamentoId) <= 0) {
+      toast.error("Orçamento de origem não encontrado nesta obra.")
+      return
+    }
+
+    const payload = {
+      orcamentoId: Number(orcamentoId),
+      cliente: {
+        nome: String(vm?.cliente?.nome ?? "").trim(),
+        telefone: String(vm?.cliente?.telefone ?? "").trim(),
+        cpf: String(vm?.cliente?.cpf ?? "").trim(),
+        bairro: String(vm?.cliente?.bairro ?? "").trim(),
+        cidade: String(vm?.cliente?.cidade ?? "").trim(),
+      },
+      endereco: {
+        logradouro: String(vm?.endereco?.logradouro ?? "").trim(),
+        bairro: String(vm?.endereco?.bairro ?? "").trim(),
+        cidade: String(vm?.endereco?.cidade ?? "").trim(),
+        mapsUrl: String(vm?.endereco?.mapsUrl ?? "").trim(),
+      },
+      pagamento: {
+        entrada: {
+          valor: Number(fin?.pagamento?.entrada?.valor ?? 0),
+          forma: (fin?.pagamento?.entrada?.forma ?? null) as any,
+          status: (fin?.pagamento?.entrada?.status ?? null) as any,
+        },
+        quitacao: {
+          valor: Number(fin?.pagamento?.quitacao?.valor ?? 0),
+          forma: (fin?.pagamento?.quitacao?.forma ?? null) as any,
+          status: (fin?.pagamento?.quitacao?.status ?? null) as any,
+        },
+      },
+      telhaEscolhida: String(vm?.telhaEscolhida ?? "").trim(),
+    }
+
+    if (
+      !payload.cliente.nome ||
+      !payload.cliente.telefone ||
+      !payload.cliente.cpf ||
+      !payload.cliente.bairro ||
+      !payload.cliente.cidade ||
+      !payload.endereco.logradouro ||
+      !payload.endereco.bairro ||
+      !payload.endereco.cidade ||
+      !payload.endereco.mapsUrl ||
+      !payload.telhaEscolhida
+    ) {
+      toast.error("Dados insuficientes para gerar o contrato (cliente/endereço/telha).")
+      return
+    }
+
+    setGerandoContrato(true)
+    toast.message("Gerando contrato…")
+
+    try {
+      const url = await gerarContratoN8nESalvar({
+        obraId: Number(obraId),
+        input: payload,
+      })
+
+      toast.success("Contrato gerado com sucesso.")
+      if (url) window.open(url, "_blank", "noopener,noreferrer")
+      router.refresh()
+    } catch (err: any) {
+      const msg = err?.message ? String(err.message) : "Falha ao gerar contrato."
+      toast.error(msg)
+      console.error("[ObrasPage] gerar contrato error", err)
+    } finally {
+      setGerandoContrato(false)
+    }
+  }
+
+  async function onGerarOrdemServico() {
+    toast.message("Gerar ordem de serviço (ação pendente).")
   }
 
   function validateAndFocus(): boolean {
@@ -795,6 +887,10 @@ export default function ObrasPage({
   const propostaLinkFinal = anexosInit?.proposta ?? ""
   const contratoLinkFinal = anexosInit?.contrato ?? ""
 
+  const contratoMenuLabel = useMemo(() => {
+    return contratoLinkFinal && String(contratoLinkFinal).trim() !== "" ? "Reenviar contrato" : "Gerar contrato"
+  }, [contratoLinkFinal])
+
   const onCreatePedido = (draft: Partial<PedidoCompraVM>) => {
     setPedidos((prev) => {
       const list = Array.isArray(prev) ? [...prev] : []
@@ -830,15 +926,32 @@ export default function ObrasPage({
           {!isEditing ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="secondary" className="h-8 w-10 px-0">
+                <Button size="sm" variant="secondary" className="h-8 w-10 px-0" disabled={gerandoContrato}>
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="min-w-[220px]">
+              <DropdownMenuContent align="end" className="min-w-[240px]">
                 <DropdownMenuItem onClick={onCopyClienteData}>
                   <Copy className="h-4 w-4 mr-2" />
                   Copiar dados do cliente
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={onAcessarOrcamentoOrigem}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Acessar orçamento de origem
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onClick={onGerarContrato} disabled={gerandoContrato}>
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  {gerandoContrato ? "Gerando contrato…" : contratoMenuLabel}
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={onGerarOrdemServico}>
+                  <ScrollText className="h-4 w-4 mr-2" />
+                  Gerar ordem de serviço
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />

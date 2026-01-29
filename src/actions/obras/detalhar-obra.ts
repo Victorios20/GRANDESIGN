@@ -193,8 +193,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
   const anexos = {
     propostaSlide: orcamentoOut?.linkSlide ?? null,
     orcamentoPdf: orcamentoOut?.linkPdf ?? null,
-    contrato: null,
-    ordemServico: null,
+    contrato: obra.link_contrato ?? null,
+    ordemServico: obra.link_ordem_servico ?? null,
   }
 
   return {
