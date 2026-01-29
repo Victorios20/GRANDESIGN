@@ -14,6 +14,8 @@ import {
   Calendar,
   TrendingDown,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -287,6 +289,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const [obraLoading, setObraLoading] = React.useState(false)
   const [obraOptions, setObraOptions] = React.useState<ObraSearchItem[]>([])
   const [obraSelected, setObraSelected] = React.useState<ObraSearchItem | null>(null)
+
+  const kanbanScrollRef = React.useRef<HTMLDivElement | null>(null)
+  const panStateRef = React.useRef<{ active: boolean; startX: number; startLeft: number }>({
+    active: false,
+    startX: 0,
+    startLeft: 0,
+  })
+  const didPanRef = React.useRef(false)
+  const [isPanning, setIsPanning] = React.useState(false)
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false)
+  const [canScrollRight, setCanScrollRight] = React.useState(false)
 
   React.useEffect(() => {
     console.log("[PedidoCompra/Client] initialList JSON:\n", JSON.stringify(initialList, null, 2))
@@ -584,6 +597,95 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     setObraSelected(o)
     setSelectedProjectId(o.id)
     setObraOpen(false)
+  }
+
+  const updateKanbanScrollButtons = React.useCallback(() => {
+    const el = kanbanScrollRef.current
+    if (!el) {
+      setCanScrollLeft(false)
+      setCanScrollRight(false)
+      return
+    }
+    const left = el.scrollLeft > 2
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2
+    setCanScrollLeft(left)
+    setCanScrollRight(right)
+  }, [])
+
+  React.useEffect(() => {
+    updateKanbanScrollButtons()
+  }, [updateKanbanScrollButtons, viewMode, kanbanGroupBy, showEmptyColumns, sortedOrders.length])
+
+  React.useEffect(() => {
+    const el = kanbanScrollRef.current
+    if (!el) return
+
+    const onScroll = () => updateKanbanScrollButtons()
+    el.addEventListener("scroll", onScroll, { passive: true })
+
+    const onResize = () => updateKanbanScrollButtons()
+    window.addEventListener("resize", onResize)
+
+    return () => {
+      el.removeEventListener("scroll", onScroll)
+      window.removeEventListener("resize", onResize)
+    }
+  }, [updateKanbanScrollButtons])
+
+  const scrollKanbanBy = (dir: "left" | "right") => {
+    const el = kanbanScrollRef.current
+    if (!el) return
+    const amount = dir === "left" ? -360 : 360
+    el.scrollBy({ left: amount, behavior: "smooth" })
+  }
+
+  const onKanbanPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+
+    const target = e.target as HTMLElement | null
+    const onDraggable = target?.closest?.('[draggable="true"]')
+    if (kanbanGroupBy === "status" && onDraggable) return
+
+    const el = kanbanScrollRef.current
+    if (!el) return
+
+    didPanRef.current = false
+    panStateRef.current = {
+      active: true,
+      startX: e.clientX,
+      startLeft: el.scrollLeft,
+    }
+    setIsPanning(true)
+    el.setPointerCapture(e.pointerId)
+  }
+
+  const onKanbanPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = kanbanScrollRef.current
+    if (!el) return
+    if (!panStateRef.current.active) return
+
+    const dx = e.clientX - panStateRef.current.startX
+    if (Math.abs(dx) > 6) didPanRef.current = true
+
+    el.scrollLeft = panStateRef.current.startLeft - dx
+    e.preventDefault()
+  }
+
+  const endPan = (pointerId?: number) => {
+    const el = kanbanScrollRef.current
+    if (el && pointerId != null) {
+      try {
+        el.releasePointerCapture(pointerId)
+      } catch {}
+    }
+    panStateRef.current.active = false
+    setIsPanning(false)
+  }
+
+  const onKanbanPointerUp = (e: React.PointerEvent<HTMLDivElement>) => endPan(e.pointerId)
+  const onKanbanPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => endPan(e.pointerId)
+  const onKanbanPointerLeave = () => {
+    if (panStateRef.current.active) endPan()
   }
 
   return (
@@ -922,7 +1024,11 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                         variance > 0 ? "text-red-600" : "text-green-600"
                                       }`}
                                     >
-                                      {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                      {variance > 0 ? (
+                                        <TrendingUp className="w-3 h-3" />
+                                      ) : (
+                                        <TrendingDown className="w-3 h-3" />
+                                      )}
                                       {Math.abs(variance).toFixed(1)}%
                                     </div>
                                   )}
@@ -977,125 +1083,183 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 </div>
               ) : (
                 <div className="space-y-6">
-                  <div className="flex gap-6 overflow-x-auto pb-4">
-                    {getDisplayGroups().map((group) => (
-                      <div
-                        key={group.key}
-                        className="flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4"
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, group.key)}
+                  <div className="relative">
+                    {canScrollLeft && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => scrollKanbanBy("left")}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full shadow z-10"
                       >
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold text-sm">{group.label}</h3>
-                          <Badge variant="secondary" className="text-xs">
-                            {group.orders.length}
-                          </Badge>
-                        </div>
+                        <ChevronLeft className="w-5 h-5" />
+                      </Button>
+                    )}
 
-                        <div className="space-y-3">
-                          {group.orders.map((order) => {
-                            const variance =
-                              order.actualValue != null && order.expectedValue
-                                ? ((order.actualValue - order.expectedValue) / order.expectedValue) * 100
-                                : null
+                    {canScrollRight && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => scrollKanbanBy("right")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full shadow z-10"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </Button>
+                    )}
 
-                            return (
-                              <div
-                                key={order.id}
-                                draggable={kanbanGroupBy === "status"}
-                                onDragStart={(e) => handleDragStart(e, order)}
-                                className="bg-card border rounded-lg p-4 space-y-3 cursor-move hover:shadow-md transition-shadow"
-                                onClick={() => handleOrderClick(order)}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    {!order.viewed && (
-                                      <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" title="Novo pedido" />
-                                    )}
-                                    <div className="min-w-0">
-                                      <div className="font-mono text-xs font-medium">#{order.number}</div>
-                                      <div className="text-xs text-muted-foreground truncate">{order.supplier}</div>
-                                    </div>
-                                  </div>
+                    <div
+                      ref={kanbanScrollRef}
+                      className={`flex gap-6 overflow-x-auto pb-4 px-12 ${
+                        isPanning ? "cursor-grabbing" : "cursor-grab"
+                      } select-none`}
+                      onPointerDown={onKanbanPointerDown}
+                      onPointerMove={onKanbanPointerMove}
+                      onPointerUp={onKanbanPointerUp}
+                      onPointerCancel={onKanbanPointerCancel}
+                      onPointerLeave={onKanbanPointerLeave}
+                    >
+                      {getDisplayGroups().map((group) => (
+                        <div
+                          key={group.key}
+                          className="flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4"
+                          onDragOver={handleDragOver}
+                          onDrop={(e) => handleDrop(e, group.key)}
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-sm">{group.label}</h3>
+                            <Badge variant="secondary" className="text-xs">
+                              {group.orders.length}
+                            </Badge>
+                          </div>
 
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
-                                        <MoreVertical className="w-3 h-3" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => router.push(`/pedido_compra/edit/${order.id}`)}>
-                                        Ver detalhes
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem asChild>
-                                        <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem className="text-red-600" onClick={() => handleCancelar(order)}>
-                                        Cancelar pedido
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
+                          <div className="space-y-3">
+                            {group.orders.map((order) => {
+                              const variance =
+                                order.actualValue != null && order.expectedValue
+                                  ? ((order.actualValue - order.expectedValue) / order.expectedValue) * 100
+                                  : null
 
-                                <p className="text-sm line-clamp-2">{order.description}</p>
-
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {kanbanGroupBy === "status" && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {order.category}
-                                    </Badge>
-                                  )}
-                                  {kanbanGroupBy === "category" && (
-                                    <Badge
-                                      variant="outline"
-                                      className={`text-xs ${statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color}`}
-                                    >
-                                      {statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].label}
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                <div className="space-y-2 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Previsto:</span>
-                                    <span className="font-medium">{fmtMoney(order.expectedValue)}</span>
-                                  </div>
-
-                                  {order.actualValue != null && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-muted-foreground">Realizado:</span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium">{fmtMoney(order.actualValue)}</span>
-                                        {variance !== null && (
-                                          <span className={`flex items-center gap-0.5 ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
-                                            {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                            {Math.abs(variance).toFixed(1)}%
-                                          </span>
-                                        )}
+                              return (
+                                <div
+                                  key={order.id}
+                                  draggable={kanbanGroupBy === "status"}
+                                  onDragStart={(e) => handleDragStart(e, order)}
+                                  className="bg-card border rounded-lg p-4 space-y-3 cursor-move hover:shadow-md transition-shadow"
+                                  onClick={() => {
+                                    if (didPanRef.current) {
+                                      didPanRef.current = false
+                                      return
+                                    }
+                                    handleOrderClick(order)
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      {!order.viewed && (
+                                        <div
+                                          className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse"
+                                          title="Novo pedido"
+                                        />
+                                      )}
+                                      <div className="min-w-0">
+                                        <div className="font-mono text-xs font-medium">#{order.number}</div>
+                                        <div className="text-xs text-muted-foreground truncate">{order.supplier}</div>
                                       </div>
                                     </div>
-                                  )}
-                                </div>
 
-                                {order.deliveryDate && (
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Calendar className="w-3 h-3" />
-                                    {new Date(order.deliveryDate).toLocaleDateString("pt-BR")}
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0">
+                                          <MoreVertical className="w-3 h-3" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => router.push(`/pedido_compra/edit/${order.id}`)}>
+                                          Ver detalhes
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem asChild>
+                                          <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="text-red-600" onClick={() => handleCancelar(order)}>
+                                          Cancelar pedido
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   </div>
-                                )}
 
-                                <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 text-xs w-full justify-center">
-                                  Não integrado
-                                </Badge>
-                              </div>
-                            )
-                          })}
+                                  <p className="text-sm line-clamp-2">{order.description}</p>
 
-                          {group.orders.length === 0 && <div className="text-center py-8 text-sm text-muted-foreground">Nenhum pedido</div>}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {kanbanGroupBy === "status" && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {order.category}
+                                      </Badge>
+                                    )}
+                                    {kanbanGroupBy === "category" && (
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-xs ${
+                                          statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color
+                                        }`}
+                                      >
+                                        {statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].label}
+                                      </Badge>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-2 text-xs">
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Previsto:</span>
+                                      <span className="font-medium">{fmtMoney(order.expectedValue)}</span>
+                                    </div>
+
+                                    {order.actualValue != null && (
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">Realizado:</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium">{fmtMoney(order.actualValue)}</span>
+                                          {variance !== null && (
+                                            <span
+                                              className={`flex items-center gap-0.5 ${
+                                                variance > 0 ? "text-red-600" : "text-green-600"
+                                              }`}
+                                            >
+                                              {variance > 0 ? (
+                                                <TrendingUp className="w-3 h-3" />
+                                              ) : (
+                                                <TrendingDown className="w-3 h-3" />
+                                              )}
+                                              {Math.abs(variance).toFixed(1)}%
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {order.deliveryDate && (
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <Calendar className="w-3 h-3" />
+                                      {new Date(order.deliveryDate).toLocaleDateString("pt-BR")}
+                                    </div>
+                                  )}
+
+                                  <Badge
+                                    variant="outline"
+                                    className="bg-gray-50 text-gray-500 border-gray-200 text-xs w-full justify-center"
+                                  >
+                                    Não integrado
+                                  </Badge>
+                                </div>
+                              )
+                            })}
+
+                            {group.orders.length === 0 && (
+                              <div className="text-center py-8 text-sm text-muted-foreground">Nenhum pedido</div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -1109,11 +1273,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
           {viewMode === "list" && totalPages > 1 && (
             <div className="flex items-center justify-between border-t pt-4">
               <div className="text-sm text-muted-foreground">
-                Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, sortedOrders.length)} de {sortedOrders.length} pedidos
+                Mostrando {startIndex + 1} a {Math.min(startIndex + itemsPerPage, sortedOrders.length)} de{" "}
+                {sortedOrders.length} pedidos
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
                   Anterior
                 </Button>
 
@@ -1131,7 +1301,12 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                   ))}
                 </div>
 
-                <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
                   Próximo
                 </Button>
               </div>
