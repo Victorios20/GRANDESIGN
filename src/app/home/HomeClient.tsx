@@ -137,7 +137,7 @@ export default function HomeClient({ initial }: Props) {
   const quickActions = [
     {
       label: "Novo orçamento",
-      href: "/orcamentos/new",
+      href: "/orcamento/new",
       icon: Plus,
       description: "Criar novo orçamento",
     },
@@ -167,7 +167,7 @@ export default function HomeClient({ initial }: Props) {
       pageBackground="bg-bege-pagina"
       headerActions={
         <div className="flex items-center gap-2">
-          <Link href="/orcamentos/new">
+          <Link href="/orcamento/new">
             <Button className="bg-marromEscuro hover:bg-marromEscuro/90 text-bege">
               <Plus className="h-4 w-4 mr-2" />
               Gerar Novo
@@ -316,7 +316,7 @@ export default function HomeClient({ initial }: Props) {
             <Card className="bg-card border-border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <CardTitle className="text-lg font-semibold">Últimos Orçamentos</CardTitle>
-                <Link href="/orcamentos">
+                <Link href="/orcamento">
                   <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                     Ver todos
                     <ExternalLink className="w-4 h-4 ml-1" />

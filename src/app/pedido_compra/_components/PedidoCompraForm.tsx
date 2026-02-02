@@ -18,6 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 
+import { ComboboxAdd, type ComboItem } from "@/components/ui/comboboxAdd"
+
 type Mode = "create" | "edit"
 
 type PedidoCategoria = "MADEIRA" | "TELHA" | "ANDAIME" | "ANDAIMES" | "MATERIAIS"
@@ -34,6 +36,22 @@ type PedidoStatus =
 type FornecedorOption = { id: number; nome: string }
 
 type FornecedorItem = { id: number; nome: string; tipo: string | null }
+
+type MaterialDTO = {
+  id: number
+  descricao: string
+  tipo: string
+  preco_unitario: number
+  unidade_de_medida: string
+  fornecedorId: number | null
+}
+
+type MateriaisByTipo = {
+  madeira: MaterialDTO[]
+  telha: MaterialDTO[]
+  geral: MaterialDTO[]
+  andaime: MaterialDTO[]
+}
 
 type OrderItem = {
   id?: number
@@ -188,20 +206,53 @@ function categoriaToTipos(categoria: string) {
   return [c]
 }
 
+function categoriaToKey(categoria: PedidoCategoria | ""): keyof MateriaisByTipo | null {
+  const c = String(categoria ?? "").trim().toUpperCase()
+  if (c === "MADEIRA") return "madeira"
+  if (c === "TELHA") return "telha"
+  if (c === "MATERIAIS") return "geral"
+  if (c === "ANDAIMES" || c === "ANDAIME") return "andaime"
+  return null
+}
+
+function materialLabel(m: MaterialDTO) {
+  const desc = (m.descricao ?? "").trim()
+  const un = (m.unidade_de_medida ?? "un").trim() || "un"
+  const p = Number.isFinite(m.preco_unitario) ? money(m.preco_unitario) : "0.00"
+  return `${desc} • ${un} • R$ ${p}`
+}
+
+function buildComboItems(list: MaterialDTO[]): ComboItem[] {
+  return (list ?? [])
+    .filter((m) => Number.isFinite(m.id) && m.id > 0 && String(m.descricao ?? "").trim() !== "")
+    .map((m) => ({ value: String(m.id), label: materialLabel(m) }))
+}
+
 type Props = {
   mode: Mode
   pedidoCompraId?: number
   initialData?: PedidoCompraDetalhadoSnake | null
   initialFornecedores?: FornecedorOption[]
+  initialMateriaisByTipo?: MateriaisByTipo
 }
 
-export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, initialFornecedores }: Props) {
+const emptyMateriaisByTipo: MateriaisByTipo = { madeira: [], telha: [], geral: [], andaime: [] }
+
+export default function PedidoCompraForm({
+  mode,
+  pedidoCompraId,
+  initialData,
+  initialFornecedores,
+  initialMateriaisByTipo,
+}: Props) {
   const router = useRouter()
 
   const [saving, setSaving] = useState(false)
 
   const [fornecedoresRaw, setFornecedoresRaw] = useState<FornecedorItem[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>(() => initialFornecedores ?? [])
+
+  const [materiaisByTipo, setMateriaisByTipo] = useState<MateriaisByTipo>(() => initialMateriaisByTipo ?? emptyMateriaisByTipo)
 
   const [formData, setFormData] = useState<FormData>({
     obraId: "",
@@ -234,6 +285,10 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
   useEffect(() => {
     setFornecedores(initialFornecedores ?? [])
   }, [initialFornecedores])
+
+  useEffect(() => {
+    setMateriaisByTipo(initialMateriaisByTipo ?? emptyMateriaisByTipo)
+  }, [initialMateriaisByTipo])
 
   useEffect(() => {
     let canceled = false
@@ -441,6 +496,54 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
 
   function removeItem(clientId: string) {
     setItems((prev) => prev.filter((it) => it.clientId !== clientId))
+  }
+
+  const materiaisFiltradosParaCategoria = useMemo(() => {
+    const key = categoriaToKey(formData.categoria)
+    if (!key) return [] as MaterialDTO[]
+
+    const base = materiaisByTipo[key] ?? []
+    const fornIdNum = Number(formData.fornecedorId)
+    const hasFornecedor = formData.fornecedorId && Number.isFinite(fornIdNum) && fornIdNum > 0
+
+    if (!hasFornecedor) return base
+    return base.filter((m) => m.fornecedorId == null || m.fornecedorId === fornIdNum)
+  }, [materiaisByTipo, formData.categoria, formData.fornecedorId])
+
+  const comboItemsMateriais = useMemo(() => buildComboItems(materiaisFiltradosParaCategoria), [materiaisFiltradosParaCategoria])
+
+  function getComboLabelForDescricao(descricao: string) {
+    const d = (descricao ?? "").trim()
+    if (!d) return "Selecione"
+    return d
+  }
+
+  function onSelectMaterialForItem(clientId: string, materialIdValue: string) {
+    if (materialIdValue === "vazio") return
+
+    const materialId = Number(materialIdValue)
+    if (!Number.isFinite(materialId) || materialId <= 0) return
+
+    const m = materiaisFiltradosParaCategoria.find((x) => x.id === materialId)
+    if (!m) return
+
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.clientId !== clientId) return it
+
+        const next: OrderItem = { ...it }
+
+        next.descricao = String(m.descricao ?? "").trim()
+        next.precoUnitario = Number(m.preco_unitario ?? 0)
+
+        const q = Number(next.quantidade ?? 0)
+        if (!Number.isFinite(q) || q <= 0) next.quantidade = 1
+
+        next.total = Number(next.quantidade ?? 0) * Number(next.precoUnitario ?? 0)
+
+        return next
+      })
+    )
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -809,12 +912,25 @@ export default function PedidoCompraForm({ mode, pedidoCompraId, initialData, in
                       <div className="grid gap-4 md:grid-cols-12">
                         <div className={isMadeira ? "md:col-span-4" : "md:col-span-5"}>
                           <Label className="text-xs">Descrição</Label>
-                          <Input
-                            value={item.descricao}
-                            onChange={(e) => updateItem(item.clientId, "descricao", e.target.value)}
-                            placeholder="Ex: Telha romana marfim resinada"
-                            className="mt-1"
-                          />
+
+                          <div className="mt-1">
+                            <ComboboxAdd
+                              key={`desc-${item.clientId}-${comboItemsMateriais.length}-${formData.categoria}-${formData.fornecedorId}`}
+                              buttonText={getComboLabelForDescricao(item.descricao)}
+                              placeholder="Buscar material..."
+                              widthClass="w-full"
+                              disabled={!formData.categoria}
+                              items={comboItemsMateriais}
+                              onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
+                              showEmptyOption={false}
+                              colorVariant="white-brown"
+                              buttonClassName="h-10 text-sm rounded-md border border-border justify-between"
+                            />
+                          </div>
+
+                          {!formData.categoria && (
+                            <p className="mt-1 text-xs text-muted-foreground">Selecione a categoria para habilitar.</p>
+                          )}
                         </div>
 
                         <div className="md:col-span-2">

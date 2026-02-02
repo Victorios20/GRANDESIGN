@@ -304,6 +304,8 @@ function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
   const out: PedidoCompraVM[] = []
 
   const pushIf = (cat: "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES", raw: any) => {
+    if (!raw) return
+
     const p: PedidoCompraVM = {
       id: Number(raw?.id ?? 0) || undefined,
       descricao: String(raw?.descricao ?? raw?.observacoes ?? "").trim(),
@@ -330,13 +332,20 @@ function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
     if (isMeaningfulPedidoVM(p)) out.push(p)
   }
 
-  pushIf("TELHA", src?.telha)
+  const telhasArr = Array.isArray(src?.telhas) ? src.telhas : null
+  if (telhasArr && telhasArr.length > 0) {
+    for (const t of telhasArr) pushIf("TELHA", t)
+  } else {
+    pushIf("TELHA", src?.telha)
+  }
+
   pushIf("MADEIRA", src?.madeira)
   pushIf("MATERIAIS", src?.materiais)
   pushIf("ANDAIMES", src?.andaimes)
 
   return out
 }
+
 
 export default function ObrasPage({
   mode,
