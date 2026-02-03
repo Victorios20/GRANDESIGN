@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import {
   Plus,
   MoreVertical,
@@ -124,9 +124,17 @@ export function PedidoCompraCardSection({
   onIntegrar,
 }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
 
   const [createOpen, setCreateOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<PedidoCompraVM | null>(null)
+  const [menuOpenKey, setMenuOpenKey] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setMenuOpenKey(null)
+    setSelected(null)
+    setCreateOpen(false)
+  }, [pathname])
 
   const handleCreate = (draft: Partial<PedidoCompraVM>) => {
     onCreate?.(draft)
@@ -227,6 +235,7 @@ export function PedidoCompraCardSection({
               <tbody>
                 {visiblePedidos.map((p, idx) => {
                   const id = Number((p as any)?.id ?? 0)
+                  const rowKey = String((p as any)?.id ?? `tmp-${idx}`)
                   const numero = id > 0 ? `PC-${id}` : `PC-TMP-${idx + 1}`
 
                   const descricao = String((p as any)?.descricao ?? (p as any)?.observacoes ?? "").trim() || "—"
@@ -255,7 +264,7 @@ export function PedidoCompraCardSection({
 
                   return (
                     <tr
-                      key={String((p as any)?.id ?? `tmp-${idx}`)}
+                      key={rowKey}
                       className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => handleRowClick(p)}
                     >
@@ -342,18 +351,21 @@ export function PedidoCompraCardSection({
                       </td>
 
                       <td className="p-4">
-                        <DropdownMenu>
+                        <DropdownMenu
+                          open={menuOpenKey === rowKey}
+                          onOpenChange={(open) => setMenuOpenKey(open ? rowKey : null)}
+                        >
                           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                               <MoreVertical className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>
 
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
                             <DropdownMenuItem
                               onSelect={(e) => {
-                                e.preventDefault()
                                 e.stopPropagation()
+                                setMenuOpenKey(null)
                                 setSelected(p)
                               }}
                             >
@@ -363,8 +375,8 @@ export function PedidoCompraCardSection({
                             {id > 0 && (
                               <DropdownMenuItem
                                 onSelect={(e) => {
-                                  e.preventDefault()
                                   e.stopPropagation()
+                                  setMenuOpenKey(null)
                                   handleEdit(id)
                                 }}
                               >
@@ -375,8 +387,8 @@ export function PedidoCompraCardSection({
                             {!integrado && id > 0 && (
                               <DropdownMenuItem
                                 onSelect={(e) => {
-                                  e.preventDefault()
                                   e.stopPropagation()
+                                  setMenuOpenKey(null)
                                   onIntegrar?.(id)
                                 }}
                               >
@@ -390,8 +402,8 @@ export function PedidoCompraCardSection({
                               <DropdownMenuItem
                                 className="text-red-600"
                                 onSelect={(e) => {
-                                  e.preventDefault()
                                   e.stopPropagation()
+                                  setMenuOpenKey(null)
                                   onCancelar?.(id)
                                 }}
                               >
@@ -411,12 +423,7 @@ export function PedidoCompraCardSection({
       </Card>
 
       {mode === "create" && (
-        <PedidoCompraCreateModal
-          open={createOpen}
-          onOpenChange={setCreateOpen}
-          obraId={obraId ?? null}
-          onCreate={handleCreate}
-        />
+        <PedidoCompraCreateModal open={createOpen} onOpenChange={setCreateOpen} obraId={obraId ?? null} onCreate={handleCreate} />
       )}
 
       {selected && (
