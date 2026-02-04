@@ -299,7 +299,59 @@ function isMeaningfulPedidoVM(p: Partial<PedidoCompraVM> | null | undefined) {
   return hasMoney || hasFornecedor || hasEntrega || hasDesc || hasItens
 }
 
-function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
+function pickTelhaFromInit(pedidoInit: any, telhaEscolhida: string): any | null {
+  const chosen = String(telhaEscolhida ?? "").trim()
+  if (!chosen) return null
+  const src = pedidoInit ?? {}
+  const list = Array.isArray(src?.telhas) ? src.telhas : []
+  if (list.length === 0) return null
+
+  const byItemDesc = list.find((t: any) => {
+    const item0 = Array.isArray(t?.itens) ? t.itens[0] : null
+    const desc = String(item0?.descricao ?? "").trim()
+    return desc.toLowerCase() === chosen.toLowerCase()
+  })
+  if (byItemDesc) return byItemDesc
+
+  const byDescricao = list.find((t: any) => {
+    const d = String(t?.descricao ?? "").toLowerCase()
+    return d.includes(`telha: ${chosen.toLowerCase()}`)
+  })
+  return byDescricao ?? null
+}
+
+function buildDefaultAndaimesPedidoVM(): PedidoCompraVM {
+  const preco = 8
+  const itens = [
+    { id: 1, descricao: "Andaime", quantidade: 12, tamanho: null, precoUnitario: preco, total: 12 * preco },
+    { id: 2, descricao: "Plataforma", quantidade: 3, tamanho: null, precoUnitario: preco, total: 3 * preco },
+  ]
+  const valorOrcado = itens.reduce((acc, it) => acc + toNum(it.total), 0)
+
+  return {
+    id: undefined,
+    descricao: "Andaimes (pré-pedido padrão)",
+    categoria: "ANDAIMES" as any,
+    status: "PENDENTE" as any,
+    fornecedorNome: null,
+    fornecedorId: null,
+    valorOrcado: Number(valorOrcado.toFixed(2)),
+    valorRealizado: null,
+    frete: null,
+    dataEntrega: null,
+    itens: itens.map((x) => ({ ...x, total: Number(toNum(x.total).toFixed(2)) })),
+  }
+}
+
+function ensureDefaultAndaimes(list: PedidoCompraVM[]): PedidoCompraVM[] {
+  const arr = Array.isArray(list) ? [...list] : []
+  const hasAndaimes = arr.some((p) => normCategoria((p as any)?.categoria) === "ANDAIMES")
+  if (hasAndaimes) return arr
+  arr.push(buildDefaultAndaimesPedidoVM())
+  return arr
+}
+
+function pedidoInitToPedidosVM(pedidoInit: any, telhaEscolhida?: string): PedidoCompraVM[] {
   const src = pedidoInit ?? {}
   const out: PedidoCompraVM[] = []
 
@@ -332,20 +384,14 @@ function pedidoInitToPedidosVM(pedidoInit: any): PedidoCompraVM[] {
     if (isMeaningfulPedidoVM(p)) out.push(p)
   }
 
-  const telhasArr = Array.isArray(src?.telhas) ? src.telhas : null
-  if (telhasArr && telhasArr.length > 0) {
-    for (const t of telhasArr) pushIf("TELHA", t)
-  } else {
-    pushIf("TELHA", src?.telha)
-  }
+  const telhaRaw = telhaEscolhida ? pickTelhaFromInit(src, telhaEscolhida) : null
+  if (telhaRaw) pushIf("TELHA", telhaRaw)
 
   pushIf("MADEIRA", src?.madeira)
-  pushIf("MATERIAIS", src?.materiais)
   pushIf("ANDAIMES", src?.andaimes)
 
   return out
 }
-
 
 export default function ObrasPage({
   mode,
@@ -373,8 +419,8 @@ export default function ObrasPage({
   const [pedidos, setPedidos] = useState<PedidoCompraVM[]>(() => {
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
     if (fromDto.length > 0) return fromDto
-    const fromInit = pedidoInitToPedidosVM(pedidoInit)
-    return fromInit
+    const base = pedidoInitToPedidosVM(pedidoInit, initial?.telhaEscolhida ?? "")
+    return ensureDefaultAndaimes(base)
   })
 
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
@@ -398,6 +444,23 @@ export default function ObrasPage({
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
     setPedidos(fromDto)
   }, [pedidosCompraInit, mode])
+
+  useEffect(() => {
+    if (mode !== "new") return
+    const chosen = String(vm?.telhaEscolhida ?? "").trim()
+    if (!chosen) return
+
+    setPedidos((prev) => {
+      const keep = Array.isArray(prev) ? prev.filter((p) => normCategoria((p as any)?.categoria) !== "TELHA") : []
+      const telhaRaw = pickTelhaFromInit(pedidoInit, chosen)
+      if (!telhaRaw) return ensureDefaultAndaimes(keep)
+      const nextTelha = pedidoInitToPedidosVM({ telhas: [telhaRaw] }, chosen).find(
+        (p) => normCategoria((p as any)?.categoria) === "TELHA"
+      )
+      if (!nextTelha) return ensureDefaultAndaimes(keep)
+      return ensureDefaultAndaimes([...keep, nextTelha])
+    })
+  }, [vm?.telhaEscolhida, mode, pedidoInit])
 
   const clientePrefill = useMemo(
     () => ({
@@ -802,7 +865,7 @@ export default function ObrasPage({
               legenda: img.legenda || null,
             })),
 
-          pedidosCompra: buildPedidosCompraPayload(pedidos ?? []),
+          pedidosCompra: buildPedidosCompraPayload(ensureDefaultAndaimes(pedidos ?? [])),
 
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
@@ -877,7 +940,8 @@ export default function ObrasPage({
       const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
       setPedidos(fromDto)
     } else {
-      setPedidos(pedidoInitToPedidosVM(pedidoInit))
+      const base = pedidoInitToPedidosVM(pedidoInit, (initial as any)?.telhaEscolhida ?? "")
+      setPedidos(ensureDefaultAndaimes(base))
     }
 
     setFin(hydrateFinanceiro(financeiroInit))
@@ -919,7 +983,7 @@ export default function ObrasPage({
 
       if (!isMeaningfulPedidoVM(next)) return list
       list.push(next)
-      return list
+      return ensureDefaultAndaimes(list)
     })
   }
 
