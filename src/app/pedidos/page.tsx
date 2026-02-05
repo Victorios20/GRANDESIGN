@@ -87,6 +87,7 @@ const mockOrders: PurchaseOrder[] = [
     project: "Obra Residencial - Cliente Santos",
     expectedValue: 1800.0,
     actualValue: 2100.0,
+    deliveryDate: "2025-02-15",
     status: "aprovado",
     integrated: false,
     viewed: true,
@@ -344,8 +345,8 @@ export default function PurchaseOrdersPage() {
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
       <div className="pl-64">
-        <DashboardTopbar 
-          title="Pedidos de Compra" 
+        <DashboardTopbar
+          title="Pedidos de Compra"
           showNewButton={true}
           newButtonLabel="Novo Pedido"
           onNewClick={() => setIsCreateModalOpen(true)}
@@ -863,7 +864,12 @@ export default function PurchaseOrdersPage() {
 
       {selectedOrder && <PurchaseOrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
 
-      {isCreateModalOpen && <CreatePurchaseOrderModal onClose={() => setIsCreateModalOpen(false)} />}
+      {isCreateModalOpen && (
+        <CreatePurchaseOrderModal
+          open={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+        />
+      )}
     </div>
   )
 }

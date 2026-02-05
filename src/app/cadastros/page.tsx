@@ -1,12 +1,21 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
+import { PageLayout } from "@/components/ui/pageLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { Toaster, toast } from "sonner"
 import {
   Dialog,
@@ -46,7 +55,8 @@ import {
   ChevronRight,
   ArrowLeft,
   X,
-  Loader2
+  Loader2,
+  Construction
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -56,12 +66,9 @@ import {
   FornecedorDTO, MaterialDTO, ComponenteDTO
 } from "@/services/api/cadastros"
 
-// Types mapping for UI consistency
-
-
 export default function CadastrosPage() {
   // Navigation state
-  type Category = "fornecedores" | "materiais" | "componentes" | "equipes"
+  type Category = "fornecedores" | "materiais" | "telhas" | "componentes" | "equipes"
   const [activeCategory, setActiveCategory] = useState<Category>("fornecedores")
   const [selectedFornecedor, setSelectedFornecedor] = useState<FornecedorDTO | null>(null)
 
@@ -69,7 +76,8 @@ export default function CadastrosPage() {
   const [materiais, setMateriais] = useState<MaterialDTO[]>([])
   const [componentes, setComponentes] = useState<ComponenteDTO[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorDTO[]>([])
-  const [equipes, setEquipes] = useState<{ id: number, nome: string }[]>([]) // Placeholder for equipes
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [equipes] = useState<{ id: number, nome: string }[]>([]) // Placeholder for equipes
 
   // Loading states
   const [loading, setLoading] = useState(false)
@@ -87,38 +95,6 @@ export default function CadastrosPage() {
 
   // Form state
   const [formData, setFormData] = useState<Record<string, string>>({})
-
-  // Navigation categories config
-  const categories = [
-    {
-      id: "fornecedores" as Category,
-      label: "Fornecedores",
-      icon: Truck,
-      description: "Gerencie fornecedores de madeira, telha e material",
-      count: fornecedores.length
-    },
-    {
-      id: "materiais" as Category,
-      label: "Materiais",
-      icon: Package,
-      description: "Cadastre materiais de construção",
-      count: materiais.filter(m => m.tipo === 'geral' || !m.tipo).length
-    },
-    {
-      id: "componentes" as Category,
-      label: "Componentes",
-      icon: Package,
-      description: "Gerencie componentes de estrutura",
-      count: componentes.length
-    },
-    {
-      id: "equipes" as Category,
-      label: "Equipes",
-      icon: Users,
-      description: "Cadastre equipes de trabalho",
-      count: equipes.length
-    },
-  ]
 
   // Fetch functions
   const loadFornecedores = useCallback(async () => {
@@ -157,115 +133,173 @@ export default function CadastrosPage() {
     }
   }, [])
 
-  // Equipes not implemented in API yet, keeping empty or mock implementation logic if needed
-  // For now we skip or mock locally if needed, but the plan didn't focus on Equipes. 
-  // I will leave equipes empty for now as it wasn't in the API service.
-
+  // Load data on mount
   useEffect(() => {
     loadFornecedores()
     loadMateriais()
     loadComponentes()
   }, [loadFornecedores, loadMateriais, loadComponentes])
 
-  // Helpers
-  function formatCurrency(value: number): string {
-    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+  // Helper functions
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
   }
 
-  function getTipoFornecedorLabel(tipo: string): string {
-    const labels: Record<string, string> = {
-      madeira: "Madeira",
-      telha: "Telha",
-      material: "Material",
-      geral: "Material"
+  const getTipoFornecedorLabel = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return "Madeira"
+      case "telha": return "Telha"
+      case "material": return "Material"
+      case "materiais": return "Materiais"
+      case "andaime": return "Andaime"
+      default: return "Material"
     }
-    return labels[tipo] || tipo
   }
 
-  function getTipoFornecedorColor(tipo: string): string {
-    const colors: Record<string, string> = {
-      madeira: "bg-amber-100 text-amber-800 border-amber-200",
-      telha: "bg-orange-100 text-orange-800 border-orange-200",
-      material: "bg-blue-100 text-blue-800 border-blue-200",
-      geral: "bg-gray-100 text-gray-800 border-gray-200"
+  const getTipoFornecedorIcon = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return TreePine
+      case "telha": return Home
+      case "andaime": return Construction
+      default: return Package
     }
-    return colors[tipo] || "bg-gray-100"
   }
 
-  function getTipoFornecedorIcon(tipo: string) {
-    const icons: Record<string, any> = {
-      madeira: TreePine,
-      telha: Home,
-      material: Package,
-      geral: Package
+  const getTipoFornecedorColor = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return "bg-green-100 text-green-800 border-green-300"
+      case "telha": return "bg-orange-100 text-orange-800 border-orange-300"
+      case "andaime": return "bg-yellow-100 text-yellow-800 border-yellow-300"
+      default: return "bg-blue-100 text-blue-800 border-blue-300"
     }
-    return icons[tipo] || Package
   }
 
-  // Filter data based on search and context
+  // Get filtered data based on current view
   const getFilteredData = () => {
-    const term = searchTerm.toLowerCase()
-
     if (selectedFornecedor) {
-      // Show materials/woods/tiles for this provider
+      // Show fornecedor's products (madeira or telha)
       return materiais
         .filter(m => m.fornecedorId === selectedFornecedor.id)
-        .filter(m => m.descricao.toLowerCase().includes(term))
+        .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
     }
 
     switch (activeCategory) {
       case "fornecedores":
-        return fornecedores.filter(f =>
-          f.nome.toLowerCase().includes(term) ||
-          f.tipo.toLowerCase().includes(term)
-        )
+        return fornecedores.filter(f => f.nome.toLowerCase().includes(searchTerm.toLowerCase()))
       case "materiais":
-        // Show only 'geral' or 'material' type, or those without provider
+        // Show only general materials (no fornecedor)
         return materiais
-          .filter(m => (!m.fornecedorId && (m.tipo === 'geral' || m.tipo === 'material')))
-          .filter(m => m.descricao.toLowerCase().includes(term))
+          .filter(m => !m.fornecedorId && (m.tipo === 'geral' || !m.tipo))
+          .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "telhas":
+        // Show all telhas (tipo='telha')
+        return materiais
+          .filter(m => m.tipo?.toLowerCase() === 'telha')
+          .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
       case "componentes":
-        return componentes.filter(c => c.nome.toLowerCase().includes(term))
+        return componentes.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()))
       case "equipes":
-        return equipes.filter(e => e.nome.toLowerCase().includes(term))
+        return equipes.filter(e => e.nome.toLowerCase().includes(searchTerm.toLowerCase()))
       default:
         return []
     }
   }
 
-  // Open modal for adding
+  // Modal handlers
   const openAddModal = (type: typeof modalType) => {
     setModalType(type)
     setEditingItem(null)
-    setFormData(
-      type === "madeira" && selectedFornecedor
-        ? { fornecedorId: String(selectedFornecedor.id), tipo: 'madeira' }
-        : type === "telha" && selectedFornecedor
-          ? { fornecedorId: String(selectedFornecedor.id), tipo: 'telha' }
-          : type === "fornecedor"
-            ? { tipo: "material" }
-            : { tipo: 'geral' }
-    )
+    setFormData({})
     setModalOpen(true)
   }
 
-  // Open modal for editing
   const openEditModal = (type: typeof modalType, item: any) => {
     setModalType(type)
     setEditingItem(item)
-    const newFormData: Record<string, string> = {}
 
-    // Map API fields to form data
-    if (item.descricao) newFormData.nome = item.descricao
-    if (item.nome) newFormData.nome = item.nome
-    if (item.preco_unitario !== undefined) newFormData.preco = String(item.preco_unitario)
-    if (item.tipo) newFormData.tipo = item.tipo
+    // Populate form
+    if (type === "fornecedor") {
+      // Normalize tipo to lowercase since DB stores in uppercase
+      const tipoNormalized = item.tipo?.toLowerCase() || "material"
+      setFormData({ nome: item.nome, tipo: tipoNormalized })
+    } else if (type === "material" || type === "madeira" || type === "telha") {
+      setFormData({ nome: item.descricao, preco: String(item.preco_unitario) })
+    } else if (type === "componente") {
+      setFormData({ nome: item.nome })
+    }
 
-    setFormData(newFormData)
     setModalOpen(true)
   }
 
-  // Handle delete
+  const getModalTitle = () => {
+    const action = editingItem ? "Editar" : "Adicionar"
+    switch (modalType) {
+      case "fornecedor": return `${action} Fornecedor`
+      case "material": return `${action} Material`
+      case "madeira": return `${action} Madeira`
+      case "telha": return `${action} Telha`
+      case "componente": return `${action} Componente`
+      case "equipe": return `${action} Equipe`
+      default: return action
+    }
+  }
+
+  // CRUD operations
+  const handleSubmit = async () => {
+    try {
+      setProcessing(true)
+
+      if (modalType === "fornecedor") {
+        if (editingItem) {
+          await updateFornecedor(editingItem.id, { nome: formData.nome, tipo: formData.tipo })
+          toast.success("Fornecedor atualizado!")
+        } else {
+          await createFornecedor({ nome: formData.nome, tipo: formData.tipo || "material" })
+          toast.success("Fornecedor criado!")
+        }
+        await loadFornecedores()
+      } else if (modalType === "material" || modalType === "madeira" || modalType === "telha") {
+        const payload: any = {
+          descricao: formData.nome,
+          preco_unitario: parseFloat(formData.preco) || 0
+        }
+
+        if (modalType === "madeira" || modalType === "telha") {
+          payload.fornecedorId = selectedFornecedor?.id
+          payload.tipo = modalType
+        } else {
+          payload.tipo = "geral"
+        }
+
+        if (editingItem) {
+          await updateMaterial(editingItem.id, payload)
+          toast.success("Material atualizado!")
+        } else {
+          await createMaterial(payload)
+          toast.success("Material criado!")
+        }
+        await loadMateriais()
+      } else if (modalType === "componente") {
+        if (editingItem) {
+          await updateComponente(editingItem.id, { nome: formData.nome })
+          toast.success("Componente atualizado!")
+        } else {
+          await createComponente({ nome: formData.nome })
+          toast.success("Componente criado!")
+        }
+        await loadComponentes()
+      }
+
+      setModalOpen(false)
+      setFormData({})
+      setEditingItem(null)
+    } catch (error) {
+      toast.error("Erro ao salvar")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
   const openDeleteDialog = (type: string, item: any) => {
     setItemToDelete({ type, item })
     setDeleteDialogOpen(true)
@@ -273,124 +307,34 @@ export default function CadastrosPage() {
 
   const confirmDelete = async () => {
     if (!itemToDelete) return
-    setProcessing(true)
-
-    const { type, item } = itemToDelete
 
     try {
-      switch (type) {
-        case "material":
-        case "madeira":
-        case "telha":
-          await deleteMaterial(item.id)
-          setMateriais(prev => prev.filter(m => m.id !== item.id))
-          toast.success("Item excluído com sucesso")
-          break
-        case "componente":
-          await deleteComponente(item.id)
-          setComponentes(prev => prev.filter(c => c.id !== item.id))
-          toast.success("Componente excluído com sucesso")
-          break
-        case "fornecedor":
-          await deleteFornecedor(item.id)
-          setFornecedores(prev => prev.filter(f => f.id !== item.id))
-          toast.success("Fornecedor excluído com sucesso")
-          break
-        case "equipe":
-          // Not implemented
-          break
+      setProcessing(true)
+
+      if (itemToDelete.type === "fornecedor") {
+        await deleteFornecedor(itemToDelete.item.id)
+        toast.success("Fornecedor excluído!")
+        await loadFornecedores()
+      } else if (itemToDelete.type === "material" || itemToDelete.type === "madeira" || itemToDelete.type === "telha") {
+        await deleteMaterial(itemToDelete.item.id)
+        toast.success("Material excluído!")
+        await loadMateriais()
+      } else if (itemToDelete.type === "componente") {
+        await deleteComponente(itemToDelete.item.id)
+        toast.success("Componente excluído!")
+        await loadComponentes()
       }
-    } catch (error) {
-      toast.error("Erro ao excluir item")
-    } finally {
-      setProcessing(false)
+
       setDeleteDialogOpen(false)
       setItemToDelete(null)
-    }
-  }
-
-  // Handle form submit
-  const handleSubmit = async () => {
-    setProcessing(true)
-    const isEditing = editingItem !== null
-
-    try {
-      switch (modalType) {
-        case "material":
-        case "madeira":
-        case "telha": {
-          const tipo = modalType === "material" ? "geral" : modalType
-          const payload = {
-            descricao: formData.nome || "",
-            tipo: (modalType === 'madeira' || modalType === 'telha') ? modalType : 'geral',
-            preco_unitario: parseFloat(formData.preco?.replace(',', '.') || "0"),
-            fornecedorId: (modalType === 'madeira' || modalType === 'telha') && selectedFornecedor ? selectedFornecedor.id : undefined,
-          }
-
-          if (isEditing) {
-            await updateMaterial(editingItem.id, payload)
-            toast.success("Atualizado com sucesso")
-          } else {
-            await createMaterial(payload)
-            toast.success("Criado com sucesso")
-          }
-          await loadMateriais()
-          break
-        }
-        case "componente": {
-          const payload = { nome: formData.nome || "" }
-          if (isEditing) {
-            await updateComponente(editingItem.id, payload)
-            toast.success("Componente atualizado")
-          } else {
-            await createComponente(payload)
-            toast.success("Componente criado")
-          }
-          await loadComponentes()
-          break
-        }
-        case "fornecedor": {
-          const payload = {
-            nome: formData.nome || "",
-            tipo: formData.tipo || "material"
-          }
-          if (isEditing) {
-            await updateFornecedor(editingItem.id, payload)
-            toast.success("Fornecedor atualizado")
-          } else {
-            await createFornecedor(payload)
-            toast.success("Fornecedor criado")
-          }
-          await loadFornecedores()
-          break
-        }
-      }
-      setModalOpen(false)
-      setFormData({})
-      setEditingItem(null)
     } catch (error) {
-      toast.error("Erro ao salvar")
-      console.error(error)
+      toast.error("Erro ao excluir")
     } finally {
       setProcessing(false)
     }
   }
 
-  // Get modal title
-  const getModalTitle = () => {
-    const action = editingItem ? "Editar" : "Novo"
-    const types: Record<typeof modalType, string> = {
-      material: "Material",
-      componente: "Componente",
-      fornecedor: "Fornecedor",
-      madeira: "Madeira",
-      telha: "Telha",
-      equipe: "Equipe",
-    }
-    return `${action} ${types[modalType]}`
-  }
-
-  // Get current add button type
+  // Navigation helpers
   const getAddButtonType = (): typeof modalType => {
     if (selectedFornecedor) {
       return selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
@@ -404,39 +348,15 @@ export default function CadastrosPage() {
     }
   }
 
-  // Get current page title
-  const getPageTitle = () => {
-    if (selectedFornecedor) {
-      return selectedFornecedor.nome
-    }
-    return categories.find(c => c.id === activeCategory)?.label || "Cadastros"
-  }
-
-  // Get current page description
-  const getPageDescription = () => {
-    if (selectedFornecedor) {
-      const productCount = materiais.filter(m => m.fornecedorId === selectedFornecedor.id).length
-      return `${productCount} itens cadastrados`
-    }
-    return categories.find(c => c.id === activeCategory)?.description || ""
-  }
-
-  // Handle fornecedor click
   const handleFornecedorClick = (fornecedor: FornecedorDTO) => {
-    if (fornecedor.tipo === "material") return
+    // Apenas fornecedores de madeira podem ser expandidos
+    // Telhas mantidas sem separação por fornecedor conforme solicitado
+    if (fornecedor.tipo?.toLowerCase() !== "madeira") return
     setSelectedFornecedor(fornecedor)
     setSearchTerm("")
   }
 
-  // Handle back button
   const handleBack = () => {
-    setSelectedFornecedor(null)
-    setSearchTerm("")
-  }
-
-  // Handle category change
-  const handleCategoryChange = (category: Category) => {
-    setActiveCategory(category)
     setSelectedFornecedor(null)
     setSearchTerm("")
   }
@@ -444,85 +364,44 @@ export default function CadastrosPage() {
   const filteredData = getFilteredData()
 
   return (
-    <DashboardLayout title="Cadastros">
+    <PageLayout
+      pageBackground="bg-bege-pagina"
+    >
       <Toaster richColors />
-      <div className="flex flex-col lg:flex-row gap-6 h-full">
-        {/* Sidebar Navigation */}
-        <aside className="w-full lg:w-64 shrink-0">
-          <Card className="bg-card border-border">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Categorias</CardTitle>
-            </CardHeader>
-            <CardContent className="p-2">
-              <nav className="space-y-1">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => handleCategoryChange(category.id)}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors",
-                      activeCategory === category.id && !selectedFornecedor
-                        ? "bg-primary text-primary-foreground"
-                        : "hover:bg-muted text-foreground"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <category.icon className="w-5 h-5" />
-                      <span className="font-medium">{category.label}</span>
-                    </div>
-                    <Badge
-                      variant="secondary"
-                      className={cn(
-                        "text-xs",
-                        activeCategory === category.id && !selectedFornecedor
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : ""
-                      )}
-                    >
-                      {category.count}
-                    </Badge>
-                  </button>
-                ))}
-              </nav>
-            </CardContent>
-          </Card>
-        </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 min-w-0">
-          <Card className="bg-card border-border h-full">
-            {/* Header */}
+      <div className="space-y-6">
+        {selectedFornecedor ? (
+          // Fornecedor Detail View
+          <Card className="bg-card border-border">
             <CardHeader className="border-b border-border">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  {selectedFornecedor && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleBack}
-                      className="p-1.5 h-auto"
-                    >
-                      <ArrowLeft className="w-5 h-5" />
-                    </Button>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    className="p-1.5 h-auto"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
                   <div>
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-xl">{getPageTitle()}</CardTitle>
-                      {selectedFornecedor && (
-                        <Badge className={getTipoFornecedorColor(selectedFornecedor.tipo)}>
-                          {getTipoFornecedorLabel(selectedFornecedor.tipo)}
-                        </Badge>
-                      )}
+                      <CardTitle className="text-xl">{selectedFornecedor.nome}</CardTitle>
+                      <Badge className={getTipoFornecedorColor(selectedFornecedor.tipo)}>
+                        {getTipoFornecedorLabel(selectedFornecedor.tipo)}
+                      </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">{getPageDescription()}</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {materiais.filter(m => m.fornecedorId === selectedFornecedor.id).length} itens cadastrados
+                    </p>
                   </div>
                 </div>
                 <Button
                   onClick={() => openAddModal(getAddButtonType())}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="bg-marromEscuro text-bege hover:bg-marromEscuro/90"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Adicionar
+                  Adicionar {selectedFornecedor.tipo === "madeira" ? "Madeira" : "Telha"}
                 </Button>
               </div>
 
@@ -530,7 +409,7 @@ export default function CadastrosPage() {
               <div className="relative mt-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder={`Buscar...`}
+                  placeholder="Buscar..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 pr-9"
@@ -546,117 +425,181 @@ export default function CadastrosPage() {
               </div>
             </CardHeader>
 
-            {/* Content */}
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50">
-                      {/* Headers based on current view */}
-                      {selectedFornecedor || activeCategory === "materiais" ? (
-                        <>
-                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
-                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Preço</th>
-                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
-                        </>
-                      ) : activeCategory === "fornecedores" ? (
-                        <>
-                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
-                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Tipo</th>
-                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
-                        </>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                    <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Preço</TableHead>
+                    <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-4 py-12 text-center">
+                        <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-4 py-12 text-center">
+                        <div className="text-muted-foreground">
+                          <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p className="font-medium">Nenhum item encontrado</p>
+                          <p className="text-sm mt-1">Adicione um novo item ou ajuste sua busca</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((item) => {
+                      const product = item as MaterialDTO
+                      const type = selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
+
+                      return (
+                        <TableRow key={product.id} className="hover:bg-muted/30">
+                          <TableCell className="px-4 py-3 font-medium">{product.descricao}</TableCell>
+                          <TableCell className="px-4 py-3 text-muted-foreground">{formatCurrency(Number(product.preco_unitario))}</TableCell>
+                          <TableCell className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openEditModal(type, product)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                aria-label="Editar"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => openDeleteDialog(type, product)}
+                                className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                aria-label="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : (
+          // Main Tabs View
+          <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as Category)}>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="fornecedores" className="gap-2">
+                <Truck className="w-4 h-4" />
+                <span className="hidden sm:inline">Fornecedores</span>
+                <span className="sm:hidden">Fornec.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{fornecedores.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="materiais" className="gap-2">
+                <Package className="w-4 h-4" />
+                <span className="hidden sm:inline">Materiais</span>
+                <span className="sm:hidden">Mat.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo === 'geral' || !m.tipo).length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="telhas" className="gap-2">
+                <Home className="w-4 h-4" />
+                <span className="hidden sm:inline">Telhas</span>
+                <span className="sm:hidden">Tel.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo?.toLowerCase() === 'telha').length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="componentes" className="gap-2">
+                <Package className="w-4 h-4" />
+                <span className="hidden sm:inline">Componentes</span>
+                <span className="sm:hidden">Comp.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{componentes.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="equipes" className="gap-2">
+                <Users className="w-4 h-4" />
+                Equipes
+                <Badge variant="secondary" className="text-xs ml-1">{equipes.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Fornecedores Tab */}
+            <TabsContent value="fornecedores" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar fornecedor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('fornecedor')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Fornecedor
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Tipo</TableHead>
+                        <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <div className="text-muted-foreground">
+                              <Truck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                              <p className="font-medium">Nenhum fornecedor encontrado</p>
+                              <p className="text-sm mt-1">Adicione um novo fornecedor</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       ) : (
-                        <>
-                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
-                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
-                        </>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center">
-                          <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
-                        </td>
-                      </tr>
-                    ) : filteredData.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center">
-                          <div className="text-muted-foreground">
-                            <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                            <p className="font-medium">Nenhum item encontrado</p>
-                            <p className="text-sm mt-1">Adicione um novo item ou ajuste sua busca</p>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredData.map((item) => {
-                        // Render based on current view
-                        if (selectedFornecedor || activeCategory === "materiais") {
-                          const product = item as MaterialDTO
-                          const type = selectedFornecedor
-                            ? (selectedFornecedor.tipo === "madeira" ? "madeira" : "telha")
-                            : "material"
-
-                          return (
-                            <tr key={product.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium">{product.descricao}</td>
-                              <td className="px-4 py-3 text-sm text-muted-foreground">{formatCurrency(Number(product.preco_unitario))}</td>
-                              <td className="px-4 py-3 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <button
-                                    onClick={() => openEditModal(type, product)}
-                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                    aria-label="Editar"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => openDeleteDialog(type, product)}
-                                    className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                    aria-label="Excluir"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          )
-                        }
-
-                        if (activeCategory === "fornecedores") {
+                        filteredData.map((item) => {
                           const fornecedor = item as FornecedorDTO
                           const Icon = getTipoFornecedorIcon(fornecedor.tipo)
-                          const isClickable = fornecedor.tipo !== "material"
+                          const isClickable = fornecedor.tipo?.toLowerCase() === "madeira"
                           const productCount = materiais.filter(m => m.fornecedorId === fornecedor.id).length
 
                           return (
-                            <tr
+                            <TableRow
                               key={fornecedor.id}
                               onClick={() => isClickable && handleFornecedorClick(fornecedor)}
                               className={cn(
-                                "border-b border-border/50 last:border-0 transition-colors",
-                                isClickable ? "cursor-pointer hover:bg-muted/30" : "hover:bg-muted/20"
+                                "hover:bg-muted/30 transition-colors",
+                                isClickable ? "cursor-pointer" : ""
                               )}
                             >
-                              <td className="px-4 py-3">
+                              <TableCell className="px-4 py-3">
                                 <div className="flex items-center gap-3">
-                                  <span className="text-sm font-medium">{fornecedor.nome}</span>
+                                  <span className="font-medium">{fornecedor.nome}</span>
                                   {isClickable && (
                                     <Badge variant="outline" className="text-xs">
                                       {productCount} itens
                                     </Badge>
                                   )}
                                 </div>
-                              </td>
-                              <td className="px-4 py-3">
+                              </TableCell>
+                              <TableCell className="px-4 py-3">
                                 <Badge className={cn("text-xs gap-1", getTipoFornecedorColor(fornecedor.tipo))}>
                                   <Icon className="w-3 h-3" />
                                   {getTipoFornecedorLabel(fornecedor.tipo)}
                                 </Badge>
-                              </td>
-                              <td className="px-4 py-3 text-right">
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   {isClickable && (
                                     <button
@@ -691,52 +634,276 @@ export default function CadastrosPage() {
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
-                        }
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                        if (activeCategory === "componentes") {
-                          const componente = item as ComponenteDTO
+            {/* Materiais Tab */}
+            <TabsContent value="materiais" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar material..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('material')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Material
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Preço</TableHead>
+                        <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <div className="text-muted-foreground">
+                              <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                              <p className="font-medium">Nenhum material encontrado</p>
+                              <p className="text-sm mt-1">Adicione um novo material</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredData.map((item) => {
+                          const material = item as MaterialDTO
                           return (
-                            <tr key={componente.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                              <td className="px-4 py-3 text-sm font-medium">{componente.nome}</td>
-                              <td className="px-4 py-3 text-right">
+                            <TableRow key={material.id} className="hover:bg-muted/30">
+                              <TableCell className="px-4 py-3 font-medium">{material.descricao}</TableCell>
+                              <TableCell className="px-4 py-3 text-muted-foreground">{formatCurrency(Number(material.preco_unitario))}</TableCell>
+                              <TableCell className="px-4 py-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button
-                                    onClick={() => openEditModal("componente", componente)}
+                                    onClick={() => openEditModal("material", material)}
                                     className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                                     aria-label="Editar"
                                   >
                                     <Pencil className="w-4 h-4" />
                                   </button>
                                   <button
-                                    onClick={() => openDeleteDialog("componente", componente)}
+                                    onClick={() => openDeleteDialog("material", material)}
                                     className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
                                     aria-label="Excluir"
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           )
-                        }
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                        if (activeCategory === "equipes") {
-                          // Empty for now
-                          return null
-                        }
+            {/* Telhas Tab */}
+            <TabsContent value="telhas" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar telha..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('telha')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nova Telha
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Preço</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <Home className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhuma telha encontrada</p>
+                                <p className="text-sm mt-1">Adicione uma nova telha</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const telha = item as MaterialDTO
+                            return (
+                              <tr key={telha.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{telha.descricao}</td>
+                                <td className="px-4 py-3 text-sm text-muted-foreground">{formatCurrency(Number(telha.preco_unitario))}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("telha", telha)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("telha", telha)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-                        return null
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </main>
+            {/* Componentes Tab */}
+            <TabsContent value="componentes" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar componente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('componente')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Componente
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={2} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhum componente encontrado</p>
+                                <p className="text-sm mt-1">Adicione um novo componente</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const componente = item as ComponenteDTO
+                            return (
+                              <tr key={componente.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{componente.nome}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("componente", componente)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("componente", componente)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Equipes Tab (Placeholder) */}
+            <TabsContent value="equipes" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardContent className="p-12">
+                  <div className="text-center text-muted-foreground">
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <p className="font-medium text-lg">Funcionalidade em desenvolvimento</p>
+                    <p className="text-sm mt-2">A gestão de equipes estará disponível em breve.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -807,6 +974,12 @@ export default function CadastrosPage() {
                           Material
                         </div>
                       </SelectItem>
+                      <SelectItem value="andaime">
+                        <div className="flex items-center gap-2">
+                          <Construction className="w-4 h-4" />
+                          Andaime
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -818,7 +991,7 @@ export default function CadastrosPage() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSubmit} disabled={processing}>
+            <Button onClick={handleSubmit} disabled={processing} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
               {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editingItem ? "Salvar" : "Adicionar"}
             </Button>
@@ -848,6 +1021,6 @@ export default function CadastrosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardLayout>
+    </PageLayout>
   )
 }
