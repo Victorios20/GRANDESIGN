@@ -5,9 +5,15 @@ import {
   listarMadeirasPorFornecedor,
   buscarMadeirasParaSelector,
   criarMaterial,
+  listarTodosMateriais,
 } from "@/actions/materiais-db/materiais-db"
 
 export const runtime = "nodejs"
+
+const serializeMaterial = (m: any) => ({
+  ...m,
+  preco_unitario: m.preco_unitario ? Number(m.preco_unitario) : 0,
+})
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions)
@@ -18,17 +24,27 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const fornecedorIdParam = searchParams.get("fornecedorId")
   const q = searchParams.get("q") || undefined
-  const fornecedorId = fornecedorIdParam ? Number(fornecedorIdParam) : NaN
-  if (!Number.isFinite(fornecedorId) || fornecedorId <= 0) {
-    return NextResponse.json({ error: "fornecedorId inválido" }, { status: 400 })
-  }
+
   try {
+    // Se não há fornecedorId, retorna todos os materiais (para a tela de cadastros)
+    if (!fornecedorIdParam) {
+      const data = await listarTodosMateriais()
+      return NextResponse.json(data.map(serializeMaterial), { status: 200 })
+    }
+
+    const fornecedorId = Number(fornecedorIdParam)
+    if (!Number.isFinite(fornecedorId) || fornecedorId <= 0) {
+      return NextResponse.json({ error: "fornecedorId inválido" }, { status: 400 })
+    }
+
     const data = q
       ? await buscarMadeirasParaSelector(fornecedorId, q)
       : await listarMadeirasPorFornecedor(fornecedorId)
-    return NextResponse.json(data, { status: 200 })
+
+    return NextResponse.json(data.map(serializeMaterial), { status: 200 })
   } catch (e: any) {
-    const msg = e?.message || "Falha ao listar madeiras"
+    console.error("Erro em GET /api/materiais:", e)
+    const msg = e?.message || "Falha ao listar materiais"
     return NextResponse.json({ error: msg }, { status: 400 })
   }
 }
@@ -55,8 +71,8 @@ export async function POST(req: Request) {
 
   const tipo: "geral" | "telha" | "madeira" | undefined =
     tipoRaw && ["geral", "telha", "madeira"].includes(tipoRaw) ? (tipoRaw as any)
-    : hasFornecedor ? "madeira"
-    : undefined
+      : hasFornecedor ? "madeira"
+        : undefined
 
   if (!descricao) return NextResponse.json({ error: "Descricao obrigatória" }, { status: 400 })
   if (!Number.isFinite(preco) || preco < 0) return NextResponse.json({ error: "preco_unitario inválido" }, { status: 400 })
@@ -70,8 +86,9 @@ export async function POST(req: Request) {
       unidade_de_medida: unidade,
       fornecedorId: hasFornecedor ? forn : undefined,
     })
-    return NextResponse.json(criado, { status: 201 })
+    return NextResponse.json(serializeMaterial(criado), { status: 201 })
   } catch (e: any) {
+    console.error("Erro em POST /api/materiais:", e)
     const msg = e?.message || "Falha ao criar material"
     return NextResponse.json({ error: msg }, { status: 400 })
   }

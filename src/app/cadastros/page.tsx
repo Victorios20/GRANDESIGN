@@ -1,0 +1,1026 @@
+"use client"
+
+import { useState, useEffect, useCallback } from "react"
+import { PageLayout } from "@/components/ui/pageLayout"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Toaster, toast } from "sonner"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Package,
+  TreePine,
+  Home,
+  Truck,
+  Users,
+  Search,
+  ChevronRight,
+  ArrowLeft,
+  X,
+  Loader2,
+  Construction
+} from "lucide-react"
+import { cn } from "@/lib/utils"
+import {
+  getFornecedores, createFornecedor, updateFornecedor, deleteFornecedor,
+  getMateriais, createMaterial, updateMaterial, deleteMaterial,
+  getComponentes, createComponente, updateComponente, deleteComponente,
+  FornecedorDTO, MaterialDTO, ComponenteDTO
+} from "@/services/api/cadastros"
+
+export default function CadastrosPage() {
+  // Navigation state
+  type Category = "fornecedores" | "materiais" | "telhas" | "componentes" | "equipes"
+  const [activeCategory, setActiveCategory] = useState<Category>("fornecedores")
+  const [selectedFornecedor, setSelectedFornecedor] = useState<FornecedorDTO | null>(null)
+
+  // Data state
+  const [materiais, setMateriais] = useState<MaterialDTO[]>([])
+  const [componentes, setComponentes] = useState<ComponenteDTO[]>([])
+  const [fornecedores, setFornecedores] = useState<FornecedorDTO[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [equipes] = useState<{ id: number, nome: string }[]>([]) // Placeholder for equipes
+
+  // Loading states
+  const [loading, setLoading] = useState(false)
+  const [processing, setProcessing] = useState(false)
+
+  // Search
+  const [searchTerm, setSearchTerm] = useState("")
+
+  // Modal states
+  const [modalOpen, setModalOpen] = useState(false)
+  const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "equipe">("material")
+  const [editingItem, setEditingItem] = useState<any>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<{ type: string; item: any } | null>(null)
+
+  // Form state
+  const [formData, setFormData] = useState<Record<string, string>>({})
+
+  // Fetch functions
+  const loadFornecedores = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await getFornecedores()
+      setFornecedores(data)
+    } catch (error) {
+      toast.error("Erro ao carregar fornecedores")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadMateriais = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await getMateriais()
+      setMateriais(data)
+    } catch (error) {
+      toast.error("Erro ao carregar materiais")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadComponentes = useCallback(async () => {
+    try {
+      setLoading(true)
+      const data = await getComponentes()
+      setComponentes(data)
+    } catch (error) {
+      toast.error("Erro ao carregar componentes")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Load data on mount
+  useEffect(() => {
+    loadFornecedores()
+    loadMateriais()
+    loadComponentes()
+  }, [loadFornecedores, loadMateriais, loadComponentes])
+
+  // Helper functions
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  }
+
+  const getTipoFornecedorLabel = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return "Madeira"
+      case "telha": return "Telha"
+      case "material": return "Material"
+      case "materiais": return "Materiais"
+      case "andaime": return "Andaime"
+      default: return "Material"
+    }
+  }
+
+  const getTipoFornecedorIcon = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return TreePine
+      case "telha": return Home
+      case "andaime": return Construction
+      default: return Package
+    }
+  }
+
+  const getTipoFornecedorColor = (tipo?: string | null) => {
+    switch (tipo?.toLowerCase()) {
+      case "madeira": return "bg-green-100 text-green-800 border-green-300"
+      case "telha": return "bg-orange-100 text-orange-800 border-orange-300"
+      case "andaime": return "bg-yellow-100 text-yellow-800 border-yellow-300"
+      default: return "bg-blue-100 text-blue-800 border-blue-300"
+    }
+  }
+
+  // Get filtered data based on current view
+  const getFilteredData = () => {
+    if (selectedFornecedor) {
+      // Show fornecedor's products (madeira or telha)
+      return materiais
+        .filter(m => m.fornecedorId === selectedFornecedor.id)
+        .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
+    }
+
+    switch (activeCategory) {
+      case "fornecedores":
+        return fornecedores.filter(f => f.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "materiais":
+        // Show only general materials (no fornecedor)
+        return materiais
+          .filter(m => !m.fornecedorId && (m.tipo === 'geral' || !m.tipo))
+          .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "telhas":
+        // Show all telhas (tipo='telha')
+        return materiais
+          .filter(m => m.tipo?.toLowerCase() === 'telha')
+          .filter(m => m.descricao.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "componentes":
+        return componentes.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "equipes":
+        return equipes.filter(e => e.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+      default:
+        return []
+    }
+  }
+
+  // Modal handlers
+  const openAddModal = (type: typeof modalType) => {
+    setModalType(type)
+    setEditingItem(null)
+    setFormData({})
+    setModalOpen(true)
+  }
+
+  const openEditModal = (type: typeof modalType, item: any) => {
+    setModalType(type)
+    setEditingItem(item)
+
+    // Populate form
+    if (type === "fornecedor") {
+      // Normalize tipo to lowercase since DB stores in uppercase
+      const tipoNormalized = item.tipo?.toLowerCase() || "material"
+      setFormData({ nome: item.nome, tipo: tipoNormalized })
+    } else if (type === "material" || type === "madeira" || type === "telha") {
+      setFormData({ nome: item.descricao, preco: String(item.preco_unitario) })
+    } else if (type === "componente") {
+      setFormData({ nome: item.nome })
+    }
+
+    setModalOpen(true)
+  }
+
+  const getModalTitle = () => {
+    const action = editingItem ? "Editar" : "Adicionar"
+    switch (modalType) {
+      case "fornecedor": return `${action} Fornecedor`
+      case "material": return `${action} Material`
+      case "madeira": return `${action} Madeira`
+      case "telha": return `${action} Telha`
+      case "componente": return `${action} Componente`
+      case "equipe": return `${action} Equipe`
+      default: return action
+    }
+  }
+
+  // CRUD operations
+  const handleSubmit = async () => {
+    try {
+      setProcessing(true)
+
+      if (modalType === "fornecedor") {
+        if (editingItem) {
+          await updateFornecedor(editingItem.id, { nome: formData.nome, tipo: formData.tipo })
+          toast.success("Fornecedor atualizado!")
+        } else {
+          await createFornecedor({ nome: formData.nome, tipo: formData.tipo || "material" })
+          toast.success("Fornecedor criado!")
+        }
+        await loadFornecedores()
+      } else if (modalType === "material" || modalType === "madeira" || modalType === "telha") {
+        const payload: any = {
+          descricao: formData.nome,
+          preco_unitario: parseFloat(formData.preco) || 0
+        }
+
+        if (modalType === "madeira" || modalType === "telha") {
+          payload.fornecedorId = selectedFornecedor?.id
+          payload.tipo = modalType
+        } else {
+          payload.tipo = "geral"
+        }
+
+        if (editingItem) {
+          await updateMaterial(editingItem.id, payload)
+          toast.success("Material atualizado!")
+        } else {
+          await createMaterial(payload)
+          toast.success("Material criado!")
+        }
+        await loadMateriais()
+      } else if (modalType === "componente") {
+        if (editingItem) {
+          await updateComponente(editingItem.id, { nome: formData.nome })
+          toast.success("Componente atualizado!")
+        } else {
+          await createComponente({ nome: formData.nome })
+          toast.success("Componente criado!")
+        }
+        await loadComponentes()
+      }
+
+      setModalOpen(false)
+      setFormData({})
+      setEditingItem(null)
+    } catch (error) {
+      toast.error("Erro ao salvar")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const openDeleteDialog = (type: string, item: any) => {
+    setItemToDelete({ type, item })
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return
+
+    try {
+      setProcessing(true)
+
+      if (itemToDelete.type === "fornecedor") {
+        await deleteFornecedor(itemToDelete.item.id)
+        toast.success("Fornecedor excluído!")
+        await loadFornecedores()
+      } else if (itemToDelete.type === "material" || itemToDelete.type === "madeira" || itemToDelete.type === "telha") {
+        await deleteMaterial(itemToDelete.item.id)
+        toast.success("Material excluído!")
+        await loadMateriais()
+      } else if (itemToDelete.type === "componente") {
+        await deleteComponente(itemToDelete.item.id)
+        toast.success("Componente excluído!")
+        await loadComponentes()
+      }
+
+      setDeleteDialogOpen(false)
+      setItemToDelete(null)
+    } catch (error) {
+      toast.error("Erro ao excluir")
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  // Navigation helpers
+  const getAddButtonType = (): typeof modalType => {
+    if (selectedFornecedor) {
+      return selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
+    }
+    switch (activeCategory) {
+      case "fornecedores": return "fornecedor"
+      case "materiais": return "material"
+      case "componentes": return "componente"
+      case "equipes": return "equipe"
+      default: return "material"
+    }
+  }
+
+  const handleFornecedorClick = (fornecedor: FornecedorDTO) => {
+    // Apenas fornecedores de madeira podem ser expandidos
+    // Telhas mantidas sem separação por fornecedor conforme solicitado
+    if (fornecedor.tipo?.toLowerCase() !== "madeira") return
+    setSelectedFornecedor(fornecedor)
+    setSearchTerm("")
+  }
+
+  const handleBack = () => {
+    setSelectedFornecedor(null)
+    setSearchTerm("")
+  }
+
+  const filteredData = getFilteredData()
+
+  return (
+    <PageLayout
+      pageBackground="bg-bege-pagina"
+    >
+      <Toaster richColors />
+
+      <div className="space-y-6">
+        {selectedFornecedor ? (
+          // Fornecedor Detail View
+          <Card className="bg-card border-border">
+            <CardHeader className="border-b border-border">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBack}
+                    className="p-1.5 h-auto"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </Button>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-xl">{selectedFornecedor.nome}</CardTitle>
+                      <Badge className={getTipoFornecedorColor(selectedFornecedor.tipo)}>
+                        {getTipoFornecedorLabel(selectedFornecedor.tipo)}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                      {materiais.filter(m => m.fornecedorId === selectedFornecedor.id).length} itens cadastrados
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => openAddModal(getAddButtonType())}
+                  className="bg-marromEscuro text-bege hover:bg-marromEscuro/90"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar {selectedFornecedor.tipo === "madeira" ? "Madeira" : "Telha"}
+                </Button>
+              </div>
+
+              {/* Search */}
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-9"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                    <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Preço</TableHead>
+                    <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-4 py-12 text-center">
+                        <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="px-4 py-12 text-center">
+                        <div className="text-muted-foreground">
+                          <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                          <p className="font-medium">Nenhum item encontrado</p>
+                          <p className="text-sm mt-1">Adicione um novo item ou ajuste sua busca</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((item) => {
+                      const product = item as MaterialDTO
+                      const type = selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
+
+                      return (
+                        <TableRow key={product.id} className="hover:bg-muted/30">
+                          <TableCell className="px-4 py-3 font-medium">{product.descricao}</TableCell>
+                          <TableCell className="px-4 py-3 text-muted-foreground">{formatCurrency(Number(product.preco_unitario))}</TableCell>
+                          <TableCell className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openEditModal(type, product)}
+                                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                aria-label="Editar"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => openDeleteDialog(type, product)}
+                                className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                aria-label="Excluir"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : (
+          // Main Tabs View
+          <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as Category)}>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="fornecedores" className="gap-2">
+                <Truck className="w-4 h-4" />
+                <span className="hidden sm:inline">Fornecedores</span>
+                <span className="sm:hidden">Fornec.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{fornecedores.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="materiais" className="gap-2">
+                <Package className="w-4 h-4" />
+                <span className="hidden sm:inline">Materiais</span>
+                <span className="sm:hidden">Mat.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo === 'geral' || !m.tipo).length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="telhas" className="gap-2">
+                <Home className="w-4 h-4" />
+                <span className="hidden sm:inline">Telhas</span>
+                <span className="sm:hidden">Tel.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo?.toLowerCase() === 'telha').length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="componentes" className="gap-2">
+                <Package className="w-4 h-4" />
+                <span className="hidden sm:inline">Componentes</span>
+                <span className="sm:hidden">Comp.</span>
+                <Badge variant="secondary" className="text-xs ml-1">{componentes.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="equipes" className="gap-2">
+                <Users className="w-4 h-4" />
+                Equipes
+                <Badge variant="secondary" className="text-xs ml-1">{equipes.length}</Badge>
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Fornecedores Tab */}
+            <TabsContent value="fornecedores" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar fornecedor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('fornecedor')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Fornecedor
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Tipo</TableHead>
+                        <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <div className="text-muted-foreground">
+                              <Truck className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                              <p className="font-medium">Nenhum fornecedor encontrado</p>
+                              <p className="text-sm mt-1">Adicione um novo fornecedor</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredData.map((item) => {
+                          const fornecedor = item as FornecedorDTO
+                          const Icon = getTipoFornecedorIcon(fornecedor.tipo)
+                          const isClickable = fornecedor.tipo?.toLowerCase() === "madeira"
+                          const productCount = materiais.filter(m => m.fornecedorId === fornecedor.id).length
+
+                          return (
+                            <TableRow
+                              key={fornecedor.id}
+                              onClick={() => isClickable && handleFornecedorClick(fornecedor)}
+                              className={cn(
+                                "hover:bg-muted/30 transition-colors",
+                                isClickable ? "cursor-pointer" : ""
+                              )}
+                            >
+                              <TableCell className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-medium">{fornecedor.nome}</span>
+                                  {isClickable && (
+                                    <Badge variant="outline" className="text-xs">
+                                      {productCount} itens
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="px-4 py-3">
+                                <Badge className={cn("text-xs gap-1", getTipoFornecedorColor(fornecedor.tipo))}>
+                                  <Icon className="w-3 h-3" />
+                                  {getTipoFornecedorLabel(fornecedor.tipo)}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {isClickable && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleFornecedorClick(fornecedor)
+                                      }}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Ver produtos"
+                                    >
+                                      <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openEditModal("fornecedor", fornecedor)
+                                    }}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    aria-label="Editar"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openDeleteDialog("fornecedor", fornecedor)
+                                    }}
+                                    className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    aria-label="Excluir"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Materiais Tab */}
+            <TabsContent value="materiais" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar material..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('material')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Material
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Nome</TableHead>
+                        <TableHead className="px-4 py-3 font-semibold text-muted-foreground">Preço</TableHead>
+                        <TableHead className="text-right px-4 py-3 font-semibold text-muted-foreground w-24">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredData.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="px-4 py-12 text-center">
+                            <div className="text-muted-foreground">
+                              <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                              <p className="font-medium">Nenhum material encontrado</p>
+                              <p className="text-sm mt-1">Adicione um novo material</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredData.map((item) => {
+                          const material = item as MaterialDTO
+                          return (
+                            <TableRow key={material.id} className="hover:bg-muted/30">
+                              <TableCell className="px-4 py-3 font-medium">{material.descricao}</TableCell>
+                              <TableCell className="px-4 py-3 text-muted-foreground">{formatCurrency(Number(material.preco_unitario))}</TableCell>
+                              <TableCell className="px-4 py-3 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => openEditModal("material", material)}
+                                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    aria-label="Editar"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => openDeleteDialog("material", material)}
+                                    className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    aria-label="Excluir"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Telhas Tab */}
+            <TabsContent value="telhas" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar telha..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('telha')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nova Telha
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Preço</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <Home className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhuma telha encontrada</p>
+                                <p className="text-sm mt-1">Adicione uma nova telha</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const telha = item as MaterialDTO
+                            return (
+                              <tr key={telha.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{telha.descricao}</td>
+                                <td className="px-4 py-3 text-sm text-muted-foreground">{formatCurrency(Number(telha.preco_unitario))}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("telha", telha)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("telha", telha)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Componentes Tab */}
+            <TabsContent value="componentes" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar componente..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('componente')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Novo Componente
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={2} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={2} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhum componente encontrado</p>
+                                <p className="text-sm mt-1">Adicione um novo componente</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const componente = item as ComponenteDTO
+                            return (
+                              <tr key={componente.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{componente.nome}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("componente", componente)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("componente", componente)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Equipes Tab (Placeholder) */}
+            <TabsContent value="equipes" className="space-y-4">
+              <Card className="bg-card border-border">
+                <CardContent className="p-12">
+                  <div className="text-center text-muted-foreground">
+                    <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <p className="font-medium text-lg">Funcionalidade em desenvolvimento</p>
+                    <p className="text-sm mt-2">A gestão de equipes estará disponível em breve.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
+
+      {/* Add/Edit Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{getModalTitle()}</DialogTitle>
+            <DialogDescription>
+              {editingItem ? "Atualize as informações abaixo" : "Preencha as informações abaixo"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Nome field - always present */}
+            <div className="space-y-2">
+              <Label htmlFor="nome">Nome</Label>
+              <Input
+                id="nome"
+                value={formData.nome || ""}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                placeholder="Digite o nome"
+              />
+            </div>
+
+            {/* Price field - for materials, woods, tiles */}
+            {(modalType === "material" || modalType === "madeira" || modalType === "telha") && (
+              <div className="space-y-2">
+                <Label htmlFor="preco">Preço (R$)</Label>
+                <Input
+                  id="preco"
+                  type="number"
+                  step="0.01"
+                  value={formData.preco || ""}
+                  onChange={(e) => setFormData({ ...formData, preco: e.target.value })}
+                  placeholder="0,00"
+                />
+              </div>
+            )}
+
+            {/* Supplier type - for suppliers */}
+            {modalType === "fornecedor" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="tipo">Tipo</Label>
+                  <Select
+                    value={formData.tipo || "material"}
+                    onValueChange={(value) => setFormData({ ...formData, tipo: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="madeira">
+                        <div className="flex items-center gap-2">
+                          <TreePine className="w-4 h-4" />
+                          Madeira
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="telha">
+                        <div className="flex items-center gap-2">
+                          <Home className="w-4 h-4" />
+                          Telha
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="material">
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4" />
+                          Material
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="andaime">
+                        <div className="flex items-center gap-2">
+                          <Construction className="w-4 h-4" />
+                          Andaime
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={processing} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+              {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editingItem ? "Salvar" : "Adicionar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={processing}
+            >
+              {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageLayout>
+  )
+}

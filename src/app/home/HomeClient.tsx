@@ -17,6 +17,7 @@ import {
   TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 type HomeUltimaObraDTO = {
   id: number
@@ -90,6 +91,7 @@ function getStatusColor(status: string) {
 }
 
 export default function HomeClient({ initial }: Props) {
+  const router = useRouter()
   const { indicadores, ultimasObras, ultimosOrcamentos } = initial
 
   const pctOrc = formatPct(indicadores.orcamentosVsMesAnteriorPercent)
@@ -234,10 +236,10 @@ export default function HomeClient({ initial }: Props) {
                       <action.icon className="w-6 h-6 text-primary-foreground" />
                     </div>
                     <div className="flex-1">
-                      <p className="font-semibold text-foreground group-hover:text-primary-foreground">{action.label}</p>
-                      <p className="text-sm text-muted-foreground">{action.description}</p>
+                      <p className="font-semibold text-foreground group-hover:text-primary transition-colors">{action.label}</p>
+                      <p className="text-sm text-muted-foreground group-hover:text-muted-foreground/80 transition-colors">{action.description}</p>
                     </div>
-                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary-foreground group-hover:translate-x-1 transition-all" />
+                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
                   </CardContent>
                 </Card>
               </Link>
@@ -278,6 +280,7 @@ export default function HomeClient({ initial }: Props) {
                       {ultimasObras.map((obra) => (
                         <tr
                           key={obra.id}
+                          onClick={() => router.push(`/obras/${obra.id}`)}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
                         >
                           <td className="px-4 py-3 text-sm font-medium text-foreground">
@@ -340,6 +343,7 @@ export default function HomeClient({ initial }: Props) {
                       {ultimosOrcamentos.map((orc) => (
                         <tr
                           key={orc.id}
+                          onClick={() => router.push(`/orcamento/detalhes/${orc.id}`)}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
                         >
                           <td className="px-4 py-3 text-sm font-medium text-foreground">
