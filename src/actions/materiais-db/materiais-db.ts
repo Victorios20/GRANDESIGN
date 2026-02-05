@@ -150,6 +150,12 @@ export async function listarMateriaisGerais(): Promise<Material[]> {
   })
 }
 
+export async function listarTodosMateriais(): Promise<Material[]> {
+  return prisma.materiais.findMany({
+    orderBy: { descricao: "asc" },
+  })
+}
+
 export async function removerMaterial(id: number) {
   return prisma.materiais.delete({
     where: { id },
