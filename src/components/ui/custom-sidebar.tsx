@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   CalendarDays,
   Settings as SettingsIcon,
+  Contact,
 } from "lucide-react"
 
 import Link from "next/link"
@@ -226,6 +227,26 @@ export function CustomSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
+                        tooltip="Clientes"
+                        isActive={isActive("/clientes")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/clientes">
+                          <Contact className={iconClass(isActive("/clientes"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Clientes
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+
+                  <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
                         tooltip="Obras"
                         isActive={isActive("/obras")}
                         className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
@@ -242,7 +263,7 @@ export function CustomSidebar() {
                     </SidebarMenuItem>
                   </motion.div>
 
-                  <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -262,7 +283,7 @@ export function CustomSidebar() {
                     </SidebarMenuItem>
                   </motion.div>
 
-                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -298,7 +319,7 @@ export function CustomSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <TooltipProvider delayDuration={300}>
-                  <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -319,7 +340,7 @@ export function CustomSidebar() {
                   </motion.div>
 
                   {canSeeAdmin && (
-                    <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild

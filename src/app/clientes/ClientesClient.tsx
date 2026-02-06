@@ -12,7 +12,19 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 
-import { EllipsisVertical, Edit, Users, Receipt, HardHat } from "lucide-react"
+import { EllipsisVertical, Edit, Users, Receipt, HardHat, Trash2, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 import FilterCardClientes, { FilterStateClientes } from "@/components/clientes/FilterCardClientes"
 
@@ -141,7 +153,7 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
                 sort: false,
                 filter: false,
                 customBodyRender: (val, meta) => (
-                    <div className="font-semibold text-marromEscuro">{safeCell(val)}</div>
+                    <div className="font-semibold text-gray-900">{safeCell(val)}</div>
                 ),
             },
         },
@@ -238,7 +250,16 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
         print: false,
         download: false,
         viewColumns: true,
-        selectableRows: "none",
+        selectableRows: "multiple",
+        customToolbarSelect: (selectedRows, displayData, setSelectedRows) => (
+            <CustomToolbarSelect
+                selectedRows={selectedRows}
+                displayData={displayData}
+                setSelectedRows={setSelectedRows}
+                clientes={clientes}
+                onRefresh={consultar}
+            />
+        ),
         serverSide: true,
         count: total,
         page,
@@ -267,6 +288,11 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
         textLabels: {
             body: {
                 noMatch: loadingTabela ? "Carregando..." : "Nenhum cliente encontrado",
+            },
+            selectedRows: {
+                text: "cliente(s) selecionado(s)",
+                delete: "Excluir",
+                deleteAria: "Excluir Clientes Selecionados",
             },
         },
     }
@@ -297,7 +323,7 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
 
     const headerActions = (
         <Link href="/clientes/novo">
-            <InteractiveHoverButton>New Customer</InteractiveHoverButton>
+            <InteractiveHoverButton>Novo Cliente</InteractiveHoverButton>
         </Link>
     )
 
@@ -375,5 +401,87 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
                 </Card>
             </TooltipProvider>
         </PageLayout>
+    )
+}
+
+const CustomToolbarSelect = ({
+    selectedRows,
+    displayData,
+    setSelectedRows,
+    clientes,
+    onRefresh,
+}: {
+    selectedRows: any
+    displayData: any
+    setSelectedRows: (rows: any) => void
+    clientes: ClienteRow[]
+    onRefresh: () => void
+}) => {
+    const [open, setOpen] = useState(false)
+    const [processing, setProcessing] = useState(false)
+
+    async function handleMassDelete() {
+        setProcessing(true)
+        try {
+            // Map selected indices to client IDs
+            const selectedIndices = selectedRows.data.map((d: any) => d.dataIndex)
+            const idsToDelete = selectedIndices.map((idx: number) => clientes[idx].id)
+
+            if (idsToDelete.length === 0) return
+
+            const { deleteClientesMass } = await import("@/actions/clientes-db/clientes-db")
+            const res = await deleteClientesMass(idsToDelete)
+
+            if (res.errors === 0 && res.blocked === 0) {
+                toast.success(`${res.deleted} cliente(s) excluído(s) com sucesso!`)
+            } else {
+                toast.warning(
+                    `Operação concluída: ${res.deleted} excluídos, ${res.blocked} bloqueados (vínculos), ${res.errors} erros.`
+                )
+            }
+            setSelectedRows([])
+            onRefresh()
+        } catch (err) {
+            console.error(err)
+            toast.error("Erro ao processar exclusão em massa.")
+        } finally {
+            setProcessing(false)
+            setOpen(false)
+        }
+    }
+
+    return (
+        <div className="mr-6">
+            <AlertDialog open={open} onOpenChange={setOpen}>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="gap-2">
+                        <Trash2 className="w-4 h-4" />
+                        Excluir Selecionados
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Clientes?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Você está prestes a excluir {selectedRows.data.length} cliente(s).
+                            Clientes com obras ou orçamentos vinculados não serão excluídos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                                e.preventDefault() // Prevent auto-close to handle async
+                                handleMassDelete()
+                            }}
+                            className="bg-red-600 hover:bg-red-700"
+                            disabled={processing}
+                        >
+                            {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Confirmar Exclusão"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
     )
 }

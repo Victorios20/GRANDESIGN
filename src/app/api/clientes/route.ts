@@ -1,11 +1,9 @@
-import { NextRequest } from "next/server"
-import { json } from "@/lib/api-utils"
+import { NextRequest, NextResponse } from "next/server"
 import { listarClientes } from "@/actions/clientes-db/clientes-db"
 
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  const requestId = req.headers.get("x-request-id") || crypto.randomUUID()
   try {
     const { searchParams } = new URL(req.url)
 
@@ -31,9 +29,9 @@ export async function GET(req: NextRequest) {
       ordem,
     })
 
-    return json(out, 200, requestId)
+    return NextResponse.json(out, { status: 200 })
   } catch (err: any) {
     console.error("[GET /api/clientes] unexpected", err)
-    return json({ error: "UNEXPECTED_ERROR", requestId }, 500, requestId)
+    return NextResponse.json({ error: "UNEXPECTED_ERROR" }, { status: 500 })
   }
 }

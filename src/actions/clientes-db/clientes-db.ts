@@ -1,3 +1,5 @@
+"use server"
+
 import { prisma } from "@/lib/prisma"
 
 function onlyDigits(s?: string | null) {
@@ -290,6 +292,47 @@ export async function deleteCliente(id: number): Promise<{
     console.error("[deleteCliente]", err)
     return { success: false, error: err.message || "Erro ao excluir cliente" }
   }
+}
+
+// =====================
+// MASS DELETE
+// =====================
+export async function deleteClientesMass(ids: number[]): Promise<{
+  deleted: number
+  blocked: number
+  errors: number
+  details: Array<{ id: number; status: "deleted" | "blocked" | "error"; message?: string }>
+}> {
+  const results: Array<{ id: number; status: "deleted" | "blocked" | "error"; message?: string }> = []
+  let deleted = 0
+  let blocked = 0
+  let errors = 0
+
+  // We process sequentially 
+  for (const id of ids) {
+    try {
+      const res = await deleteCliente(id)
+      if (res.success) {
+        deleted++
+        results.push({ id, status: "deleted" })
+      } else if (res.blockedBy) {
+        blocked++
+        results.push({
+          id,
+          status: "blocked",
+          message: `Vínculos: ${res.blockedBy.obras} Obras, ${res.blockedBy.orcamentos} Orçamentos`
+        })
+      } else {
+        errors++
+        results.push({ id, status: "error", message: res.error })
+      }
+    } catch (err: any) {
+      errors++
+      results.push({ id, status: "error", message: err.message })
+    }
+  }
+
+  return { deleted, blocked, errors, details: results }
 }
 
 // =====================

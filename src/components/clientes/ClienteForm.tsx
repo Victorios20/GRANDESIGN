@@ -29,8 +29,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-import { upsertCliente } from "@/actions/clientes-db/clientes-db"
-import { deleteCliente } from "@/actions/clientes-db/clientes-db"
+import { updateCliente, criarClienteBasico, deleteCliente } from "@/actions/clientes-db/clientes-db"
 import type { ClienteDetalheDTO } from "@/actions/clientes-db/clientes-db"
 import Link from "next/link"
 
@@ -87,24 +86,15 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
 
             if (isEditing && initialData) {
                 // Update
-                const res = await upsertCliente({ id: initialData.id, ...payload } as any) // Using createClienteBasico signature or update?
-                // Wait, action upsert-cliente was promised in Plan but I implemented updateCliente inside generic clientes-db.ts 
-                // Let's check the imports. I imported updateCliente/createCliente from `clientes-db`.
-                // Actually, looking at previous steps, I implemented `updateCliente` and `criarClienteBasico`.
-                // I need to use the correct function based on isEditing.
+                const res = await updateCliente(initialData.id, payload)
+                if (!res.success) throw new Error(res.error || "Erro ao atualizar")
 
-                // I will use `updateCliente` for edit and `criarClienteBasico` for new.
-                // Wait, check `clientes-db.ts` content again.
-                // It has `updateCliente` and `criarClienteBasico`.
-
-                await updateClienteWrapper(initialData.id, payload)
                 toast.success("Cliente atualizado com sucesso!")
             } else {
                 // Create
-                // criarClienteBasico takes { nome, telefone, bairro, cidade_id, cpf }
-                await createClienteWrapper(payload)
+                await criarClienteBasico(payload)
                 toast.success("Cliente criado com sucesso!")
-                router.push("/clientes") // Redirect to list on create
+                router.push("/clientes")
                 return
             }
 
@@ -115,20 +105,6 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
         } finally {
             setSaving(false)
         }
-    }
-
-    // Wrappers to match exact signatures if needed or handle API calls
-    async function updateClienteWrapper(id: number, data: any) {
-        const mod = await import("@/actions/clientes-db/clientes-db")
-        const res = await mod.updateCliente(id, data)
-        if (!res.success) throw new Error(res.error)
-        return res
-    }
-
-    async function createClienteWrapper(data: any) {
-        const mod = await import("@/actions/clientes-db/clientes-db")
-        const res = await mod.criarClienteBasico(data)
-        return res
     }
 
 
