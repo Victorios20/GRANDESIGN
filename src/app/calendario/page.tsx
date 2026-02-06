@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/tooltip"
 import { Toaster, toast } from "sonner"
 import { AgendaEditor } from "@/components/agenda/AgendaEditor"
-import { detalharObraDB } from "@/actions/obras/detalhar-obra"
 import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
 import {
   Calendar,
@@ -176,9 +175,9 @@ export default function CalendarioPage() {
   // User permissions
   const [canEdit] = useState(true)
 
-  // Initialize external draggable - simple and clean
+  // Initialize external draggable - stable initialization
   useEffect(() => {
-    if (sidebarCollapsed || !draggableContainerRef.current || obrasSemAgenda.length === 0) {
+    if (sidebarCollapsed || !draggableContainerRef.current) {
       return
     }
 
@@ -195,7 +194,7 @@ export default function CalendarioPage() {
     })
 
     return () => draggable.destroy()
-  }, [sidebarCollapsed, obrasSemAgenda.length])
+  }, [sidebarCollapsed]) // Only recreate when sidebar collapses/expands
 
   // Load equipes (cached)
   const loadEquipes = useCallback(async () => {
@@ -210,9 +209,9 @@ export default function CalendarioPage() {
   // Load obras sem agenda (cached)
   const loadObrasSemAgenda = useCallback(async (bustCache = false) => {
     try {
-      const json = await fetchWithCache("/api/obras/table-search?status=!FINALIZADO&page=1&perPage=100", bustCache)
-      const obras = (json.dados || []).filter((o: any) => !o._count?.segmentos || o._count.segmentos === 0)
-      setObrasSemAgenda(obras)
+      // Use server-side filter for better performance
+      const json = await fetchWithCache("/api/obras/table-search?status=!FINALIZADO&semAgenda=true&page=1&perPage=100", bustCache)
+      setObrasSemAgenda(json.dados || [])
     } catch (err) {
       console.error("Failed to load obras:", err)
     }
@@ -538,13 +537,19 @@ export default function CalendarioPage() {
 
 
 
-  // Fetch agenda wrapper
+  // Fetch agenda wrapper - uses API to avoid Prisma in browser
   const fetchAgendaForEditor = async (idOfObra: number) => {
     try {
       setIsFetchingAgenda(true)
-      const details = await detalharObraDB(idOfObra)
 
-      const mapped: AgendaSegmentInput[] = (details.agenda || []).map(s => ({
+      const res = await fetch(`/api/obras/${idOfObra}/detalhado`)
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status}`)
+      }
+      const json = await res.json()
+      const details = json.data
+
+      const mapped: AgendaSegmentInput[] = (details?.agenda || []).map((s: any) => ({
         id: s.id,
         start: s.start,
         end: s.end,
@@ -556,8 +561,6 @@ export default function CalendarioPage() {
 
       // If creating new interaction (selected via range), append a draft segment
       if (modalMode === "create" && formInicio && formFim) {
-        // Only append if not already present (basic check)
-        // Actually, always append for now as "New Segment"
         mapped.push({
           id: -Date.now(),
           start: formInicio,
@@ -717,7 +720,7 @@ export default function CalendarioPage() {
                     obrasSemAgenda.map((obra) => (
                       <div
                         key={obra.id}
-                        className={`draggable-obra p-3 rounded-lg border border-l-4 bg-card hover:bg-accent/50 cursor-grab active:cursor-grabbing group shadow-sm hover:shadow-md transition-all duration-200 ${getStatusBorderColor(obra.status)}`}
+                        className={`draggable-obra p-3 rounded-lg border border-l-4 bg-card hover:bg-accent/50 cursor-grab active:cursor-grabbing group shadow-sm hover:shadow-md ${getStatusBorderColor(obra.status)}`}
                         data-obra-id={obra.id}
                         data-titulo={obra.titulo || `Obra #${obra.id}`}
                       >

@@ -1,17 +1,15 @@
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
-import { Plus, Trash2, Calendar, User, Copy, AlertTriangle, Wrench, Hammer, ArrowRight, Circle } from "lucide-react"
+import { Plus, Trash2, Copy, AlertTriangle, Wrench, Hammer, ArrowRight, Calendar } from "lucide-react"
 import { toast } from "sonner"
-import { format, addDays, isValid, isBefore, startOfDay, intervalToDuration } from "date-fns"
+import { format, addDays, isValid, isBefore, startOfDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
 import { updateAgendaSegments, AgendaSegmentInput } from "@/actions/obras/update-agenda"
@@ -216,9 +214,8 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
             toast.warning("A agenda deve ter pelo menos um período.")
             return
         }
-        if (confirm("Remover este período?")) {
-            setSegments(prev => prev.filter(s => s.id !== id))
-        }
+        setSegments(prev => prev.filter(s => s.id !== id))
+        toast.success("Período removido")
     }
 
     // --- Sub-components for Read-Only vs Edit ---
@@ -289,112 +286,116 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
 
     const EditItem = ({ seg, index }: { seg: AgendaSegmentInput, index: number }) => {
         const isMaintenance = seg.tipo === "MANUTENCAO"
-        // Status is hidden
-        const isCancelled = false
+        const equipe = equipes.find(e => e.id === seg.equipeId)
+
+        // Calculate duration
+        const start = parseYMD(seg.start)
+        const end = parseYMD(seg.end)
+        const diffTime = (end?.getTime() || 0) - (start?.getTime() || 0)
+        const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1
 
         return (
-            <div className={`relative flex flex-col gap-2 p-3 rounded-lg border transition-all 
-                ${isMaintenance ? "bg-amber-50/50 border-amber-200" : "bg-card border-border"}
-            `}>
-                <div className="absolute -left-2 top-3 w-5 h-5 rounded-full bg-background border shadow-sm flex items-center justify-center text-[10px] font-bold z-10 text-muted-foreground">
-                    {index + 1}
-                </div>
+            <div className={cn(
+                "group rounded-xl border transition-all duration-200",
+                "hover:shadow-md hover:border-primary/30",
+                isMaintenance
+                    ? "bg-amber-50/50 border-amber-200/60"
+                    : "bg-card border-border"
+            )}>
+                {/* Main Content Row */}
+                <div className="flex flex-wrap items-center gap-2 p-3">
+                    {/* Index Badge */}
+                    <div className={cn(
+                        "w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0",
+                        isMaintenance
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-primary/10 text-primary"
+                    )}>
+                        {index + 1}
+                    </div>
 
-                {/* Header: Type, Period */}
-                <div className="flex items-center justify-between gap-2 pl-2">
-                    <div className="flex items-center gap-2">
+                    {/* Type Selector */}
+                    <div className="flex items-center gap-1 shrink-0">
                         {isMaintenance ? <Wrench className="w-3.5 h-3.5 text-amber-600" /> : <Hammer className="w-3.5 h-3.5 text-primary" />}
-                        <Select
-                            value={seg.tipo || "EXECUCAO"}
-                            onValueChange={v => handleChange(seg.id!, "tipo", v)}
-                        >
-                            <SelectTrigger className="h-6 text-[10px] w-auto border-none shadow-none p-0 h-auto font-semibold bg-transparent focus:ring-0">
+                        <Select value={seg.tipo || "EXECUCAO"} onValueChange={v => handleChange(seg.id!, "tipo", v)}>
+                            <SelectTrigger className="h-auto p-0 border-none shadow-none bg-transparent focus:ring-0 text-xs font-semibold text-foreground/80 hover:text-foreground w-auto gap-0.5">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="EXECUCAO">Execução (Obra)</SelectItem>
-                                {isObraFinalizada && (
-                                    <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
-                                )}
+                                <SelectItem value="EXECUCAO">Execução</SelectItem>
+                                {isObraFinalizada && <SelectItem value="MANUTENCAO">Manutenção</SelectItem>}
                             </SelectContent>
                         </Select>
                     </div>
-                </div>
 
-                {/* Main Inputs */}
-                <div className="grid grid-cols-12 gap-3 pl-2 mt-2">
-                    {/* Dates */}
-                    <div className="col-span-12 sm:col-span-7 flex flex-col gap-1.5">
-                        <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Período</Label>
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <Calendar className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground/70 pointer-events-none" />
-                                <Input
-                                    type="date"
-                                    className="h-9 text-sm pl-8 pr-1 shadow-sm border-muted-foreground/20"
-                                    value={seg.start}
-                                    onChange={e => handleChange(seg.id!, "start", e.target.value)}
-                                    disabled={isCancelled}
-                                />
-                            </div>
-                            <span className="text-muted-foreground/50 text-[10px] font-medium">ATÉ</span>
-                            <div className="relative flex-1">
-                                <Calendar className="absolute left-2 top-1.5 w-3.5 h-3.5 text-muted-foreground/70 pointer-events-none" />
-                                <Input
-                                    type="date"
-                                    className="h-9 text-sm pl-8 pr-1 shadow-sm border-muted-foreground/20"
-                                    value={seg.end}
-                                    onChange={e => handleChange(seg.id!, "end", e.target.value)}
-                                    disabled={isCancelled}
-                                />
-                            </div>
-                        </div>
+                    {/* Divider */}
+                    <div className="w-px h-4 bg-border/50 hidden sm:block" />
+
+                    {/* Date Range */}
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <Input
+                            type="date"
+                            className="h-7 text-xs w-[105px] px-1.5 bg-background border-border/50 focus:border-primary/50"
+                            value={seg.start}
+                            onChange={e => handleChange(seg.id!, "start", e.target.value)}
+                        />
+                        <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+                        <Input
+                            type="date"
+                            className="h-7 text-xs w-[105px] px-1.5 bg-background border-border/50 focus:border-primary/50"
+                            value={seg.end}
+                            onChange={e => handleChange(seg.id!, "end", e.target.value)}
+                        />
+                        <Badge variant="secondary" className="h-5 px-1 text-[10px] font-medium shrink-0">
+                            {days}d
+                        </Badge>
                     </div>
 
-                    {/* Team */}
-                    <div className="col-span-12 sm:col-span-5 flex flex-col gap-1.5">
-                        <Label className="text-[10px] text-muted-foreground uppercase font-semibold">Equipe</Label>
-                        <Select value={String(seg.equipeId || "")} onValueChange={v => handleChange(seg.id!, "equipeId", Number(v))} disabled={isCancelled}>
-                            <SelectTrigger className="h-9 text-sm shadow-sm border-muted-foreground/20 bg-background/50">
-                                <div className="flex items-center gap-2 truncate w-full">
-                                    <User className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/70" />
-                                    <div className="truncate flex-1 text-left">
-                                        {seg.equipeId ? (
-                                            <div className="flex items-center gap-1.5">
-                                                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: equipes.find(e => e.id === seg.equipeId)?.cor || '#ccc' }} />
-                                                <span className="truncate">{equipes.find(e => e.id === seg.equipeId)?.nome}</span>
-                                            </div>
-                                        ) : (
-                                            <span className="text-muted-foreground opacity-70">Selecione...</span>
-                                        )}
-                                    </div>
+                    {/* Team Selector */}
+                    <Select value={String(seg.equipeId || "")} onValueChange={v => handleChange(seg.id!, "equipeId", Number(v))}>
+                        <SelectTrigger className="h-7 w-[110px] text-xs bg-background border-border/50 focus:border-primary/50 gap-1 shrink-0">
+                            {equipe ? (
+                                <div className="flex items-center gap-1.5 truncate">
+                                    <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: equipe.cor || '#9ca3af' }} />
+                                    <span className="truncate text-[11px]">{equipe.nome}</span>
                                 </div>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {equipes.map(e => (
-                                    <SelectItem key={e.id} value={String(e.id)}>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.cor || '#ccc' }} />
-                                            {e.nome}
-                                        </div>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
+                            ) : (
+                                <span className="text-muted-foreground text-[11px]">Equipe...</span>
+                            )}
+                        </SelectTrigger>
+                        <SelectContent>
+                            {equipes.map(e => (
+                                <SelectItem key={e.id} value={String(e.id)}>
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: e.cor || '#9ca3af' }} />
+                                        {e.nome}
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
 
-                {/* Actions */}
-                <div className="flex justify-end gap-1 pt-2 border-t border-dashed mt-2">
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-foreground gap-1" onClick={() => handleDuplicate(seg)} title="Duplicar">
-                        <Copy className="w-3.5 h-3.5" />
-                        <span className="text-[10px] uppercase font-semibold tracking-wide">Duplicar</span>
-                    </Button>
-                    <Separator orientation="vertical" className="h-4 my-auto" />
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-destructive gap-1" onClick={() => handleRemove(seg.id!)} title="Excluir">
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span className="text-[10px] uppercase font-semibold tracking-wide">Excluir</span>
-                    </Button>
+                    {/* Actions - Hover Reveal */}
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                            onClick={() => handleDuplicate(seg)}
+                            title="Duplicar"
+                        >
+                            <Copy className="w-3 h-3" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleRemove(seg.id!)}
+                            title="Excluir"
+                        >
+                            <Trash2 className="w-3 h-3" />
+                        </Button>
+                    </div>
                 </div>
             </div>
         )
@@ -432,10 +433,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
 
                 {/* Future/Current Section */}
                 {future.length > 0 && (
-                    <div className={cn("space-y-4", readOnly ? "px-1" : "space-y-3 relative ml-2 pl-4 border-l-2 border-primary/10")}>
-                        {/* Edit Mode Line Header */}
-                        {!readOnly && <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-primary" />}
-
+                    <div className={cn("space-y-4", readOnly ? "px-1" : "space-y-3")}>
                         {future.map((seg, idx) => (
                             readOnly
                                 ? <TimelineItem key={seg.id} seg={seg} isLast={idx === future.length - 1 && history.length === 0} isHistory={false} />
@@ -446,12 +444,8 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
 
                 {/* History Section */}
                 {history.length > 0 && (
-                    <div className={cn("space-y-4", readOnly ? "mt-8" : "mt-8 space-y-3 relative ml-2 pl-4 border-l-2 border-muted")}>
-
-                        <div className={cn("flex items-center gap-2 mb-4", !readOnly && "absolute -left-1.5 top-0")}>
-                            {!readOnly && <div className="w-2.5 h-2.5 rounded-full bg-muted-foreground/30" />}
-                            <h4 className={cn("text-xs font-bold uppercase tracking-widest text-muted-foreground", !readOnly && "ml-4")}>Histórico</h4>
-                        </div>
+                    <div className={cn("space-y-4", readOnly ? "mt-8" : "mt-6 space-y-3")}>
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Histórico</h4>
 
                         {history.map((seg, idx) => (
                             readOnly

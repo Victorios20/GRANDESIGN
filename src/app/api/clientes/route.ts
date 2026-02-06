@@ -1,117 +1,39 @@
-// src/app/api/clientes/route.ts
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import {
-  criarClienteBasico,
-} from "@/actions/clientes-db/clientes-db"
-import { getClienteIdByNomeUnaccent } from "@/actions/clientes-db/clientes-db"
+import { NextRequest } from "next/server"
+import { json } from "@/lib/api-utils"
+import { listarClientes } from "@/actions/clientes-db/clientes-db"
 
-export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
-function onlyDigits(s?: string | null) {
-  const v = String(s ?? "").replace(/\D/g, "")
-  return v ? v : null
-}
-function clean(s?: string | null) {
-  return s ? String(s).trim() : ""
-}
-
-export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
-
+export async function GET(req: NextRequest) {
+  const requestId = req.headers.get("x-request-id") || crypto.randomUUID()
   try {
-    const body = await req.json().catch(() => ({} as any))
+    const { searchParams } = new URL(req.url)
 
-    const nome = clean(body?.nome)
-    if (!nome) {
-      return NextResponse.json(
-        { error: "Nome obrigatório", code: "VALIDACAO" },
-        { status: 400 }
-      )
-    }
+    const page = searchParams.get("page") ?? "1"
+    const perPage = searchParams.get("perPage") ?? "20"
+    const search = searchParams.get("search")
+    const telefone = searchParams.get("telefone")
+    const bairro = searchParams.get("bairro")
+    const cidadeId = searchParams.get("cidade_id") ?? searchParams.get("cidadeId")
+    const temObras = searchParams.get("temObras")
+    const temOrcamentos = searchParams.get("temOrcamentos")
+    const ordem = searchParams.get("ordem")
 
-    // Campos opcionais
-    const telefone = onlyDigits(body?.telefone)
-    const bairro = clean(body?.bairro) || null
-    const cpf = onlyDigits(body?.cpf)
-    const cidade_id =
-      typeof body?.cidade_id === "number"
-        ? body.cidade_id
-        : Number.isFinite(Number(body?.cidade_id))
-        ? Number(body.cidade_id)
-        : null
-
-    // Cria cliente (db já trava duplicidade por índice parcial)
-    const created = await criarClienteBasico({
-      nome,
-      telefone, // já é null quando vazio
+    const out = await listarClientes({
+      page,
+      perPage,
+      search,
+      telefone,
       bairro,
-      cidade_id,
-      cpf,      // já é null quando vazio
+      cidadeId,
+      temObras,
+      temOrcamentos,
+      ordem,
     })
 
-    return NextResponse.json(created, { status: 201 })
-  } catch (e: any) {
-    // 409 vindo da action com id do existente
-    if (e?.code === "NOME_DUPLICADO") {
-      if (e?.clienteId) {
-        return NextResponse.json(
-          {
-            error: "Cliente já existe. Associado ao existente.",
-            code: "NOME_DUPLICADO",
-            id: e.clienteId,
-          },
-          { status: 409 }
-        )
-      }
-      // fallback: tenta obter o id pelo nome (sem acento/caixa)
-      try {
-        const bodyClone = await req.clone().json().catch(() => ({} as any))
-        const nomeClone = clean(bodyClone?.nome)
-        const existenteId = await getClienteIdByNomeUnaccent(nomeClone)
-        return NextResponse.json(
-          {
-            error: "Cliente já existe.",
-            code: "NOME_DUPLICADO",
-            id: existenteId ?? null,
-          },
-          { status: 409 }
-        )
-      } catch {
-        return NextResponse.json(
-          { error: "Cliente já existe.", code: "NOME_DUPLICADO" },
-          { status: 409 }
-        )
-      }
-    }
-
-    // Fallback para duplicidade direto do Prisma (se escapar da action)
-    if (e?.code === "P2002") {
-      try {
-        const bodyClone = await req.clone().json().catch(() => ({} as any))
-        const nomeClone = clean(bodyClone?.nome)
-        const existenteId = await getClienteIdByNomeUnaccent(nomeClone)
-        return NextResponse.json(
-          { error: "Nome duplicado.", code: "NOME_DUPLICADO", id: existenteId ?? null },
-          { status: 409 }
-        )
-      } catch {
-        return NextResponse.json(
-          { error: "Nome duplicado.", code: "NOME_DUPLICADO" },
-          { status: 409 }
-        )
-      }
-    }
-
-    // Outros erros
-    console.error("POST /api/clientes error:", e)
-    return NextResponse.json(
-      { error: "Falha ao cadastrar cliente", code: "ERRO_INTERNO" },
-      { status: 500 }
-    )
+    return json(out, 200, requestId)
+  } catch (err: any) {
+    console.error("[GET /api/clientes] unexpected", err)
+    return json({ error: "UNEXPECTED_ERROR", requestId }, 500, requestId)
   }
 }
