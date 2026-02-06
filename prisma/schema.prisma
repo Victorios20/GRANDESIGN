@@ -307,11 +307,13 @@ model ordem_servico {
 }
 
 model equipes {
-  id   Int    @id @default(autoincrement())
-  nome String @db.VarChar(120)
+  id   Int     @id @default(autoincrement())
+  nome String  @db.VarChar(120)
+  cor  String? @db.VarChar(7) // HEX color, e.g. "#FF5733"
 
   ordem_servico ordem_servico[]
   obras         obras[]
+  segmentos     ObraAgendaSegmento[]
 }
 
 enum PedidoCategoria {
@@ -453,6 +455,9 @@ model obras {
   // Imagens 1:N — caem junto com a obra
   imagens obra_imagens[]
 
+  // Segmentos de agenda 1:N — caem junto com a obra
+  segmentos ObraAgendaSegmento[]
+
   @@index([cliente_id])
   @@index([equipe_id])
   @@index([created_by])
@@ -474,4 +479,23 @@ model obra_imagens {
   obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
   @@index([obra_id])
+}
+
+model ObraAgendaSegmento {
+  id          Int      @id @default(autoincrement())
+  obra_id     Int
+  equipe_id   Int?
+  inicio      DateTime @db.Date
+  fim         DateTime @db.Date // exclusive end date
+  observacoes String?  @db.Text
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  obra   obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  equipe equipes? @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+
+  @@index([obra_id])
+  @@index([equipe_id])
+  @@index([inicio, fim])
+  @@map("obra_agenda_segmento")
 }

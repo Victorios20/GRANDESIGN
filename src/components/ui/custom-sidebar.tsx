@@ -21,6 +21,7 @@ import {
   Users2,
   HardHat,
   ShoppingCart,
+  CalendarDays,
   Settings as SettingsIcon,
 } from "lucide-react"
 
@@ -257,6 +258,29 @@ export function CustomSidebar() {
                     <SidebarMenuItem>
                       <Tooltip>
                         <TooltipTrigger asChild>
+                          <Link href="/calendario">
+                            <SidebarMenuButton
+                              isActive={isActive("/calendario")}
+                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                            >
+                              <CalendarDays className={iconClass(isActive("/calendario"))} />
+                              {isOpen && (
+                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                  Calendário
+                                </motion.span>
+                              )}
+                            </SidebarMenuButton>
+                          </Link>
+                        </TooltipTrigger>
+                        {!isOpen && <TooltipContent side="right">Calendário</TooltipContent>}
+                      </Tooltip>
+                    </SidebarMenuItem>
+                  </motion.div>
+
+                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
                           <Link href="/pedido_compra">
                             <SidebarMenuButton
                               isActive={isActive("/pedido_compra")}
@@ -292,7 +316,7 @@ export function CustomSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <TooltipProvider delayDuration={300}>
-                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -316,7 +340,7 @@ export function CustomSidebar() {
                   </motion.div>
 
                   {canSeeAdmin && (
-                    <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
                       <SidebarMenuItem>
                         <Tooltip>
                           <TooltipTrigger asChild>
