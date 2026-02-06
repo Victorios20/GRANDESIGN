@@ -31,7 +31,7 @@ import { usePathname } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { useSidebar } from "@/components/ui/sidebar"
 import { signOut, useSession } from "next-auth/react"
 import versionInfo from "@/../version.json"
@@ -134,24 +134,21 @@ export function CustomSidebar() {
               {/* Home */}
               <motion.div custom={0} initial="hidden" animate="visible" variants={menuItemVariants}>
                 <SidebarMenuItem>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Link href="/">
-                        <SidebarMenuButton
-                          isActive={pathname === "/"}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <HomeIcon className={iconClass(isActive("/"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Home
-                            </motion.span>
-                          )}
-                        </SidebarMenuButton>
-                      </Link>
-                    </TooltipTrigger>
-                    {!isOpen && <TooltipContent side="right">Home</TooltipContent>}
-                  </Tooltip>
+                  <SidebarMenuButton
+                    asChild
+                    tooltip="Home"
+                    isActive={pathname === "/"}
+                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                  >
+                    <Link href="/">
+                      <HomeIcon className={iconClass(isActive("/"))} />
+                      {isOpen && (
+                        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                          Home
+                        </motion.span>
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               </motion.div>
             </AnimatePresence>
@@ -171,24 +168,21 @@ export function CustomSidebar() {
                 <TooltipProvider delayDuration={300}>
                   <motion.div custom={1} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/orcamento/new">
-                            <SidebarMenuButton
-                              isActive={isActive("/orcamento/new")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Novo Orçamento
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Novo Orçamento</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Novo Orçamento"
+                        isActive={isActive("/orcamento/new")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/orcamento/new">
+                          <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Novo Orçamento
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
                 </TooltipProvider>
@@ -210,93 +204,81 @@ export function CustomSidebar() {
                 <TooltipProvider delayDuration={300}>
                   <motion.div custom={2} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/orcamento">
-                            <SidebarMenuButton
-                              isActive={isActive("/orcamento") && !isActive("/orcamento/new")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <ClockIcon className={iconClass(isActive("/orcamento"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Orçamentos
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Orçamentos</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Orçamentos"
+                        isActive={isActive("/orcamento") && !isActive("/orcamento/new")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/orcamento">
+                          <ClockIcon className={iconClass(isActive("/orcamento"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Orçamentos
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
 
                   <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/obras">
-                            <SidebarMenuButton
-                              isActive={isActive("/obras")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <HardHat className={iconClass(isActive("/obras"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Obras
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Obras</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Obras"
+                        isActive={isActive("/obras")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/obras">
+                          <HardHat className={iconClass(isActive("/obras"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Obras
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
 
                   <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/calendario">
-                            <SidebarMenuButton
-                              isActive={isActive("/calendario")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <CalendarDays className={iconClass(isActive("/calendario"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Calendário
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Calendário</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Calendário"
+                        isActive={isActive("/calendario")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/calendario">
+                          <CalendarDays className={iconClass(isActive("/calendario"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Calendário
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
 
                   <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/pedido_compra">
-                            <SidebarMenuButton
-                              isActive={isActive("/pedido_compra")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Pedidos de Compra
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Pedidos de Compra</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Pedidos de Compra"
+                        isActive={isActive("/pedido_compra")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/pedido_compra">
+                          <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Pedidos de Compra
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
                 </TooltipProvider>
@@ -318,48 +300,42 @@ export function CustomSidebar() {
                 <TooltipProvider delayDuration={300}>
                   <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Link href="/cadastros">
-                            <SidebarMenuButton
-                              isActive={isActive("/cadastros")}
-                              className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                            >
-                              <SettingsIcon className={iconClass(isActive("/cadastros"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Cadastros
-                                </motion.span>
-                              )}
-                            </SidebarMenuButton>
-                          </Link>
-                        </TooltipTrigger>
-                        {!isOpen && <TooltipContent side="right">Cadastros</TooltipContent>}
-                      </Tooltip>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Cadastros"
+                        isActive={isActive("/cadastros")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/cadastros">
+                          <SettingsIcon className={iconClass(isActive("/cadastros"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Cadastros
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   </motion.div>
 
                   {canSeeAdmin && (
                     <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
                       <SidebarMenuItem>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Link href="/admin/users">
-                              <SidebarMenuButton
-                                isActive={isActive("/admin/users")}
-                                className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                              >
-                                <Users2 className={iconClass(isActive("/admin/users"))} />
-                                {isOpen && (
-                                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                    Usuários
-                                  </motion.span>
-                                )}
-                              </SidebarMenuButton>
-                            </Link>
-                          </TooltipTrigger>
-                          {!isOpen && <TooltipContent side="right">Usuários</TooltipContent>}
-                        </Tooltip>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Usuários"
+                          isActive={isActive("/admin/users")}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <Link href="/admin/users">
+                            <Users2 className={iconClass(isActive("/admin/users"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Usuários
+                              </motion.span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
                       </SidebarMenuItem>
                     </motion.div>
                   )}
@@ -373,30 +349,26 @@ export function CustomSidebar() {
       <SidebarFooter className="p-2 hover:bg-transparent">
         <SidebarMenu>
           <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={handleLogout}
-                    disabled={loggingOut}
-                    aria-busy={loggingOut}
-                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-transparent transition-all duration-200")}
-                  >
-                    {loggingOut ? (
-                      <Loader2 className="size-5 animate-spin" />
-                    ) : (
-                      <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
-                    )}
-                    {isOpen && (
-                      <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                        {loggingOut ? "Saindo..." : "Sair"}
-                      </motion.span>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </TooltipTrigger>
-              {!isOpen && <TooltipContent side="right">{loggingOut ? "Saindo..." : "Sair"}</TooltipContent>}
-            </Tooltip>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={handleLogout}
+                disabled={loggingOut}
+                aria-busy={loggingOut}
+                tooltip={loggingOut ? "Saindo..." : "Sair"}
+                className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-transparent transition-all duration-200")}
+              >
+                {loggingOut ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
+                )}
+                {isOpen && (
+                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                    {loggingOut ? "Saindo..." : "Sair"}
+                  </motion.span>
+                )}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </TooltipProvider>
         </SidebarMenu>
 

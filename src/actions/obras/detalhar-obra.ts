@@ -72,6 +72,16 @@ export type PedidoCompraDTO = {
   }>
 }
 
+export type ObraAgendaSegmentoDTO = {
+  id: number
+  start: string
+  end: string
+  tipo: string
+  status: string
+  equipe: { id: number; nome: string; cor: string | null } | null
+  observacoes: string | null
+}
+
 export type ObraDetalheDTO = {
   id: number
   titulo: string | null
@@ -126,6 +136,8 @@ export type ObraDetalheDTO = {
   } | null
 
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null }>
+
+  agenda: ObraAgendaSegmentoDTO[]
 }
 
 function pickOrcamentoIdFromObraRow(obra: any): number | null {
@@ -160,6 +172,10 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       },
       ordem_servico: { include: { equipe: true } },
       imagens: { orderBy: [{ ordem: "asc" }, { id: "asc" }] },
+      segmentos: {
+        orderBy: { inicio: "asc" },
+        include: { equipe: true },
+      },
     },
   })
 
@@ -171,23 +187,23 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
 
   const orcamento = orcamentoId
     ? await prisma.orcamento.findUnique({
-        where: { id: orcamentoId },
-        select: {
-          id: true,
-          link_slide: true,
-          link_pdf: true,
-          titulo: true,
-        },
-      })
+      where: { id: orcamentoId },
+      select: {
+        id: true,
+        link_slide: true,
+        link_pdf: true,
+        titulo: true,
+      },
+    })
     : null
 
   const orcamentoOut = orcamento
     ? {
-        id: orcamento.id,
-        linkSlide: orcamento.link_slide ?? null,
-        linkPdf: orcamento.link_pdf ?? null,
-        titulo: orcamento.titulo ?? null,
-      }
+      id: orcamento.id,
+      linkSlide: orcamento.link_slide ?? null,
+      linkPdf: orcamento.link_pdf ?? null,
+      titulo: orcamento.titulo ?? null,
+    }
     : null
 
   const anexos = {
@@ -301,13 +317,13 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
 
     ordemServico: obra.ordem_servico
       ? {
-          id: obra.ordem_servico.id,
-          equipe: obra.ordem_servico.equipe
-            ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome }
-            : null,
-          dataPrevInicio: ymd(obra.ordem_servico.data_prev_inicio)!,
-          dataPrevConclusao: ymd(obra.ordem_servico.data_prev_conclusao)!,
-        }
+        id: obra.ordem_servico.id,
+        equipe: obra.ordem_servico.equipe
+          ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome }
+          : null,
+        dataPrevInicio: ymd(obra.ordem_servico.data_prev_inicio)!,
+        dataPrevConclusao: ymd(obra.ordem_servico.data_prev_conclusao)!,
+      }
       : null,
 
     imagens: obra.imagens.map((i: any) => ({
@@ -315,6 +331,18 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       url: i.url,
       ordem: i.ordem,
       legenda: i.legenda,
+    })),
+
+    agenda: obra.segmentos.map((s: any) => ({
+      id: s.id,
+      start: ymd(s.inicio)!,
+      end: ymd(s.fim)!,
+      tipo: s.tipo ?? "EXECUCAO",
+      status: s.status ?? "AGENDADO",
+      equipe: s.equipe
+        ? { id: s.equipe.id, nome: s.equipe.nome, cor: s.equipe.cor }
+        : null,
+      observacoes: s.observacoes,
     })),
   }
 }

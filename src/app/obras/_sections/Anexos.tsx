@@ -69,26 +69,16 @@ export default function Anexos({
   ordemServicoId,
   className,
 }: Props) {
-  const baseUrl = useMemo(() => {
-    if (typeof window === "undefined") return ""
-
-    const isLocal =
-      window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1"
-
-    return isLocal ? "http://localhost:3000" : window.location.origin
-  }, [])
-
   const orcamentoUrl = useMemo(() => {
     if (orcamentoLink && orcamentoLink.trim()) return orcamentoLink.trim()
-    if (!orcamentoId || !baseUrl) return ""
-    return `${baseUrl}/orcamento/detalhes/${orcamentoId}`
-  }, [orcamentoLink, orcamentoId, baseUrl])
+    if (!orcamentoId) return ""
+    return `/orcamento/detalhes/${orcamentoId}`
+  }, [orcamentoLink, orcamentoId])
 
   const ordemServicoUrl = useMemo(() => {
-    if (!ordemServicoId || !baseUrl) return ""
-    return `${baseUrl}/ordemServico/${ordemServicoId}`
-  }, [ordemServicoId, baseUrl])
+    if (!ordemServicoId) return ""
+    return `/ordemServico/${ordemServicoId}`
+  }, [ordemServicoId])
 
   const showExtra = mode !== "new"
 

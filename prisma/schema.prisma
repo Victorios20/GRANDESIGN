@@ -488,6 +488,12 @@ model ObraAgendaSegmento {
   inicio      DateTime @db.Date
   fim         DateTime @db.Date // exclusive end date
   observacoes String?  @db.Text
+  
+  tipo        String   @default("EXECUCAO") // EXECUCAO or MANUTENCAO
+  status      String   @default("AGENDADO") // AGENDADO, CONCLUIDO, CANCELADO
+
+  created_by  Int?
+  updated_by  Int?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 

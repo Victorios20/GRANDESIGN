@@ -70,6 +70,11 @@ export async function GET(req: Request) {
                                 id: true,
                                 nome: true,
                                 bairro: true,
+                                cidades: {
+                                    select: {
+                                        nome: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -91,6 +96,8 @@ export async function GET(req: Request) {
             inicio: s.inicio.toISOString().split("T")[0],
             fim: s.fim.toISOString().split("T")[0],
             observacoes: s.observacoes,
+            tipo: s.tipo,
+            status: s.status,
             obra: {
                 id: s.obra.id,
                 titulo: s.obra.titulo,
@@ -98,6 +105,7 @@ export async function GET(req: Request) {
                 tipoObra: s.obra.tipo_obra,
                 cliente: s.obra.cliente?.nome || null,
                 clienteBairro: s.obra.cliente?.bairro || null,
+                clienteCidade: s.obra.cliente?.cidades?.nome || null,
             },
             equipe: s.equipe
                 ? {

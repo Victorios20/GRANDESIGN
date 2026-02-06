@@ -2,6 +2,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
+import Link from "next/link"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -30,6 +31,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { Toaster, toast } from "sonner"
+import { AgendaEditor } from "@/components/agenda/AgendaEditor"
+import { detalharObraDB } from "@/actions/obras/detalhar-obra"
+import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
 import {
   Calendar,
   AlertTriangle,
@@ -43,6 +47,8 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  ExternalLink,
+  Wrench,
 } from "lucide-react"
 
 // FullCalendar imports
@@ -59,6 +65,8 @@ type SegmentoDTO = {
   inicio: string
   fim: string
   observacoes: string | null
+  tipo: string | null
+  status: string | null
   obra: {
     id: number
     titulo: string | null
@@ -66,6 +74,7 @@ type SegmentoDTO = {
     tipoObra: string
     cliente: string | null
     clienteBairro: string | null
+    clienteCidade: string | null
   }
   equipe: {
     id: number
@@ -123,7 +132,6 @@ function addDay(dateStr: string): string {
 export default function CalendarioPage() {
   const calendarRef = useRef<FullCalendar>(null)
   const draggableContainerRef = useRef<HTMLDivElement>(null)
-  const draggableInitialized = useRef(false)
 
   // State
   const [segmentos, setSegmentos] = useState<SegmentoDTO[]>([])
@@ -142,8 +150,18 @@ export default function CalendarioPage() {
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalMode, setModalMode] = useState<"create" | "edit" | "split">("create")
+  const [modalMode, setModalMode] = useState<"create" | "manage">("create") // Simplified modes
   const [selectedSegmento, setSelectedSegmento] = useState<SegmentoDTO | null>(null)
+
+  // Editor state
+  const [agendaForEditor, setAgendaForEditor] = useState<AgendaSegmentInput[]>([])
+  const [isFetchingAgenda, setIsFetchingAgenda] = useState(false)
+
+  // Save/Validation state
+  const [draftAgenda, setDraftAgenda] = useState<AgendaSegmentInput[]>([])
+  const [draftValid, setDraftValid] = useState(true)
+  const [draftError, setDraftError] = useState<string | null>(null)
+  const [savingAgenda, setSavingAgenda] = useState(false)
 
   // Form state
   const [formObraId, setFormObraId] = useState<string>("")
@@ -158,24 +176,26 @@ export default function CalendarioPage() {
   // User permissions
   const [canEdit] = useState(true)
 
-  // Initialize external draggable
+  // Initialize external draggable - simple and clean
   useEffect(() => {
-    if (draggableContainerRef.current && !draggableInitialized.current && obrasSemAgenda.length > 0) {
-      draggableInitialized.current = true
-      new Draggable(draggableContainerRef.current, {
-        itemSelector: ".draggable-obra",
-        eventData: (eventEl) => {
-          const obraId = eventEl.getAttribute("data-obra-id")
-          const titulo = eventEl.getAttribute("data-titulo")
-          return {
-            title: titulo || "Nova Obra",
-            duration: { days: 7 },
-            extendedProps: { obraId, isNew: true },
-          }
-        },
-      })
+    if (sidebarCollapsed || !draggableContainerRef.current || obrasSemAgenda.length === 0) {
+      return
     }
-  }, [obrasSemAgenda])
+
+    const draggable = new Draggable(draggableContainerRef.current, {
+      itemSelector: ".draggable-obra",
+      eventData: (eventEl) => ({
+        title: eventEl.getAttribute("data-titulo") || "Nova Obra",
+        duration: { days: 1 },
+        extendedProps: {
+          obraId: eventEl.getAttribute("data-obra-id"),
+          isNew: true
+        },
+      }),
+    })
+
+    return () => draggable.destroy()
+  }, [sidebarCollapsed, obrasSemAgenda.length])
 
   // Load equipes (cached)
   const loadEquipes = useCallback(async () => {
@@ -234,6 +254,33 @@ export default function CalendarioPage() {
     }
   }, [filterEquipe, filterStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleSaveAgendaModal = async () => {
+    if (!formObraId) return
+    if (!draftValid) {
+      toast.error(draftError || "Agenda inválida")
+      return
+    }
+
+    try {
+      setSavingAgenda(true)
+      const obId = Number(formObraId)
+      const res = await updateAgendaSegments(obId, draftAgenda)
+
+      if (res.success) {
+        toast.success("Agenda salva com sucesso!")
+        setModalOpen(false)
+        loadAgenda(currentRange.from, currentRange.to, true)
+        loadObrasSemAgenda(true)
+      } else {
+        toast.error(res.error || "Erro ao salvar")
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro inesperado")
+    } finally {
+      setSavingAgenda(false)
+    }
+  }
+
   // Convert segmentos to FullCalendar events with inclusive end dates
   const events = useMemo(() => segmentos.map((s) => ({
     id: String(s.id),
@@ -243,6 +290,7 @@ export default function CalendarioPage() {
     backgroundColor: s.equipe?.cor || "#6B7280",
     borderColor: s.equipe?.cor || "#6B7280",
     extendedProps: { segmento: s },
+    classNames: s.tipo === "MANUTENCAO" ? ["maintenance-event"] : [],
   })), [segmentos])
 
   // Calendar handlers
@@ -265,6 +313,8 @@ export default function CalendarioPage() {
     const calendarApi = calendarRef.current?.getApi()
     calendarApi?.unselect()
 
+    calendarApi?.unselect()
+
     setModalMode("create")
     setSelectedSegmento(null)
     setFormObraId("")
@@ -285,7 +335,7 @@ export default function CalendarioPage() {
       return
     }
 
-    setModalMode("edit")
+    setModalMode("manage")
     setSelectedSegmento(segmento)
     setFormObraId(String(segmento.obra.id))
     setFormEquipeId(segmento.equipe ? String(segmento.equipe.id) : "NONE")
@@ -401,7 +451,7 @@ export default function CalendarioPage() {
     }
   }
 
-  // Custom event content with tooltip
+  // Custom event content with tooltip and actions
   const renderEventContent = (eventInfo: EventContentArg) => {
     const segmento = eventInfo.event.extendedProps.segmento as SegmentoDTO
     if (!segmento) {
@@ -409,40 +459,76 @@ export default function CalendarioPage() {
     }
 
     return (
-      <TooltipProvider delayDuration={200}>
+      <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="px-1.5 py-0.5 text-xs truncate cursor-pointer w-full font-medium">
+            <div className={`px-1.5 py-0.5 text-xs truncate cursor-pointer w-full font-medium flex items-center gap-1 ${segmento.tipo === 'MANUTENCAO' ? 'italic' : ''}`}>
+              {segmento.tipo === "MANUTENCAO" && <Wrench className="w-3 h-3 flex-shrink-0" />}
               {eventInfo.event.title}
             </div>
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-xs bg-popover border shadow-lg">
-            <div className="space-y-1.5 p-1">
-              <p className="font-semibold text-sm">{segmento.obra.titulo || `Obra #${segmento.obra.id}`}</p>
-              {segmento.obra.cliente && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <User className="w-3 h-3" /> {segmento.obra.cliente}
-                </p>
-              )}
-              {segmento.obra.clienteBairro && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <MapPin className="w-3 h-3" /> {segmento.obra.clienteBairro}
-                </p>
-              )}
-              <div className="flex items-center gap-2 pt-1 border-t">
-                <p className="text-xs font-medium">
-                  {segmento.inicio} → {segmento.fim}
-                </p>
+          <TooltipContent
+            side="top"
+            className="w-64 p-0 bg-card border border-border shadow-md rounded-lg overflow-hidden"
+          >
+            {/* Header with equipe color bar */}
+            <div
+              className="h-1.5 w-full"
+              style={{ backgroundColor: segmento.equipe?.cor || "#9CA3AF" }}
+            />
+
+            {/* Content */}
+            <div className="p-3 space-y-2">
+              <p className="font-semibold text-sm text-foreground leading-tight flex items-center gap-2">
+                {segmento.tipo === "MANUTENCAO" && <Badge variant="secondary" className="h-5 px-1 text-[10px] gap-1"><Wrench className="w-3 h-3" /> Manutenção</Badge>}
+                {segmento.obra.titulo || `Obra #${segmento.obra.id}`}
+              </p>
+
+              <div className="space-y-1">
+                {segmento.obra.cliente && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <User className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">{segmento.obra.cliente}</span>
+                  </div>
+                )}
+                {(segmento.obra.clienteBairro || segmento.obra.clienteCidade) && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="truncate">
+                      {[segmento.obra.clienteBairro, segmento.obra.clienteCidade].filter(Boolean).join(" - ")}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{formatDateShort(segmento.inicio)} → {formatDateShort(segmento.fim)}</span>
+                </div>
               </div>
+
               {segmento.equipe && (
-                <Badge
-                  variant="secondary"
-                  className="text-xs text-white"
-                  style={{ backgroundColor: segmento.equipe.cor || "#6B7280" }}
-                >
-                  {segmento.equipe.nome}
-                </Badge>
+                <div className="flex items-center gap-2 pt-1">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: segmento.equipe.cor || "#9CA3AF" }}
+                  />
+                  <span className="text-xs font-medium text-foreground">
+                    {segmento.equipe.nome}
+                  </span>
+                </div>
               )}
+            </div>
+
+            {/* Action footer */}
+            <div className="border-t border-border bg-muted/40 px-3 py-2">
+              <Link
+                href={`/obras/${segmento.obra.id}`}
+                target="_blank"
+                className="flex items-center justify-center gap-1.5 w-full text-xs py-1.5 px-3 rounded-md bg-background border border-border text-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Abrir Obra
+              </Link>
             </div>
           </TooltipContent>
         </Tooltip>
@@ -450,93 +536,60 @@ export default function CalendarioPage() {
     )
   }
 
-  // Form handlers
-  const handleSubmit = async () => {
+
+
+  // Fetch agenda wrapper
+  const fetchAgendaForEditor = async (idOfObra: number) => {
     try {
-      setProcessing(true)
+      setIsFetchingAgenda(true)
+      const details = await detalharObraDB(idOfObra)
 
-      if (modalMode === "create") {
-        if (!formObraId) {
-          toast.error("Selecione uma obra")
-          return
-        }
+      const mapped: AgendaSegmentInput[] = (details.agenda || []).map(s => ({
+        id: s.id,
+        start: s.start,
+        end: s.end,
+        tipo: s.tipo,
+        status: s.status,
+        equipeId: s.equipe?.id ?? null,
+        observacoes: s.observacoes
+      }))
 
-        const res = await fetch(`/api/obras/${formObraId}/segmentos`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            equipe_id: (formEquipeId && formEquipeId !== "NONE") ? formEquipeId : null,
-            inicio: formInicio,
-            fim: formFim,
-          }),
+      // If creating new interaction (selected via range), append a draft segment
+      if (modalMode === "create" && formInicio && formFim) {
+        // Only append if not already present (basic check)
+        // Actually, always append for now as "New Segment"
+        mapped.push({
+          id: -Date.now(),
+          start: formInicio,
+          end: formFim,
+          equipeId: null,
+          tipo: "EXECUCAO",
+          status: "AGENDADO",
+          observacoes: ""
         })
-
-        if (!res.ok) throw new Error("Falha ao criar segmento")
-
-        const json = await res.json()
-        if (json.warning) toast.warning(json.warning)
-        toast.success("Agendamento criado!")
-      } else if (modalMode === "edit" && selectedSegmento) {
-        const res = await fetch(`/api/segmentos/${selectedSegmento.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            equipe_id: (formEquipeId && formEquipeId !== "NONE") ? formEquipeId : null,
-            inicio: formInicio,
-            fim: formFim,
-          }),
-        })
-
-        if (!res.ok) throw new Error("Falha ao atualizar segmento")
-
-        const json = await res.json()
-        if (json.warning) toast.warning(json.warning)
-        toast.success("Agendamento atualizado!")
-      } else if (modalMode === "split" && selectedSegmento) {
-        const res = await fetch(`/api/segmentos/${selectedSegmento.id}/split`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ splitDate: formSplitDate }),
-        })
-
-        if (!res.ok) throw new Error("Falha ao dividir segmento")
-        toast.success("Segmento dividido!")
       }
 
-      setModalOpen(false)
-      loadAgenda(currentRange.from, currentRange.to, true)
-      loadObrasSemAgenda(true)
+      setAgendaForEditor(mapped)
     } catch (err) {
-      toast.error("Erro ao salvar")
+      toast.error("Erro ao carregar agenda da obra")
+      console.error(err)
     } finally {
-      setProcessing(false)
+      setIsFetchingAgenda(false)
     }
   }
 
-  const handleDelete = async () => {
-    if (!selectedSegmento) return
-
-    try {
-      setProcessing(true)
-      const res = await fetch(`/api/segmentos/${selectedSegmento.id}`, { method: "DELETE" })
-      if (!res.ok) throw new Error("Falha ao excluir")
-
-      toast.success("Agendamento excluído!")
-      setModalOpen(false)
-      loadAgenda(currentRange.from, currentRange.to, true)
-      loadObrasSemAgenda(true)
-    } catch (err) {
-      toast.error("Erro ao excluir")
-    } finally {
-      setProcessing(false)
+  // Effect to load agenda when obra is selected in modal
+  useEffect(() => {
+    if (!modalOpen) return
+    const id = Number(formObraId)
+    if (id > 0) {
+      fetchAgendaForEditor(id)
+    } else {
+      setAgendaForEditor([])
     }
-  }
+  }, [formObraId, modalOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openSplitModal = () => {
-    if (!selectedSegmento) return
-    setModalMode("split")
-    setFormSplitDate("")
-  }
+
 
   // Status color helper
   const getStatusColor = (status: string) => {
@@ -549,6 +602,16 @@ export default function CalendarioPage() {
     }
   }
 
+  // Format date as "Qui (06/02)"
+  const formatDateShort = (dateStr: string) => {
+    const date = new Date(dateStr + "T12:00:00")
+    const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+    const day = days[date.getDay()]
+    const dd = String(date.getDate()).padStart(2, "0")
+    const mm = String(date.getMonth() + 1).padStart(2, "0")
+    return `${day} (${dd}/${mm})`
+  }
+
   const getStatusLabel = (status: string) => {
     switch (status) {
       case "EXECUCAO": return "Execução"
@@ -559,9 +622,19 @@ export default function CalendarioPage() {
     }
   }
 
+  const getStatusBorderColor = (status: string) => {
+    switch (status) {
+      case "EXECUCAO": return "border-emerald-500"
+      case "A_INICIAR": return "border-blue-500"
+      case "COMPRAS": return "border-amber-500"
+      case "PENDENCIA": return "border-rose-500"
+      default: return "border-gray-400"
+    }
+  }
+
   return (
     <PageLayout pageBackground="bg-bege-pagina">
-      <Toaster richColors position="top-right" />
+      <Toaster position="top-right" duration={5000} closeButton richColors offset={80} />
 
       <div className="flex gap-4 h-[calc(100vh-120px)]">
         {/* Left Sidebar - Obras Sem Agenda */}
@@ -644,19 +717,22 @@ export default function CalendarioPage() {
                     obrasSemAgenda.map((obra) => (
                       <div
                         key={obra.id}
-                        className="draggable-obra p-2.5 rounded-lg border bg-background hover:bg-accent/50 cursor-grab active:cursor-grabbing transition-all group hover:shadow-sm"
+                        className={`draggable-obra p-3 rounded-lg border border-l-4 bg-card hover:bg-accent/50 cursor-grab active:cursor-grabbing group shadow-sm hover:shadow-md transition-all duration-200 ${getStatusBorderColor(obra.status)}`}
                         data-obra-id={obra.id}
                         data-titulo={obra.titulo || `Obra #${obra.id}`}
                       >
                         <div className="flex items-start gap-2">
                           <GripVertical className="w-4 h-4 text-muted-foreground/50 mt-0.5 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-sm truncate leading-tight">
+                            <p className="font-semibold text-sm truncate leading-tight">
                               {obra.titulo || `Obra #${obra.id}`}
                             </p>
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {obra.cliente?.nome || "Sem cliente"}
-                            </p>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <User className="w-3 h-3 text-muted-foreground" />
+                              <p className="text-xs text-muted-foreground truncate">
+                                {obra.cliente?.nome || "Sem cliente"}
+                              </p>
+                            </div>
                             <div className="flex items-center gap-1.5 mt-1.5">
                               <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(obra.status)}`} />
                               <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
@@ -685,8 +761,8 @@ export default function CalendarioPage() {
                     <Clock className="w-4 h-4 text-amber-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium">Sem Agenda</p>
-                    <p className="text-xl font-bold text-amber-600">{kpis.faltandoAgendar}</p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Sem Agenda</p>
+                    <p className="text-2xl font-bold text-amber-600 tabular-nums">{kpis.faltandoAgendar}</p>
                   </div>
                 </div>
               </CardContent>
@@ -699,8 +775,8 @@ export default function CalendarioPage() {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium">Agendadas</p>
-                    <p className="text-xl font-bold text-emerald-600">{kpis.agendadas}</p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agendadas</p>
+                    <p className="text-2xl font-bold text-emerald-600 tabular-nums">{kpis.agendadas}</p>
                   </div>
                 </div>
               </CardContent>
@@ -713,8 +789,8 @@ export default function CalendarioPage() {
                     <AlertTriangle className="w-4 h-4 text-rose-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium">Em Atraso</p>
-                    <p className="text-xl font-bold text-rose-600">{kpis.emAtraso}</p>
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Em Atraso</p>
+                    <p className="text-2xl font-bold text-rose-600 tabular-nums">{kpis.emAtraso}</p>
                   </div>
                 </div>
               </CardContent>
@@ -802,151 +878,73 @@ export default function CalendarioPage() {
 
       {/* Create/Edit/Split Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {modalMode === "create" && "Novo Agendamento"}
-              {modalMode === "edit" && "Editar Agendamento"}
-              {modalMode === "split" && "Dividir Segmento"}
+              {modalMode === "create" && !formObraId ? "Selecionar Obra" : "Gerenciar Agenda"}
             </DialogTitle>
             <DialogDescription>
-              {modalMode === "split"
-                ? "Escolha a data para dividir o segmento em dois"
-                : "Preencha as informações do agendamento"}
+              {modalMode === "create" && !formObraId
+                ? "Escolha a obra para adicionar o agendamento"
+                : "Edite os trechos, adicione pausas ou altere equipes"}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {modalMode !== "split" && (
-              <>
-                {/* Obra select - only for create */}
-                {modalMode === "create" && (
-                  <div className="space-y-2">
-                    <Label>Obra</Label>
-                    <Select value={formObraId} onValueChange={setFormObraId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma obra" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {obrasSemAgenda.map((obra) => (
-                          <SelectItem key={obra.id} value={String(obra.id)}>
-                            {obra.titulo || `Obra #${obra.id}`} - {obra.cliente?.nome || ""}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Show obra info when editing */}
-                {modalMode === "edit" && selectedSegmento && (
-                  <div className="p-3 rounded-lg bg-muted/50">
-                    <p className="font-medium text-sm">{selectedSegmento.obra.titulo || `Obra #${selectedSegmento.obra.id}`}</p>
-                    <p className="text-xs text-muted-foreground">{selectedSegmento.obra.cliente || "Sem cliente"}</p>
-                  </div>
-                )}
-
-                {/* Equipe select */}
+          <div className="py-2">
+            {/* Step 1: Select Obra (Create Mode only) */}
+            {!formObraId && (
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Equipe</Label>
-                  <Select value={formEquipeId} onValueChange={setFormEquipeId}>
+                  <Label>Obra</Label>
+                  <Select value={formObraId} onValueChange={setFormObraId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma equipe (opcional)" />
+                      <SelectValue placeholder="Selecione uma obra" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="NONE">Sem equipe</SelectItem>
-                      {equipes.map((eq) => (
-                        <SelectItem key={eq.id} value={String(eq.id)}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: eq.cor || "#6B7280" }}
-                            />
-                            {eq.nome}
-                          </div>
+                      {obrasSemAgenda.map((obra) => (
+                        <SelectItem key={obra.id} value={String(obra.id)}>
+                          {obra.titulo || `Obra #${obra.id}`} - {obra.cliente?.nome || ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Date inputs */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="inicio">Início</Label>
-                    <Input
-                      id="inicio"
-                      type="date"
-                      value={formInicio}
-                      onChange={(e) => setFormInicio(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fim">Fim</Label>
-                    <Input
-                      id="fim"
-                      type="date"
-                      value={formFim}
-                      onChange={(e) => setFormFim(e.target.value)}
-                    />
-                  </div>
+                <div className="text-center text-sm text-muted-foreground">
+                  ou selecione no menu lateral
                 </div>
-              </>
+              </div>
             )}
 
-            {modalMode === "split" && selectedSegmento && (
-              <div className="space-y-2">
-                <Label htmlFor="splitDate">Data de Divisão</Label>
-                <Input
-                  id="splitDate"
-                  type="date"
-                  value={formSplitDate}
-                  onChange={(e) => setFormSplitDate(e.target.value)}
-                  min={selectedSegmento.inicio}
-                  max={selectedSegmento.fim}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Segmento atual: {selectedSegmento.inicio} até {selectedSegmento.fim}
-                </p>
+            {/* Step 2: Editor */}
+            {formObraId && (
+              <div className="mt-2">
+                {isFetchingAgenda ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <AgendaEditor
+                    key={formObraId} // Force remount on obra change
+                    obraId={Number(formObraId)}
+                    initialSegments={agendaForEditor}
+                    equipes={equipes}
+                    onChange={setDraftAgenda}
+                    onValidationChange={(v, e) => {
+                      setDraftValid(v)
+                      setDraftError(e || null)
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            {modalMode === "edit" && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={openSplitModal}
-                  disabled={processing}
-                  className="gap-2"
-                >
-                  <Scissors className="w-4 h-4" />
-                  Dividir
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDelete}
-                  disabled={processing}
-                  size="sm"
-                >
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Excluir
-                </Button>
-              </>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
+            {formObraId && (
+              <Button onClick={handleSaveAgendaModal} disabled={savingAgenda}>
+                {savingAgenda ? "Salvando..." : "Salvar Alterações"}
+              </Button>
             )}
-            <div className="flex-1" />
-            <Button variant="outline" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={processing}
-              className="bg-marromEscuro text-bege hover:bg-marromEscuro/90"
-            >
-              {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {modalMode === "split" ? "Dividir" : "Salvar"}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

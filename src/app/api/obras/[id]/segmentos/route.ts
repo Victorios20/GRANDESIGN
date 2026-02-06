@@ -51,8 +51,8 @@ export async function POST(req: Request, { params }: { params: Params }) {
         const inicioDate = new Date(inicio)
         const fimDate = new Date(fim)
 
-        if (inicioDate >= fimDate) {
-            return NextResponse.json({ error: "Data fim deve ser maior que data início" }, { status: 400 })
+        if (inicioDate > fimDate) {
+            return NextResponse.json({ error: "Data fim deve ser maior ou igual à data início" }, { status: 400 })
         }
 
         // Check for equipe conflict (soft warning)

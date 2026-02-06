@@ -355,6 +355,7 @@ export type UpdateObraPayload = {
   }
   ordemServico?: OrdemServicoPayload
   imagens?: ImagensPayload
+  pedidos_compra?: PedidoCompraCreatePayload[]
 }
 
 export type UpdateObraResponse = { ok: boolean; status: number; data?: { id: number }; error?: string }
