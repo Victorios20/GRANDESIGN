@@ -430,7 +430,11 @@ model obras {
 
   // Datas de prazo contratual (gestão de prazos, diferente de execução)
   data_inicio_obra DateTime? @db.Date
-  data_fim_obra    DateTime? @db.Date
+
+  data_fim_obra    DateTime? @db.Date  // Prazo contratual
+  
+  // Data real de conclusão (setada ao finalizar)
+  data_conclusao   DateTime? @db.Timestamp(6)
 
   // Financeiro
   pagamento_entrada        Decimal?        @db.Decimal(10, 2)

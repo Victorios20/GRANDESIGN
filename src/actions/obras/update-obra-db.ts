@@ -28,6 +28,8 @@ export type UpdateObraPayload = {
     status?: string
     data_inicio_obra?: string | Date | null
     data_fim_obra?: string | Date | null
+    data_contrato?: string | Date | null
+    data_conclusao?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string
@@ -57,7 +59,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
   const obra = await prisma.obras.findUnique({
     where: { id },
-    select: { id: true },
+    where: { id },
+    select: { id: true, status: true, data_conclusao: true },
   })
 
   if (!obra) {
@@ -105,6 +108,24 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         if (payload.obra.data_fim_obra !== undefined) {
           const dFim = payload.obra.data_fim_obra;
           obraData.data_fim_obra = dFim ? new Date(dFim) : null;
+        }
+        if (payload.obra.data_contrato !== undefined) {
+          const dContrato = payload.obra.data_contrato;
+          obraData.data_contrato = dContrato ? new Date(dContrato) : null;
+        }
+
+        // Lógica de conclusão
+        const newStatus = obraData.status; // status alterado neste payload (se houver)
+        const oldStatus = obra.status;
+
+        // Se mandou data explicita, usa
+        if (payload.obra.data_conclusao !== undefined) {
+          const dConclusao = payload.obra.data_conclusao;
+          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null;
+        }
+        // Se NÃO mandou data, mas está mudando para FINALIZADO agora (e não estava antes), auto-set
+        else if (newStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO) {
+          obraData.data_conclusao = new Date();
         }
       }
 

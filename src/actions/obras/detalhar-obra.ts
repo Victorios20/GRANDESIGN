@@ -223,6 +223,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     status: obra.status,
     dataInicioObra: ymd(obra.data_inicio_obra as any),
     dataFimObra: ymd(obra.data_fim_obra as any),
+    dataContrato: ymd(obra.data_contrato as any),
+    dataConclusao: ymd(obra.data_conclusao as any),
 
     orcamentoId,
     orcamento: orcamentoOut,

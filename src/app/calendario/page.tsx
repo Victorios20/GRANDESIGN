@@ -130,13 +130,16 @@ function addDay(dateStr: string): string {
 }
 
 // Calculate days since a date (uses contract date if available, otherwise creation date)
-function calcDaysSinceDate(dataCriacao: string | null, dataContrato: string | null): number {
+function calcDaysSinceDate(dataCriacao: string | null, dataContrato: string | null): { days: number, source: 'assinatura' | 'criação' } {
   const refDate = dataContrato || dataCriacao
-  if (!refDate) return 0
+  if (!refDate) return { days: 0, source: 'criação' }
   const now = new Date()
   const created = new Date(refDate)
   const diffMs = now.getTime() - created.getTime()
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return {
+    days: Math.floor(diffMs / (1000 * 60 * 60 * 24)),
+    source: dataContrato ? 'assinatura' : 'criação'
+  }
 }
 
 export default function CalendarioPage() {
@@ -764,8 +767,11 @@ export default function CalendarioPage() {
                             </div>
                             <div className="flex items-center gap-1.5 mt-1.5">
                               <Clock className="w-3 h-3 text-amber-600" />
-                              <span className={`text-[10px] font-semibold ${calcDaysSinceDate(obra.data_criacao, obra.data_contrato) > 7 ? 'text-red-600' : 'text-amber-600'}`}>
-                                {calcDaysSinceDate(obra.data_criacao, obra.data_contrato)} dias
+                              <span className={`text-[10px] font-semibold ${calcDaysSinceDate(obra.data_criacao, obra.data_contrato).days > 7 ? 'text-red-600' : 'text-amber-600'}`}>
+                                {calcDaysSinceDate(obra.data_criacao, obra.data_contrato).days} dias
+                                <span className="text-[9px] font-normal opacity-70 ml-1">
+                                  (desde {calcDaysSinceDate(obra.data_criacao, obra.data_contrato).source})
+                                </span>
                               </span>
                             </div>
                           </div>

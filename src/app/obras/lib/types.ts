@@ -136,6 +136,9 @@ export type ObraDetalheDTO = {
   titulo: string | null
   orcamento: { id: number } | null
 
+  dataContrato: string | null
+  dataConclusao: string | null
+
   anexos: {
     orcamentoId: number | null
     propostaSlide: string | null
@@ -293,6 +296,8 @@ export type ObraInfosVM = {
   status: ObraStatus
   dataInicioObra?: string | null
   dataFimObra?: string | null
+  dataContrato?: string | null
+  dataConclusao?: string | null
   cliente: {
     id?: number
     nome: string

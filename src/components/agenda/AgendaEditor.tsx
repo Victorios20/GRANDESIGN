@@ -136,7 +136,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
     }, [sortedSegments])
 
     const missingTeamError = useMemo(() => {
-        if (sortedSegments.some(s => !s.equipeId)) return "Selecione a equipe para todos os períodos."
+        // Team is now optional
         return null
     }, [sortedSegments])
 
@@ -212,10 +212,6 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
     }
 
     const handleRemove = (id: number) => {
-        if (segments.length === 1) {
-            toast.warning("A agenda deve ter pelo menos um período.")
-            return
-        }
         setSegments(prev => prev.filter(s => s.id !== id))
         toast.success("Período removido")
     }
