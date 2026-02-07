@@ -19,3 +19,32 @@ export async function GET() {
     return NextResponse.json({ error: "Erro ao listar cidades" }, { status: 500 })
   }
 }
+
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const body = await req.json()
+    const { nome, cor } = body
+
+    if (!nome) {
+      return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 })
+    }
+
+    const prisma = (await import("@/lib/prisma")).prisma
+    const cidade = await prisma.cidades.create({
+      data: {
+        nome,
+        cor
+      }
+    })
+
+    return NextResponse.json(cidade, { status: 201 })
+  } catch (err) {
+    console.error("Erro ao criar cidade:", err)
+    return NextResponse.json({ error: "Erro ao criar cidade" }, { status: 500 })
+  }
+}

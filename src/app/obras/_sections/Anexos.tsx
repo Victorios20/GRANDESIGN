@@ -24,6 +24,7 @@ import {
   listarDocumentos,
   excluirDocumento,
 } from "@/actions/obras/documentos"
+import { useRouter } from "next/navigation"
 import {
   TipoDocumento,
   TIPO_DOCUMENTO_LABELS,
@@ -113,6 +114,7 @@ export default function Anexos({
   ordemServicoId,
   className,
 }: Props) {
+  const router = useRouter()
   const [documentos, setDocumentos] = useState<ObraDocumento[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -139,6 +141,8 @@ export default function Anexos({
     try {
       const docs = await listarDocumentos(obraId)
       setDocumentos(docs)
+      // Se foi upload de contrato, precisamos atualizar a data mostrada na tela principal
+      router.refresh()
     } catch (error) {
       console.error("Erro ao carregar documentos:", error)
     } finally {

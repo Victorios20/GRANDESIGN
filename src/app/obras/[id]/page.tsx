@@ -248,6 +248,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     observacoes: obraDTO?.observacoes ?? null,
     dataInicioObra: (dto as any)?.dataInicioObra ?? null,
     dataFimObra: (dto as any)?.dataFimObra ?? null,
+    dataContrato: (dto as any)?.dataContrato ?? null,
+    dataConclusao: (dto as any)?.dataConclusao ?? null,
     imagens: imagensInit,
   }
 

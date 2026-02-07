@@ -52,6 +52,7 @@ enum PedidoStatusAndaimes {
 model cidades {
   id      Int       @id @default(autoincrement())
   nome    String    @unique @db.VarChar(100)
+  cor     String?   @db.VarChar(7) // HEX color
   cliente cliente[]
 }
 

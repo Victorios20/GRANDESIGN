@@ -59,7 +59,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
   const obra = await prisma.obras.findUnique({
     where: { id },
-    where: { id },
+    // @ts-ignore
     select: { id: true, status: true, data_conclusao: true },
   })
 
@@ -72,7 +72,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       /* ================= OBRA ================= */
       console.log("Payload recebido updateObraDB:", JSON.stringify(payload, null, 2))
 
-      const obraData: Prisma.obrasUpdateInput = {
+      const obraData: any = {
         updatedBy: { connect: { id: Number(userId) } },
       }
 

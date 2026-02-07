@@ -7,7 +7,7 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
+
 import { Label } from "@/components/ui/label"
 import {
   Dialog,
@@ -48,6 +48,8 @@ import {
   ChevronRight,
   ExternalLink,
   Wrench,
+  Palette,
+  LayoutGrid,
 } from "lucide-react"
 
 // FullCalendar imports
@@ -74,6 +76,8 @@ type SegmentoDTO = {
     cliente: string | null
     clienteBairro: string | null
     clienteCidade: string | null
+    clienteCidadeCor: string | null
+    dataUltimaAlteracao: string | null
   }
   equipe: {
     id: number
@@ -165,6 +169,10 @@ export default function CalendarioPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalMode, setModalMode] = useState<"create" | "manage">("create") // Simplified modes
   const [selectedSegmento, setSelectedSegmento] = useState<SegmentoDTO | null>(null)
+
+  // Color Mode
+  const [colorMode, setColorMode] = useState<"equipe" | "cidade">("equipe")
+  const [cidadesLegend, setCidadesLegend] = useState<{ nome: string, cor: string }[]>([])
 
   // Editor state
   const [agendaForEditor, setAgendaForEditor] = useState<AgendaSegmentInput[]>([])
@@ -261,6 +269,17 @@ export default function CalendarioPage() {
     }
   }, [filterEquipe, filterStatus])
 
+  // Extract unique cities for legend
+  useEffect(() => {
+    const uniqueCidades = new Map<string, string>()
+    segmentos.forEach(s => {
+      if (s.obra.clienteCidade) {
+        uniqueCidades.set(s.obra.clienteCidade, s.obra.clienteCidadeCor || "#6B7280")
+      }
+    })
+    setCidadesLegend(Array.from(uniqueCidades.entries()).map(([nome, cor]) => ({ nome, cor })).sort((a, b) => a.nome.localeCompare(b.nome)))
+  }, [segmentos])
+
   // Initial load
   useEffect(() => {
     loadEquipes()
@@ -307,11 +326,12 @@ export default function CalendarioPage() {
     title: s.obra.titulo || `Obra #${s.obra.id}`,
     start: s.inicio,
     end: addDay(s.fim), // FullCalendar uses exclusive end, so add 1 day
-    backgroundColor: s.equipe?.cor || "#6B7280",
-    borderColor: s.equipe?.cor || "#6B7280",
+
+    backgroundColor: colorMode === "equipe" ? (s.equipe?.cor || "#6B7280") : (s.obra.clienteCidadeCor || "#6B7280"),
+    borderColor: colorMode === "equipe" ? (s.equipe?.cor || "#6B7280") : (s.obra.clienteCidadeCor || "#6B7280"),
     extendedProps: { segmento: s },
     classNames: s.tipo === "MANUTENCAO" ? ["maintenance-event"] : [],
-  })), [segmentos])
+  })), [segmentos, colorMode])
 
   // Calendar handlers
   const handleDatesSet = useCallback((arg: { startStr: string; endStr: string }) => {
@@ -498,7 +518,7 @@ export default function CalendarioPage() {
             {/* Header with equipe color bar */}
             <div
               className="h-1.5 w-full"
-              style={{ backgroundColor: segmento.equipe?.cor || "#9CA3AF" }}
+              style={{ backgroundColor: colorMode === "equipe" ? (segmento.equipe?.cor || "#9CA3AF") : (segmento.obra.clienteCidadeCor || "#9CA3AF") }}
             />
 
             {/* Content */}
@@ -540,6 +560,15 @@ export default function CalendarioPage() {
                   </span>
                 </div>
               )}
+
+              {segmento.obra.dataUltimaAlteracao && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border/50 mt-1">
+                  <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span className="text-[10px] text-muted-foreground">
+                    Atualizado em: {new Date(segmento.obra.dataUltimaAlteracao).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Action footer */}
@@ -550,7 +579,6 @@ export default function CalendarioPage() {
                 className="flex items-center justify-center gap-1.5 w-full text-xs py-1.5 px-3 rounded-md bg-background border border-border text-foreground hover:bg-accent hover:text-accent-foreground transition-colors font-medium"
                 onClick={(e) => e.stopPropagation()}
               >
-                <ExternalLink className="w-3.5 h-3.5" />
                 Abrir Obra
               </Link>
             </div>
@@ -875,8 +903,64 @@ export default function CalendarioPage() {
                       <SelectItem value="PENDENCIA">Pendência</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  <div className="bg-muted p-1 rounded-lg flex items-center gap-1">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={colorMode === "equipe" ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setColorMode("equipe")}
+                          >
+                            <User className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Colorir por Equipe</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={colorMode === "cidade" ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => setColorMode("cidade")}
+                          >
+                            <MapPin className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Colorir por Cidade</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
               </div>
+
+              {/* Legend - Only show different items from filter */}
+              {colorMode === "cidade" && cidadesLegend.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-3 px-1 pt-2 border-t border-border/50">
+                  {cidadesLegend.map((cid) => (
+                    <div key={cid.nome} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cid.cor }} />
+                      <span className="text-xs text-muted-foreground">{cid.nome}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {colorMode === "equipe" && equipes.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-3 px-1 pt-2 border-t border-border/50">
+                  {equipes.map((eq) => (
+                    <div key={eq.id} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: eq.cor || "#6B7280" }} />
+                      <span className="text-xs text-muted-foreground">{eq.nome}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardHeader>
 
             <CardContent className="p-3 flex-1 overflow-hidden">
@@ -984,6 +1068,6 @@ export default function CalendarioPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </PageLayout>
+    </PageLayout >
   )
 }

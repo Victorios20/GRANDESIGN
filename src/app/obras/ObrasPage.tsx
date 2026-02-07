@@ -137,6 +137,10 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
     },
     observacoes: initial.observacoes ?? null,
     imagens: initial.imagens ?? [],
+    dataContrato: initial.dataContrato ?? null,
+    dataConclusao: initial.dataConclusao ?? null,
+    dataInicioObra: initial.dataInicioObra ?? null,
+    dataFimObra: initial.dataFimObra ?? null,
   }
 }
 
@@ -439,6 +443,14 @@ export default function ObrasPage({
     const anyInitial = initial as any
     const next = resolveClienteIdFromInitial(anyInitial)
     setClienteId(next)
+
+    // Sync VM state when initial props change (e.g. after router.refresh() from Anexos)
+    setVm(curr => ({
+      ...curr,
+      ...hydrateInfos(initial),
+      // Preserve client-side only state if needed, but for now we prioritize server state sync
+      // especially for dates which are the issue
+    }))
   }, [initial])
 
   // Agenda State

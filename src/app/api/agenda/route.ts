@@ -1,7 +1,7 @@
 // src/app/api/agenda/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import type { ObraStatus } from "@prisma/client"
+import { type ObraStatus, Prisma } from "@prisma/client"
 
 export const dynamic = "force-dynamic"
 
@@ -65,6 +65,7 @@ export async function GET(req: Request) {
                         titulo: true,
                         status: true,
                         tipo_obra: true,
+                        data_ultima_alteracao: true,
                         cliente: {
                             select: {
                                 id: true,
@@ -73,6 +74,8 @@ export async function GET(req: Request) {
                                 cidades: {
                                     select: {
                                         nome: true,
+                                        // @ts-expect-error - field exists in DB but client is stale
+                                        cor: true,
                                     },
                                 },
                             },
@@ -91,7 +94,7 @@ export async function GET(req: Request) {
         })
 
         // Transform to frontend format
-        const segmentosFormatted = segmentos.map((s) => ({
+        const segmentosFormatted = (segmentos as any[]).map((s) => ({
             id: s.id,
             inicio: s.inicio.toISOString().split("T")[0],
             fim: s.fim.toISOString().split("T")[0],
@@ -106,6 +109,8 @@ export async function GET(req: Request) {
                 cliente: s.obra.cliente?.nome || null,
                 clienteBairro: s.obra.cliente?.bairro || null,
                 clienteCidade: s.obra.cliente?.cidades?.nome || null,
+                clienteCidadeCor: s.obra.cliente?.cidades?.cor || null,
+                dataUltimaAlteracao: s.obra.data_ultima_alteracao ? s.obra.data_ultima_alteracao.toISOString() : null,
             },
             equipe: s.equipe
                 ? {

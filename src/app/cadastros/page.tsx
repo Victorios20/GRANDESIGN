@@ -56,7 +56,8 @@ import {
   ArrowLeft,
   X,
   Loader2,
-  Construction
+  Construction,
+  MapPin
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -68,7 +69,7 @@ import {
 
 export default function CadastrosPage() {
   // Navigation state
-  type Category = "fornecedores" | "materiais" | "telhas" | "componentes" | "equipes"
+  type Category = "fornecedores" | "materiais" | "telhas" | "componentes" | "equipes" | "cidades"
   const [activeCategory, setActiveCategory] = useState<Category>("fornecedores")
   const [selectedFornecedor, setSelectedFornecedor] = useState<FornecedorDTO | null>(null)
 
@@ -77,6 +78,7 @@ export default function CadastrosPage() {
   const [componentes, setComponentes] = useState<ComponenteDTO[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorDTO[]>([])
   const [equipes, setEquipes] = useState<{ id: number; nome: string; cor: string | null }[]>([])
+  const [cidades, setCidades] = useState<{ id: number; nome: string; cor: string | null }[]>([])
 
   // Loading states
   const [loading, setLoading] = useState(false)
@@ -87,7 +89,7 @@ export default function CadastrosPage() {
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "equipe">("material")
+  const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "equipe" | "cidade">("material")
   const [editingItem, setEditingItem] = useState<any>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ type: string; item: any } | null>(null)
@@ -146,18 +148,31 @@ export default function CadastrosPage() {
     }
   }, [])
 
-  // Load data on mount
-  useEffect(() => {
+  const loadCidades = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/cidades")
+      if (!res.ok) throw new Error("Falha ao buscar cidades")
+      const json = await res.json()
+      setCidades(json || [])
+    } catch (error) {
+      toast.error("Erro ao carregar cidades")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const loadData = useCallback(() => {
     loadFornecedores()
     loadMateriais()
     loadComponentes()
     loadEquipes()
-  }, [loadFornecedores, loadMateriais, loadComponentes, loadEquipes])
+    loadCidades()
+  }, [loadFornecedores, loadMateriais, loadComponentes, loadEquipes, loadCidades])
 
-  // Helper functions
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-  }
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const getTipoFornecedorLabel = (tipo?: string | null) => {
     switch (tipo?.toLowerCase()) {
@@ -214,6 +229,8 @@ export default function CadastrosPage() {
         return componentes.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()))
       case "equipes":
         return equipes.filter(e => e.nome.toLowerCase().includes(searchTerm.toLowerCase()))
+      case "cidades":
+        return cidades.filter(c => c.nome.toLowerCase().includes(searchTerm.toLowerCase()))
       default:
         return []
     }
@@ -242,6 +259,8 @@ export default function CadastrosPage() {
       setFormData({ nome: item.nome })
     } else if (type === "equipe") {
       setFormData({ nome: item.nome, cor: item.cor || "" })
+    } else if (type === "cidade") {
+      setFormData({ nome: item.nome, cor: item.cor || "" })
     }
 
     setModalOpen(true)
@@ -256,6 +275,7 @@ export default function CadastrosPage() {
       case "telha": return `${action} Telha`
       case "componente": return `${action} Componente`
       case "equipe": return `${action} Equipe`
+      case "cidade": return `${action} Cidade`
       default: return action
     }
   }
@@ -324,6 +344,31 @@ export default function CadastrosPage() {
           toast.success("Equipe criada!")
         }
         await loadEquipes()
+      } else if (itemToDelete?.type === "cidade") {
+        const res = await fetch(`/api/cidades/${itemToDelete.item.id}`, { method: "DELETE" })
+        if (!res.ok) throw new Error("Falha ao excluir cidade")
+        toast.success("Cidade excluída!")
+        await loadCidades()
+      } else if (modalType === "cidade") {
+        const payload = { nome: formData.nome, cor: formData.cor || null }
+        if (editingItem) {
+          const res = await fetch(`/api/cidades/${editingItem.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error("Falha ao atualizar cidade")
+          toast.success("Cidade atualizada!")
+        } else {
+          const res = await fetch("/api/cidades", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error("Falha ao criar cidade")
+          toast.success("Cidade criada!")
+        }
+        await loadCidades()
       }
 
       setModalOpen(false)
@@ -364,6 +409,11 @@ export default function CadastrosPage() {
         if (!res.ok) throw new Error("Falha ao excluir equipe")
         toast.success("Equipe excluída!")
         await loadEquipes()
+      } else if (itemToDelete.type === "cidade") {
+        const res = await fetch(`/api/cidades/${itemToDelete.item.id}`, { method: "DELETE" })
+        if (!res.ok) throw new Error("Falha ao excluir cidade")
+        toast.success("Cidade excluída!")
+        await loadCidades()
       }
 
       setDeleteDialogOpen(false)
@@ -385,6 +435,7 @@ export default function CadastrosPage() {
       case "materiais": return "material"
       case "componentes": return "componente"
       case "equipes": return "equipe"
+      case "cidades": return "cidade"
       default: return "material"
     }
   }
@@ -400,6 +451,13 @@ export default function CadastrosPage() {
   const handleBack = () => {
     setSelectedFornecedor(null)
     setSearchTerm("")
+  }
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
   }
 
   const filteredData = getFilteredData()
@@ -530,40 +588,47 @@ export default function CadastrosPage() {
         ) : (
           // Main Tabs View
           <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as Category)}>
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="fornecedores" className="gap-2">
+            <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+              <TabsTrigger value="fornecedores" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Truck className="w-4 h-4" />
-                <span className="hidden sm:inline">Fornecedores</span>
-                <span className="sm:hidden">Fornec.</span>
-                <Badge variant="secondary" className="text-xs ml-1">{fornecedores.length}</Badge>
+                <span className="hidden lg:inline">Fornecedores</span>
+                <span className="lg:hidden">Forn.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{fornecedores.length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="materiais" className="gap-2">
+              <TabsTrigger value="materiais" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Package className="w-4 h-4" />
-                <span className="hidden sm:inline">Materiais</span>
-                <span className="sm:hidden">Mat.</span>
-                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo === 'geral' || !m.tipo).length}</Badge>
+                <span className="hidden lg:inline">Materiais</span>
+                <span className="lg:hidden">Mat.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{materiais.filter(m => m.tipo === 'geral' || !m.tipo).length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="telhas" className="gap-2">
+              <TabsTrigger value="telhas" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">Telhas</span>
-                <span className="sm:hidden">Tel.</span>
-                <Badge variant="secondary" className="text-xs ml-1">{materiais.filter(m => m.tipo?.toLowerCase() === 'telha').length}</Badge>
+                <span className="hidden lg:inline">Telhas</span>
+                <span className="lg:hidden">Tel.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{materiais.filter(m => m.tipo?.toLowerCase() === 'telha').length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="componentes" className="gap-2">
+              <TabsTrigger value="componentes" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Package className="w-4 h-4" />
-                <span className="hidden sm:inline">Componentes</span>
-                <span className="sm:hidden">Comp.</span>
-                <Badge variant="secondary" className="text-xs ml-1">{componentes.length}</Badge>
+                <span className="hidden lg:inline">Componentes</span>
+                <span className="lg:hidden">Comp.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{componentes.length}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="equipes" className="gap-2">
+              <TabsTrigger value="equipes" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Users className="w-4 h-4" />
-                Equipes
-                <Badge variant="secondary" className="text-xs ml-1">{equipes.length}</Badge>
+                <span className="hidden lg:inline">Equipes</span>
+                <span className="lg:hidden">Eqp.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{equipes.length}</Badge>
+              </TabsTrigger>
+              <TabsTrigger value="cidades" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
+                <MapPin className="w-4 h-4" />
+                <span className="hidden lg:inline">Cidades</span>
+                <span className="lg:hidden">Cid.</span>
+                <Badge variant="secondary" className="text-xs ml-1 bg-muted text-muted-foreground">{cidades.length}</Badge>
               </TabsTrigger>
             </TabsList>
 
             {/* Fornecedores Tab */}
-            <TabsContent value="fornecedores" className="space-y-4">
+            <TabsContent value="fornecedores" className="space-y-4 mt-4">
               <Card className="bg-card border-border">
                 <CardHeader className="border-b border-border">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -687,7 +752,7 @@ export default function CadastrosPage() {
             </TabsContent>
 
             {/* Materiais Tab */}
-            <TabsContent value="materiais" className="space-y-4">
+            <TabsContent value="materiais" className="space-y-4 mt-4">
               <Card className="bg-card border-border">
                 <CardHeader className="border-b border-border">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -768,7 +833,7 @@ export default function CadastrosPage() {
             </TabsContent>
 
             {/* Telhas Tab */}
-            <TabsContent value="telhas" className="space-y-4">
+            <TabsContent value="telhas" className="space-y-4 mt-4">
               <Card className="bg-card border-border">
                 <CardHeader className="border-b border-border">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -851,7 +916,7 @@ export default function CadastrosPage() {
             </TabsContent>
 
             {/* Componentes Tab */}
-            <TabsContent value="componentes" className="space-y-4">
+            <TabsContent value="componentes" className="space-y-4 mt-4">
               <Card className="bg-card border-border">
                 <CardHeader className="border-b border-border">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -932,7 +997,7 @@ export default function CadastrosPage() {
             </TabsContent>
 
             {/* Equipes Tab */}
-            <TabsContent value="equipes" className="space-y-4">
+            <TabsContent value="equipes" className="space-y-4 mt-4">
               <Card className="bg-card border-border">
                 <CardHeader className="border-b border-border">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1004,6 +1069,97 @@ export default function CadastrosPage() {
                                     </button>
                                     <button
                                       onClick={() => openDeleteDialog("equipe", equipe)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Cidades Tab */}
+            <TabsContent value="cidades" className="space-y-4 mt-4">
+              <Card className="bg-card border-border">
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar cidade..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('cidade')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nova Cidade
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Cor</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <MapPin className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhuma cidade encontrada</p>
+                                <p className="text-sm mt-1">Adicione uma nova cidade</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const cidade = item as { id: number; nome: string; cor: string | null }
+                            return (
+                              <tr key={cidade.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{cidade.nome}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-6 h-6 rounded-full border border-border"
+                                      style={{ backgroundColor: cidade.cor || "#E5E5E5" }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">{cidade.cor || "Sem cor"}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("cidade", cidade)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("cidade", cidade)}
                                       className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
                                       aria-label="Excluir"
                                     >
@@ -1105,41 +1261,31 @@ export default function CadastrosPage() {
               </>
             )}
 
-            {/* Color field - for equipes */}
-            {modalType === "equipe" && (
+            {(modalType === "equipe" || modalType === "cidade") && (
               <div className="space-y-2">
-                <Label htmlFor="cor">Cor da Equipe</Label>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg border-2 border-border flex-shrink-0"
-                    style={{ backgroundColor: formData.cor || "#E5E5E5" }}
-                  />
-                  <Input
-                    id="cor"
-                    type="text"
-                    value={formData.cor || ""}
-                    onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
-                    placeholder="#3B82F6"
-                    className="flex-1"
-                  />
-                  <input
-                    type="color"
-                    value={formData.cor || "#3B82F6"}
-                    onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
-                    className="w-10 h-10 rounded cursor-pointer border-0"
-                    title="Escolher cor"
-                  />
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {["#3B82F6", "#22C55E", "#EF4444", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#6B7280"].map((color) => (
+                <Label>Cor (para Agenda)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {["#3B82F6", "#22C55E", "#EF4444", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#6B7280", "#A855F7", "#64748B"].map((color) => (
                     <button
                       key={color}
                       type="button"
-                      className="w-6 h-6 rounded-full border border-border hover:scale-110 transition-transform"
+                      className={cn(
+                        "w-8 h-8 rounded-full border border-border hover:scale-110 transition-transform ring-offset-background",
+                        formData.cor === color ? "ring-2 ring-ring ring-offset-2" : ""
+                      )}
                       style={{ backgroundColor: color }}
                       onClick={() => setFormData({ ...formData, cor: color })}
                     />
                   ))}
+                  <div className="flex items-center gap-2 ml-2">
+                    <Input
+                      type="color"
+                      value={formData.cor || "#000000"}
+                      onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
+                      className="w-8 h-8 p-0 border-0 rounded-full overflow-hidden cursor-pointer"
+                    />
+                    <span className="text-xs text-muted-foreground">Personalizado</span>
+                  </div>
                 </div>
               </div>
             )}

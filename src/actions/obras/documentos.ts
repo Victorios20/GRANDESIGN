@@ -58,6 +58,23 @@ export async function criarDocumento(data: {
             },
         })
 
+        // Se for contrato assinado, atualizar a obra
+        if (data.tipo === "CONTRATO_ASSINADO") {
+            const obra = await prisma.obras.findUnique({
+                where: { id: data.obraId },
+                select: { data_contrato: true }
+            })
+
+            // Atualiza link_contrato_assinado e data_contrato (se vazia)
+            await prisma.obras.update({
+                where: { id: data.obraId },
+                data: {
+                    link_contrato_assinado: data.url ?? data.link ?? undefined,
+                    data_contrato: obra?.data_contrato ?? new Date()
+                }
+            })
+        }
+
         revalidatePath("/obras")
         revalidatePath(`/obras/${data.obraId}`)
 
