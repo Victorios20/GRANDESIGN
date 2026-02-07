@@ -86,6 +86,8 @@ export type ObraDetalheDTO = {
   id: number
   titulo: string | null
   status: string
+  dataInicioObra: string | null
+  dataFimObra: string | null
 
   orcamentoId: number | null
   orcamento: {
@@ -219,6 +221,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     id: obra.id,
     titulo: obra.titulo,
     status: obra.status,
+    dataInicioObra: ymd(obra.data_inicio_obra as any),
+    dataFimObra: ymd(obra.data_fim_obra as any),
 
     orcamentoId,
     orcamento: orcamentoOut,

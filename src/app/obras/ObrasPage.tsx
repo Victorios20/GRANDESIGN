@@ -17,7 +17,6 @@ import {
 
 import AgendaObra from "./_sections/AgendaObra"
 import Anexos from "./_sections/Anexos"
-import ContratoUpload from "./_sections/ContratoUpload"
 
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
@@ -912,6 +911,8 @@ export default function ObrasPage({
             telha_escolhida: vm.telhaEscolhida || "",
             status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,
+            data_inicio_obra: vm.dataInicioObra || null,
+            data_fim_obra: vm.dataFimObra || null,
           },
 
           financeiro: {
@@ -1129,16 +1130,9 @@ export default function ObrasPage({
       </div>
 
       <div className="mt-6">
-        <ContratoUpload
-          mode={mode}
-          obraId={obraId || 0}
-          linkContrato={anexosInit?.linkContratoAssinado}
-        />
-      </div>
-
-      <div className="mt-6">
         <Anexos
           mode={mode}
+          obraId={obraId || 0}
           orcamentoLink={orcamentoLinkFinal}
           orcamentoId={orcamentoId ?? null}
           propostaLink={propostaLinkFinal}

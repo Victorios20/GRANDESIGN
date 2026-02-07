@@ -291,6 +291,8 @@ export type ObraInfosVM = {
   comprimento: number | null
   telhaEscolhida: string
   status: ObraStatus
+  dataInicioObra?: string | null
+  dataFimObra?: string | null
   cliente: {
     id?: number
     nome: string
@@ -342,6 +344,8 @@ export type UpdateObraPayload = {
     telha_escolhida?: string
     status?: ObraStatus
     observacoes?: string
+    data_inicio_obra?: string | Date | null
+    data_fim_obra?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string

@@ -428,6 +428,10 @@ model obras {
   status      ObraStatus @default(ASSINATURA_DE_CONTRATO)
   observacoes String?    @db.Text
 
+  // Datas de prazo contratual (gestão de prazos, diferente de execução)
+  data_inicio_obra DateTime? @db.Date
+  data_fim_obra    DateTime? @db.Date
+
   // Financeiro
   pagamento_entrada        Decimal?        @db.Decimal(10, 2)
   forma_pagamento_entrada  String?         @db.VarChar(30)
@@ -459,6 +463,9 @@ model obras {
 
   // Segmentos de agenda 1:N — caem junto com a obra
   segmentos ObraAgendaSegmento[]
+
+  // Documentos anexos 1:N — caem junto com a obra
+  documentos obra_documentos[]
 
   @@index([cliente_id])
   @@index([equipe_id])
@@ -506,4 +513,20 @@ model ObraAgendaSegmento {
   @@index([equipe_id])
   @@index([inicio, fim])
   @@map("obra_agenda_segmento")
+}
+
+// Documentos anexos da obra (uploads e links)
+model obra_documentos {
+  id         Int      @id @default(autoincrement())
+  obra_id    Int
+  tipo       String   @db.VarChar(50) // CONTRATO_ASSINADO, RECIBO, TERMO, OUTROS
+  titulo     String   @db.VarChar(200)
+  url        String?  @db.VarChar(500) // Arquivo S3
+  link       String?  @db.VarChar(500) // Link externo
+  created_at DateTime @default(now())
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([obra_id, tipo])
 }

@@ -26,6 +26,8 @@ export type UpdateObraPayload = {
     telha_escolhida?: string
     observacoes?: string | null
     status?: string
+    data_inicio_obra?: string | Date | null
+    data_fim_obra?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string
@@ -65,6 +67,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   try {
     const result = await prisma.$transaction(async (tx) => {
       /* ================= OBRA ================= */
+      console.log("Payload recebido updateObraDB:", JSON.stringify(payload, null, 2))
+
       const obraData: Prisma.obrasUpdateInput = {
         updatedBy: { connect: { id: Number(userId) } },
       }
@@ -93,6 +97,15 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           const valid = mapa[s]
           if (valid) obraData.status = valid
         }
+        // Datas de prazo contratual
+        if (payload.obra.data_inicio_obra !== undefined) {
+          const dIni = payload.obra.data_inicio_obra;
+          obraData.data_inicio_obra = dIni ? new Date(dIni) : null;
+        }
+        if (payload.obra.data_fim_obra !== undefined) {
+          const dFim = payload.obra.data_fim_obra;
+          obraData.data_fim_obra = dFim ? new Date(dFim) : null;
+        }
       }
 
       if (payload.financeiro) {
@@ -103,6 +116,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
         obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao
       }
+
+      console.log("ObraData final updateObraDB:", obraData)
 
       await tx.obras.update({
         where: { id },

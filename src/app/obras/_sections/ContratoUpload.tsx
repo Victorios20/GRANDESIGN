@@ -120,7 +120,7 @@ export default function ContratoUpload({
                 </CardTitle>
             </CardHeader>
 
-            <CardContent className="px-7 pb-7 pt-3">
+            <CardContent className="px-6 pb-6 pt-4">
                 {/* Hidden file input */}
                 <input
                     ref={fileInputRef}
@@ -176,10 +176,11 @@ export default function ContratoUpload({
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
                             Faça upload do contrato assinado (PDF) para registrar a data de início da obra.
                         </p>
                         <Button
+                            variant="default"
                             onClick={handleUploadClick}
                             disabled={isLoading}
                             className="w-full"
