@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 
 import { updateAgendaSegments, AgendaSegmentInput } from "@/actions/obras/update-agenda"
 
@@ -54,7 +56,7 @@ type Props = {
 }
 
 export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = false, obraStatus, onChange, onValidationChange }: Props) {
-    const isObraFinalizada = obraStatus === "Finalizado"
+    const isObraFinalizada = obraStatus?.toUpperCase() === "FINALIZADO"
 
     // Use local state only if not controlled (fallback) or to manage internal edit drafts before propagation?
     // Actually, distinct UX: if controlled, we should probably just use the prop?
@@ -333,19 +335,56 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
 
                     {/* Date Range */}
                     <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                        <Input
-                            type="date"
-                            className="h-7 text-xs w-[105px] px-1.5 bg-background border-border/50 focus:border-primary/50"
-                            value={seg.start}
-                            onChange={e => handleChange(seg.id!, "start", e.target.value)}
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "h-7 text-xs w-[130px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
+                                        !seg.start && "text-muted-foreground"
+                                    )}
+                                >
+                                    <Calendar className="mr-2 h-3 w-3 opacity-50" />
+                                    {seg.start ? format(parseYMD(seg.start) || new Date(), "P", { locale: ptBR }) : <span>Selecione</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                    mode="single"
+                                    selected={parseYMD(seg.start) || undefined}
+                                    onSelect={(date) => date && handleChange(seg.id!, "start", date.toISOString().split('T')[0])}
+                                    initialFocus
+                                    locale={ptBR}
+                                />
+                            </PopoverContent>
+                        </Popover>
+
                         <ArrowRight className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-                        <Input
-                            type="date"
-                            className="h-7 text-xs w-[105px] px-1.5 bg-background border-border/50 focus:border-primary/50"
-                            value={seg.end}
-                            onChange={e => handleChange(seg.id!, "end", e.target.value)}
-                        />
+
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                        "h-7 text-xs w-[130px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
+                                        !seg.end && "text-muted-foreground"
+                                    )}
+                                >
+                                    <Calendar className="mr-2 h-3 w-3 opacity-50" />
+                                    {seg.end ? format(parseYMD(seg.end) || new Date(), "P", { locale: ptBR }) : <span>Selecione</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <CalendarComponent
+                                    mode="single"
+                                    selected={parseYMD(seg.end) || undefined}
+                                    onSelect={(date) => date && handleChange(seg.id!, "end", date.toISOString().split('T')[0])}
+                                    initialFocus
+                                    locale={ptBR}
+                                />
+                            </PopoverContent>
+                        </Popover>
+
                         <Badge variant="secondary" className="h-5 px-1 text-[10px] font-medium shrink-0">
                             {days}d
                         </Badge>

@@ -154,6 +154,7 @@ export default function CalendarioPage() {
 
   // Editor state
   const [agendaForEditor, setAgendaForEditor] = useState<AgendaSegmentInput[]>([])
+  const [editorObraStatus, setEditorObraStatus] = useState<string>("")
   const [isFetchingAgenda, setIsFetchingAgenda] = useState(false)
 
   // Save/Validation state
@@ -312,12 +313,14 @@ export default function CalendarioPage() {
     const calendarApi = calendarRef.current?.getApi()
     calendarApi?.unselect()
 
-    calendarApi?.unselect()
+    const calendarApi2 = calendarRef.current?.getApi()
+    calendarApi2?.unselect()
 
     setModalMode("create")
     setSelectedSegmento(null)
     setFormObraId("")
     setFormEquipeId("NONE")
+    setEditorObraStatus("") // Reset status
     setFormInicio(arg.startStr.split("T")[0])
     // Subtract 1 day from end since FullCalendar uses exclusive end
     const endDate = new Date(arg.endStr)
@@ -337,6 +340,7 @@ export default function CalendarioPage() {
     setModalMode("manage")
     setSelectedSegmento(segmento)
     setFormObraId(String(segmento.obra.id))
+    setEditorObraStatus(segmento.obra.status || "") // Set status from segment
     setFormEquipeId(segmento.equipe ? String(segmento.equipe.id) : "NONE")
     setFormInicio(segmento.inicio)
     setFormFim(segmento.fim)
@@ -364,6 +368,7 @@ export default function CalendarioPage() {
     setSelectedSegmento(null)
     setFormObraId(obraId)
     setFormEquipeId("NONE")
+    // Note: status will be fetched in useEffect when formObraId changes
     setFormInicio(start)
     setFormFim(end)
     setModalOpen(true)
@@ -549,6 +554,9 @@ export default function CalendarioPage() {
       const json = await res.json()
       const details = json.data
 
+      // Set status from details
+      setEditorObraStatus(details.status || "")
+
       const mapped: AgendaSegmentInput[] = (details?.agenda || []).map((s: any) => ({
         id: s.id,
         start: s.start,
@@ -589,6 +597,7 @@ export default function CalendarioPage() {
       fetchAgendaForEditor(id)
     } else {
       setAgendaForEditor([])
+      setEditorObraStatus("") // clear status
     }
   }, [formObraId, modalOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -931,6 +940,7 @@ export default function CalendarioPage() {
                     obraId={Number(formObraId)}
                     initialSegments={agendaForEditor}
                     equipes={equipes}
+                    obraStatus={editorObraStatus}
                     onChange={setDraftAgenda}
                     onValidationChange={(v, e) => {
                       setDraftValid(v)
