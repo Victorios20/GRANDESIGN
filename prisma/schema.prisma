@@ -441,6 +441,8 @@ model obras {
   link_slide_orcamento String? @db.VarChar(255)
   link_pdf_orcamento   String? @db.VarChar(255)
   link_contrato        String? @db.VarChar(255)
+  link_contrato_assinado String? @db.VarChar(255) // Validated/Signed PDF upload
+  data_contrato        DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
   link_ordem_servico   String? @db.VarChar(255)
 
   // Auditoria

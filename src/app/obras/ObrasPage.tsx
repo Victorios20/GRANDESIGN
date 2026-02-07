@@ -17,6 +17,7 @@ import {
 
 import AgendaObra from "./_sections/AgendaObra"
 import Anexos from "./_sections/Anexos"
+import ContratoUpload from "./_sections/ContratoUpload"
 
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
@@ -103,6 +104,7 @@ type Props = {
     orcamento?: string | null
     proposta?: string | null
     contrato?: string | null
+    linkContratoAssinado?: string | null
     ordemServico?: string | null
   }
   cidades?: Cidade[]
@@ -522,10 +524,17 @@ export default function ObrasPage({
   }
 
   const tituloTopo = useMemo(() => {
-    const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : vm.titulo || "Obra"
+    const idPrefix = obraId && Number(obraId) > 0 ? `#${obraId} · ` : ""
+    const hasTitulo = vm?.titulo && vm.titulo.trim() !== ""
+
+    if (hasTitulo) {
+      return `${idPrefix}${vm.titulo}`
+    }
+
+    const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : "Obra"
     const cidadeTxt = vm?.endereco?.cidade ? ` [${vm.endereco.cidade}]` : ""
-    return `${base}${cidadeTxt}`
-  }, [vm])
+    return `${idPrefix}${base}${cidadeTxt}`
+  }, [vm, obraId])
 
   async function onCopyClienteData() {
     const nome = String(vm?.cliente?.nome ?? "").trim()
@@ -1116,6 +1125,14 @@ export default function ObrasPage({
             setAgendaValid(valid)
             setAgendaError(err || null)
           }}
+        />
+      </div>
+
+      <div className="mt-6">
+        <ContratoUpload
+          mode={mode}
+          obraId={obraId || 0}
+          linkContrato={anexosInit?.linkContratoAssinado}
         />
       </div>
 

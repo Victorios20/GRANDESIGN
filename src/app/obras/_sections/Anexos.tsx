@@ -96,7 +96,7 @@ export default function Anexos({
           <LinkField label="Orçamento" value={orcamentoUrl} icon={FileText} />
 
           <LinkField
-            label="Contrato"
+            label="Contrato (Gerado)"
             value={showExtra ? contratoLink ?? "" : ""}
             icon={FileSignature}
           />

@@ -344,10 +344,15 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     String((dto as any)?.anexos?.contrato ?? "") ||
     String((dto as any)?.anexos?.contratoLink ?? "")
 
+  const linkContratoAssinado =
+    String((dto as any)?.anexos?.linkContratoAssinado ?? "") ||
+    String((dto as any)?.anexos?.link_contrato_assinado ?? "")
+
   const anexosInit = {
     orcamento: orcamentoLink,
     proposta: proposta,
     contrato: contrato,
+    linkContratoAssinado: linkContratoAssinado,
     ordemServico: String((dto as any)?.anexos?.ordemServico ?? ""),
   }
 

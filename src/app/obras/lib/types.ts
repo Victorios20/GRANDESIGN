@@ -319,7 +319,7 @@ export type FinanceiroExecVM = {
   execucao: { equipeId: number | null; dataPrevInicio: string | null; dataPrevConclusao: string | null }
 }
 
-export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }
+export type AnexosVM = { orcamento?: string | null; contrato?: string | null; linkContratoAssinado?: string | null; proposta?: string | null; ordemServico?: string | null }
 
 export type OrdemServicoPayload = {
   _delete?: boolean

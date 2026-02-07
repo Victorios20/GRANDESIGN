@@ -99,6 +99,7 @@ export type ObraDetalheDTO = {
     propostaSlide: string | null
     orcamentoPdf: string | null
     contrato: string | null
+    linkContratoAssinado: string | null
     ordemServico: string | null
   }
 
@@ -210,6 +211,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     propostaSlide: orcamentoOut?.linkSlide ?? null,
     orcamentoPdf: orcamentoOut?.linkPdf ?? null,
     contrato: obra.link_contrato ?? null,
+    linkContratoAssinado: obra.link_contrato_assinado ?? null,
     ordemServico: obra.link_ordem_servico ?? null,
   }
 

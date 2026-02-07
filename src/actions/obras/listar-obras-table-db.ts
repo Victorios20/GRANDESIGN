@@ -96,6 +96,7 @@ export type ObraTableRowDTO = {
 
   data_criacao: string | null
   data_ultima_alteracao: string | null
+  data_contrato: string | null
 
   cliente: {
     id: number
@@ -251,6 +252,7 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
 
     data_criacao: o.data_criacao ? new Date(o.data_criacao).toISOString() : null,
     data_ultima_alteracao: o.data_ultima_alteracao ? new Date(o.data_ultima_alteracao).toISOString() : null,
+    data_contrato: o.data_contrato ? new Date(o.data_contrato).toISOString() : null,
 
     cliente: {
       id: o.cliente.id,

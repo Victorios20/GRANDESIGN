@@ -93,6 +93,8 @@ type ObraSemAgenda = {
   titulo: string | null
   status: string
   cliente: { nome: string } | null
+  data_criacao: string | null
+  data_contrato: string | null
 }
 
 type EquipeDTO = {
@@ -121,11 +123,20 @@ async function fetchWithCache(url: string, bustCache = false): Promise<any> {
   return data
 }
 
-// Helper: Add 1 day to date string for FullCalendar exclusive end
 function addDay(dateStr: string): string {
   const d = new Date(dateStr)
   d.setDate(d.getDate() + 1)
   return d.toISOString().split("T")[0]
+}
+
+// Calculate days since a date (uses contract date if available, otherwise creation date)
+function calcDaysSinceDate(dataCriacao: string | null, dataContrato: string | null): number {
+  const refDate = dataContrato || dataCriacao
+  if (!refDate) return 0
+  const now = new Date()
+  const created = new Date(refDate)
+  const diffMs = now.getTime() - created.getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
 }
 
 export default function CalendarioPage() {
@@ -212,7 +223,13 @@ export default function CalendarioPage() {
     try {
       // Use server-side filter for better performance
       const json = await fetchWithCache("/api/obras/table-search?status=!FINALIZADO&semAgenda=true&page=1&perPage=100", bustCache)
-      setObrasSemAgenda(json.dados || [])
+      // Sort by oldest first (data_contrato if available, else data_criacao)
+      const sorted = (json.dados || []).sort((a: ObraSemAgenda, b: ObraSemAgenda) => {
+        const dateA = new Date(a.data_contrato || a.data_criacao || 0).getTime()
+        const dateB = new Date(b.data_contrato || b.data_criacao || 0).getTime()
+        return dateA - dateB // ascending = oldest first
+      })
+      setObrasSemAgenda(sorted)
     } catch (err) {
       console.error("Failed to load obras:", err)
     }
@@ -485,7 +502,7 @@ export default function CalendarioPage() {
             <div className="p-3 space-y-2">
               <p className="font-semibold text-sm text-foreground leading-tight flex items-center gap-2">
                 {segmento.tipo === "MANUTENCAO" && <Badge variant="secondary" className="h-5 px-1 text-[10px] gap-1"><Wrench className="w-3 h-3" /> Manutenção</Badge>}
-                {segmento.obra.titulo || `Obra #${segmento.obra.id}`}
+                {`#${segmento.obra.id} · ${segmento.obra.titulo ?? 'Obra'}`}
               </p>
 
               <div className="space-y-1">
@@ -746,9 +763,9 @@ export default function CalendarioPage() {
                               </p>
                             </div>
                             <div className="flex items-center gap-1.5 mt-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full ${getStatusColor(obra.status)}`} />
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                {getStatusLabel(obra.status)}
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span className={`text-[10px] font-semibold ${calcDaysSinceDate(obra.data_criacao, obra.data_contrato) > 7 ? 'text-red-600' : 'text-amber-600'}`}>
+                                {calcDaysSinceDate(obra.data_criacao, obra.data_contrato)} dias
                               </span>
                             </div>
                           </div>

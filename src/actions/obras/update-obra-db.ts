@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { Prisma, PedidoCategoria } from "@prisma/client"
+import { Prisma, PedidoCategoria, ObraStatus } from "@prisma/client"
 
 type Id = number | string
 
@@ -25,6 +25,7 @@ export type UpdateObraPayload = {
     comprimento?: number | string
     telha_escolhida?: string
     observacoes?: string | null
+    status?: string
   }
   financeiro?: {
     valor_obra?: number | string
@@ -77,6 +78,21 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.comprimento = n(payload.obra.comprimento)
         obraData.telha_escolhida = payload.obra.telha_escolhida
         obraData.observacoes = payload.obra.observacoes ?? undefined
+        if (payload.obra.status) {
+          const s = String(payload.obra.status).trim()
+          const mapa: Record<string, ObraStatus> = {
+            "Assinatura de contrato": "ASSINATURA_DE_CONTRATO",
+            "Aguardando validação técnica": "AGUARDANDO_VALIDACAO_TECNICA",
+            "Compras": "COMPRAS",
+            "À iniciar": "A_INICIAR",
+            "Execução": "EXECUCAO",
+            "Aguardando pagamento": "AGUARDANDO_PAGAMENTO",
+            "Pendência": "PENDENCIA",
+            "Finalizado": "FINALIZADO",
+          }
+          const valid = mapa[s]
+          if (valid) obraData.status = valid
+        }
       }
 
       if (payload.financeiro) {

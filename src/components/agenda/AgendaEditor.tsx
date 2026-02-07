@@ -340,7 +340,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
                                 <Button
                                     variant={"outline"}
                                     className={cn(
-                                        "h-7 text-xs w-[130px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
+                                        "h-7 text-xs w-auto min-w-[110px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
                                         !seg.start && "text-muted-foreground"
                                     )}
                                 >
@@ -366,7 +366,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
                                 <Button
                                     variant={"outline"}
                                     className={cn(
-                                        "h-7 text-xs w-[130px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
+                                        "h-7 text-xs w-auto min-w-[110px] px-2 justify-start text-left font-normal bg-background border-border/50 focus:border-primary/50",
                                         !seg.end && "text-muted-foreground"
                                     )}
                                 >
