@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { Prisma, PedidoCategoria } from "@prisma/client"
+import { Prisma, PedidoCategoria, ObraStatus } from "@prisma/client"
 
 type Id = number | string
 
@@ -25,6 +25,9 @@ export type UpdateObraPayload = {
     comprimento?: number | string
     telha_escolhida?: string
     observacoes?: string | null
+    status?: string
+    data_inicio_obra?: string | Date | null
+    data_fim_obra?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string
@@ -64,6 +67,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   try {
     const result = await prisma.$transaction(async (tx) => {
       /* ================= OBRA ================= */
+      console.log("Payload recebido updateObraDB:", JSON.stringify(payload, null, 2))
+
       const obraData: Prisma.obrasUpdateInput = {
         updatedBy: { connect: { id: Number(userId) } },
       }
@@ -77,6 +82,30 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.comprimento = n(payload.obra.comprimento)
         obraData.telha_escolhida = payload.obra.telha_escolhida
         obraData.observacoes = payload.obra.observacoes ?? undefined
+        if (payload.obra.status) {
+          const s = String(payload.obra.status).trim()
+          const mapa: Record<string, ObraStatus> = {
+            "Assinatura de contrato": "ASSINATURA_DE_CONTRATO",
+            "Aguardando validação técnica": "AGUARDANDO_VALIDACAO_TECNICA",
+            "Compras": "COMPRAS",
+            "À iniciar": "A_INICIAR",
+            "Execução": "EXECUCAO",
+            "Aguardando pagamento": "AGUARDANDO_PAGAMENTO",
+            "Pendência": "PENDENCIA",
+            "Finalizado": "FINALIZADO",
+          }
+          const valid = mapa[s]
+          if (valid) obraData.status = valid
+        }
+        // Datas de prazo contratual
+        if (payload.obra.data_inicio_obra !== undefined) {
+          const dIni = payload.obra.data_inicio_obra;
+          obraData.data_inicio_obra = dIni ? new Date(dIni) : null;
+        }
+        if (payload.obra.data_fim_obra !== undefined) {
+          const dFim = payload.obra.data_fim_obra;
+          obraData.data_fim_obra = dFim ? new Date(dFim) : null;
+        }
       }
 
       if (payload.financeiro) {
@@ -87,6 +116,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
         obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao
       }
+
+      console.log("ObraData final updateObraDB:", obraData)
 
       await tx.obras.update({
         where: { id },

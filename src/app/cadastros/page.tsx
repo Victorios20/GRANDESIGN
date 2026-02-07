@@ -76,8 +76,7 @@ export default function CadastrosPage() {
   const [materiais, setMateriais] = useState<MaterialDTO[]>([])
   const [componentes, setComponentes] = useState<ComponenteDTO[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorDTO[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [equipes] = useState<{ id: number, nome: string }[]>([]) // Placeholder for equipes
+  const [equipes, setEquipes] = useState<{ id: number; nome: string; cor: string | null }[]>([])
 
   // Loading states
   const [loading, setLoading] = useState(false)
@@ -133,12 +132,27 @@ export default function CadastrosPage() {
     }
   }, [])
 
+  const loadEquipes = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch("/api/equipes")
+      if (!res.ok) throw new Error("Falha ao buscar equipes")
+      const json = await res.json()
+      setEquipes(json.data || [])
+    } catch (error) {
+      toast.error("Erro ao carregar equipes")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   // Load data on mount
   useEffect(() => {
     loadFornecedores()
     loadMateriais()
     loadComponentes()
-  }, [loadFornecedores, loadMateriais, loadComponentes])
+    loadEquipes()
+  }, [loadFornecedores, loadMateriais, loadComponentes, loadEquipes])
 
   // Helper functions
   const formatCurrency = (value: number) => {
@@ -226,6 +240,8 @@ export default function CadastrosPage() {
       setFormData({ nome: item.descricao, preco: String(item.preco_unitario) })
     } else if (type === "componente") {
       setFormData({ nome: item.nome })
+    } else if (type === "equipe") {
+      setFormData({ nome: item.nome, cor: item.cor || "" })
     }
 
     setModalOpen(true)
@@ -288,6 +304,26 @@ export default function CadastrosPage() {
           toast.success("Componente criado!")
         }
         await loadComponentes()
+      } else if (modalType === "equipe") {
+        const payload = { nome: formData.nome, cor: formData.cor || null }
+        if (editingItem) {
+          const res = await fetch(`/api/equipes/${editingItem.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error("Falha ao atualizar equipe")
+          toast.success("Equipe atualizada!")
+        } else {
+          const res = await fetch("/api/equipes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error("Falha ao criar equipe")
+          toast.success("Equipe criada!")
+        }
+        await loadEquipes()
       }
 
       setModalOpen(false)
@@ -323,6 +359,11 @@ export default function CadastrosPage() {
         await deleteComponente(itemToDelete.item.id)
         toast.success("Componente excluído!")
         await loadComponentes()
+      } else if (itemToDelete.type === "equipe") {
+        const res = await fetch(`/api/equipes/${itemToDelete.item.id}`, { method: "DELETE" })
+        if (!res.ok) throw new Error("Falha ao excluir equipe")
+        toast.success("Equipe excluída!")
+        await loadEquipes()
       }
 
       setDeleteDialogOpen(false)
@@ -890,14 +931,92 @@ export default function CadastrosPage() {
               </Card>
             </TabsContent>
 
-            {/* Equipes Tab (Placeholder) */}
+            {/* Equipes Tab */}
             <TabsContent value="equipes" className="space-y-4">
               <Card className="bg-card border-border">
-                <CardContent className="p-12">
-                  <div className="text-center text-muted-foreground">
-                    <Users className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                    <p className="font-medium text-lg">Funcionalidade em desenvolvimento</p>
-                    <p className="text-sm mt-2">A gestão de equipes estará disponível em breve.</p>
+                <CardHeader className="border-b border-border">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar equipe..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                    <Button onClick={() => openAddModal('equipe')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Nova Equipe
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/50">
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Nome</th>
+                          <th className="text-left text-sm font-semibold text-muted-foreground px-4 py-3">Cor</th>
+                          <th className="text-right text-sm font-semibold text-muted-foreground px-4 py-3 w-24">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loading ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <Loader2 className="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
+                            </td>
+                          </tr>
+                        ) : filteredData.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-12 text-center">
+                              <div className="text-muted-foreground">
+                                <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                                <p className="font-medium">Nenhuma equipe encontrada</p>
+                                <p className="text-sm mt-1">Adicione uma nova equipe</p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredData.map((item) => {
+                            const equipe = item as { id: number; nome: string; cor: string | null }
+                            return (
+                              <tr key={equipe.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                                <td className="px-4 py-3 text-sm font-medium">{equipe.nome}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className="w-6 h-6 rounded-full border border-border"
+                                      style={{ backgroundColor: equipe.cor || "#E5E5E5" }}
+                                    />
+                                    <span className="text-sm text-muted-foreground">{equipe.cor || "Sem cor"}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      onClick={() => openEditModal("equipe", equipe)}
+                                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      aria-label="Editar"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => openDeleteDialog("equipe", equipe)}
+                                      className="p-1.5 rounded-md text-destructive hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                      aria-label="Excluir"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </CardContent>
               </Card>
@@ -984,6 +1103,45 @@ export default function CadastrosPage() {
                   </Select>
                 </div>
               </>
+            )}
+
+            {/* Color field - for equipes */}
+            {modalType === "equipe" && (
+              <div className="space-y-2">
+                <Label htmlFor="cor">Cor da Equipe</Label>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-lg border-2 border-border flex-shrink-0"
+                    style={{ backgroundColor: formData.cor || "#E5E5E5" }}
+                  />
+                  <Input
+                    id="cor"
+                    type="text"
+                    value={formData.cor || ""}
+                    onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
+                    placeholder="#3B82F6"
+                    className="flex-1"
+                  />
+                  <input
+                    type="color"
+                    value={formData.cor || "#3B82F6"}
+                    onChange={(e) => setFormData({ ...formData, cor: e.target.value })}
+                    className="w-10 h-10 rounded cursor-pointer border-0"
+                    title="Escolher cor"
+                  />
+                </div>
+                <div className="flex gap-2 mt-2">
+                  {["#3B82F6", "#22C55E", "#EF4444", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6", "#6B7280"].map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      className="w-6 h-6 rounded-full border border-border hover:scale-110 transition-transform"
+                      style={{ backgroundColor: color }}
+                      onClick={() => setFormData({ ...formData, cor: color })}
+                    />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
 

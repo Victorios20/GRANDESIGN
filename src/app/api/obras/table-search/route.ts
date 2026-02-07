@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     const dFim = searchParams.get("dFim")
     const status = searchParams.get("status")
     const ordem = searchParams.get("ordem") ?? "desc"
+    const semAgenda = searchParams.get("semAgenda")
 
     const out = await listarObrasTableDB({
       page,
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
       dFim,
       status,
       ordem,
+      semAgenda,
     })
 
     return json({ dados: out.dados, total: out.total, requestId }, 200, requestId)

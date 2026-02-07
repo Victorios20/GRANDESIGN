@@ -119,7 +119,7 @@ function InnerLayout({
                 {breadcrumbs.map((crumb, idx) => {
                   const isLast = idx === breadcrumbs.length - 1
                   return (
-                    <React.Fragment key={crumb.href}>
+                    <React.Fragment key={`${crumb.href}-${idx}`}>
                       <BreadcrumbItem>
                         <BreadcrumbLink
                           href={crumb.href}
@@ -188,7 +188,7 @@ function InnerLayout({
             {breadcrumbs.map((crumb, idx) => {
               const isLast = idx === breadcrumbs.length - 1
               return (
-                <React.Fragment key={crumb.href}>
+                <React.Fragment key={`${crumb.href}-${idx}`}>
                   <BreadcrumbItem>
                     <BreadcrumbLink
                       href={crumb.href}

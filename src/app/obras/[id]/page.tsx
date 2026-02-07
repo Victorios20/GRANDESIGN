@@ -201,12 +201,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
-        .map((x: any) => {
-          const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
-          const lab = String(label).trim()
-          return lab ? { value: lab, label: lab } : null
-        })
-        .filter(Boolean)
+      .map((x: any) => {
+        const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
+        const lab = String(label).trim()
+        return lab ? { value: lab, label: lab } : null
+      })
+      .filter(Boolean)
     : []
 
   const telhaOptions: Option[] = Array.from(
@@ -246,6 +246,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       mapsUrl: String(obraDTO?.mapsUrl ?? ""),
     },
     observacoes: obraDTO?.observacoes ?? null,
+    dataInicioObra: (dto as any)?.dataInicioObra ?? null,
+    dataFimObra: (dto as any)?.dataFimObra ?? null,
     imagens: imagensInit,
   }
 
@@ -258,12 +260,12 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const toOptions = (arr: any[]): Option[] =>
     Array.isArray(arr)
       ? arr
-          .map((f: any) => {
-            const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
-            const value = String(f?.id ?? f?.fornecedor_id ?? label)
-            return label ? { value, label } : null
-          })
-          .filter(Boolean) as Option[]
+        .map((f: any) => {
+          const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
+          const value = String(f?.id ?? f?.fornecedor_id ?? label)
+          return label ? { value, label } : null
+        })
+        .filter(Boolean) as Option[]
       : []
 
   const fornecedoresTelhaJson = await resFornTelha.json().catch(() => [])
@@ -281,12 +283,20 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray((equipesJson as any)?.data)
     ? ((equipesJson as any).data as any[])
-        .map((e: any) => {
-          const label = String(e?.nome ?? "").trim()
-          const value = String(e?.id ?? "")
-          return label ? { value, label } : null
-        })
-        .filter(Boolean) as Option[]
+      .map((e: any) => {
+        const label = String(e?.nome ?? "").trim()
+        const value = String(e?.id ?? "")
+        return label ? { value, label } : null
+      })
+      .filter(Boolean) as Option[]
+    : []
+
+  const equipesList = Array.isArray((equipesJson as any)?.data)
+    ? ((equipesJson as any).data as any[]).map((e: any) => ({
+      id: Number(e?.id ?? 0),
+      nome: String(e?.nome ?? "").trim(),
+      cor: e?.cor || null,
+    }))
     : []
 
   const ordemServicoIdRaw =
@@ -314,15 +324,15 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   const execucaoInit = (dto as any)?.ordemServico
     ? {
-        equipeId: (dto as any).ordemServico.equipe?.id ?? (dto as any).ordemServico.equipeId ?? null,
-        dataPrevInicio: (dto as any).ordemServico.dataPrevInicio ?? null,
-        dataPrevConclusao: (dto as any).ordemServico.dataPrevConclusao ?? null,
-      }
+      equipeId: (dto as any).ordemServico.equipe?.id ?? (dto as any).ordemServico.equipeId ?? null,
+      dataPrevInicio: (dto as any).ordemServico.dataPrevInicio ?? null,
+      dataPrevConclusao: (dto as any).ordemServico.dataPrevConclusao ?? null,
+    }
     : {
-        equipeId: null,
-        dataPrevInicio: null,
-        dataPrevConclusao: null,
-      }
+      equipeId: null,
+      dataPrevInicio: null,
+      dataPrevConclusao: null,
+    }
 
   const orcamentoId = pickOrcamentoId(dto)
   const orcamentoLink = orcamentoId ? `${proto}://${host}/orcamento/detalhes/${orcamentoId}` : ""
@@ -336,10 +346,15 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     String((dto as any)?.anexos?.contrato ?? "") ||
     String((dto as any)?.anexos?.contratoLink ?? "")
 
+  const linkContratoAssinado =
+    String((dto as any)?.anexos?.linkContratoAssinado ?? "") ||
+    String((dto as any)?.anexos?.link_contrato_assinado ?? "")
+
   const anexosInit = {
     orcamento: orcamentoLink,
     proposta: proposta,
     contrato: contrato,
+    linkContratoAssinado: linkContratoAssinado,
     ordemServico: String((dto as any)?.anexos?.ordemServico ?? ""),
   }
 
@@ -359,12 +374,14 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       equipeOptions={equipesOptions}
+      equipesList={equipesList}
       anexosInit={anexosInit}
       financeiroInit={financeiroInit}
       execucaoInit={execucaoInit}
       cidades={cidades}
       ordemServicoId={ordemServicoId}
       pedidosCompraInit={pedidosCompra}
+      agendaInit={(dto as any)?.agenda ?? []}
     />
   )
 }

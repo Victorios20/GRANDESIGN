@@ -307,11 +307,13 @@ model ordem_servico {
 }
 
 model equipes {
-  id   Int    @id @default(autoincrement())
-  nome String @db.VarChar(120)
+  id   Int     @id @default(autoincrement())
+  nome String  @db.VarChar(120)
+  cor  String? @db.VarChar(7) // HEX color, e.g. "#FF5733"
 
   ordem_servico ordem_servico[]
   obras         obras[]
+  segmentos     ObraAgendaSegmento[]
 }
 
 enum PedidoCategoria {
@@ -426,6 +428,10 @@ model obras {
   status      ObraStatus @default(ASSINATURA_DE_CONTRATO)
   observacoes String?    @db.Text
 
+  // Datas de prazo contratual (gestão de prazos, diferente de execução)
+  data_inicio_obra DateTime? @db.Date
+  data_fim_obra    DateTime? @db.Date
+
   // Financeiro
   pagamento_entrada        Decimal?        @db.Decimal(10, 2)
   forma_pagamento_entrada  String?         @db.VarChar(30)
@@ -439,6 +445,8 @@ model obras {
   link_slide_orcamento String? @db.VarChar(255)
   link_pdf_orcamento   String? @db.VarChar(255)
   link_contrato        String? @db.VarChar(255)
+  link_contrato_assinado String? @db.VarChar(255) // Validated/Signed PDF upload
+  data_contrato        DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
   link_ordem_servico   String? @db.VarChar(255)
 
   // Auditoria
@@ -452,6 +460,12 @@ model obras {
 
   // Imagens 1:N — caem junto com a obra
   imagens obra_imagens[]
+
+  // Segmentos de agenda 1:N — caem junto com a obra
+  segmentos ObraAgendaSegmento[]
+
+  // Documentos anexos 1:N — caem junto com a obra
+  documentos obra_documentos[]
 
   @@index([cliente_id])
   @@index([equipe_id])
@@ -474,4 +488,45 @@ model obra_imagens {
   obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
   @@index([obra_id])
+}
+
+model ObraAgendaSegmento {
+  id          Int      @id @default(autoincrement())
+  obra_id     Int
+  equipe_id   Int?
+  inicio      DateTime @db.Date
+  fim         DateTime @db.Date // exclusive end date
+  observacoes String?  @db.Text
+  
+  tipo        String   @default("EXECUCAO") // EXECUCAO or MANUTENCAO
+  status      String   @default("AGENDADO") // AGENDADO, CONCLUIDO, CANCELADO
+
+  created_by  Int?
+  updated_by  Int?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  obra   obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  equipe equipes? @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+
+  @@index([obra_id])
+  @@index([equipe_id])
+  @@index([inicio, fim])
+  @@map("obra_agenda_segmento")
+}
+
+// Documentos anexos da obra (uploads e links)
+model obra_documentos {
+  id         Int      @id @default(autoincrement())
+  obra_id    Int
+  tipo       String   @db.VarChar(50) // CONTRATO_ASSINADO, RECIBO, TERMO, OUTROS
+  titulo     String   @db.VarChar(200)
+  url        String?  @db.VarChar(500) // Arquivo S3
+  link       String?  @db.VarChar(500) // Link externo
+  created_at DateTime @default(now())
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([obra_id, tipo])
 }

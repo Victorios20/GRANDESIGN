@@ -15,17 +15,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
+import AgendaObra from "./_sections/AgendaObra"
 import Anexos from "./_sections/Anexos"
+
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
 import Financeiro, { type FinanceiroVM } from "./_sections/Financeiro"
-import Execucao, { type ExecucaoVM } from "./_sections/Execucao"
+
 
 import { PedidoCompraCardSection } from "@/components/obras/pedido-compra/PedidoCompraCardSection"
 import type { PedidoCompraVM } from "@/components/obras/pedido-compra/types"
 
 import type { ObraInfosVM, CreateObraPayload, UpdateObraPayload, OrdemServicoPayload } from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
+import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
 
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
@@ -94,10 +97,13 @@ type Props = {
     dataPrevConclusao?: string | null
   }
   equipeOptions?: Option[]
+  equipesList?: { id: number; nome: string; cor: string | null }[]
+  agendaInit?: any[] // TODO: Define strict type if needed
   anexosInit?: {
     orcamento?: string | null
     proposta?: string | null
     contrato?: string | null
+    linkContratoAssinado?: string | null
     ordemServico?: string | null
   }
   cidades?: Cidade[]
@@ -160,7 +166,7 @@ function focusById(id: string) {
   const el = document.getElementById(id)
   if (el) {
     el.scrollIntoView({ behavior: "smooth", block: "center" })
-    ;(el as HTMLElement).focus?.()
+      ; (el as HTMLElement).focus?.()
   }
 }
 
@@ -183,13 +189,7 @@ function hydrateFinanceiro(fin?: Partial<FinanceiroVM>): FinanceiroVM {
   }
 }
 
-function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
-  return {
-    equipeId: exec?.equipeId ?? null,
-    dataPrevInicio: parseMaybeDate(exec?.dataPrevInicio) ?? null,
-    dataPrevConclusao: parseMaybeDate(exec?.dataPrevConclusao) ?? null,
-  }
-}
+
 
 function showApiError(err: any) {
   const title = err?.title || err?.error || "Falha ao salvar"
@@ -371,13 +371,13 @@ function pedidoInitToPedidosVM(pedidoInit: any, telhaEscolhida?: string): Pedido
       dataEntrega: raw?.previsao ?? raw?.dataEntrega ?? raw?.data_entrega ?? raw?.entrega?.data ?? null,
       itens: Array.isArray(raw?.itens)
         ? raw.itens.map((it: any, idx: number) => ({
-            id: Number(it?.id ?? idx),
-            descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
-            quantidade: toNum(it?.quantidade ?? 0),
-            tamanho: it?.tamanho ?? null,
-            precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
-            total: toNum(it?.total ?? 0),
-          }))
+          id: Number(it?.id ?? idx),
+          descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+          quantidade: toNum(it?.quantidade ?? 0),
+          tamanho: it?.tamanho ?? null,
+          precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
+          total: toNum(it?.total ?? 0),
+        }))
         : [],
     }
 
@@ -404,8 +404,9 @@ export default function ObrasPage({
   pedidoInit,
   pedidosCompraInit,
   financeiroInit,
-  execucaoInit,
   equipeOptions = [],
+  equipesList = [],
+  agendaInit = [],
   anexosInit,
   cidades = [],
 }: Props) {
@@ -424,7 +425,7 @@ export default function ObrasPage({
   })
 
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
-  const [exec, setExec] = useState<ExecucaoVM>(() => hydrateExecucao(execucaoInit))
+
 
   const [clienteModalOpen, setClienteModalOpen] = useState(false)
 
@@ -433,11 +434,17 @@ export default function ObrasPage({
     return resolveClienteIdFromInitial(anyInitial)
   })
 
+
   useEffect(() => {
     const anyInitial = initial as any
     const next = resolveClienteIdFromInitial(anyInitial)
     setClienteId(next)
   }, [initial])
+
+  // Agenda State
+  const [agendaSegments, setAgendaSegments] = useState<AgendaSegmentInput[]>([])
+  const [agendaValid, setAgendaValid] = useState(true)
+  const [agendaError, setAgendaError] = useState<string | null>(null)
 
   useEffect(() => {
     if (mode !== "view") return
@@ -483,7 +490,7 @@ export default function ObrasPage({
 
   const patchInfos = (p: Partial<VM>) => setVm((d) => ({ ...d, ...p }))
   const patchFinanceiro = (p: Partial<FinanceiroVM>) => setFin((d) => ({ ...d, ...p }))
-  const patchExecucao = (p: Partial<ExecucaoVM>) => setExec((d) => ({ ...d, ...p }))
+
 
   const onEditCliente = () => {
     if (!clienteId) {
@@ -516,10 +523,17 @@ export default function ObrasPage({
   }
 
   const tituloTopo = useMemo(() => {
-    const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : vm.titulo || "Obra"
+    const idPrefix = obraId && Number(obraId) > 0 ? `#${obraId} · ` : ""
+    const hasTitulo = vm?.titulo && vm.titulo.trim() !== ""
+
+    if (hasTitulo) {
+      return `${idPrefix}${vm.titulo}`
+    }
+
+    const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : "Obra"
     const cidadeTxt = vm?.endereco?.cidade ? ` [${vm.endereco.cidade}]` : ""
-    return `${base}${cidadeTxt}`
-  }, [vm])
+    return `${idPrefix}${base}${cidadeTxt}`
+  }, [vm, obraId])
 
   async function onCopyClienteData() {
     const nome = String(vm?.cliente?.nome ?? "").trim()
@@ -729,23 +743,7 @@ export default function ObrasPage({
       return false
     }
 
-    if (vm.status !== "Finalizado") {
-      if (!exec?.equipeId || Number(exec?.equipeId) <= 0) {
-        toast.error("Equipe é obrigatória.")
-        focusById("exec.equipeId")
-        return false
-      }
-      if (!exec?.dataPrevInicio) {
-        toast.error("Data prevista de início é obrigatória.")
-        focusById("exec.dataPrevInicio")
-        return false
-      }
-      if (!exec?.dataPrevConclusao) {
-        toast.error("Data prevista de conclusão é obrigatória.")
-        focusById("exec.dataPrevConclusao")
-        return false
-      }
-    }
+
 
     return true
   }
@@ -853,9 +851,9 @@ export default function ObrasPage({
           observacoes: vm.observacoes ?? null,
           status: vm.status as any,
 
-          equipe_id: exec.equipeId ?? null,
-          data_prev_inicio: (exec.dataPrevInicio as any) ?? null,
-          data_prev_conclusao: (exec.dataPrevConclusao as any) ?? null,
+          equipe_id: null,
+          data_prev_inicio: null,
+          data_prev_conclusao: null,
 
           imagens: (imagensFinal ?? [])
             .filter((img) => String((img as any)?.url ?? "").trim() !== "")
@@ -877,10 +875,18 @@ export default function ObrasPage({
       }
 
       if (obraId) {
+        // Validation check for Agenda
+        if (!agendaValid && agendaSegments.length > 0) {
+          toast.error(agendaError || "Corrija os erros na agenda antes de salvar.")
+          const agendaEl = document.getElementById('agenda')
+          agendaEl?.scrollIntoView({ behavior: 'smooth' })
+          return
+        }
+
         const ordemServico: OrdemServicoPayload = {
-          equipe_id: exec.equipeId ?? undefined,
-          data_prev_inicio: (exec.dataPrevInicio as any) ?? undefined,
-          data_prev_conclusao: (exec.dataPrevConclusao as any) ?? undefined,
+          equipe_id: undefined,
+          data_prev_inicio: undefined,
+          data_prev_conclusao: undefined,
         }
 
         const imagensReplace: UpdateObraPayload["imagens"] = {
@@ -905,6 +911,8 @@ export default function ObrasPage({
             telha_escolhida: vm.telhaEscolhida || "",
             status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,
+            data_inicio_obra: vm.dataInicioObra || null,
+            data_fim_obra: vm.dataFimObra || null,
           },
 
           financeiro: {
@@ -920,10 +928,24 @@ export default function ObrasPage({
 
           ordemServico,
           imagens: imagensReplace,
+          pedidos_compra: buildPedidosCompraPayload(pedidos),
         }
 
         await updateObra(obraId, upd)
-        toast.success("Obra atualizada.")
+
+        // Update Agenda
+        if (agendaSegments.length > 0 || (agendaInit && agendaInit.length > 0)) {
+          const resAgenda = await updateAgendaSegments(obraId, agendaSegments)
+          if (!resAgenda.success) {
+            toast.error(`Obra salva, mas erro na agenda: ${resAgenda.error}`)
+          } else {
+            toast.success("Obra e Agenda salvas com sucesso!")
+          }
+        } else {
+          toast.success("Obra salva com sucesso!")
+        }
+
+        router.refresh()
         setIsEditing(false)
       }
     } catch (e: any) {
@@ -945,7 +967,6 @@ export default function ObrasPage({
     }
 
     setFin(hydrateFinanceiro(financeiroInit))
-    setExec(hydrateExecucao(execucaoInit))
     setIsEditing(false)
   }
 
@@ -1089,20 +1110,29 @@ export default function ObrasPage({
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
-        <Execucao
-          className="lg:col-span-1"
-          value={exec}
-          onChange={patchExecucao}
+
+
+      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <Financeiro className="w-full h-full" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
+
+        <AgendaObra
+          obraId={obraId || 0}
+          agenda={agendaInit}
+          equipes={equipesList}
           isEditing={isEditing}
-          equipeOptions={equipeOptions}
+          obraStatus={vm.status}
+          onChange={setAgendaSegments}
+          onValidationChange={(valid, err) => {
+            setAgendaValid(valid)
+            setAgendaError(err || null)
+          }}
         />
       </div>
 
       <div className="mt-6">
         <Anexos
           mode={mode}
+          obraId={obraId || 0}
           orcamentoLink={orcamentoLinkFinal}
           orcamentoId={orcamentoId ?? null}
           propostaLink={propostaLinkFinal}

@@ -28,7 +28,7 @@ export async function GET(_req: Request, { params }: { params: Params }) {
   return NextResponse.json({ data: row }, { status: 200 })
 }
 
-/** PUT /api/equipes/:id  { nome } */
+/** PUT /api/equipes/:id  { nome, cor? } */
 export async function PUT(req: Request, { params }: { params: Params }) {
   try {
     const { id: idStr } = await params
@@ -43,7 +43,13 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 })
     }
 
-    const updated = await prisma.equipes.update({ where: { id }, data: { nome } })
+    // cor is optional, can be null to remove or a hex string
+    const cor: string | null = body?.cor !== undefined ? (body.cor || null) : undefined
+
+    const data: { nome: string; cor?: string | null } = { nome }
+    if (cor !== undefined) data.cor = cor
+
+    const updated = await prisma.equipes.update({ where: { id }, data })
     return NextResponse.json({ data: updated }, { status: 200 })
   } catch {
     return NextResponse.json({ error: "Falha ao atualizar equipe" }, { status: 500 })

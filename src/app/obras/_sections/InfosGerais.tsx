@@ -126,7 +126,7 @@ export default function InfosGerais({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="flex flex-col gap-1">
               <Label className={labelText}>Telha</Label>
               {isEditing ? (
@@ -154,6 +154,45 @@ export default function InfosGerais({
                 staticVariant="pill"
                 size="md"
               />
+            </div>
+          </div>
+
+          {/* Datas de prazo contratual */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <Label className={labelText}>Início da Obra</Label>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  className={inputClass}
+                  value={value.dataInicioObra ?? ""}
+                  onChange={(e) => onChange({ dataInicioObra: e.target.value || null })}
+                />
+              ) : (
+                <div className={valueText}>
+                  {value.dataInicioObra
+                    ? new Date(value.dataInicioObra + "T00:00:00").toLocaleDateString("pt-BR")
+                    : "-"}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className={labelText}>Término da Obra</Label>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  className={inputClass}
+                  value={value.dataFimObra ?? ""}
+                  onChange={(e) => onChange({ dataFimObra: e.target.value || null })}
+                />
+              ) : (
+                <div className={valueText}>
+                  {value.dataFimObra
+                    ? new Date(value.dataFimObra + "T00:00:00").toLocaleDateString("pt-BR")
+                    : "-"}
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

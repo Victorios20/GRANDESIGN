@@ -291,6 +291,8 @@ export type ObraInfosVM = {
   comprimento: number | null
   telhaEscolhida: string
   status: ObraStatus
+  dataInicioObra?: string | null
+  dataFimObra?: string | null
   cliente: {
     id?: number
     nome: string
@@ -319,7 +321,7 @@ export type FinanceiroExecVM = {
   execucao: { equipeId: number | null; dataPrevInicio: string | null; dataPrevConclusao: string | null }
 }
 
-export type AnexosVM = { orcamento?: string | null; contrato?: string | null; proposta?: string | null; ordemServico?: string | null }
+export type AnexosVM = { orcamento?: string | null; contrato?: string | null; linkContratoAssinado?: string | null; proposta?: string | null; ordemServico?: string | null }
 
 export type OrdemServicoPayload = {
   _delete?: boolean
@@ -342,6 +344,8 @@ export type UpdateObraPayload = {
     telha_escolhida?: string
     status?: ObraStatus
     observacoes?: string
+    data_inicio_obra?: string | Date | null
+    data_fim_obra?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string
@@ -355,6 +359,7 @@ export type UpdateObraPayload = {
   }
   ordemServico?: OrdemServicoPayload
   imagens?: ImagensPayload
+  pedidos_compra?: PedidoCompraCreatePayload[]
 }
 
 export type UpdateObraResponse = { ok: boolean; status: number; data?: { id: number }; error?: string }

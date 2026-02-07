@@ -2,12 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings } from "lucide-react"
+import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
   { href: "/orcamentos", label: "Orçamentos", icon: FileText },
+  { href: "/clientes", label: "Clientes", icon: Contact },
   { href: "/obras", label: "Obras", icon: Building2 },
   { href: "/calendario", label: "Calendário", icon: CalendarDays },
   { href: "/pedidos", label: "Compras", icon: ShoppingCart },
@@ -31,9 +32,9 @@ export function DashboardSidebar() {
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || 
+          const isActive = pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href))
-          
+
           return (
             <Link
               key={item.href}

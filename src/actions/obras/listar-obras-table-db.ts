@@ -56,6 +56,7 @@ export type ListarObrasTableParams = {
   dFim?: string | null
   status?: string | null
   ordem?: "asc" | "desc" | string | null
+  semAgenda?: boolean | string | null
 }
 
 export type ObraTableRowDTO = {
@@ -95,6 +96,7 @@ export type ObraTableRowDTO = {
 
   data_criacao: string | null
   data_ultima_alteracao: string | null
+  data_contrato: string | null
 
   cliente: {
     id: number
@@ -111,6 +113,7 @@ export type ObraTableRowDTO = {
   ordem_servico_id: number | null
   pedidos_compra_ids: number[]
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null }>
+  _count?: { segmentos: number }
 }
 
 export type ListarObrasTableResult = {
@@ -187,6 +190,11 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     and.push({ data_ultima_alteracao: dateFilter })
   }
 
+  // Filter obras without agenda segments
+  if (params?.semAgenda === true || params?.semAgenda === "true") {
+    and.push({ segmentos: { none: {} } })
+  }
+
   if (and.length) where.AND = and
 
   const [total, rows] = await Promise.all([
@@ -202,6 +210,7 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
         ordem_servico: { select: { id: true } },
         pedidos_compra: { select: { id: true } },
         imagens: { orderBy: [{ ordem: "asc" }, { id: "asc" }] },
+        _count: { select: { segmentos: true } },
       },
     }),
   ])
@@ -243,6 +252,7 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
 
     data_criacao: o.data_criacao ? new Date(o.data_criacao).toISOString() : null,
     data_ultima_alteracao: o.data_ultima_alteracao ? new Date(o.data_ultima_alteracao).toISOString() : null,
+    data_contrato: o.data_contrato ? new Date(o.data_contrato).toISOString() : null,
 
     cliente: {
       id: o.cliente.id,
@@ -260,12 +270,13 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     pedidos_compra_ids: Array.isArray(o.pedidos_compra) ? o.pedidos_compra.map((p: any) => p.id) : [],
     imagens: Array.isArray(o.imagens)
       ? o.imagens.map((img: any) => ({
-          id: img.id,
-          url: img.url,
-          ordem: img.ordem ?? null,
-          legenda: img.legenda ?? null,
-        }))
+        id: img.id,
+        url: img.url,
+        ordem: img.ordem ?? null,
+        legenda: img.legenda ?? null,
+      }))
       : [],
+    _count: { segmentos: o._count?.segmentos ?? 0 },
   }))
 
   return { dados, total }
