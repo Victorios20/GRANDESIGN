@@ -2,7 +2,7 @@
 
 import type React from "react"
 import Link from "next/link"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Check, ChevronsUpDown, MapPin, Plus, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -252,7 +252,9 @@ export default function PedidoCompraForm({
   const [fornecedoresRaw, setFornecedoresRaw] = useState<FornecedorItem[]>([])
   const [fornecedores, setFornecedores] = useState<FornecedorOption[]>(() => initialFornecedores ?? [])
 
-  const [materiaisByTipo, setMateriaisByTipo] = useState<MateriaisByTipo>(() => initialMateriaisByTipo ?? emptyMateriaisByTipo)
+  const [materiaisByTipo, setMateriaisByTipo] = useState<MateriaisByTipo>(
+    () => initialMateriaisByTipo ?? emptyMateriaisByTipo
+  )
 
   const [formData, setFormData] = useState<FormData>({
     obraId: "",
@@ -281,6 +283,14 @@ export default function PedidoCompraForm({
   const [obraLoading, setObraLoading] = useState(false)
   const [obraOptions, setObraOptions] = useState<ObraSearchItem[]>([])
   const [obraSelected, setObraSelected] = useState<ObraSearchItem | null>(null)
+
+  const handleBack = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back()
+      return
+    }
+    router.push("/pedido_compra")
+  }, [router])
 
   useEffect(() => {
     setFornecedores(initialFornecedores ?? [])
@@ -639,8 +649,8 @@ export default function PedidoCompraForm({
       title={pageTitle}
       headerActions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/pedido_compra">Voltar</Link>
+          <Button variant="outline" type="button" onClick={handleBack}>
+            Voltar
           </Button>
           <Button type="submit" form="pedido-compra-form" disabled={saving} className="gap-2">
             <Save className="size-4" />
@@ -653,11 +663,10 @@ export default function PedidoCompraForm({
       <div className="mx-auto w-full max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" asChild>
-              <Link href="/pedido_compra">
-                <ArrowLeft className="size-4" />
-              </Link>
+            <Button variant="ghost" size="icon" type="button" onClick={handleBack}>
+              <ArrowLeft className="size-4" />
             </Button>
+
             <div>
               <h1 className="font-mono text-2xl font-semibold">{headerTitle}</h1>
               <p className="text-sm text-muted-foreground">{pageTitle}</p>
@@ -680,7 +689,12 @@ export default function PedidoCompraForm({
 
                   <Popover open={obraOpen} onOpenChange={setObraOpen}>
                     <PopoverTrigger asChild>
-                      <Button type="button" variant="secondary" className="w-full justify-between" disabled={mode === "edit"}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="w-full justify-between"
+                        disabled={mode === "edit"}
+                      >
                         <span className="truncate text-left">
                           {obraSelected ? ObraOptionLabelTop(obraSelected) : "Pesquisar por ID ou título..."}
                         </span>
@@ -904,7 +918,13 @@ export default function PedidoCompraForm({
                     <div key={item.clientId} className="rounded-lg border border-border bg-muted/30 p-4">
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-sm font-medium text-muted-foreground">Item {index + 1}</span>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(item.clientId)} className="size-8">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeItem(item.clientId)}
+                          className="size-8"
+                        >
                           <Trash2 className="size-4 text-destructive" />
                         </Button>
                       </div>
@@ -950,7 +970,13 @@ export default function PedidoCompraForm({
                             <Input
                               type="number"
                               value={item.tamanho ?? ""}
-                              onChange={(e) => updateItem(item.clientId, "tamanho", e.target.value === "" ? null : Number(e.target.value))}
+                              onChange={(e) =>
+                                updateItem(
+                                  item.clientId,
+                                  "tamanho",
+                                  e.target.value === "" ? null : Number(e.target.value)
+                                )
+                              }
                               placeholder="0"
                               className="mt-1"
                             />
@@ -1056,8 +1082,8 @@ export default function PedidoCompraForm({
           </Card>
 
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" asChild>
-              <Link href="/pedido_compra">Cancelar</Link>
+            <Button type="button" variant="outline" onClick={handleBack}>
+              Cancelar
             </Button>
             <Button type="submit" disabled={saving} className="gap-2">
               <Save className="size-4" />

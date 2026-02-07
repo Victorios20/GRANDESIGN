@@ -110,6 +110,40 @@ type Props = {
   initialObrasById: Record<number, ObraSearchItem>
 }
 
+/* ─────────────────────────────────────────────
+   Persistência de UI (localStorage)
+───────────────────────────────────────────── */
+type PedidoCompraUIState = {
+  viewMode: "list" | "kanban"
+  kanbanGroupBy: "category" | "status"
+  showEmptyColumns: boolean
+
+  searchTerm: string
+  selectedStatus: PurchaseOrderStatusSlug
+  selectedSupplierId: number | "all"
+  selectedProjectId: number | null
+
+  sortBy: "date" | "value" | "delivery" | "status"
+  sortOrder: "asc" | "desc"
+}
+
+const STORAGE_KEY = "pedido_compra_ui_state_v1"
+
+function loadUIState(): Partial<PedidoCompraUIState> | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Partial<PedidoCompraUIState>) : null
+  } catch {
+    return null
+  }
+}
+
+function saveUIState(state: PedidoCompraUIState) {
+  if (typeof window === "undefined") return
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+}
+
 function asNumber(v: any) {
   const n = Number(String(v ?? "").replace(",", "."))
   return Number.isFinite(n) ? n : 0
@@ -263,20 +297,24 @@ async function patchStatus(pedidoId: string, next: PedidoStatus) {
 export default function PedidoCompraPageClient({ initialList, initialFornecedores, initialObrasById }: Props) {
   const router = useRouter()
 
-  const [searchTerm, setSearchTerm] = React.useState("")
-  const [selectedProjectId, setSelectedProjectId] = React.useState<number | null>(null)
-  const [selectedSupplierId, setSelectedSupplierId] = React.useState<number | "all">("all")
-  const [selectedStatus, setSelectedStatus] = React.useState<PurchaseOrderStatusSlug>("todos")
+  const persisted = React.useMemo(() => loadUIState(), [])
+
+  const [searchTerm, setSearchTerm] = React.useState(persisted?.searchTerm ?? "")
+  const [selectedProjectId, setSelectedProjectId] = React.useState<number | null>(persisted?.selectedProjectId ?? null)
+  const [selectedSupplierId, setSelectedSupplierId] = React.useState<number | "all">(
+    persisted?.selectedSupplierId ?? "all"
+  )
+  const [selectedStatus, setSelectedStatus] = React.useState<PurchaseOrderStatusSlug>(persisted?.selectedStatus ?? "todos")
 
   const [currentPage, setCurrentPage] = React.useState(1)
   const [itemsPerPage, setItemsPerPage] = React.useState(15)
 
-  const [viewMode, setViewMode] = React.useState<"list" | "kanban">("list")
-  const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">("category")
-  const [showEmptyColumns, setShowEmptyColumns] = React.useState(true)
+  const [viewMode, setViewMode] = React.useState<"list" | "kanban">(persisted?.viewMode ?? "list")
+  const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "category")
+  const [showEmptyColumns, setShowEmptyColumns] = React.useState(persisted?.showEmptyColumns ?? true)
 
-  const [sortBy, setSortBy] = React.useState<"date" | "value" | "delivery" | "status">("date")
-  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("desc")
+  const [sortBy, setSortBy] = React.useState<"date" | "value" | "delivery" | "status">(persisted?.sortBy ?? "date")
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">(persisted?.sortOrder ?? "desc")
 
   const [fornecedores, setFornecedores] = React.useState<FornecedorOption[]>(initialFornecedores ?? [])
   const [obrasById, setObrasById] = React.useState<Record<number, ObraSearchItem>>(initialObrasById ?? {})
@@ -364,6 +402,59 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     }
   }, [obraOpen, obraQuery])
 
+  React.useEffect(() => {
+    if (!selectedProjectId) {
+      setObraSelected(null)
+      return
+    }
+
+    const cached = obrasById?.[selectedProjectId]
+    if (cached) {
+      setObraSelected({
+        id: cached.id,
+        titulo: cached.titulo,
+        nomeReceptor: cached.nomeReceptor,
+        telefoneReceptor: cached.telefoneReceptor,
+        enderecoEntrega: cached.enderecoEntrega,
+        linkMaps: cached.linkMaps,
+      })
+      return
+    }
+
+    let canceled = false
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/obras/pesquisar?q=${encodeURIComponent(String(selectedProjectId))}`, {
+          cache: "no-store",
+        })
+        const body = await res.json().catch(() => null)
+        const arr: any[] = Array.isArray(body?.data) ? body.data : Array.isArray(body) ? body : []
+        const first = arr?.[0]
+        if (!first) return
+
+        const mapped: ObraSearchItem = {
+          id: Number(first?.id),
+          titulo: first?.titulo == null ? null : String(first.titulo),
+          nomeReceptor: first?.nomeReceptor == null ? null : String(first.nomeReceptor),
+          telefoneReceptor: first?.telefoneReceptor == null ? null : String(first.telefoneReceptor),
+          enderecoEntrega: first?.enderecoEntrega == null ? null : String(first.enderecoEntrega),
+          linkMaps: first?.linkMaps == null ? null : String(first.linkMaps),
+        }
+
+        if (canceled) return
+        if (!Number.isFinite(mapped.id) || mapped.id <= 0) return
+
+        setObrasById((prev) => ({ ...prev, [mapped.id]: mapped }))
+        setObraSelected(mapped)
+      } catch {}
+    }, 0)
+
+    return () => {
+      canceled = true
+      clearTimeout(t)
+    }
+  }, [selectedProjectId, obrasById])
+
   const statusCounts = React.useMemo(() => {
     return {
       todos: orders.length,
@@ -388,6 +479,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     setSelectedStatus("todos")
     setObraSelected(null)
     setObraQuery("")
+    if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY)
   }
 
   const filteredOrders = React.useMemo(() => {
@@ -688,6 +780,30 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     if (panStateRef.current.active) endPan()
   }
 
+  React.useEffect(() => {
+    saveUIState({
+      viewMode,
+      kanbanGroupBy,
+      showEmptyColumns,
+      searchTerm,
+      selectedStatus,
+      selectedSupplierId,
+      selectedProjectId,
+      sortBy,
+      sortOrder,
+    })
+  }, [
+    viewMode,
+    kanbanGroupBy,
+    showEmptyColumns,
+    searchTerm,
+    selectedStatus,
+    selectedSupplierId,
+    selectedProjectId,
+    sortBy,
+    sortOrder,
+  ])
+
   return (
     <PageLayout
       title="Pedidos de Compra"
@@ -882,11 +998,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
           </div>
 
           {viewMode === "list" && (
-            <Tabs
-              value={selectedStatus}
-              onValueChange={(v) => setSelectedStatus(v as PurchaseOrderStatusSlug)}
-              className="w-full"
-            >
+            <Tabs value={selectedStatus} onValueChange={(v) => setSelectedStatus(v as PurchaseOrderStatusSlug)} className="w-full">
               <TabsList className="w-full justify-start overflow-x-auto flex-nowrap h-auto p-1">
                 <TabsTrigger value="todos" className="gap-2">
                   Todos <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.todos}</span>
@@ -1024,11 +1136,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                         variance > 0 ? "text-red-600" : "text-green-600"
                                       }`}
                                     >
-                                      {variance > 0 ? (
-                                        <TrendingUp className="w-3 h-3" />
-                                      ) : (
-                                        <TrendingDown className="w-3 h-3" />
-                                      )}
+                                      {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                       {Math.abs(variance).toFixed(1)}%
                                     </div>
                                   )}
@@ -1108,9 +1216,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
                     <div
                       ref={kanbanScrollRef}
-                      className={`flex gap-6 overflow-x-auto pb-4 px-12 ${
-                        isPanning ? "cursor-grabbing" : "cursor-grab"
-                      } select-none`}
+                      className={`flex gap-6 overflow-x-auto pb-4 px-12 ${isPanning ? "cursor-grabbing" : "cursor-grab"} select-none`}
                       onPointerDown={onKanbanPointerDown}
                       onPointerMove={onKanbanPointerMove}
                       onPointerUp={onKanbanPointerUp}
@@ -1155,10 +1261,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2 flex-1 min-w-0">
                                       {!order.viewed && (
-                                        <div
-                                          className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse"
-                                          title="Novo pedido"
-                                        />
+                                        <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" title="Novo pedido" />
                                       )}
                                       <div className="min-w-0">
                                         <div className="font-mono text-xs font-medium">#{order.number}</div>
@@ -1197,9 +1300,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                     {kanbanGroupBy === "category" && (
                                       <Badge
                                         variant="outline"
-                                        className={`text-xs ${
-                                          statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color
-                                        }`}
+                                        className={`text-xs ${statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color}`}
                                       >
                                         {statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].label}
                                       </Badge>
@@ -1218,16 +1319,8 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                         <div className="flex items-center gap-2">
                                           <span className="font-medium">{fmtMoney(order.actualValue)}</span>
                                           {variance !== null && (
-                                            <span
-                                              className={`flex items-center gap-0.5 ${
-                                                variance > 0 ? "text-red-600" : "text-green-600"
-                                              }`}
-                                            >
-                                              {variance > 0 ? (
-                                                <TrendingUp className="w-3 h-3" />
-                                              ) : (
-                                                <TrendingDown className="w-3 h-3" />
-                                              )}
+                                            <span className={`flex items-center gap-0.5 ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
+                                              {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                               {Math.abs(variance).toFixed(1)}%
                                             </span>
                                           )}
@@ -1243,10 +1336,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                     </div>
                                   )}
 
-                                  <Badge
-                                    variant="outline"
-                                    className="bg-gray-50 text-gray-500 border-gray-200 text-xs w-full justify-center"
-                                  >
+                                  <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 text-xs w-full justify-center">
                                     Não integrado
                                   </Badge>
                                 </div>
