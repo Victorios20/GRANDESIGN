@@ -34,13 +34,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 })
     }
 
-    const prisma = (await import("@/lib/prisma")).prisma
-    const cidade = await prisma.cidades.create({
-      data: {
-        nome,
-        cor
-      }
-    })
+    const { addCidadeDB } = await import("@/actions/cidades-db/cidades-db")
+    const cidade = await addCidadeDB(nome, cor)
+
+    if (!cidade) {
+      return NextResponse.json({ error: "Erro ao criar cidade (nome duplicado?)" }, { status: 400 })
+    }
 
     return NextResponse.json(cidade, { status: 201 })
   } catch (err) {

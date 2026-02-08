@@ -74,8 +74,6 @@ export async function GET(req: Request) {
                                 cidades: {
                                     select: {
                                         nome: true,
-                                        // @ts-expect-error - field exists in DB but client is stale
-                                        cor: true,
                                     },
                                 },
                             },
@@ -93,33 +91,43 @@ export async function GET(req: Request) {
             orderBy: { inicio: "asc" },
         })
 
+        // Fetch all cities with colors using raw SQL to bypass stale Prisma client
+        const { getCidadesDB } = await import("@/actions/cidades-db/cidades-db")
+        const cidades = await getCidadesDB()
+        const cidadeCorMap = new Map(cidades.map(c => [c.nome, c.cor || null]))
+
         // Transform to frontend format
-        const segmentosFormatted = (segmentos as any[]).map((s) => ({
-            id: s.id,
-            inicio: s.inicio.toISOString().split("T")[0],
-            fim: s.fim.toISOString().split("T")[0],
-            observacoes: s.observacoes,
-            tipo: s.tipo,
-            status: s.status,
-            obra: {
-                id: s.obra.id,
-                titulo: s.obra.titulo,
-                status: s.obra.status,
-                tipoObra: s.obra.tipo_obra,
-                cliente: s.obra.cliente?.nome || null,
-                clienteBairro: s.obra.cliente?.bairro || null,
-                clienteCidade: s.obra.cliente?.cidades?.nome || null,
-                clienteCidadeCor: s.obra.cliente?.cidades?.cor || null,
-                dataUltimaAlteracao: s.obra.data_ultima_alteracao ? s.obra.data_ultima_alteracao.toISOString() : null,
-            },
-            equipe: s.equipe
-                ? {
-                    id: s.equipe.id,
-                    nome: s.equipe.nome,
-                    cor: s.equipe.cor,
-                }
-                : null,
-        }))
+        const segmentosFormatted = (segmentos as any[]).map((s) => {
+            const cidadeNome = s.obra.cliente?.cidades?.nome || null
+            const cidadeCor = cidadeNome ? cidadeCorMap.get(cidadeNome) : null
+
+            return {
+                id: s.id,
+                inicio: s.inicio.toISOString().split("T")[0],
+                fim: s.fim.toISOString().split("T")[0],
+                observacoes: s.observacoes,
+                tipo: s.tipo,
+                status: s.status,
+                obra: {
+                    id: s.obra.id,
+                    titulo: s.obra.titulo,
+                    status: s.obra.status,
+                    tipoObra: s.obra.tipo_obra,
+                    cliente: s.obra.cliente?.nome || null,
+                    clienteBairro: s.obra.cliente?.bairro || null,
+                    clienteCidade: cidadeNome,
+                    clienteCidadeCor: cidadeCor || null,
+                    dataUltimaAlteracao: s.obra.data_ultima_alteracao ? s.obra.data_ultima_alteracao.toISOString() : null,
+                },
+                equipe: s.equipe
+                    ? {
+                        id: s.equipe.id,
+                        nome: s.equipe.nome,
+                        cor: s.equipe.cor,
+                    }
+                    : null,
+            }
+        })
 
         // Calculate KPIs
         const today = new Date()

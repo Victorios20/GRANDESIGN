@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma"
 export type Cidade = {
   id: number
   nome: string
+  cor?: string | null
 }
 
 /** Normalização leve para entradas de escrita */
@@ -24,13 +25,13 @@ function cleanName(nome: string): string {
 export async function getCidadesDB(): Promise<Cidade[]> {
   try {
     const rows = (await prisma.$queryRaw`
-      SELECT id, nome
+      SELECT id, nome, cor
       FROM cidades
       WHERE nome IS NOT NULL AND TRIM(nome) <> ''
       ORDER BY nome ASC
-    `) as Array<{ id: number; nome: string | null }>
+    `) as Array<{ id: number; nome: string | null; cor: string | null }>
 
-    return rows.map((r) => ({ id: r.id, nome: r.nome ?? "" }))
+    return rows.map((r) => ({ id: r.id, nome: r.nome ?? "", cor: r.cor }))
   } catch (err) {
     console.error("getCidadesDB: erro ao listar cidades:", err)
     return [] // compatível com comportamento atual do front
@@ -39,17 +40,17 @@ export async function getCidadesDB(): Promise<Cidade[]> {
 
 /* ======= Escritas (opcionais para uso futuro; mantêm contratos simples) ======= */
 
-/** Insere uma cidade e retorna { id, nome } ou null em erro (ex.: duplicado) */
-export async function addCidadeDB(nome: string): Promise<Cidade | null> {
+/** Insere uma cidade e retorna { id, nome, cor } ou null em erro (ex.: duplicado) */
+export async function addCidadeDB(nome: string, cor?: string | null): Promise<Cidade & { cor?: string | null } | null> {
   try {
     const n = cleanName(nome)
     if (!n) return null
 
     const rows = (await prisma.$queryRaw`
-      INSERT INTO cidades (nome)
-      VALUES (${n})
-      RETURNING id, nome
-    `) as Array<{ id: number; nome: string }>
+      INSERT INTO cidades (nome, cor)
+      VALUES (${n}, ${cor || null})
+      RETURNING id, nome, cor
+    `) as Array<{ id: number; nome: string; cor: string | null }>
     return rows?.[0] ?? null
   } catch (err: any) {
     // Conflito de unicidade (se houver UNIQUE(nome) no banco)
@@ -58,15 +59,15 @@ export async function addCidadeDB(nome: string): Promise<Cidade | null> {
   }
 }
 
-/** Atualiza o nome; retorna true/false */
-export async function updateCidadeDB(id: number, nome: string): Promise<boolean> {
+/** Atualiza o nome e/ou cor; retorna true/false */
+export async function updateCidadeDB(id: number, nome: string, cor?: string | null): Promise<boolean> {
   try {
     const n = cleanName(nome)
     if (!Number.isFinite(id) || id <= 0 || !n) return false
 
     const rows = (await prisma.$queryRaw`
       UPDATE cidades
-      SET nome = ${n}
+      SET nome = ${n}, cor = ${cor || null}
       WHERE id = ${id}
       RETURNING id
     `) as Array<{ id: number }>
