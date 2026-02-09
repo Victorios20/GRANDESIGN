@@ -66,17 +66,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
     // For this refactor, let's assume `AgendaEditor` manages the *draft* state and notifies parent.
 
     const [segments, setSegments] = useState<AgendaSegmentInput[]>(
-        initialSegments.length > 0
-            ? initialSegments
-            : [{
-                id: -Date.now(),
-                start: new Date().toISOString().slice(0, 10),
-                end: new Date().toISOString().slice(0, 10),
-                equipeId: null,
-                tipo: "EXECUCAO",
-                status: "AGENDADO",
-                observacoes: ""
-            }]
+        initialSegments.length > 0 ? initialSegments : []
     )
 
     // Sync input props if they change externally (and are different from our current state)

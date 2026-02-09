@@ -79,7 +79,10 @@ function buildPedidoInitFromOrcamento(orc: GetOrcamentoResult, orcamentoId: numb
     const tamanhoRaw = opts?.forceTamanhoNull ? null : row?.tamanho
     const tamanho = tamanhoRaw === null || tamanhoRaw === undefined || String(tamanhoRaw).trim() === "" ? null : toNum(tamanhoRaw)
 
-    const total = Number((quantidade * precoUnitario).toFixed(2))
+    const total =
+      tamanho && tamanho > 0
+        ? Number((quantidade * tamanho * precoUnitario).toFixed(2))
+        : Number((quantidade * precoUnitario).toFixed(2))
 
     return {
       id: Number(row?.id ?? 0) || undefined,
@@ -235,12 +238,12 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? ((tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw) as any[])
-        .map((x: any) => {
-          const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
-          const lab = String(label).trim()
-          return lab ? { value: lab, label: lab } : null
-        })
-        .filter((v): v is Option => v !== null)
+      .map((x: any) => {
+        const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
+        const lab = String(label).trim()
+        return lab ? { value: lab, label: lab } : null
+      })
+      .filter((v): v is Option => v !== null)
     : []
 
   const telhaOptions: Option[] = Array.from(
@@ -286,12 +289,12 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const toOptions = (arr: any[]): Option[] =>
     Array.isArray(arr)
       ? arr
-          .map((f: any) => {
-            const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
-            const value = String(f?.id ?? f?.fornecedor_id ?? label)
-            return label ? { value, label } : null
-          })
-          .filter((v): v is Option => v !== null)
+        .map((f: any) => {
+          const label = String(f?.nome ?? f?.razao_social ?? f?.label ?? "").trim()
+          const value = String(f?.id ?? f?.fornecedor_id ?? label)
+          return label ? { value, label } : null
+        })
+        .filter((v): v is Option => v !== null)
       : []
 
   const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
@@ -303,12 +306,12 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
     ? (equipesJson.data as any[])
-        .map((e: any) => {
-          const label = String(e?.nome ?? "").trim()
-          const value = String(e?.id ?? "")
-          return label ? { value, label } : null
-        })
-        .filter((v): v is Option => v !== null)
+      .map((e: any) => {
+        const label = String(e?.nome ?? "").trim()
+        const value = String(e?.id ?? "")
+        return label ? { value, label } : null
+      })
+      .filter((v): v is Option => v !== null)
     : []
 
   const financeiroInit: Partial<FinanceiroVM> = {
@@ -324,8 +327,9 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
     ordemServico: "",
   }
 
-  const pedidoInit = buildPedidoInitFromOrcamento(orc, id)
-  console.log("[ObraCreatePage] pedidoInit (pré-preenchido):", JSON.stringify(pedidoInit, null, 2))
+  // REMOVED: Frontend generation of "temporary items". Now handled in backend (create-obra-db.ts).
+  // const pedidoInit = buildPedidoInitFromOrcamento(orc, id)
+  // console.log("[ObraCreatePage] pedidoInit (pré-preenchido):", JSON.stringify(pedidoInit, null, 2))
 
   return (
     <ObrasPage
@@ -341,7 +345,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
       financeiroInit={financeiroInit}
       equipeOptions={equipesOptions}
       anexosInit={anexosInit}
-      pedidoInit={pedidoInit}
+      pedidoInit={{}} // Empty, effectively disabling temporary orders
     />
   )
 }

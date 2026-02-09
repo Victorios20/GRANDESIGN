@@ -240,7 +240,17 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
     setItems((prev) => prev.map((x) => (x.clientId === clientId ? { ...x, ...patch } : x)))
   }
 
-  const itemTotal = (x: ItemDraft) => (Number(x.quantidade) || 0) * (Number(x.precoUnitario) || 0)
+  const itemTotal = (x: ItemDraft) => {
+    const qtd = Number(x.quantidade) || 0
+    const preco = Number(x.precoUnitario) || 0
+    const size = Number(x.tamanho)
+
+    // Wood calculation: Quantity * Price * Size
+    if (isMadeira && Number.isFinite(size) && size > 0) {
+      return qtd * preco * size
+    }
+    return qtd * preco
+  }
 
   const subtotal = React.useMemo(() => {
     const itemsSum = items.reduce((acc, x) => acc + itemTotal(x), 0)

@@ -347,13 +347,7 @@ function buildDefaultAndaimesPedidoVM(): PedidoCompraVM {
   }
 }
 
-function ensureDefaultAndaimes(list: PedidoCompraVM[]): PedidoCompraVM[] {
-  const arr = Array.isArray(list) ? [...list] : []
-  const hasAndaimes = arr.some((p) => normCategoria((p as any)?.categoria) === "ANDAIMES")
-  if (hasAndaimes) return arr
-  arr.push(buildDefaultAndaimesPedidoVM())
-  return arr
-}
+
 
 function pedidoInitToPedidosVM(pedidoInit: any, telhaEscolhida?: string): PedidoCompraVM[] {
   const src = pedidoInit ?? {}
@@ -425,7 +419,7 @@ export default function ObrasPage({
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
     if (fromDto.length > 0) return fromDto
     const base = pedidoInitToPedidosVM(pedidoInit, initial?.telhaEscolhida ?? "")
-    return ensureDefaultAndaimes(base)
+    return base
   })
 
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
@@ -472,12 +466,12 @@ export default function ObrasPage({
     setPedidos((prev) => {
       const keep = Array.isArray(prev) ? prev.filter((p) => normCategoria((p as any)?.categoria) !== "TELHA") : []
       const telhaRaw = pickTelhaFromInit(pedidoInit, chosen)
-      if (!telhaRaw) return ensureDefaultAndaimes(keep)
+      if (!telhaRaw) return keep
       const nextTelha = pedidoInitToPedidosVM({ telhas: [telhaRaw] }, chosen).find(
         (p) => normCategoria((p as any)?.categoria) === "TELHA"
       )
-      if (!nextTelha) return ensureDefaultAndaimes(keep)
-      return ensureDefaultAndaimes([...keep, nextTelha])
+      if (!nextTelha) return keep
+      return [...keep, nextTelha]
     })
   }, [vm?.telhaEscolhida, mode, pedidoInit])
 
@@ -782,10 +776,14 @@ export default function ObrasPage({
     arr.map((it) => {
       const quantidade = Number(it?.quantidade ?? 0)
       const precoUnitario = Number(it?.precoUnitario ?? 0)
+      const tVal = Number(it?.tamanho)
+      const calculatedTotal =
+        Number.isFinite(tVal) && tVal > 0 ? precoUnitario * quantidade * tVal : precoUnitario * quantidade
+
       const total =
         it?.total !== undefined && it?.total !== null && String(it.total) !== ""
           ? Number(it.total)
-          : precoUnitario * quantidade
+          : Number(calculatedTotal.toFixed(2))
 
       const base: any = {
         descricao: String(it?.descricao ?? "").trim(),
@@ -875,7 +873,7 @@ export default function ObrasPage({
               legenda: img.legenda || null,
             })),
 
-          pedidosCompra: buildPedidosCompraPayload(ensureDefaultAndaimes(pedidos ?? [])),
+          pedidosCompra: buildPedidosCompraPayload(pedidos ?? []),
 
           clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
@@ -975,7 +973,7 @@ export default function ObrasPage({
       setPedidos(fromDto)
     } else {
       const base = pedidoInitToPedidosVM(pedidoInit, (initial as any)?.telhaEscolhida ?? "")
-      setPedidos(ensureDefaultAndaimes(base))
+      setPedidos(base)
     }
 
     setFin(hydrateFinanceiro(financeiroInit))
@@ -1016,7 +1014,7 @@ export default function ObrasPage({
 
       if (!isMeaningfulPedidoVM(next)) return list
       list.push(next)
-      return ensureDefaultAndaimes(list)
+      return list
     })
   }
 

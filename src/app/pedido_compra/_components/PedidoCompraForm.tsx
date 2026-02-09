@@ -494,11 +494,22 @@ export default function PedidoCompraForm({
       prev.map((it) => {
         if (it.clientId !== clientId) return it
         const next = { ...it, [field]: value } as OrderItem
-        if (field === "quantidade" || field === "precoUnitario") {
-          const q = Number(next.quantidade ?? 0)
-          const p = Number(next.precoUnitario ?? 0)
+
+        const q = Number(next.quantidade ?? 0)
+        const p = Number(next.precoUnitario ?? 0)
+        const tVal = Number(next.tamanho)
+
+        // Wood calculation: Quantity * Price * Size
+        if (
+          formData.categoria === "MADEIRA" &&
+          Number.isFinite(tVal) &&
+          tVal > 0
+        ) {
+          next.total = q * p * tVal
+        } else {
           next.total = q * p
         }
+
         return next
       })
     )
@@ -549,7 +560,18 @@ export default function PedidoCompraForm({
         const q = Number(next.quantidade ?? 0)
         if (!Number.isFinite(q) || q <= 0) next.quantidade = 1
 
-        next.total = Number(next.quantidade ?? 0) * Number(next.precoUnitario ?? 0)
+        const p = Number(next.precoUnitario ?? 0)
+        const tVal = Number(next.tamanho)
+
+        if (
+          formData.categoria === "MADEIRA" &&
+          Number.isFinite(tVal) &&
+          tVal > 0
+        ) {
+          next.total = Number(next.quantidade ?? 0) * p * tVal
+        } else {
+          next.total = Number(next.quantidade ?? 0) * p
+        }
 
         return next
       })
