@@ -1018,6 +1018,46 @@ export default function ObrasPage({
     })
   }
 
+  const onCancelarPedido = async (id: number) => {
+    if (!Number.isFinite(id) || id <= 0) return
+    const ok = window.confirm(`Cancelar o pedido PC-${id}?`)
+    if (!ok) return
+
+    try {
+      const res = await fetch(`/api/pedido_compra/status/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELADO" }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao cancelar pedido")
+
+      setPedidos((prev) =>
+        (Array.isArray(prev) ? prev : []).map((p) => (Number((p as any)?.id) === id ? { ...p, status: "CANCELADO" } : p))
+      )
+      toast.success("Pedido cancelado")
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao cancelar pedido")
+    }
+  }
+
+  const onExcluirPedido = async (id: number) => {
+    if (!Number.isFinite(id) || id <= 0) return
+    const ok = window.confirm(`Excluir o pedido PC-${id}? Esta acao nao pode ser desfeita.`)
+    if (!ok) return
+
+    try {
+      const res = await fetch(`/api/pedido_compra/excluir/${id}`, { method: "DELETE" })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao excluir pedido")
+
+      setPedidos((prev) => (Array.isArray(prev) ? prev.filter((p) => Number((p as any)?.id) !== id) : []))
+      toast.success("Pedido excluido")
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao excluir pedido")
+    }
+  }
+
   return (
     <PageLayout
       links={[
@@ -1115,7 +1155,8 @@ export default function ObrasPage({
           pedidos={pedidos ?? []}
           obraId={obraId ?? null}
           onCreate={onCreatePedido}
-          onCancelar={(id) => toast.message(`Cancelar pedido ${id} (ação pendente de endpoint)`)}
+          onCancelar={onCancelarPedido}
+          onExcluir={onExcluirPedido}
           onIntegrar={(id) => toast.message(`Integrar pedido ${id} (ação pendente de endpoint)`)}
         />
       </div>

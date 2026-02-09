@@ -294,6 +294,13 @@ async function patchStatus(pedidoId: string, next: PedidoStatus) {
   return body?.data
 }
 
+async function deletePedido(pedidoId: string) {
+  const res = await fetch(`/api/pedido_compra/excluir/${pedidoId}`, { method: "DELETE" })
+  const body = await res.json().catch(() => null)
+  if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao excluir pedido")
+  return body?.data
+}
+
 export default function PedidoCompraPageClient({ initialList, initialFornecedores, initialObrasById }: Props) {
   const router = useRouter()
 
@@ -670,10 +677,13 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
   const handleOrderClick = (order: PurchaseOrder) => {
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, viewed: true } : o)))
-    router.push(`/pedido_compra/edit/${order.id}`)
+    router.push(`/pedido_compra/ver/${order.id}`)
   }
 
   const handleCancelar = async (order: PurchaseOrder) => {
+    if (order.status === "cancelado") return
+    const ok = window.confirm(`Cancelar o pedido ${order.number}?`)
+    if (!ok) return
     const prevOrders = orders
     setOrders((p) => p.map((o) => (o.id === order.id ? { ...o, status: "cancelado" } : o)))
     try {
@@ -682,6 +692,20 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     } catch (err: any) {
       setOrders(prevOrders)
       toast.error(err?.message || "Falha ao cancelar pedido")
+    }
+  }
+
+  const handleExcluir = async (order: PurchaseOrder) => {
+    const ok = window.confirm(`Excluir o pedido ${order.number}? Esta acao nao pode ser desfeita.`)
+    if (!ok) return
+    const prevOrders = orders
+    setOrders((p) => p.filter((o) => o.id !== order.id))
+    try {
+      await deletePedido(order.id)
+      toast.success("Pedido excluido")
+    } catch (err: any) {
+      setOrders(prevOrders)
+      toast.error(err?.message || "Falha ao excluir pedido")
     }
   }
 
@@ -1171,14 +1195,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => router.push(`/pedido_compra/edit/${order.id}`)}>
-                                    Ver detalhes
+                                  <DropdownMenuItem onClick={() => router.push(`/pedido_compra/ver/${order.id}`)}>
+                                    Visualizar pedido
                                   </DropdownMenuItem>
                                   <DropdownMenuItem asChild>
                                     <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-red-600" onClick={() => handleCancelar(order)}>
+                                  <DropdownMenuItem className="text-orange-600" onClick={() => handleCancelar(order)}>
                                     Cancelar pedido
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
+                                    Excluir pedido
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1276,14 +1303,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => router.push(`/pedido_compra/edit/${order.id}`)}>
-                                          Ver detalhes
+                                        <DropdownMenuItem onClick={() => router.push(`/pedido_compra/ver/${order.id}`)}>
+                                          Visualizar pedido
                                         </DropdownMenuItem>
                                         <DropdownMenuItem asChild>
                                           <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-red-600" onClick={() => handleCancelar(order)}>
+                                        <DropdownMenuItem className="text-orange-600" onClick={() => handleCancelar(order)}>
                                           Cancelar pedido
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
+                                          Excluir pedido
                                         </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>

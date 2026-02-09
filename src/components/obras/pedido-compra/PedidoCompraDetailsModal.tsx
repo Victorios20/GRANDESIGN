@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, TrendingDown, TrendingUp, ExternalLink } from "lucide-react"
+import { Calendar, TrendingDown, TrendingUp, ExternalLink, Loader2 } from "lucide-react"
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { getPedidoDetailsAction } from "@/actions/pedido_compra/get-pedido-details"
+import { toast } from "sonner"
 
 import type { PedidoCompraVM } from "./types"
 
@@ -70,13 +72,13 @@ export function PedidoCompraDetailsModal({ pedido, obraId, onClose, onEdit, onIn
   const id = Number((pedido as any)?.id ?? 0)
   const numero = id > 0 ? `PC-${id}` : "PC-TMP"
 
-  const descricao = String((pedido as any)?.descricao ?? (pedido as any)?.observacoes ?? "").trim() || "—"
-  const categoria = String((pedido as any)?.categoria ?? "—")
-  const fornecedor = String((pedido as any)?.fornecedorNome ?? (pedido as any)?.fornecedor?.nome ?? "—").trim() || "—"
-  const previsto = (pedido as any)?.valorOrcado ?? (pedido as any)?.valor_orcado
-  const realizado = (pedido as any)?.valorRealizado ?? (pedido as any)?.valor_realizado
-  const entrega = (pedido as any)?.dataEntrega ?? (pedido as any)?.data_entrega
-  const status = (pedido as any)?.status ?? "PENDENTE"
+  const defaultDescricao = String((pedido as any)?.descricao ?? (pedido as any)?.observacoes ?? "").trim() || "—"
+  const defaultCategoria = String((pedido as any)?.categoria ?? "—")
+  const defaultFornecedor = String((pedido as any)?.fornecedorNome ?? (pedido as any)?.fornecedor?.nome ?? "—").trim() || "—"
+  const defaultPrevisto = (pedido as any)?.valorOrcado ?? (pedido as any)?.valor_orcado
+  const defaultRealizado = (pedido as any)?.valorRealizado ?? (pedido as any)?.valor_realizado
+  const defaultEntrega = (pedido as any)?.dataEntrega ?? (pedido as any)?.data_entrega
+  const defaultStatus = (pedido as any)?.status ?? "PENDENTE"
 
   const integrado =
     Boolean((pedido as any)?.integrado) ||
@@ -84,16 +86,46 @@ export function PedidoCompraDetailsModal({ pedido, obraId, onClose, onEdit, onIn
     Boolean((pedido as any)?.isIntegrated) ||
     false
 
-  const diff = calcDiff(previsto, realizado)
+  const [loading, setLoading] = React.useState(false)
+  const [details, setDetails] = React.useState<any>(null)
+
+  React.useEffect(() => {
+    if (id > 0) {
+      setLoading(true)
+      getPedidoDetailsAction(id)
+        .then((res) => {
+          if (res.success) setDetails(res.data)
+          else toast.error(res.error || "Erro ao carregar detalhes")
+        })
+        .catch(() => toast.error("Erro inesperado ao carregar detalhes"))
+        .finally(() => setLoading(false))
+    }
+  }, [id])
+
+  // Use fetched details if available, otherwise fallback to prop (VM)
+  const displayDescricao = details?.descricao || defaultDescricao
+  const displayCategoria = details?.categoria || defaultCategoria
+  const displayFornecedor = details?.fornecedor?.nome || defaultFornecedor
+  const displayPrevisto = details?.valor_orcado ?? defaultPrevisto
+  const displayRealizado = details?.valor_realizado ?? defaultRealizado
+  const displayEntrega = details?.data_entrega ?? defaultEntrega
+  const displayStatus = details?.status ?? defaultStatus
+
+  const diff = calcDiff(displayPrevisto, displayRealizado)
   const isPositive = diff ? diff.diff > 0 : false
+
+  const itens = Array.isArray(details?.itens) ? details.itens : []
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex items-center justify-between border-b pb-4">
             <div className="flex items-center gap-2">
-              <span className="font-mono">{numero}</span>
+              <span className="font-mono text-xl">{numero}</span>
+              <Badge className={`${statusChip(displayStatus)} text-white`}>{statusLabel(displayStatus)}</Badge>
+            </div>
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="ghost"
@@ -105,103 +137,142 @@ export function PedidoCompraDetailsModal({ pedido, obraId, onClose, onEdit, onIn
                   <ExternalLink className="w-4 h-4" />
                 </a>
               </Button>
-              <Badge className={`${statusChip(status)} text-white`}>{statusLabel(status)}</Badge>
             </div>
           </DialogTitle>
         </DialogHeader>
 
 
         <div className="space-y-6">
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Descrição</label>
-            <p className="mt-1 text-sm">{descricao}</p>
+          {/* Header Info Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Descrição</label>
+              <p className="text-sm font-medium">{displayDescricao}</p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Obra</label>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                  Obra #{obraId ?? (pedido as any)?.obraId ?? details?.obra_id ?? "-"}
+                </Badge>
+                <span className="text-sm text-muted-foreground line-clamp-1">
+                  {details?.obra?.titulo || ""}
+                </span>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoria / Fornecedor</label>
+              <p className="text-sm">
+                <span className="font-semibold">{displayCategoria}</span>
+                <span className="mx-2 text-muted-foreground">•</span>
+                {displayFornecedor}
+              </p>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Previsão Entrega</label>
+              <div className="flex items-center gap-2 text-sm">
+                <Calendar className="w-3 h-3 text-muted-foreground" />
+                <span>{displayEntrega ? onlyDateBR(displayEntrega) : "—"}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium text-muted-foreground">Categoria</label>
-              <p className="mt-1 text-sm">{categoria}</p>
+          {/* Financeiro Card */}
+          <div className="bg-muted/30 border rounded-lg p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+            <div>
+              <span className="text-xs text-muted-foreground block">Valor Previsto</span>
+              <span className="text-lg font-semibold">{moneyBRL(displayPrevisto)}</span>
             </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium text-muted-foreground">Fornecedor</label>
-              <p className="mt-1 text-sm">{fornecedor}</p>
+            <div className="border-l pl-4">
+              <span className="text-xs text-muted-foreground block">Valor Realizado</span>
+              <span className="text-lg font-semibold">{displayRealizado != null ? moneyBRL(displayRealizado) : "—"}</span>
             </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Obra</label>
-            <div className="mt-1">
-              <Badge variant="secondary" className="bg-blue-50 text-blue-700">
-                Obra #{obraId ?? (pedido as any)?.obraId ?? (pedido as any)?.obra_id ?? "-"}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Valor Previsto</span>
-              <span className="text-lg font-semibold">{moneyBRL(previsto)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Valor Realizado</span>
-              <span className="text-lg font-semibold">{realizado != null && String(realizado) !== "" ? moneyBRL(realizado) : "—"}</span>
-            </div>
-
             {diff && (
-              <div className={`flex items-center justify-between pt-2 border-t ${isPositive ? "text-red-600" : "text-green-600"}`}>
-                <span className="text-sm font-medium">Variação</span>
-                <div className="flex items-center gap-2">
-                  {isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  <span className="font-semibold">
-                    {isPositive ? "+" : "-"}
-                    {moneyBRL(Math.abs(diff.diff))} ({Math.abs(diff.percent).toFixed(1)}%)
-                  </span>
+              <div className={`border-l pl-4 ${isPositive ? "text-red-600" : "text-green-600"}`}>
+                <span className="text-xs font-medium block">Variação</span>
+                <div className="flex items-center gap-1 font-semibold">
+                  {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  {moneyBRL(Math.abs(diff.diff))} ({Math.abs(diff.percent).toFixed(1)}%)
                 </div>
               </div>
             )}
           </div>
 
+          {/* Items Table - Compact Layout */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Data de Entrega</label>
-            <div className="mt-1 flex items-center gap-2 text-sm">
-              <Calendar className="w-4 h-4" />
-              <span>{entrega ? onlyDateBR(entrega) : "—"}</span>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wider">Itens do Pedido</h3>
+              {loading && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+            </div>
+
+            <div className="border rounded-md overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium w-16">Qtd</th>
+                    <th className="px-3 py-2 text-left font-medium">Descrição</th>
+                    <th className="px-3 py-2 text-right font-medium w-24">Unit.</th>
+                    <th className="px-3 py-2 text-right font-medium w-24">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {loading && itens.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-4 text-center text-muted-foreground">Carregando itens...</td>
+                    </tr>
+                  ) : itens.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-4 text-center text-muted-foreground text-xs">Nenhum item listado.</td>
+                    </tr>
+                  ) : (
+                    itens.map((item: any, idx: number) => (
+                      <tr key={item.id ?? idx} className="hover:bg-muted/20">
+                        <td className="px-3 py-1 text-xs font-medium">{Number(item.quantidade).toLocaleString("pt-BR")}</td>
+                        <td className="px-3 py-1 text-xs">
+                          {item.descricao}
+                          {item.tamanho ? <span className="text-muted-foreground ml-1">({Number(item.tamanho).toLocaleString("pt-BR")}m)</span> : ""}
+                        </td>
+                        <td className="px-3 py-1 text-xs text-right text-muted-foreground">{moneyBRL(item.preco_unitario)}</td>
+                        <td className="px-3 py-1 text-xs text-right font-medium">{moneyBRL(item.total)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {itens.length > 0 && (
+                  <tfoot className="bg-muted/30 font-medium">
+                    <tr>
+                      <td colSpan={3} className="px-3 py-2 text-right text-xs uppercase">Total Itens</td>
+                      <td className="px-3 py-2 text-right text-xs">
+                        {moneyBRL(itens.reduce((acc: number, i: any) => acc + Number(i.total || 0), 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
 
-          <div>
-            <label className="text-sm font-medium text-muted-foreground">Status de Integração</label>
-            <div className="mt-1">
-              {integrado ? (
-                <Badge className="bg-purple-500 text-white gap-2">
-                  Integrado ao Financeiro
-                  <ExternalLink className="w-3 h-3" />
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-muted-foreground">
-                  Não integrado
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-4 border-t">
-            <Button className="flex-1" onClick={() => id > 0 && onEdit(id)} disabled={id <= 0}>
-              Editar Pedido
+          <div className="flex justify-end gap-3 pt-4 border-t print:hidden">
+            <Button variant="outline" onClick={onClose}>
+              Fechar
             </Button>
 
             {!integrado && id > 0 && (
-              <Button className="flex-1" onClick={() => onIntegrar?.(id)}>
-                Integrar ao Financeiro
-              </Button>
+              <>
+                {onIntegrar && (
+                  <Button variant="secondary" onClick={() => onIntegrar(id)}>
+                    Integrar Financeiro
+                  </Button>
+                )}
+                <Button onClick={() => onEdit(id)}>
+                  Editar Pedido
+                </Button>
+              </>
             )}
-
-            <Button variant="outline" className="flex-1 bg-transparent" onClick={onClose}>
-              Fechar
-            </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   )
 }
+

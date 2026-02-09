@@ -180,7 +180,11 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     async (tx) => {
       const orc = await tx.orcamento.findUnique({
         where: { id: input.orcamentoId },
-        include: { obra: true, orcamento_material: true },
+        include: {
+          obra: true,
+          orcamento_material: true,
+          cliente: { include: { cidades: true } },
+        },
       })
       if (!orc) throw new ObraCreateError("ORCAMENTO_NAO_ENCONTRADO", "Orçamento não encontrado.")
       if (orc.lancado_obra || orc.obra) throw new ObraCreateError("ORCAMENTO_JA_LANCADO", "Já existe obra.")
@@ -233,180 +237,142 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       //   })
       // }
 
+      // -----------------------------------------------------------------------
+      // AUTOMATION LOGIC (User Request: 3 specific POs)
+      // -----------------------------------------------------------------------
+
       const pedidos: Partial<Record<PedidoCategoria, number>> = {}
       let primeiroPedidoId: number | null = null
 
-      console.log("[create-obra-db] orcamento_material length:", orc.orcamento_material?.length)
+      // 1. ANDAIME (Fixed rule: 12 Andames + 3 Plataformas)
+      const andaimeItems: PedidoItemInput[] = [
+        { descricao: "Andames", quantidade: 12, preco_unitario: 0, total: 0 },
+        { descricao: "Plataformas", quantidade: 3, preco_unitario: 0, total: 0 },
+      ]
 
-      // Check if we have manual orders or if we need to generate from Orcamento items
-      const hasManualOrders =
-        (Array.isArray(input.pedidosCompra) && input.pedidosCompra.length > 0) ||
-        (Array.isArray(input.telhaItens) && input.telhaItens.length > 0) ||
-        (Array.isArray(input.madeiraItens) && input.madeiraItens.length > 0) ||
-        (Array.isArray(input.materiaisItens) && input.materiaisItens.length > 0) ||
-        (Array.isArray(input.andaimesItens) && input.andaimesItens.length > 0)
-
-      console.log("[create-obra-db] hasManualOrders:", hasManualOrders)
-
-
-
-      // Arrays to be populated either from Input or from DB
-      let telhasToCreate: PedidoItemInput[] = input.telhaItens || []
-      let madeirasToCreate: PedidoItemInput[] = input.madeiraItens || []
-      let materiaisToCreate: PedidoItemInput[] = input.materiaisItens || []
-      let andaimesToCreate: PedidoItemInput[] = input.andaimesItens || []
-
-      // Identify which categories are already present in manual input
-      const manualCategories = new Set<PedidoCategoria>()
-      if (Array.isArray(input.pedidosCompra)) {
-        input.pedidosCompra.forEach(p => {
-          const c = mapPedidoCategoria((p as any)?.categoria)
-          if (c) manualCategories.add(c)
-        })
-      }
-      if (input.telhaItens?.length) manualCategories.add(PedidoCategoria.TELHA)
-      if (input.madeiraItens?.length) manualCategories.add(PedidoCategoria.MADEIRA)
-      if (input.materiaisItens?.length) manualCategories.add(PedidoCategoria.MATERIAIS)
-      if (input.andaimesItens?.length) manualCategories.add(PedidoCategoria.ANDAIMES)
-
-      console.log("[create-obra-db] manualCategories:", Array.from(manualCategories))
-
-      // Generate missing categories from Orcamento
-      if (orc.orcamento_material && orc.orcamento_material.length > 0) {
+      // 2. MADEIRA (Exact copy from Budget)
+      const madeiraItems: PedidoItemInput[] = []
+      if (orc.orcamento_material) {
         orc.orcamento_material.forEach((m) => {
           const tipo = normalizeStr(m.tipo || "")
-          const isMadeira = tipo.includes("madeira") || tipo.includes("vigamento") || tipo.includes("ripa") || tipo.includes("caibro")
-          const isTelha = tipo.includes("telha") || tipo.includes("cumeeira")
-          const isAndaime = tipo.includes("andaime") || tipo.includes("plataforma")
+          const isMadeira =
+            tipo.includes("madeira") || tipo.includes("vigamento") || tipo.includes("ripa") || tipo.includes("caibro")
 
-          const targetCategory = isMadeira ? PedidoCategoria.MADEIRA :
-            isTelha ? PedidoCategoria.TELHA :
-              isAndaime ? PedidoCategoria.ANDAIMES :
-                PedidoCategoria.MATERIAIS
+          if (isMadeira) {
+            const qtd = Number(m.quantidade) || 0
+            const preco = Number(m.preco_unitario) || 0
+            const size = Number(m.tamanho) || 0
+            let total = Number(m.total) || 0
 
-          // SKIP if this category was manually provided
-          if (manualCategories.has(targetCategory)) return
+            if (size > 0) total = qtd * preco * size
+            else if (!total) total = qtd * preco
 
-          // Calculation Logic
-          const qtd = Number(m.quantidade) || 0
-          const preco = Number(m.preco_unitario) || 0
-          const size = Number(m.tamanho) || 0
-
-          let total = Number(m.total) || 0
-          // Apply Wood Calculation Fix
-          if (isMadeira && size > 0) {
-            total = qtd * preco * size
-          } else {
-            if (!total) total = qtd * preco
+            madeiraItems.push({
+              descricao: m.descricao || "Item Madeira",
+              quantidade: m.quantidade,
+              preco_unitario: m.preco_unitario,
+              tamanho: m.tamanho ?? undefined,
+              total: total,
+            })
           }
-
-          const itemInput: PedidoItemInput = {
-            descricao: m.descricao || "Item sem descrição",
-            quantidade: m.quantidade,
-            preco_unitario: m.preco_unitario,
-            tamanho: m.tamanho ?? undefined,
-            total: total
-          }
-
-          if (isMadeira) madeirasToCreate.push(itemInput)
-          else if (isTelha) telhasToCreate.push(itemInput)
-          else if (isAndaime) andaimesToCreate.push(itemInput)
-          else materiaisToCreate.push(itemInput)
         })
       }
 
+      // 3. TELHA (Item chosen in Obra Input -> Find qty in Budget)
+      const telhaItems: PedidoItemInput[] = []
+      const telhaEscolhidaNorm = normalizeStr(input.telha_escolhida || "")
 
-      // Existing logic for `pedidosCompra` (Explicit list)
-      const pedidosCompra = Array.isArray(input.pedidosCompra) ? input.pedidosCompra : []
+      // Find the budget item that matches the chosen tile
+      let telhaBudgetItem: any = undefined
+      if (telhaEscolhidaNorm) {
+        telhaBudgetItem = orc.orcamento_material?.find((m) => {
+          const d = normalizeStr(m.descricao || "")
+          return d.includes(telhaEscolhidaNorm) || telhaEscolhidaNorm.includes(d)
+        })
+      }
 
+      // If strict match fails, try looking for any "telha" item if the input was generic
+      if (!telhaBudgetItem && orc.orcamento_material) {
+        telhaBudgetItem = orc.orcamento_material.find(m => {
+          const t = normalizeStr(m.tipo || "")
+          return t.includes("telha")
+        })
+      }
 
-      if (pedidosCompra.length > 0) {
-        for (const p of pedidosCompra) {
-          const cat = mapPedidoCategoria((p as any)?.categoria)
-          if (!cat) continue
-
-          const itens = Array.isArray((p as any)?.itens) ? ((p as any).itens as PedidoItemInput[]) : []
-          // ... (rest of logic)
-          // Simplified:
-          const pedidoStatus = mapPedidoCompraStatus((p as any)?.status)
-          const dataEntrega = parseDateLoose((p as any)?.data_entrega)
-          // ... create pedido ...
-          // ... create itens ...
-          // Calculate total from items
-          const somaTotal = itens.reduce((acc, it) => acc + Number(d(it.total)), 0)
-
-          const pedido = await tx.pedido_compra.create({
-            data: {
-              obra: { connect: { id: obra.id } },
-              categoria: cat,
-              ...(pedidoStatus ? { status: pedidoStatus } : {}),
-              descricao: (p as any)?.descricao ?? null,
-              observacoes: (p as any)?.observacoes ?? null,
-              data_entrega: dataEntrega,
-              valor_orcado: somaTotal > 0 ? new Prisma.Decimal(somaTotal) : null,
-              // ... other fields
-            },
-            select: { id: true }
-          })
-          if (!primeiroPedidoId) primeiroPedidoId = pedido.id
-          pedidos[cat] = pedido.id
-
-          for (const it of itens) {
-            await tx.pedido_itens.create({
-              data: {
-                pedido_compra_id: pedido.id,
-                descricao: it.descricao,
-                quantidade: d(it.quantidade),
-                tamanho: cat === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
-                preco_unitario: d(it.preco_unitario),
-                total: d(it.total),
-              },
-            })
-          }
-        }
+      if (telhaBudgetItem) {
+        telhaItems.push({
+          descricao: telhaBudgetItem.descricao || input.telha_escolhida,
+          quantidade: telhaBudgetItem.quantidade,
+          preco_unitario: telhaBudgetItem.preco_unitario,
+          total: telhaBudgetItem.total,
+        })
       } else {
-        // Using the arrays (either passed in Input or Generated from DB)
-        const grupos: { categoria: PedidoCategoria; itens?: PedidoItemInput[]; fornecedor?: number | null }[] = [
-          { categoria: PedidoCategoria.TELHA, itens: telhasToCreate, fornecedor: input.fornecedor_telha_id },
-          { categoria: PedidoCategoria.MADEIRA, itens: madeirasToCreate, fornecedor: input.fornecedor_madeira_id },
-          { categoria: PedidoCategoria.MATERIAIS, itens: materiaisToCreate },
-          { categoria: PedidoCategoria.ANDAIMES, itens: andaimesToCreate, fornecedor: input.andaimes_fornecedor_id },
-        ]
+        // Fallback if not found in budget: Create with qty 0 or 1? User said "busca a quantidade". 
+        // If not found, we create it anyway with the name provided.
+        telhaItems.push({
+          descricao: input.telha_escolhida || "Telha",
+          quantidade: 0,
+          preco_unitario: 0,
+          total: 0
+        })
+      }
 
-        for (const g of grupos) {
-          if (!Array.isArray(g.itens) || g.itens.length === 0) continue
+      // Auto-Fill Data
+      const clienteName = orc.cliente.nome || "Cliente"
+      const cidadeName = orc.cliente.cidades?.nome || ""
+      const bairroName = orc.cliente.bairro || ""
+      const locationSuffix = `${cidadeName} ${bairroName}`.trim()
 
-          // Calculate total from items
-          const somaTotal = (g.itens && g.itens.length > 0)
-            ? g.itens.reduce((acc, it) => acc + Number(d(it.total)), 0)
-            : 0
+      const formatTitle = (cat: string) => `${cat} - ${clienteName} - ${locationSuffix}`
 
-          const pedido = await tx.pedido_compra.create({
+      const gruposAutomated: { categoria: PedidoCategoria; itens: PedidoItemInput[]; fornecedor?: number | null }[] = [
+        { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: input.fornecedor_telha_id },
+        { categoria: PedidoCategoria.MADEIRA, itens: madeiraItems, fornecedor: input.fornecedor_madeira_id },
+        { categoria: PedidoCategoria.ANDAIMES, itens: andaimeItems, fornecedor: input.andaimes_fornecedor_id },
+      ]
+
+      for (const g of gruposAutomated) {
+        // Even if empty items (e.g. no madeira in budget), good to check if we should skip or create empty?
+        // User said "vais gerar três pedidos". So we generate them.
+        // Exception: If items empty for things that require items? 
+        // Andaime is fixed. Telha is fixed. Madeira might be empty. 
+        // We will create if items > 0.
+        if (g.itens.length === 0) continue
+
+        const somaTotal = g.itens.reduce((acc, it) => acc + Number(d(it.total)), 0)
+
+        const catLabel = g.categoria === PedidoCategoria.ANDAIMES ? "Andaimes" :
+          g.categoria === PedidoCategoria.TELHA ? "Telha" : "Madeira"
+
+        const tituloAuto = formatTitle(catLabel)
+
+        const pedido = await tx.pedido_compra.create({
+          data: {
+            obra: { connect: { id: obra.id } },
+            categoria: g.categoria,
+            status: PedidoCompraStatus.RASCUNHO,
+            ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
+            valor_orcado: somaTotal > 0 ? new Prisma.Decimal(somaTotal) : null,
+            descricao: tituloAuto, // Auto-filled Title
+            endereco_entrega: input.endereco_obra, // Auto-filled Address
+          },
+          select: { id: true },
+        })
+
+        if (!primeiroPedidoId) primeiroPedidoId = pedido.id
+        pedidos[g.categoria] = pedido.id
+
+        for (const it of g.itens) {
+          await tx.pedido_itens.create({
             data: {
-              obra: { connect: { id: obra.id } },
-              categoria: g.categoria,
-              status: PedidoCompraStatus.RASCUNHO,
-              ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
-              valor_orcado: somaTotal > 0 ? new Prisma.Decimal(somaTotal) : null,
+              pedido_compra_id: pedido.id,
+              descricao: it.descricao,
+              quantidade: d(it.quantidade),
+              tamanho: g.categoria === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
+              preco_unitario: d(it.preco_unitario),
+              total: d(it.total),
             },
-            select: { id: true },
           })
-
-          if (!primeiroPedidoId) primeiroPedidoId = pedido.id
-          pedidos[g.categoria] = pedido.id
-
-          for (const it of g.itens) {
-            await tx.pedido_itens.create({
-              data: {
-                pedido_compra_id: pedido.id,
-                descricao: it.descricao,
-                quantidade: d(it.quantidade),
-                tamanho: g.categoria === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
-                preco_unitario: d(it.preco_unitario),
-                total: d(it.total),
-              },
-            })
-          }
         }
       }
 

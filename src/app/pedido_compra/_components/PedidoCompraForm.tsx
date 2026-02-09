@@ -1,15 +1,31 @@
 "use client"
 
 import type React from "react"
-import Link from "next/link"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, ChevronsUpDown, MapPin, Plus, Save, Trash2 } from "lucide-react"
+import { ArrowLeft, Check, ChevronsUpDown, Edit, MapPin, MoreVertical, Plus, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageLayout } from "@/components/ui/pageLayout"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -20,7 +36,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 import { ComboboxAdd, type ComboItem } from "@/components/ui/comboboxAdd"
 
-type Mode = "create" | "edit"
+type Mode = "create" | "edit" | "view"
 
 type PedidoCategoria = "MADEIRA" | "TELHA" | "ANDAIME" | "ANDAIMES" | "MATERIAIS"
 type PedidoStatus =
@@ -238,6 +254,23 @@ type Props = {
 
 const emptyMateriaisByTipo: MateriaisByTipo = { madeira: [], telha: [], geral: [], andaime: [] }
 
+const ReadOnlyField = ({
+  label,
+  value,
+  className,
+}: {
+  label: string
+  value: string | number | null | undefined
+  className?: string
+}) => (
+  <div className={`space-y-1.5 ${className}`}>
+    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
+    <div className="font-medium text-foreground text-sm min-h-[20px] bg-muted/20 p-2 rounded-md border border-transparent">
+      {value || "-"}
+    </div>
+  </div>
+)
+
 export default function PedidoCompraForm({
   mode,
   pedidoCompraId,
@@ -246,6 +279,10 @@ export default function PedidoCompraForm({
   initialMateriaisByTipo,
 }: Props) {
   const router = useRouter()
+
+  const isView = mode === "view"
+  const isEdit = mode === "edit"
+  const isCreate = mode === "create"
 
   const [saving, setSaving] = useState(false)
 
@@ -282,7 +319,10 @@ export default function PedidoCompraForm({
   const [obraQuery, setObraQuery] = useState("")
   const [obraLoading, setObraLoading] = useState(false)
   const [obraOptions, setObraOptions] = useState<ObraSearchItem[]>([])
+
   const [obraSelected, setObraSelected] = useState<ObraSearchItem | null>(null)
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const handleBack = useCallback(() => {
     if (typeof window !== "undefined" && window.history.length > 1) {
@@ -352,7 +392,7 @@ export default function PedidoCompraForm({
   }, [fornecedoresRaw, formData.categoria])
 
   useEffect(() => {
-    if (mode !== "edit") return
+    if (isCreate) return
     if (!initialData) return
 
     const categoriaNorm = normalizeCategoria(initialData.categoria)
@@ -399,7 +439,7 @@ export default function PedidoCompraForm({
       enderecoEntrega: initialData.endereco_entrega ?? null,
       linkMaps: initialData.link_maps ?? null,
     })
-  }, [mode, initialData])
+  }, [isCreate, initialData])
 
   const isMadeira = formData.categoria === "MADEIRA"
 
@@ -410,14 +450,14 @@ export default function PedidoCompraForm({
   }, [items, formData.frete])
 
   const headerTitle = useMemo(() => {
-    if (mode === "create") return "Criar Pedido de Compra"
+    if (isCreate) return "Criar Pedido de Compra"
     const obraLabel = obraSelected ? ObraOptionLabelTop(obraSelected) : formData.obraId ? `#${formData.obraId}` : ""
     if (pedidoCompraId) return obraLabel ? `#PC-${pedidoCompraId} — ${obraLabel}` : `#PC-${pedidoCompraId}`
-    return "Editar Pedido de Compra"
-  }, [mode, pedidoCompraId, obraSelected, formData.obraId])
+    return isView ? "Visualizar Pedido de Compra" : "Editar Pedido de Compra"
+  }, [isCreate, isView, pedidoCompraId, obraSelected, formData.obraId])
 
   useEffect(() => {
-    if (mode === "edit") return
+    if (!isCreate) return
     if (!obraOpen) return
 
     const q = obraQuery.trim()
@@ -461,7 +501,7 @@ export default function PedidoCompraForm({
       canceled = true
       clearTimeout(t)
     }
-  }, [obraOpen, obraQuery, mode])
+  }, [obraOpen, obraQuery, isCreate])
 
   function selectObra(o: ObraSearchItem) {
     setObraSelected(o)
@@ -580,7 +620,7 @@ export default function PedidoCompraForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (saving) return
+    if (saving || isView) return
 
     const obraIdNum = Number(formData.obraId)
     if (!Number.isFinite(obraIdNum) || obraIdNum <= 0) {
@@ -630,9 +670,9 @@ export default function PedidoCompraForm({
         })),
       }
 
-      const isEdit = mode === "edit"
-      const url = isEdit ? `/api/pedido_compra/editar/${pedidoCompraId}` : "/api/pedido_compra/cadastrar"
-      const method = isEdit ? "PUT" : "POST"
+      const isEditMode = isEdit
+      const url = isEditMode ? `/api/pedido_compra/editar/${pedidoCompraId}` : "/api/pedido_compra/cadastrar"
+      const method = isEditMode ? "PUT" : "POST"
 
       const res = await fetch(url, {
         method,
@@ -648,9 +688,9 @@ export default function PedidoCompraForm({
 
       const savedId = body?.data?.id ?? body?.data?.pedidoCompraId ?? body?.id ?? pedidoCompraId
 
-      toast.success(isEdit ? "Pedido atualizado" : "Pedido cadastrado")
+      toast.success(isEditMode ? "Pedido atualizado" : "Pedido cadastrado")
 
-      if (!isEdit && savedId) {
+      if (!isEditMode && savedId) {
         router.replace(`/pedido_compra/edit/${savedId}`)
         router.refresh()
         return
@@ -664,21 +704,125 @@ export default function PedidoCompraForm({
     }
   }
 
-  const pageTitle = mode === "create" ? "Criar Pedido de Compra" : "Editar Pedido de Compra"
+  const pageTitle = isCreate ? "Criar Pedido de Compra" : isView ? "Visualizar Pedido de Compra" : "Editar Pedido de Compra"
+  const cardPadding = isView ? "p-4" : "p-6"
+  const formSpacing = isView ? "space-y-4" : "space-y-6"
+
+  const resolvedPedidoId = Number(pedidoCompraId ?? initialData?.id ?? 0)
+
+  async function patchPedidoStatus(pedidoId: number, status: PedidoStatus) {
+    const res = await fetch(`/api/pedido_compra/status/${pedidoId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    })
+    const body = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao atualizar status")
+    return body?.data
+  }
+
+  async function deletePedido(pedidoId: number) {
+    const res = await fetch(`/api/pedido_compra/excluir/${pedidoId}`, { method: "DELETE" })
+    const body = await res.json().catch(() => null)
+    if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao excluir pedido")
+    return body?.data
+  }
+
+
+
+  const handleExcluirPedido = async () => {
+    if (!resolvedPedidoId || !Number.isFinite(resolvedPedidoId)) return
+
+    try {
+      await deletePedido(resolvedPedidoId)
+      toast.success("Pedido excluido")
+      router.push("/pedido_compra")
+      router.refresh()
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao excluir pedido")
+    }
+  }
 
   return (
     <PageLayout
       title={pageTitle}
+      links={[
+        { label: "Home", href: "/" },
+        { label: "Pedidos de Compra", href: "/pedido_compra" },
+        ...(isCreate
+          ? [{ label: "Novo Pedido", href: "#" }]
+          : [{ label: `#PC-${resolvedPedidoId}`, href: `/pedido_compra/edit/${resolvedPedidoId}` }]),
+      ]}
       headerActions={
-        <div className="flex items-center gap-2">
-          <Button variant="outline" type="button" onClick={handleBack}>
-            Voltar
-          </Button>
-          <Button type="submit" form="pedido-compra-form" disabled={saving} className="gap-2">
-            <Save className="size-4" />
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
-        </div>
+        isView ? (
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => resolvedPedidoId > 0 && router.push(`/pedido_compra/edit/${resolvedPedidoId}`)}
+              disabled={resolvedPedidoId <= 0}
+              className="gap-2"
+            >
+              <Edit className="size-4" />
+              Editar
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                  onSelect={() => setDeleteDialogOpen(true)}
+                  disabled={resolvedPedidoId <= 0}
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Essa ação excluirá permanentemente o pedido de compra <b>#PC-{resolvedPedidoId}</b> e todos os seus itens.
+                    <br />
+                    Essa ação não pode ser desfeita.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleExcluirPedido}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Sim, excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" type="button" onClick={handleBack} className="gap-2">
+              <ArrowLeft className="size-4" />
+              Voltar
+            </Button>
+            <Button
+              type="submit"
+              form="pedido-compra-form"
+              disabled={saving}
+              className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Save className="size-4" />
+              {saving ? "Salvando..." : isCreate ? "Cadastrar" : "Salvar"}
+            </Button>
+          </div>
+        )
       }
       isTitulo
     >
@@ -700,347 +844,485 @@ export default function PedidoCompraForm({
           </Badge>
         </div>
 
-        <form id="pedido-compra-form" onSubmit={onSubmit} className="space-y-6">
-          <Card className="p-6">
+        <form id="pedido-compra-form" onSubmit={onSubmit} className={formSpacing}>
+          <Card className={cardPadding}>
             <h2 className="mb-4 text-lg font-semibold">Informações Básicas</h2>
 
             <div className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Obra</Label>
+                  {isView ? (
+                    <ReadOnlyField label="Obra" value={obraSelected ? ObraOptionLabelTop(obraSelected) : String(formData.obraId)} />
+                  ) : (
+                    <>
+                      <Label>Obra</Label>
+                      <Popover open={obraOpen} onOpenChange={setObraOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full justify-between"
+                            disabled={!isCreate}
+                          >
+                            <span className="truncate text-left">
+                              {obraSelected ? ObraOptionLabelTop(obraSelected) : "Pesquisar por ID ou título..."}
+                            </span>
+                            <ChevronsUpDown className="ml-2 size-4 opacity-60" />
+                          </Button>
+                        </PopoverTrigger>
 
-                  <Popover open={obraOpen} onOpenChange={setObraOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full justify-between"
-                        disabled={mode === "edit"}
+                        <PopoverContent className="w-[420px] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <div className="border-b p-2">
+                              <CommandInput
+                                value={obraQuery}
+                                onValueChange={setObraQuery}
+                                placeholder="Digite o ID (ex: 12) ou o título (ex: Residencial)..."
+                              />
+                            </div>
+
+                            <CommandList>
+                              {obraLoading ? (
+                                <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
+                              ) : (
+                                <>
+                                  <CommandEmpty>Nenhuma obra encontrada</CommandEmpty>
+                                  <CommandGroup>
+                                    {obraOptions.map((o) => {
+                                      const selected = String(o.id) === String(formData.obraId)
+                                      return (
+                                        <CommandItem
+                                          key={o.id}
+                                          value={String(o.id)}
+                                          onSelect={() => selectObra(o)}
+                                          className="flex items-start gap-2"
+                                        >
+                                          <div className="mt-0.5 flex size-5 items-center justify-center">
+                                            {selected ? <Check className="size-4" /> : null}
+                                          </div>
+
+                                          <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-medium">{ObraOptionLabelTop(o)}</div>
+                                            <div className="truncate text-xs text-muted-foreground">{ObraOptionLabelBottom(o)}</div>
+                                          </div>
+                                        </CommandItem>
+                                      )
+                                    })}
+                                  </CommandGroup>
+                                </>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+
+                      <Input id="obraIdHidden" value={formData.obraId} readOnly className="hidden" />
+
+                      <p className="text-xs text-muted-foreground">
+                        Ao selecionar a obra, o sistema sugere os dados de entrega. Você pode editar tudo depois.
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {isView ? (
+                    <ReadOnlyField
+                      label="Categoria"
+                      value={
+                        formData.categoria
+                          ? formData.categoria.charAt(0).toUpperCase() + formData.categoria.slice(1).toLowerCase()
+                          : "-"
+                      }
+                    />
+                  ) : (
+                    <>
+                      <Label htmlFor="categoria">Categoria</Label>
+                      <Select
+                        key={`cat-${String(formData.categoria)}`}
+                        value={formData.categoria}
+                        onValueChange={(v) => setFormData((p) => ({ ...p, categoria: v as PedidoCategoria }))}
+                        disabled={isView}
                       >
-                        <span className="truncate text-left">
-                          {obraSelected ? ObraOptionLabelTop(obraSelected) : "Pesquisar por ID ou título..."}
-                        </span>
-                        <ChevronsUpDown className="ml-2 size-4 opacity-60" />
-                      </Button>
-                    </PopoverTrigger>
-
-                    <PopoverContent className="w-[420px] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <div className="border-b p-2">
-                          <CommandInput
-                            value={obraQuery}
-                            onValueChange={setObraQuery}
-                            placeholder="Digite o ID (ex: 12) ou o título (ex: Residencial)..."
-                          />
-                        </div>
-
-                        <CommandList>
-                          {obraLoading ? (
-                            <div className="p-3 text-sm text-muted-foreground">Buscando...</div>
-                          ) : (
-                            <>
-                              <CommandEmpty>Nenhuma obra encontrada</CommandEmpty>
-                              <CommandGroup>
-                                {obraOptions.map((o) => {
-                                  const selected = String(o.id) === String(formData.obraId)
-                                  return (
-                                    <CommandItem
-                                      key={o.id}
-                                      value={String(o.id)}
-                                      onSelect={() => selectObra(o)}
-                                      className="flex items-start gap-2"
-                                    >
-                                      <div className="mt-0.5 flex size-5 items-center justify-center">
-                                        {selected ? <Check className="size-4" /> : null}
-                                      </div>
-
-                                      <div className="min-w-0 flex-1">
-                                        <div className="truncate text-sm font-medium">{ObraOptionLabelTop(o)}</div>
-                                        <div className="truncate text-xs text-muted-foreground">{ObraOptionLabelBottom(o)}</div>
-                                      </div>
-                                    </CommandItem>
-                                  )
-                                })}
-                              </CommandGroup>
-                            </>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-
-                  <Input id="obraIdHidden" value={formData.obraId} readOnly className="hidden" />
-
-                  <p className="text-xs text-muted-foreground">
-                    Ao selecionar a obra, o sistema sugere os dados de entrega. Você pode editar tudo depois.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="categoria">Categoria</Label>
-                  <Select
-                    key={`cat-${String(formData.categoria)}`}
-                    value={formData.categoria}
-                    onValueChange={(v) => setFormData((p) => ({ ...p, categoria: v as PedidoCategoria }))}
-                  >
-                    <SelectTrigger id="categoria">
-                      <SelectValue placeholder="Selecione uma categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MADEIRA">Madeira</SelectItem>
-                      <SelectItem value="TELHA">Telha</SelectItem>
-                      <SelectItem value="ANDAIMES">Andaimes</SelectItem>
-                      <SelectItem value="MATERIAIS">Materiais</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        <SelectTrigger id="categoria">
+                          <SelectValue placeholder="Selecione uma categoria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MADEIRA">Madeira</SelectItem>
+                          <SelectItem value="TELHA">Telha</SelectItem>
+                          <SelectItem value="ANDAIMES">Andaimes</SelectItem>
+                          <SelectItem value="MATERIAIS">Materiais</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="descricao">Descrição do Pedido</Label>
-                <Textarea
-                  id="descricao"
-                  value={formData.descricao}
-                  onChange={(e) => setFormData((p) => ({ ...p, descricao: e.target.value }))}
-                  placeholder="Ex: Telhas cerâmicas - 100 unidades"
-                  rows={3}
-                />
+                {isView ? (
+                  <ReadOnlyField label="Descrição do Pedido" value={formData.descricao} className="col-span-full" />
+                ) : (
+                  <>
+                    <Label htmlFor="descricao">Descrição do Pedido</Label>
+                    <Textarea
+                      id="descricao"
+                      value={formData.descricao}
+                      onChange={(e) => setFormData((p) => ({ ...p, descricao: e.target.value }))}
+                      placeholder="Ex: Telhas cerâmicas - 100 unidades"
+                      rows={3}
+                      disabled={isView}
+                    />
+                  </>
+                )}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="fornecedor">Fornecedor</Label>
-                  <Select
-                    key={`forn-${String(formData.fornecedorId)}-${fornecedoresFiltrados.length}`}
-                    value={formData.fornecedorId || "none"}
-                    onValueChange={(v) => setFormData((p) => ({ ...p, fornecedorId: v === "none" ? "" : v }))}
-                  >
-                    <SelectTrigger id="fornecedor">
-                      <SelectValue placeholder="Selecione um fornecedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {fornecedoresFiltrados.map((f) => (
-                        <SelectItem key={f.id} value={String(f.id)}>
-                          {f.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isView ? (
+                    <ReadOnlyField
+                      label="Fornecedor"
+                      value={fornecedores.find((f) => String(f.id) === String(formData.fornecedorId))?.nome}
+                    />
+                  ) : (
+                    <>
+                      <Label htmlFor="fornecedor">Fornecedor</Label>
+                      <Select
+                        key={`forn-${String(formData.fornecedorId)}-${fornecedoresFiltrados.length}`}
+                        value={formData.fornecedorId || "none"}
+                        onValueChange={(v) => setFormData((p) => ({ ...p, fornecedorId: v === "none" ? "" : v }))}
+                        disabled={isView}
+                      >
+                        <SelectTrigger id="fornecedor">
+                          <SelectValue placeholder="Selecione um fornecedor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {fornecedoresFiltrados.map((f) => (
+                            <SelectItem key={f.id} value={String(f.id)}>
+                              {f.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status do Pedido</Label>
-                  <Select
-                    key={`st-${String(formData.status)}`}
-                    value={formData.status}
-                    onValueChange={(v) => setFormData((p) => ({ ...p, status: v as PedidoStatus }))}
-                  >
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Selecione um status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="RASCUNHO">Rascunho</SelectItem>
-                      <SelectItem value="PENDENTE">Pendente</SelectItem>
-                      <SelectItem value="APROVADO">Aprovado</SelectItem>
-                      <SelectItem value="EM_COMPRA">Em Compra</SelectItem>
-                      <SelectItem value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</SelectItem>
-                      <SelectItem value="AGUARDANDO_ENTREGA">Aguardando Entrega</SelectItem>
-                      <SelectItem value="ENTREGUE">Entregue</SelectItem>
-                      <SelectItem value="CANCELADO">Cancelado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="valorOrcado">Valor Previsto (R$)</Label>
-                  <Input
-                    id="valorOrcado"
-                    type="number"
-                    step="0.01"
-                    value={formData.valorOrcado}
-                    onChange={(e) => setFormData((p) => ({ ...p, valorOrcado: e.target.value }))}
-                    placeholder="0,00"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="valorRealizado">Valor Realizado (R$)</Label>
-                  <Input
-                    id="valorRealizado"
-                    type="number"
-                    step="0.01"
-                    value={formData.valorRealizado}
-                    onChange={(e) => setFormData((p) => ({ ...p, valorRealizado: e.target.value }))}
-                    placeholder="0,00"
-                  />
-                  <p className="text-xs text-muted-foreground">Deixe vazio se ainda não foi realizado</p>
+                  {isView ? (
+                    <ReadOnlyField label="Status do Pedido" value={statusLabels[formData.status]} />
+                  ) : (
+                    <>
+                      <Label htmlFor="status">Status do Pedido</Label>
+                      <Select
+                        key={`st-${String(formData.status)}`}
+                        value={formData.status}
+                        onValueChange={(v) => setFormData((p) => ({ ...p, status: v as PedidoStatus }))}
+                        disabled={isView}
+                      >
+                        <SelectTrigger id="status">
+                          <SelectValue placeholder="Selecione um status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="RASCUNHO">Rascunho</SelectItem>
+                          <SelectItem value="PENDENTE">Pendente</SelectItem>
+                          <SelectItem value="APROVADO">Aprovado</SelectItem>
+                          <SelectItem value="EM_COMPRA">Em Compra</SelectItem>
+                          <SelectItem value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</SelectItem>
+                          <SelectItem value="AGUARDANDO_ENTREGA">Aguardando Entrega</SelectItem>
+                          <SelectItem value="ENTREGUE">Entregue</SelectItem>
+                          <SelectItem value="CANCELADO">Cancelado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="dataEntrega">Data de Entrega</Label>
-                  <Input
-                    id="dataEntrega"
-                    type="date"
-                    value={formData.dataEntrega}
-                    onChange={(e) => setFormData((p) => ({ ...p, dataEntrega: e.target.value }))}
-                  />
+                  {isView ? (
+                    <ReadOnlyField
+                      label="Valor Previsto (R$)"
+                      value={formData.valorOrcado ? `R$ ${formData.valorOrcado}` : undefined}
+                    />
+                  ) : (
+                    <>
+                      <Label htmlFor="valorOrcado">Valor Previsto (R$)</Label>
+                      <Input
+                        id="valorOrcado"
+                        type="number"
+                        step="0.01"
+                        value={formData.valorOrcado}
+                        onChange={(e) => setFormData((p) => ({ ...p, valorOrcado: e.target.value }))}
+                        placeholder="0,00"
+                        disabled={isView}
+                      />
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="frete">Frete (R$)</Label>
-                  <Input
-                    id="frete"
-                    type="number"
-                    step="0.01"
-                    value={formData.frete}
-                    onChange={(e) => setFormData((p) => ({ ...p, frete: e.target.value }))}
-                    placeholder="0,00"
-                  />
+                  {isView ? (
+                    <ReadOnlyField
+                      label="Valor Realizado (R$)"
+                      value={formData.valorRealizado ? `R$ ${formData.valorRealizado}` : undefined}
+                    />
+                  ) : (
+                    <>
+                      <Label htmlFor="valorRealizado">Valor Realizado (R$)</Label>
+                      <Input
+                        id="valorRealizado"
+                        type="number"
+                        step="0.01"
+                        value={formData.valorRealizado}
+                        onChange={(e) => setFormData((p) => ({ ...p, valorRealizado: e.target.value }))}
+                        placeholder="0,00"
+                        disabled={isView}
+                      />
+                      <p className="text-xs text-muted-foreground">Deixe vazio se ainda não foi realizado</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  {isView ? (
+                    <ReadOnlyField label="Data de Entrega" value={formData.dataEntrega} />
+                  ) : (
+                    <>
+                      <Label htmlFor="dataEntrega">Data de Entrega</Label>
+                      <Input
+                        id="dataEntrega"
+                        type="date"
+                        value={formData.dataEntrega}
+                        onChange={(e) => setFormData((p) => ({ ...p, dataEntrega: e.target.value }))}
+                        disabled={isView}
+                      />
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  {isView ? (
+                    <ReadOnlyField label="Frete (R$)" value={formData.frete ? `R$ ${formData.frete}` : undefined} />
+                  ) : (
+                    <>
+                      <Label htmlFor="frete">Frete (R$)</Label>
+                      <Input
+                        id="frete"
+                        type="number"
+                        step="0.01"
+                        value={formData.frete}
+                        onChange={(e) => setFormData((p) => ({ ...p, frete: e.target.value }))}
+                        placeholder="0,00"
+                        disabled={isView}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) => setFormData((p) => ({ ...p, observacoes: e.target.value }))}
-                  placeholder="Adicione observações sobre o pedido..."
-                  rows={3}
-                />
+                {isView ? (
+                  <ReadOnlyField label="Observações" value={formData.observacoes} />
+                ) : (
+                  <>
+                    <Label htmlFor="observacoes">Observações</Label>
+                    <Textarea
+                      id="observacoes"
+                      value={formData.observacoes}
+                      onChange={(e) => setFormData((p) => ({ ...p, observacoes: e.target.value }))}
+                      placeholder="Adicione observações sobre o pedido..."
+                      rows={3}
+                      disabled={isView}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className={cardPadding}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Itens do Pedido</h2>
-              <Button type="button" onClick={addItem} size="sm" className="gap-2">
-                <Plus className="size-4" />
-                Adicionar Item
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {items.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
-                  <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
-                  <Button type="button" onClick={addItem} size="sm" variant="outline" className="mt-2 bg-transparent">
-                    Adicionar primeiro item
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {items.map((item, index) => (
-                    <div key={item.clientId} className="rounded-lg border border-border bg-muted/30 p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Item {index + 1}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeItem(item.clientId)}
-                          className="size-8"
-                        >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-12">
-                        <div className={isMadeira ? "md:col-span-4" : "md:col-span-5"}>
-                          <Label className="text-xs">Descrição</Label>
-
-                          <div className="mt-1">
-                            <ComboboxAdd
-                              key={`desc-${item.clientId}-${comboItemsMateriais.length}-${formData.categoria}-${formData.fornecedorId}`}
-                              buttonText={getComboLabelForDescricao(item.descricao)}
-                              placeholder="Buscar material..."
-                              widthClass="w-full"
-                              disabled={!formData.categoria}
-                              items={comboItemsMateriais}
-                              onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
-                              showEmptyOption={false}
-                              colorVariant="white-brown"
-                              buttonClassName="h-10 text-sm rounded-md border border-border justify-between"
-                            />
-                          </div>
-
-                          {!formData.categoria && (
-                            <p className="mt-1 text-xs text-muted-foreground">Selecione a categoria para habilitar.</p>
-                          )}
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <Label className="text-xs">Quantidade</Label>
-                          <Input
-                            type="number"
-                            value={item.quantidade}
-                            onChange={(e) => updateItem(item.clientId, "quantidade", Number(e.target.value) || 0)}
-                            placeholder="0"
-                            className="mt-1"
-                          />
-                        </div>
-
-                        {isMadeira && (
-                          <div className="md:col-span-2">
-                            <Label className="text-xs">Tamanho</Label>
-                            <Input
-                              type="number"
-                              value={item.tamanho ?? ""}
-                              onChange={(e) =>
-                                updateItem(
-                                  item.clientId,
-                                  "tamanho",
-                                  e.target.value === "" ? null : Number(e.target.value)
-                                )
-                              }
-                              placeholder="0"
-                              className="mt-1"
-                            />
-                          </div>
-                        )}
-
-                        <div className="md:col-span-2">
-                          <Label className="text-xs">Valor Unitário (R$)</Label>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={item.precoUnitario}
-                            onChange={(e) => updateItem(item.clientId, "precoUnitario", Number(e.target.value) || 0)}
-                            placeholder="0,00"
-                            className="mt-1"
-                          />
-                        </div>
-
-                        <div className="md:col-span-2">
-                          <Label className="text-xs">Preço Total</Label>
-                          <div className="mt-1 flex h-10 items-center rounded-md border border-border bg-background px-3 font-mono text-sm">
-                            R$ {money(item.total)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              {!isView && (
+                <Button type="button" onClick={addItem} size="sm" className="gap-2">
+                  <Plus className="size-4" />
+                  Adicionar Item
+                </Button>
               )}
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="flex items-end">
-                <div className="w-full rounded-lg border border-border bg-muted/50 p-3">
-                  <div className="text-sm text-muted-foreground">Subtotal (itens + frete)</div>
-                  <div className="font-mono text-2xl font-semibold">R$ {money(subtotal)}</div>
+            {isView ? (
+              <div className="space-y-3">
+                {items.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
+                    <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 border-b">
+                        <tr>
+                          <th className="text-left px-3 py-2 text-xs font-semibold">Item</th>
+                          <th className="text-left px-3 py-2 text-xs font-semibold">Descrição</th>
+                          <th className="text-right px-3 py-2 text-xs font-semibold">Qtd</th>
+                          {isMadeira && <th className="text-right px-3 py-2 text-xs font-semibold">Tamanho</th>}
+                          <th className="text-right px-3 py-2 text-xs font-semibold">Vlr. Unit.</th>
+                          <th className="text-right px-3 py-2 text-xs font-semibold">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, index) => (
+                          <tr key={item.clientId} className="border-b last:border-b-0">
+                            <td className="px-3 py-2 text-xs text-muted-foreground">{index + 1}</td>
+                            <td className="px-3 py-2">
+                              <div className="text-sm leading-tight line-clamp-1">{item.descricao || "—"}</div>
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm">{item.quantidade}</td>
+                            {isMadeira && (
+                              <td className="px-3 py-2 text-right text-sm">
+                                {item.tamanho != null && item.tamanho !== 0 ? item.tamanho : "—"}
+                              </td>
+                            )}
+                            <td className="px-3 py-2 text-right font-mono text-sm">R$ {money(item.precoUnitario)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-sm">R$ {money(item.total)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <div className="rounded-lg border border-border bg-muted/50 px-4 py-2">
+                    <div className="text-xs text-muted-foreground">Subtotal (itens + frete)</div>
+                    <div className="font-mono text-lg font-semibold">R$ {money(subtotal)}</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  {items.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
+                      <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
+                      <Button type="button" onClick={addItem} size="sm" variant="outline" className="mt-2 bg-transparent">
+                        Adicionar primeiro item
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {items.map((item, index) => (
+                        <div key={item.clientId} className="rounded-lg border border-border bg-muted/30 p-4">
+                          <div className="mb-3 flex items-center justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">Item {index + 1}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeItem(item.clientId)}
+                              className="size-8"
+                            >
+                              <Trash2 className="size-4 text-destructive" />
+                            </Button>
+                          </div>
+
+                          <div className="grid gap-4 md:grid-cols-12">
+                            <div className={isMadeira ? "md:col-span-4" : "md:col-span-5"}>
+                              <Label className="text-xs">Descrição</Label>
+
+                              <div className="mt-1">
+                                <ComboboxAdd
+                                  key={`desc-${item.clientId}-${comboItemsMateriais.length}-${formData.categoria}-${formData.fornecedorId}`}
+                                  buttonText={getComboLabelForDescricao(item.descricao)}
+                                  placeholder="Buscar material..."
+                                  widthClass="w-full"
+                                  disabled={!formData.categoria}
+                                  items={comboItemsMateriais}
+                                  onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
+                                  showEmptyOption={false}
+                                  colorVariant="white-brown"
+                                  buttonClassName="h-10 text-sm rounded-md border border-border justify-between"
+                                />
+                              </div>
+
+                              {!formData.categoria && (
+                                <p className="mt-1 text-xs text-muted-foreground">Selecione a categoria para habilitar.</p>
+                              )}
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <Label className="text-xs">Quantidade</Label>
+                              <Input
+                                type="number"
+                                value={item.quantidade}
+                                onChange={(e) => updateItem(item.clientId, "quantidade", Number(e.target.value) || 0)}
+                                placeholder="0"
+                                className="mt-1"
+                              />
+                            </div>
+
+                            {isMadeira && (
+                              <div className="md:col-span-2">
+                                <Label className="text-xs">Tamanho</Label>
+                                <Input
+                                  type="number"
+                                  value={item.tamanho ?? ""}
+                                  onChange={(e) =>
+                                    updateItem(
+                                      item.clientId,
+                                      "tamanho",
+                                      e.target.value === "" ? null : Number(e.target.value)
+                                    )
+                                  }
+                                  placeholder="0"
+                                  className="mt-1"
+                                />
+                              </div>
+                            )}
+
+                            <div className="md:col-span-2">
+                              <Label className="text-xs">Valor Unitário (R$)</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={item.precoUnitario}
+                                onChange={(e) => updateItem(item.clientId, "precoUnitario", Number(e.target.value) || 0)}
+                                placeholder="0,00"
+                                className="mt-1"
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <Label className="text-xs">Preço Total</Label>
+                              <div className="mt-1 flex h-10 items-center rounded-md border border-border bg-background px-3 font-mono text-sm">
+                                R$ {money(item.total)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="flex items-end">
+                    <div className="w-full rounded-lg border border-border bg-muted/50 p-3">
+                      <div className="text-sm text-muted-foreground">Subtotal (itens + frete)</div>
+                      <div className="font-mono text-2xl font-semibold">R$ {money(subtotal)}</div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </Card>
 
-          <Card className="p-6">
+          <Card className={cardPadding}>
             <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
               <MapPin className="size-5" />
               Endereço de Entrega
@@ -1049,69 +1331,118 @@ export default function PedidoCompraForm({
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="nomeReceptor">Nome do Cliente</Label>
-                  <Input
-                    id="nomeReceptor"
-                    value={deliveryAddress.nomeReceptor}
-                    onChange={(e) => setDeliveryAddress((p) => ({ ...p, nomeReceptor: e.target.value }))}
-                    placeholder="Nome completo"
-                  />
+                  {isView ? (
+                    <ReadOnlyField label="Nome do Cliente" value={deliveryAddress.nomeReceptor} />
+                  ) : (
+                    <>
+                      <Label htmlFor="nomeReceptor">Nome do Cliente</Label>
+                      <Input
+                        id="nomeReceptor"
+                        value={deliveryAddress.nomeReceptor}
+                        onChange={(e) => setDeliveryAddress((p) => ({ ...p, nomeReceptor: e.target.value }))}
+                        placeholder="Nome completo"
+                        disabled={isView}
+                      />
+                    </>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="telefoneReceptor">Telefone</Label>
-                  <Input
-                    id="telefoneReceptor"
-                    value={deliveryAddress.telefoneReceptor}
-                    onChange={(e) => setDeliveryAddress((p) => ({ ...p, telefoneReceptor: e.target.value }))}
-                    placeholder="(00) 00000-0000"
-                  />
+                  {isView ? (
+                    <ReadOnlyField label="Telefone" value={deliveryAddress.telefoneReceptor} />
+                  ) : (
+                    <>
+                      <Label htmlFor="telefoneReceptor">Telefone</Label>
+                      <Input
+                        id="telefoneReceptor"
+                        value={deliveryAddress.telefoneReceptor}
+                        onChange={(e) => setDeliveryAddress((p) => ({ ...p, telefoneReceptor: e.target.value }))}
+                        placeholder="(00) 00000-0000"
+                        disabled={isView}
+                      />
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="enderecoEntrega">Endereço Completo</Label>
-                <Textarea
-                  id="enderecoEntrega"
-                  value={deliveryAddress.enderecoEntrega}
-                  onChange={(e) => setDeliveryAddress((p) => ({ ...p, enderecoEntrega: e.target.value }))}
-                  placeholder="Rua, número, complemento, bairro, cidade - UF, CEP"
-                  rows={2}
-                />
+                {isView ? (
+                  <ReadOnlyField label="Endereço Completo" value={deliveryAddress.enderecoEntrega} />
+                ) : (
+                  <>
+                    <Label htmlFor="enderecoEntrega">Endereço Completo</Label>
+                    <Textarea
+                      id="enderecoEntrega"
+                      value={deliveryAddress.enderecoEntrega}
+                      onChange={(e) => setDeliveryAddress((p) => ({ ...p, enderecoEntrega: e.target.value }))}
+                      placeholder="Rua, número, complemento, bairro, cidade - UF, CEP"
+                      rows={2}
+                      disabled={isView}
+                    />
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="linkMaps">Link do Google Maps</Label>
-                <Input
-                  id="linkMaps"
-                  value={deliveryAddress.linkMaps}
-                  onChange={(e) => setDeliveryAddress((p) => ({ ...p, linkMaps: e.target.value }))}
-                  placeholder="https://maps.google.com/?q=..."
-                />
-                {deliveryAddress.linkMaps && (
-                  <a
-                    href={deliveryAddress.linkMaps}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
-                  >
-                    <MapPin className="size-3" />
-                    Abrir no Google Maps
-                  </a>
+                {isView ? (
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Link do Google Maps
+                    </span>
+                    <div className="font-medium text-foreground text-sm min-h-[20px] bg-muted/20 p-2 rounded-md border border-transparent">
+                      {deliveryAddress.linkMaps ? (
+                        <a
+                          href={deliveryAddress.linkMaps}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                        >
+                          <MapPin className="size-3" />
+                          Abrir no Google Maps
+                        </a>
+                      ) : (
+                        "-"
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <Label htmlFor="linkMaps">Link do Google Maps</Label>
+                    <Input
+                      id="linkMaps"
+                      value={deliveryAddress.linkMaps}
+                      onChange={(e) => setDeliveryAddress((p) => ({ ...p, linkMaps: e.target.value }))}
+                      placeholder="https://maps.google.com/?q=..."
+                      disabled={isView}
+                    />
+                    {deliveryAddress.linkMaps && (
+                      <a
+                        href={deliveryAddress.linkMaps}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+                      >
+                        <MapPin className="size-3" />
+                        Abrir no Google Maps
+                      </a>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </Card>
 
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={handleBack}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={saving} className="gap-2">
-              <Save className="size-4" />
-              {saving ? "Salvando..." : mode === "create" ? "Cadastrar" : "Salvar Alterações"}
-            </Button>
-          </div>
+          {!isView && (
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={handleBack}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={saving} className="gap-2">
+                <Save className="size-4" />
+                {saving ? "Salvando..." : isCreate ? "Cadastrar" : "Salvar Alterações"}
+              </Button>
+            </div>
+          )}
         </form>
       </div>
     </PageLayout>

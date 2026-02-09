@@ -10,7 +10,10 @@ import {
   TrendingUp,
   ShoppingCart,
   ExternalLink,
+  Trash2,
+  XCircle,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,12 +30,16 @@ import type { PedidoCompraVM } from "./types"
 import { PedidoCompraCreateModal } from "./PedidoCompraCreateModal"
 import { PedidoCompraDetailsModal } from "./PedidoCompraDetailsModal"
 
+import { deletePedidoCompra } from "@/actions/pedido_compra/delete-pedido-compra"
+import { cancelPedidoCompra } from "@/actions/pedido_compra/cancel-pedido-compra"
+
 type Props = {
   pedidos: PedidoCompraVM[]
   obraId?: number | null
   mode?: "create" | "view" | "edit"
   onCreate?: (draft: Partial<PedidoCompraVM>) => void
-  onCancelar?: (pedidoId: number) => void
+  onCancelar?: (pedidoId: number) => void // Legacy prop, kept for compatibility
+  onExcluir?: (pedidoId: number) => void
   onIntegrar?: (pedidoId: number) => void
 }
 
@@ -120,7 +127,8 @@ export function PedidoCompraCardSection({
   obraId,
   mode = "view",
   onCreate,
-  onCancelar,
+  // onCancelar, // We will implement internal cancel handler
+  onExcluir,
   onIntegrar,
 }: Props) {
   const router = useRouter()
@@ -129,6 +137,7 @@ export function PedidoCompraCardSection({
   const [createOpen, setCreateOpen] = React.useState(false)
   const [selected, setSelected] = React.useState<PedidoCompraVM | null>(null)
   const [menuOpenKey, setMenuOpenKey] = React.useState<string | null>(null)
+  const [processingId, setProcessingId] = React.useState<number | null>(null)
 
   React.useEffect(() => {
     setMenuOpenKey(null)
@@ -147,6 +156,48 @@ export function PedidoCompraCardSection({
 
   const handleEdit = (id: number) => {
     router.push(`/pedido_compra/edit/${id}`)
+  }
+
+  const handleView = (id: number) => {
+    router.push(`/pedido_compra/ver/${id}`)
+  }
+
+  const handleCancelPedido = async (id: number) => {
+    if (!confirm("Tem certeza que deseja cancelar este pedido?")) return
+
+    setProcessingId(id)
+    try {
+      const res = await cancelPedidoCompra(id)
+      if (res.success) {
+        toast.success("Pedido cancelado com sucesso")
+        router.refresh()
+      } else {
+        toast.error(res.error || "Erro ao cancelar pedido")
+      }
+    } catch (err) {
+      toast.error("Erro inesperado ao cancelar pedido")
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleDeletePedido = async (id: number) => {
+    if (!confirm("Tem certeza que deseja EXCLUIR este pedido permanentemente?")) return
+
+    setProcessingId(id)
+    try {
+      const res = await deletePedidoCompra(id)
+      if (res.success) {
+        toast.success("Pedido excluído com sucesso")
+        router.refresh()
+      } else {
+        toast.error(res.error || "Erro ao excluir pedido")
+      }
+    } catch (err) {
+      toast.error("Erro inesperado ao excluir pedido")
+    } finally {
+      setProcessingId(null)
+    }
   }
 
   const visiblePedidos = React.useMemo(() => {
@@ -178,7 +229,7 @@ export function PedidoCompraCardSection({
                 type="button"
                 variant="ghost-green"
                 size="icon"
-                className="h-8 w-8"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={(e) => {
                   e.stopPropagation()
                   router.push("/pedido_compra")
@@ -241,6 +292,7 @@ export function PedidoCompraCardSection({
                   const descricao = String((p as any)?.descricao ?? (p as any)?.observacoes ?? "").trim() || "—"
                   const categoria = String((p as any)?.categoria ?? "—")
                   const status = (p as any)?.status ?? "PENDENTE"
+                  const statusStr = String(status).toUpperCase()
 
                   const previsto = (p as any)?.valorOrcado ?? (p as any)?.valor_orcado ?? (p as any)?.valores?.orcado
                   const realizado =
@@ -262,10 +314,15 @@ export function PedidoCompraCardSection({
                   const varianceIsPositive = typeof variance === "number" && variance > 0
                   const varianceIsNegative = typeof variance === "number" && variance < 0
 
+                  const isProcessing = processingId === id
+                  const canDelete = ["RASCUNHO", "PENDENTE", "CANCELADO"].includes(statusStr)
+                  const isCancelled = statusStr === "CANCELADO"
+                  const isFinal = ["ENTREGUE", "CANCELADO"].includes(statusStr)
+
                   return (
                     <tr
                       key={rowKey}
-                      className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                      className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}
                       onClick={() => handleRowClick(p)}
                     >
                       <td className="p-4">
@@ -377,6 +434,18 @@ export function PedidoCompraCardSection({
                                 onSelect={(e) => {
                                   e.stopPropagation()
                                   setMenuOpenKey(null)
+                                  handleView(id)
+                                }}
+                              >
+                                Visualizar pedido
+                              </DropdownMenuItem>
+                            )}
+
+                            {id > 0 && !isFinal && (
+                              <DropdownMenuItem
+                                onSelect={(e) => {
+                                  e.stopPropagation()
+                                  setMenuOpenKey(null)
                                   handleEdit(id)
                                 }}
                               >
@@ -384,7 +453,7 @@ export function PedidoCompraCardSection({
                               </DropdownMenuItem>
                             )}
 
-                            {!integrado && id > 0 && (
+                            {!integrado && id > 0 && !isCancelled && (
                               <DropdownMenuItem
                                 onSelect={(e) => {
                                   e.stopPropagation()
@@ -398,16 +467,19 @@ export function PedidoCompraCardSection({
 
                             <DropdownMenuSeparator />
 
-                            {id > 0 && (
+
+
+                            {id > 0 && canDelete && (
                               <DropdownMenuItem
-                                className="text-red-600"
+                                className="text-red-600 gap-2"
                                 onSelect={(e) => {
                                   e.stopPropagation()
                                   setMenuOpenKey(null)
-                                  onCancelar?.(id)
+                                  handleDeletePedido(id)
                                 }}
                               >
-                                Cancelar pedido
+                                <Trash2 className="w-4 h-4" />
+                                Excluir pedido
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
