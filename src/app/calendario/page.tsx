@@ -33,6 +33,7 @@ import {
 import { Toaster, toast } from "sonner"
 import { AgendaEditor } from "@/components/agenda/AgendaEditor"
 import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
+import { getLastAgendaUpdate } from "@/actions/calendar-stats"
 import {
   Calendar,
   AlertTriangle,
@@ -157,6 +158,7 @@ export default function CalendarioPage() {
   const [equipes, setEquipes] = useState<EquipeDTO[]>([])
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   // Date range for calendar view
   const [currentRange, setCurrentRange] = useState({ from: "", to: "" })
@@ -269,6 +271,16 @@ export default function CalendarioPage() {
     }
   }, [filterEquipe, filterStatus])
 
+  // Load last update time
+  const refreshLastUpdate = useCallback(async () => {
+    const date = await getLastAgendaUpdate()
+    if (date) setLastUpdated(date)
+  }, [])
+
+  useEffect(() => {
+    refreshLastUpdate()
+  }, [refreshLastUpdate])
+
   // Extract unique cities for legend
   useEffect(() => {
     const uniqueCidades = new Map<string, string>()
@@ -310,6 +322,7 @@ export default function CalendarioPage() {
         setModalOpen(false)
         loadAgenda(currentRange.from, currentRange.to, true)
         loadObrasSemAgenda(true)
+        refreshLastUpdate()
       } else {
         toast.error(res.error || "Erro ao salvar")
       }
@@ -449,6 +462,7 @@ export default function CalendarioPage() {
       }
 
       loadAgenda(currentRange.from, currentRange.to, true)
+      refreshLastUpdate()
     } catch (err) {
       arg.revert()
       toast.error("Erro ao reagendar")
@@ -489,6 +503,7 @@ export default function CalendarioPage() {
       }
 
       loadAgenda(currentRange.from, currentRange.to, true)
+      refreshLastUpdate()
     } catch (err) {
       arg.revert()
       toast.error("Erro ao alterar")
@@ -870,72 +885,83 @@ export default function CalendarioPage() {
                   {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                 </CardTitle>
 
-                <div className="flex items-center gap-2">
-                  <Select value={filterEquipe} onValueChange={setFilterEquipe}>
-                    <SelectTrigger className="w-[150px] h-8 text-xs">
-                      <SelectValue placeholder="Equipe" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">Todas equipes</SelectItem>
-                      {equipes.map((eq) => (
-                        <SelectItem key={eq.id} value={String(eq.id)}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-2.5 h-2.5 rounded-full"
-                              style={{ backgroundColor: eq.cor || "#6B7280" }}
-                            />
-                            {eq.nome}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center gap-4">
+                  {lastUpdated && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md border border-border/50">
+                      <Clock className="w-3.5 h-3.5 text-amber-600/70" />
+                      <span>
+                        Atualizado: <span className="font-medium text-foreground">{lastUpdated.toLocaleString('pt-BR')}</span>
+                      </span>
+                    </div>
+                  )}
 
-                  <Select value={filterStatus} onValueChange={setFilterStatus}>
-                    <SelectTrigger className="w-[130px] h-8 text-xs">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">Todos status</SelectItem>
-                      <SelectItem value="EXECUCAO">Execução</SelectItem>
-                      <SelectItem value="A_INICIAR">À Iniciar</SelectItem>
-                      <SelectItem value="COMPRAS">Compras</SelectItem>
-                      <SelectItem value="PENDENCIA">Pendência</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select value={filterEquipe} onValueChange={setFilterEquipe}>
+                      <SelectTrigger className="w-[150px] h-8 text-xs">
+                        <SelectValue placeholder="Equipe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Todas equipes</SelectItem>
+                        {equipes.map((eq) => (
+                          <SelectItem key={eq.id} value={String(eq.id)}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: eq.cor || "#6B7280" }}
+                              />
+                              {eq.nome}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
-                  <div className="bg-muted p-1 rounded-lg flex items-center gap-1">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={colorMode === "equipe" ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setColorMode("equipe")}
-                          >
-                            <User className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Colorir por Equipe</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                      <SelectTrigger className="w-[130px] h-8 text-xs">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Todos status</SelectItem>
+                        <SelectItem value="EXECUCAO">Execução</SelectItem>
+                        <SelectItem value="A_INICIAR">À Iniciar</SelectItem>
+                        <SelectItem value="COMPRAS">Compras</SelectItem>
+                        <SelectItem value="PENDENCIA">Pendência</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant={colorMode === "cidade" ? "secondary" : "ghost"}
-                            size="sm"
-                            className="h-7 w-7 p-0"
-                            onClick={() => setColorMode("cidade")}
-                          >
-                            <MapPin className="w-4 h-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Colorir por Cidade</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    <div className="bg-muted p-1 rounded-lg flex items-center gap-1">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={colorMode === "equipe" ? "secondary" : "ghost"}
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setColorMode("equipe")}
+                            >
+                              <User className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Colorir por Equipe</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant={colorMode === "cidade" ? "secondary" : "ghost"}
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              onClick={() => setColorMode("cidade")}
+                            >
+                              <MapPin className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Colorir por Cidade</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -131,7 +131,7 @@ type Dim = {
 }
 
 type Componente = { id: number; nome: string }
-type Fornecedor = { id: number; nome: string }
+type Fornecedor = { id: number; nome: string; tipo?: string | null }
 
 type LinksState = { slide?: string; pdf?: string }
 type ClienteSearchResult = {
@@ -728,7 +728,10 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     useEffect(() => {
         ; (async () => {
             try {
+                // Filter suppliers for "madeira" type (case-insensitive)
                 const lista = await getFornecedores()
+                // Sort by name for better UX
+                lista.sort((a, b) => a.nome.localeCompare(b.nome))
                 setFornecedores(lista)
 
                 // só zera seleção no CREATE; no EDIT preserva para pré-selecionar
@@ -2114,7 +2117,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 placeholder="Buscar fornecedor..."
                                 widthClass="w-56"
                                 disabled={!fornecedores.length}
-                                items={fornecedores.map(f => ({ value: String(f.id), label: f.nome }))}
+                                items={fornecedores
+                                    .filter(f => f.tipo && f.tipo.toLowerCase().includes("madeira"))
+                                    .map(f => ({ value: String(f.id), label: f.nome }))}
                                 onSelect={(v) => setFornecedorSel(Number(v))}
                                 showEmptyOption={false}
                             />
@@ -2496,6 +2501,28 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                         <TableCell>Total Geral</TableCell>
                                         <TableCell className="text-right">
                                             {hideTotals ? "••••••" : formatBR(somaTotal)}
+                                        </TableCell>
+                                    </TableRow>
+
+                                    {/* Margem Indicator */}
+                                    <TableRow>
+                                        <TableCell className="font-medium text-muted-foreground">Margem Bruta (aprox)</TableCell>
+                                        <TableCell className="text-right">
+                                            {(() => {
+                                                if (hideTotals) return "••••••"
+                                                const vals = Object.values(telhaValores).flatMap(v => [v.pix, v.x10, v.x18])
+                                                const maxVal = vals.length ? Math.max(...vals) : 0
+                                                const margem = maxVal > 0 ? (totEdit.empresaGD / maxVal) : 0
+
+                                                if (margem === 0) return "-"
+
+                                                const pct = Math.round(margem * 100)
+                                                let color = "text-red-600"
+                                                if (pct >= 15) color = "text-green-600"
+                                                else if (pct >= 10) color = "text-yellow-600"
+
+                                                return <span className={`font-bold ${color}`}>{pct}%</span>
+                                            })()}
                                         </TableCell>
                                     </TableRow>
                                 </TableBody>

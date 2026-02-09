@@ -114,6 +114,7 @@ export type ObraTableRowDTO = {
   pedidos_compra_ids: number[]
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null }>
   _count?: { segmentos: number }
+  margem?: number
 }
 
 export type ListarObrasTableResult = {
@@ -210,74 +211,90 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
         ordem_servico: { select: { id: true } },
         pedidos_compra: { select: { id: true } },
         imagens: { orderBy: [{ ordem: "asc" }, { id: "asc" }] },
+        // Include minimal budget data for margin calculation
+        orcamento: {
+          select: {
+            totais_empresa_gd_preco: true,
+            orcamento_pagamento: { select: { valor: true } },
+          },
+        },
         _count: { select: { segmentos: true } },
       },
     }),
   ])
 
-  const dados: ObraTableRowDTO[] = rows.map((o: any) => ({
-    id: o.id,
+  const dados: ObraTableRowDTO[] = rows.map((o: any) => {
+    // Calculate margin: GD / Max(Total Price)
+    const ps = o.orcamento?.orcamento_pagamento || []
+    const maxValor = ps.length ? Math.max(...ps.map((p: any) => Number(p.valor))) : 0
+    const gd = Number(o.orcamento?.totais_empresa_gd_preco) || 0
+    const margem = maxValor > 0 ? (gd / maxValor) : 0
 
-    orcamento_id: o.orcamento_id ?? null,
-    cliente_id: o.cliente_id,
-    equipe_id: o.equipe_id ?? null,
+    return {
+      id: o.id,
 
-    titulo: o.titulo ?? null,
-    endereco_obra: o.endereco_obra,
-    maps_url: o.maps_url,
-    tipo_obra: o.tipo_obra,
-    largura: n(o.largura)!,
-    comprimento: n(o.comprimento)!,
-    telha_escolhida: o.telha_escolhida,
-    valor_obra: n(o.valor_obra)!,
-    valor_mao_de_obra: n(o.valor_mao_de_obra)!,
-    status: o.status,
-    observacoes: o.observacoes ?? null,
+      orcamento_id: o.orcamento_id ?? null,
+      cliente_id: o.cliente_id,
+      equipe_id: o.equipe_id ?? null,
 
-    pagamento_entrada: n(o.pagamento_entrada),
-    forma_pagamento_entrada: o.forma_pagamento_entrada ?? null,
-    status_pagamento_entrada: o.status_pagamento_entrada,
+      titulo: o.titulo ?? null,
+      endereco_obra: o.endereco_obra,
+      maps_url: o.maps_url,
+      tipo_obra: o.tipo_obra,
+      largura: n(o.largura)!,
+      comprimento: n(o.comprimento)!,
+      telha_escolhida: o.telha_escolhida,
+      valor_obra: n(o.valor_obra)!,
+      valor_mao_de_obra: n(o.valor_mao_de_obra)!,
+      status: o.status,
+      observacoes: o.observacoes ?? null,
 
-    pagamento_quitacao: n(o.pagamento_quitacao),
-    forma_pagamento_quitacao: o.forma_pagamento_quitacao ?? null,
-    status_pagamento_quitacao: o.status_pagamento_quitacao,
+      pagamento_entrada: n(o.pagamento_entrada),
+      forma_pagamento_entrada: o.forma_pagamento_entrada ?? null,
+      status_pagamento_entrada: o.status_pagamento_entrada,
 
-    link_slide_orcamento: o.link_slide_orcamento ?? null,
-    link_pdf_orcamento: o.link_pdf_orcamento ?? null,
-    link_contrato: o.link_contrato ?? null,
-    link_ordem_servico: o.link_ordem_servico ?? null,
+      pagamento_quitacao: n(o.pagamento_quitacao),
+      forma_pagamento_quitacao: o.forma_pagamento_quitacao ?? null,
+      status_pagamento_quitacao: o.status_pagamento_quitacao,
 
-    created_by: o.created_by ?? null,
-    updated_by: o.updated_by ?? null,
+      link_slide_orcamento: o.link_slide_orcamento ?? null,
+      link_pdf_orcamento: o.link_pdf_orcamento ?? null,
+      link_contrato: o.link_contrato ?? null,
+      link_ordem_servico: o.link_ordem_servico ?? null,
 
-    data_criacao: o.data_criacao ? new Date(o.data_criacao).toISOString() : null,
-    data_ultima_alteracao: o.data_ultima_alteracao ? new Date(o.data_ultima_alteracao).toISOString() : null,
-    data_contrato: o.data_contrato ? new Date(o.data_contrato).toISOString() : null,
+      created_by: o.created_by ?? null,
+      updated_by: o.updated_by ?? null,
 
-    cliente: {
-      id: o.cliente.id,
-      nome: o.cliente.nome,
-      telefone: o.cliente.telefone ?? null,
-      bairro: o.cliente.bairro ?? null,
-      cidade_id: o.cliente.cidade_id ?? null,
-      cpf: o.cliente.cpf ?? null,
-      cidades: o.cliente.cidades ? { id: o.cliente.cidades.id, nome: o.cliente.cidades.nome } : null,
-    },
+      data_criacao: o.data_criacao ? new Date(o.data_criacao).toISOString() : null,
+      data_ultima_alteracao: o.data_ultima_alteracao ? new Date(o.data_ultima_alteracao).toISOString() : null,
+      data_contrato: o.data_contrato ? new Date(o.data_contrato).toISOString() : null,
 
-    equipe: o.equipe ? { id: o.equipe.id, nome: o.equipe.nome } : null,
+      cliente: {
+        id: o.cliente.id,
+        nome: o.cliente.nome,
+        telefone: o.cliente.telefone ?? null,
+        bairro: o.cliente.bairro ?? null,
+        cidade_id: o.cliente.cidade_id ?? null,
+        cpf: o.cliente.cpf ?? null,
+        cidades: o.cliente.cidades ? { id: o.cliente.cidades.id, nome: o.cliente.cidades.nome } : null,
+      },
 
-    ordem_servico_id: o.ordem_servico?.id ?? null,
-    pedidos_compra_ids: Array.isArray(o.pedidos_compra) ? o.pedidos_compra.map((p: any) => p.id) : [],
-    imagens: Array.isArray(o.imagens)
-      ? o.imagens.map((img: any) => ({
-        id: img.id,
-        url: img.url,
-        ordem: img.ordem ?? null,
-        legenda: img.legenda ?? null,
-      }))
-      : [],
-    _count: { segmentos: o._count?.segmentos ?? 0 },
-  }))
+      equipe: o.equipe ? { id: o.equipe.id, nome: o.equipe.nome } : null,
+
+      ordem_servico_id: o.ordem_servico?.id ?? null,
+      pedidos_compra_ids: Array.isArray(o.pedidos_compra) ? o.pedidos_compra.map((p: any) => p.id) : [],
+      imagens: Array.isArray(o.imagens)
+        ? o.imagens.map((img: any) => ({
+          id: img.id,
+          url: img.url,
+          ordem: img.ordem ?? null,
+          legenda: img.legenda ?? null,
+        }))
+        : [],
+      _count: { segmentos: o._count?.segmentos ?? 0 },
+      margem, // Add margin to DTO
+    }
+  })
 
   return { dados, total }
 }
