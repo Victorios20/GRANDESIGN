@@ -5,8 +5,9 @@ export const dynamic = "force-dynamic"
 
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    props: { params: Promise<{ id: string }> }
 ) {
+    const params = await props.params
     try {
         const id = Number(params.id)
         if (!id || isNaN(id)) {
