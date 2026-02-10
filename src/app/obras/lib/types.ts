@@ -351,6 +351,8 @@ export type UpdateObraPayload = {
     observacoes?: string
     data_inicio_obra?: string | Date | null
     data_fim_obra?: string | Date | null
+    data_contrato?: string | Date | null
+    data_conclusao?: string | Date | null
   }
   financeiro?: {
     valor_obra?: number | string

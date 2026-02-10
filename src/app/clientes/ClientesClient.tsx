@@ -302,20 +302,24 @@ export default function ClientesClient({ initial }: { initial: InitialData }) {
             createTheme({
                 palette: {
                     primary: { main: MARROM },
+                    text: { primary: MARROM },
                 },
                 components: {
                     MuiPaper: { styleOverrides: { root: { boxShadow: "none", border: "1px solid #e5e7eb" } } },
                     MuiToolbar: { styleOverrides: { root: { minHeight: "48px" } } },
                     MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER } } },
+                    MuiTableRow: { styleOverrides: { head: { backgroundColor: VERDE_HEADER, height: 48 } } },
                     MuiTableCell: {
                         styleOverrides: {
                             head: {
                                 backgroundColor: VERDE_HEADER,
                                 color: "#f4f4f4",
-                                fontWeight: 600,
+                                fontWeight: 700,
+                                fontSize: "0.875rem",
                             },
                         },
                     },
+                    MuiSvgIcon: { styleOverrides: { root: { color: "inherit" } } },
                 },
             }),
         []

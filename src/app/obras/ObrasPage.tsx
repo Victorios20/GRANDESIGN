@@ -929,6 +929,8 @@ export default function ObrasPage({
             observacoes: vm.observacoes ?? undefined,
             data_inicio_obra: vm.dataInicioObra || null,
             data_fim_obra: vm.dataFimObra || null,
+            data_contrato: vm.dataContrato || null,
+            data_conclusao: vm.dataConclusao || null,
           },
 
           financeiro: {

@@ -74,12 +74,16 @@ export async function listarClientes(params?: ListarClientesParams): Promise<{
   // Search by name (case-insensitive, partial match)
   if (params?.search?.trim()) {
     const termo = params.search.trim()
-    and.push({
-      OR: [
-        { nome: { contains: termo, mode: "insensitive" } },
-        { telefone: { contains: onlyDigits(termo), mode: "insensitive" } },
-      ],
-    })
+    const orConditions: any[] = [
+      { nome: { contains: termo, mode: "insensitive" } },
+    ]
+
+    const digits = onlyDigits(termo)
+    if (digits.length > 0) {
+      orConditions.push({ telefone: { contains: digits } })
+    }
+
+    and.push({ OR: orConditions })
   }
 
   // Telefone filter
@@ -107,7 +111,7 @@ export async function listarClientes(params?: ListarClientesParams): Promise<{
 
   // Has orcamentos filter
   if (params?.temOrcamentos === true || params?.temOrcamentos === "true") {
-    and.push({ orcamento: { some: {} } })
+    and.push({ orcamento: { some: { excluido: false } } })
   }
 
   const where = and.length > 0 ? { AND: and } : {}
