@@ -1,5 +1,7 @@
 // File: src/app/api/obras/[id]/contrato/route.ts
 import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 export const runtime = "nodejs"
@@ -15,6 +17,11 @@ function toNumber(v: unknown): number {
 /** PUT /api/obras/:id/contrato  { link_contrato } */
 export async function PUT(req: Request, { params }: { params: Params }) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    }
+
     const { id: idStr } = await params
     const id = toNumber(idStr)
     if (!Number.isFinite(id)) {

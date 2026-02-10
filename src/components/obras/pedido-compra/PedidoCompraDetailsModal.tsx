@@ -10,6 +10,7 @@ import { getPedidoDetailsAction } from "@/actions/pedido_compra/get-pedido-detai
 import { toast } from "sonner"
 
 import type { PedidoCompraVM } from "./types"
+import { formatPedidoId } from "@/lib/pedido-compra-utils"
 
 type Props = {
   pedido: PedidoCompraVM
@@ -70,7 +71,7 @@ function calcDiff(previsto: unknown, realizado: unknown) {
 
 export function PedidoCompraDetailsModal({ pedido, obraId, onClose, onEdit, onIntegrar }: Props) {
   const id = Number((pedido as any)?.id ?? 0)
-  const numero = id > 0 ? `PC-${id}` : "PC-TMP"
+  const numero = formatPedidoId(id > 0 ? id : "TMP", obraId ?? (pedido as any)?.obraId)
 
   const defaultDescricao = String((pedido as any)?.descricao ?? (pedido as any)?.observacoes ?? "").trim() || "—"
   const defaultCategoria = String((pedido as any)?.categoria ?? "—")

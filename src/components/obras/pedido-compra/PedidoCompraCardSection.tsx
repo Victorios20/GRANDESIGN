@@ -34,7 +34,7 @@ import { deletePedidoCompra } from "@/actions/pedido_compra/delete-pedido-compra
 import { cancelPedidoCompra } from "@/actions/pedido_compra/cancel-pedido-compra"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
-import { formatMoney, formatDateBR, calcVariancePercent } from "@/lib/pedido-compra-utils"
+import { formatMoney, formatDateBR, calcVariancePercent, formatPedidoId } from "@/lib/pedido-compra-utils"
 
 type Props = {
   pedidos: PedidoCompraVM[]
@@ -245,7 +245,7 @@ export function PedidoCompraCardSection({
                 {visiblePedidos.map((p, idx) => {
                   const id = Number((p as any)?.id ?? 0)
                   const rowKey = String((p as any)?.id ?? `tmp-${idx}`)
-                  const numero = id > 0 ? `PC-${id}` : `PC-TMP-${idx + 1}`
+                  const numero = formatPedidoId(id > 0 ? id : `TMP-${idx + 1}`, obraId ?? (p as any)?.obraId)
 
                   const descricao = String((p as any)?.descricao ?? (p as any)?.observacoes ?? "").trim() || "—"
                   const categoria = String((p as any)?.categoria ?? "—")

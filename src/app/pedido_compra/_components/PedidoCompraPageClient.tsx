@@ -41,7 +41,8 @@ import {
   toSlugStatus,
   fromSlugStatus,
   toCategoryLabel,
-  normalizeStatus as normalizeStatusUtil
+  normalizeStatus as normalizeStatusUtil,
+  formatPedidoId
 } from "@/lib/pedido-compra-utils"
 import type {
   PedidoCategoria,
@@ -130,7 +131,7 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
     // Using shared utilities for conversion
     return {
       id: String(x.id),
-      number: `PC-${x.id}`,
+      number: formatPedidoId(x.id, x.obra_id),
       description: (x.descricao ?? "").trim() || "—",
       category: toCategoryLabel(x.categoria),
       supplier: supplierName,
@@ -632,6 +633,12 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     const onDraggable = target?.closest?.('[draggable="true"]')
     if (kanbanGroupBy === "status" && onDraggable) return
 
+    // Skip pointer capture for interactive elements (buttons, links, dropdowns)
+    const onInteractive = target?.closest?.(
+      'button, a, [role="menuitem"], [role="menu"], [data-radix-collection-item], [data-radix-popper-content-wrapper]'
+    )
+    if (onInteractive) return
+
     const el = kanbanScrollRef.current
     if (!el) return
 
@@ -703,6 +710,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   return (
     <PageLayout
       title="Pedidos de Compra"
+      links={[
+        { label: "Home", href: "/" },
+      ]}
       pageBackground="bg-white"
       headerActions={
         <div className="flex items-center gap-3">
@@ -737,10 +747,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     >
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-7xl mx-auto space-y-6">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight text-green">Pedidos de Compra</h1>
-            <p className="text-sm text-muted-foreground">Acompanhe, filtre e organize seus pedidos (lista ou kanban).</p>
-          </div>
+
 
           {viewMode === "kanban" && (
             <div className="bg-card border rounded-lg p-4">

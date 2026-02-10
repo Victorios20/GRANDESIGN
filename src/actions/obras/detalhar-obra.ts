@@ -88,6 +88,8 @@ export type ObraDetalheDTO = {
   status: string
   dataInicioObra: string | null
   dataFimObra: string | null
+  dataContrato: string | null
+  dataConclusao: string | null
 
   orcamentoId: number | null
   orcamento: {

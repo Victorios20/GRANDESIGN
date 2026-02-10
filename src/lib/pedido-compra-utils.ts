@@ -106,7 +106,7 @@ const toSlugMap: Record<PedidoStatus, PurchaseOrderStatusSlug> = {
 
 export function toSlugStatus(status: PedidoStatus | string): StatusSlug {
     const normalized = normalizeStatus(status)
-    return toSlugMap[normalized] ?? "rascunho"
+    return (toSlugMap[normalized] ?? "rascunho") as StatusSlug
 }
 
 const fromSlugMap: Record<StatusSlug, PedidoStatus> = {
@@ -171,4 +171,15 @@ export function calcVariance(
     const diff = r - p
     const percent = (diff / p) * 100
     return { diff, percent, isPositive: diff > 0 }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ID FORMATTING
+// ═══════════════════════════════════════════════════════════
+
+export function formatPedidoId(id: number | string, _obraId?: number | string | null): string {
+    const n = Number(id)
+    if (!Number.isFinite(n) || n <= 0) return typeof id === 'string' ? id : `TEMP-${id}`
+
+    return `PC-${n.toString().padStart(4, '0')}`
 }

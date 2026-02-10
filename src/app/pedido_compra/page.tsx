@@ -4,49 +4,11 @@ import { headers } from "next/headers"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-type PedidoCategoria = "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES"
-type PedidoStatus =
-  | "RASCUNHO"
-  | "PENDENTE"
-  | "APROVADO"
-  | "EM_COMPRA"
-  | "AGUARDANDO_PAGAMENTO"
-  | "AGUARDANDO_ENTREGA"
-  | "ENTREGUE"
-  | "CANCELADO"
-
-type PedidoCompraListItem = {
-  id: number
-  descricao: string | null
-  categoria: PedidoCategoria
-  status: PedidoStatus
-  valor_orcado: string | number | null
-  valor_realizado: string | number | null
-  data_entrega: string | null
-  fornecedor: { id: number; nome: string } | null
-  obra_id: number
-  obra_status: string | null
-  created_at: string
-}
-
-type ListarResult = {
-  items: PedidoCompraListItem[]
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-}
-
-type FornecedorOption = { id: number; nome: string }
-
-type ObraSearchItem = {
-  id: number
-  titulo: string | null
-  nomeReceptor: string | null
-  telefoneReceptor: string | null
-  enderecoEntrega: string | null
-  linkMaps: string | null
-}
+import {
+  ListarResult,
+  FornecedorOption,
+  ObraSearchItem,
+} from "@/types/pedido-compra"
 
 async function getBaseUrl() {
   const h = await headers()

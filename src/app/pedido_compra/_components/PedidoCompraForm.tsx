@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Check, ChevronsUpDown, Edit, ExternalLink, MapPin, MoreVertical, Plus, Save, Trash2 } from "lucide-react"
@@ -45,7 +45,8 @@ import {
   asNumber,
   asNumberOrNull,
   normalizeStatus as normalizeStatusUtil,
-  normalizeCategoria as normalizeCategoriaUtil
+  normalizeCategoria as normalizeCategoriaUtil,
+  formatPedidoId
 } from "@/lib/pedido-compra-utils"
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { statusConfig, statusList } from "@/lib/pedido-compra-theme"
@@ -285,17 +286,21 @@ export default function PedidoCompraForm({
 
   const [showExitAlert, setShowExitAlert] = useState(false)
 
+  const goBack = useCallback(() => {
+    router.push("/pedido_compra")
+  }, [router])
+
   const handleBack = useCallback(() => {
     if (isDirty) {
       setShowExitAlert(true)
     } else {
-      router.back()
+      goBack()
     }
-  }, [isDirty, router])
+  }, [isDirty, goBack])
 
   const confirmExit = () => {
     setShowExitAlert(false)
-    router.back()
+    goBack()
   }
 
   useEffect(() => {
@@ -348,7 +353,18 @@ export default function PedidoCompraForm({
   useEffect(() => {
     if (!formData.categoria) return
     setFormData((p) => ({ ...p, fornecedorId: "" }))
+    // Clear items when category changes (pricing will be different)
+    if (isCreate) setItems([])
   }, [formData.categoria])
+
+  // Clear items when supplier changes for MADEIRA (different price list)
+  const prevFornecedorRef = useRef(formData.fornecedorId)
+  useEffect(() => {
+    if (formData.categoria !== "MADEIRA") return
+    if (prevFornecedorRef.current === formData.fornecedorId) return
+    prevFornecedorRef.current = formData.fornecedorId
+    if (isCreate) setItems([])
+  }, [formData.fornecedorId, formData.categoria, isCreate])
 
   const fornecedoresFiltrados = useMemo(() => {
     const allowed = categoriaToTipos(String(formData.categoria))
@@ -368,7 +384,7 @@ export default function PedidoCompraForm({
   const headerTitle = useMemo(() => {
     if (isCreate) return "Criar Pedido de Compra"
     const obraLabel = obraSelected ? ObraOptionLabelTop(obraSelected) : formData.obraId ? `#${formData.obraId}` : ""
-    if (pedidoCompraId) return obraLabel ? `#PC-${pedidoCompraId} — ${obraLabel}` : `#PC-${pedidoCompraId}`
+    if (pedidoCompraId) return obraLabel ? `#${formatPedidoId(pedidoCompraId, formData.obraId)} — ${obraLabel}` : `#${formatPedidoId(pedidoCompraId, formData.obraId)}`
     return isView ? "Visualizar Pedido de Compra" : "Editar Pedido de Compra"
   }, [isCreate, isView, pedidoCompraId, obraSelected, formData.obraId])
 
@@ -475,17 +491,27 @@ export default function PedidoCompraForm({
     setItems((prev) => prev.filter((it) => it.clientId !== clientId))
   }
 
+  const hasFornecedorSelected = Boolean(
+    formData.fornecedorId && Number.isFinite(Number(formData.fornecedorId)) && Number(formData.fornecedorId) > 0
+  )
+
+  // For MADEIRA: require supplier to show materials. Other categories: show all.
+  const needsSupplierForItems = formData.categoria === "MADEIRA"
+  const itemSelectionDisabled = !formData.categoria || (needsSupplierForItems && !hasFornecedorSelected)
+
   const materiaisFiltradosParaCategoria = useMemo(() => {
     const key = categoriaToKey(formData.categoria)
     if (!key) return [] as MaterialDTO[]
 
+    // MADEIRA requires supplier selection
+    if (formData.categoria === "MADEIRA" && !hasFornecedorSelected) return [] as MaterialDTO[]
+
     const base = materiaisByTipo[key] ?? []
     const fornIdNum = Number(formData.fornecedorId)
-    const hasFornecedor = formData.fornecedorId && Number.isFinite(fornIdNum) && fornIdNum > 0
 
-    if (!hasFornecedor) return base
+    if (!hasFornecedorSelected) return base
     return base.filter((m) => m.fornecedorId == null || m.fornecedorId === fornIdNum)
-  }, [materiaisByTipo, formData.categoria, formData.fornecedorId])
+  }, [materiaisByTipo, formData.categoria, formData.fornecedorId, hasFornecedorSelected])
 
   const comboItemsMateriais = useMemo(() => buildComboItems(materiaisFiltradosParaCategoria), [materiaisFiltradosParaCategoria])
 
@@ -661,13 +687,14 @@ export default function PedidoCompraForm({
 
   return (
     <PageLayout
-      title={pageTitle}
+      title={
+        isCreate
+          ? "Criar Pedido de Compra"
+          : `${isView ? "Visualizar" : "Editar"} #${formatPedidoId(resolvedPedidoId, formData.obraId)}`
+      }
       links={[
         { label: "Home", href: "/" },
         { label: "Pedidos de Compra", href: "/pedido_compra" },
-        ...(isCreate
-          ? [{ label: "Novo Pedido", href: "#" }]
-          : [{ label: `#PC-${resolvedPedidoId}`, href: `/pedido_compra/edit/${resolvedPedidoId}` }]),
       ]}
       headerActions={
         isView ? (
@@ -705,7 +732,7 @@ export default function PedidoCompraForm({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Essa ação excluirá permanentemente o pedido de compra <b>#PC-{resolvedPedidoId}</b> e todos os seus itens.
+                    Essa ação excluirá permanentemente o pedido de compra <b>#{formatPedidoId(resolvedPedidoId, formData.obraId)}</b> e todos os seus itens.
                     <br />
                     Essa ação não pode ser desfeita.
                   </AlertDialogDescription>
@@ -743,20 +770,6 @@ export default function PedidoCompraForm({
       isTitulo
     >
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" type="button" onClick={handleBack}>
-              <ArrowLeft className="size-4" />
-            </Button>
-
-            <div>
-              <h1 className="font-mono text-2xl font-semibold">{headerTitle}</h1>
-              <p className="text-sm text-muted-foreground">{pageTitle}</p>
-            </div>
-          </div>
-
-          <StatusBadge status={formData.status} />
-        </div>
 
         <form id="pedido-compra-form" onSubmit={onSubmit} className={formSpacing}>
           <Card className={cardPadding}>
@@ -1084,7 +1097,7 @@ export default function PedidoCompraForm({
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Itens do Pedido</h2>
               {!isView && (
-                <Button type="button" onClick={addItem} size="sm" className="gap-2">
+                <Button type="button" onClick={addItem} size="sm" className="gap-2" disabled={itemSelectionDisabled}>
                   <Plus className="size-4" />
                   Adicionar Item
                 </Button>
@@ -1144,10 +1157,16 @@ export default function PedidoCompraForm({
                 <div className="space-y-4">
                   {items.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border bg-muted/30 p-8 text-center">
-                      <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
-                      <Button type="button" onClick={addItem} size="sm" variant="outline" className="mt-2 bg-transparent">
-                        Adicionar primeiro item
-                      </Button>
+                      {itemSelectionDisabled && needsSupplierForItems ? (
+                        <p className="text-sm text-amber-600">Selecione um fornecedor de madeira para adicionar itens.</p>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
+                          <Button type="button" onClick={addItem} size="sm" variant="outline" className="mt-2 bg-transparent" disabled={itemSelectionDisabled}>
+                            Adicionar primeiro item
+                          </Button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -1176,7 +1195,7 @@ export default function PedidoCompraForm({
                                   buttonText={getComboLabelForDescricao(item.descricao)}
                                   placeholder="Buscar material..."
                                   widthClass="w-full"
-                                  disabled={!formData.categoria}
+                                  disabled={itemSelectionDisabled}
                                   items={comboItemsMateriais}
                                   onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
                                   showEmptyOption={false}
@@ -1187,6 +1206,9 @@ export default function PedidoCompraForm({
 
                               {!formData.categoria && (
                                 <p className="mt-1 text-xs text-muted-foreground">Selecione a categoria para habilitar.</p>
+                              )}
+                              {formData.categoria === "MADEIRA" && !hasFornecedorSelected && (
+                                <p className="mt-1 text-xs text-amber-600">Selecione um fornecedor para ver a lista de preços.</p>
                               )}
                             </div>
 
@@ -1367,17 +1389,7 @@ export default function PedidoCompraForm({
             </div>
           </Card>
 
-          {!isView && (
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={handleBack}>
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={saving} className="gap-2">
-                <Save className="size-4" />
-                {saving ? "Salvando..." : isCreate ? "Cadastrar" : "Salvar Alterações"}
-              </Button>
-            </div>
-          )}
+
         </form>
       </div>
       <AlertDialog open={showExitAlert} onOpenChange={setShowExitAlert}>
