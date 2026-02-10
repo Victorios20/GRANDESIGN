@@ -1,12 +1,21 @@
+// src/app/obras/ObrasPage.tsx
 "use client"
 
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Save, Pencil, X } from "lucide-react"
+import { Save, Pencil, X, Copy, MoreHorizontal } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 import Anexos from "./_sections/Anexos"
 import InfosGerais from "./_sections/InfosGerais"
 import ObsImagens, { type ImgItem } from "./_sections/ObsImagens"
@@ -23,6 +32,9 @@ import type {
 } from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
 
+import ClienteModal from "@/components/modals/ClienteModal"
+import { uploadImagensObra } from "./lib/upload-imagens"
+
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
 
@@ -33,17 +45,20 @@ type Catalogo = {
   telhas: CatalogoItem[]
 }
 type Componente = { id?: number; nome: string; categoria?: string } | any
+type Cidade = { id: number; nome: string }
 
 type Props = {
   mode: "new" | "view"
   obraId?: number
   orcamentoId?: number
+  ordemServicoId?: number | null
   initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }
   tiposObraOptions: Option[]
   telhaOptions: Option[]
   pedidoInit?: Partial<PedidoCompraVM>
   catalogo?: Catalogo
   componentes?: Componente[]
+  fornecedoresTelhaOptions?: Option[]
   fornecedoresMadeiraOptions?: Option[]
   fornecedoresAndaimesOptions?: Option[]
   financeiroInit?: Partial<FinanceiroVM>
@@ -59,6 +74,7 @@ type Props = {
     contrato?: string | null
     ordemServico?: string | null
   }
+  cidades?: Cidade[]
 }
 
 /* ================= helpers ================= */
@@ -68,7 +84,6 @@ const toNum = (v: any) => {
 }
 const nomeTelha = (it: any): string => ((it?.descricao ?? it?.nome ?? "") + "").trim()
 
-// Telha: considerar total informado OU (precoUnitario * quantidade)
 const totalItemTelha = (it: any): number => {
   const qtd = toNum(it?.quantidade)
   const precoUnitario = toNum(it?.precoUnitario)
@@ -87,10 +102,11 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
     cliente: {
       nome: initial.cliente?.nome ?? "",
       telefone: initial.cliente?.telefone ?? "",
-      cpf: initial.cliente?.cpf ?? "", // ✅ já considera CPF vindo do orçamento
+      cpf: initial.cliente?.cpf ?? "",
       bairro: initial.cliente?.bairro ?? "",
       cidade: initial.cliente?.cidade ?? "",
     },
+
     endereco: {
       logradouro: initial.endereco?.logradouro ?? "",
       bairro: initial.endereco?.bairro ?? "",
@@ -109,6 +125,7 @@ function hydratePedido(initial?: Partial<PedidoCompraVM>): PedidoCompraVM {
       previsao: initial?.telha?.previsao ?? null,
       orcamento: initial?.telha?.orcamento ?? 0,
       area: initial?.telha?.area ?? 0,
+      fornecedorId: (initial as any)?.telha?.fornecedorId ?? null,
       itens: initial?.telha?.itens ?? [],
     },
     madeira: {
@@ -136,7 +153,6 @@ function parseMaybeDate(s?: string | null): Date | null {
   return Number.isFinite(d.getTime()) ? d : null
 }
 
-/** foco/scroll em campo obrigatório por id */
 function focusById(id: string) {
   if (typeof document === "undefined") return
   const el = document.getElementById(id)
@@ -179,32 +195,81 @@ function hydrateExecucao(exec?: Props["execucaoInit"]): ExecucaoVM {
   }
 }
 
-/** mostra toast com title(code) e loga a description (quando existir) */
 function showApiError(err: any) {
   const title = err?.title || err?.error || "Falha ao salvar"
   const code = err?.code || "UNKNOWN"
   const desc = err?.description || err?.message
   toast.error(`${title} (${code})`)
-  // eslint-disable-next-line no-console
   console.error("[ObrasPage] API error", { title, code, description: desc, raw: err })
+}
+
+function isFile(v: any): v is File {
+  return typeof File !== "undefined" && v instanceof File
+}
+
+function getImgFile(img: any): File | null {
+  const f = img?.file
+  return isFile(f) ? f : null
+}
+
+function normalizeImgsAfterUpload(current: ImgItem[], uploadedUrls: string[]): ImgItem[] {
+  let j = 0
+  return (current ?? []).map((img, i) => {
+    const f = getImgFile(img as any)
+    if (!f) return img
+    const nextUrl = uploadedUrls[j] ?? ""
+    j += 1
+
+    const base: any = { ...(img as any) }
+    base.url = nextUrl || String(base.url ?? "")
+    if ("file" in base) delete base.file
+    if ("previewUrl" in base) delete base.previewUrl
+    if ("localUrl" in base) delete base.localUrl
+    if ("isNew" in base) delete base.isNew
+    if ("loading" in base) delete base.loading
+    if ("error" in base) delete base.error
+
+    if (!base.ordem || !Number.isFinite(Number(base.ordem))) base.ordem = i + 1
+    return base as ImgItem
+  })
+}
+
+function resolveClienteIdFromInitial(initial: any): number | undefined {
+  const candidates = [
+    initial?.cliente?.id,
+    initial?.cliente_id,
+    initial?.clienteId,
+    initial?.orcamento?.cliente?.id,
+    initial?.orcamento?.cliente_id,
+    initial?.orcamento?.clienteId,
+  ]
+
+  for (const c of candidates) {
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return undefined
 }
 
 export default function ObrasPage({
   mode,
   obraId,
   orcamentoId,
+  ordemServicoId,
   initial,
   tiposObraOptions,
   telhaOptions,
   pedidoInit,
   catalogo,
   componentes,
+  fornecedoresTelhaOptions,
   fornecedoresMadeiraOptions,
   fornecedoresAndaimesOptions,
   financeiroInit,
   execucaoInit,
   equipeOptions = [],
   anexosInit,
+  cidades = [],
 }: Props) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(mode === "new")
@@ -215,7 +280,30 @@ export default function ObrasPage({
   const [fin, setFin] = useState<FinanceiroVM>(() => hydrateFinanceiro(financeiroInit))
   const [exec, setExec] = useState<ExecucaoVM>(() => hydrateExecucao(execucaoInit))
 
-  // ✅ Se veio CPF do orçamento, desabilita o input de CPF no formulário
+  const [clienteModalOpen, setClienteModalOpen] = useState(false)
+
+  const [clienteId, setClienteId] = useState<number | undefined>(() => {
+    const anyInitial = initial as any
+    return resolveClienteIdFromInitial(anyInitial)
+  })
+
+  useEffect(() => {
+    const anyInitial = initial as any
+    const next = resolveClienteIdFromInitial(anyInitial)
+    setClienteId(next)
+  }, [initial])
+
+  const clientePrefill = useMemo(
+    () => ({
+      nome: vm?.cliente?.nome ?? "",
+      telefone: vm?.cliente?.telefone ?? "",
+      cidade: vm?.cliente?.cidade ?? "",
+      bairro: vm?.cliente?.bairro ?? "",
+      cpf: (vm?.cliente?.cpf ?? null) as string | null,
+    }),
+    [vm?.cliente?.nome, vm?.cliente?.telefone, vm?.cliente?.cidade, vm?.cliente?.bairro, vm?.cliente?.cpf]
+  )
+
   useEffect(() => {
     if (typeof document === "undefined") return
     const el = document.getElementById("infos.cliente.cpf") as HTMLInputElement | null
@@ -239,13 +327,63 @@ export default function ObrasPage({
   const patchFinanceiro = (p: Partial<FinanceiroVM>) => setFin((d) => ({ ...d, ...p }))
   const patchExecucao = (p: Partial<ExecucaoVM>) => setExec((d) => ({ ...d, ...p }))
 
+  const onEditCliente = () => {
+    if (!clienteId) {
+      toast.error("Não foi possível identificar o ID do cliente (orçamento/obra).")
+      return
+    }
+    setClienteModalOpen(true)
+  }
+
+  const onClienteSaved = (c: {
+    id: number
+    nome: string
+    telefone: string | null
+    bairro: string | null
+    cidade_nome: string | null
+    cpf?: string | null
+  }) => {
+    setClienteId(c.id)
+
+    patchInfos({
+      cliente: {
+        nome: c.nome ?? "",
+        telefone: c.telefone ?? "",
+        cpf: c.cpf ?? "",
+        bairro: c.bairro ?? "",
+        cidade: c.cidade_nome ?? "",
+      },
+    })
+    setClienteModalOpen(false)
+  }
+
   const tituloTopo = useMemo(() => {
     const base = vm?.cliente?.nome?.trim() ? vm.cliente.nome.split(" ")[0] : vm.titulo || "Obra"
     const cidade = vm?.endereco?.cidade ? ` [${vm.endereco.cidade}]` : ""
     return `${base}${cidade}`
   }, [vm])
 
-  /* ======= derivar telha (filtrada pela telhaEscolhida) ======= */
+  async function onCopyClienteData() {
+    const nome = String(vm?.cliente?.nome ?? "").trim()
+    const telefone = String(vm?.cliente?.telefone ?? "").trim()
+    const endereco = String(vm?.endereco?.logradouro ?? "").trim()
+    const maps = String(vm?.endereco?.mapsUrl ?? "").trim()
+
+    if (!nome || !telefone || !endereco || !maps) {
+      toast.error("Dados do cliente incompletos para copiar.")
+      return
+    }
+
+    const text = `${nome} ${telefone}\n${endereco}\n${maps}`
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success("Dados do cliente copiados.")
+    } catch {
+      toast.error("Não foi possível copiar os dados do cliente.")
+    }
+  }
+
   const telhaItensSelecionados = useMemo(() => {
     const alvo = (vm.telhaEscolhida ?? "").trim()
     if (!alvo) return []
@@ -270,9 +408,7 @@ export default function ObrasPage({
     }
   }, [telhaOrcamentoDerivado])
 
-  /** ===== Validação de campos obrigatórios (front-only) ===== */
   function validateAndFocus(): boolean {
-    // InfosGerais — obrigatórios
     if (isEmpty(vm.tipoObra)) {
       toast.error("Tipo de obra é obrigatório.")
       focusById("infos.tipoObra")
@@ -299,7 +435,6 @@ export default function ObrasPage({
       return false
     }
 
-    // Logradouro e Maps — obrigatórios
     if (isEmpty(vm?.endereco?.logradouro)) {
       toast.error("Logradouro é obrigatório.")
       focusById("infos.logradouro")
@@ -311,7 +446,6 @@ export default function ObrasPage({
       return false
     }
 
-    // Cliente — nome/telefone vêm do orçamento, CPF pode vir do orçamento (desabilitado) ou ser digitado
     if (isEmpty(vm?.cliente?.nome)) {
       toast.error("Nome do cliente é obrigatório (vem do orçamento).")
       return false
@@ -326,7 +460,6 @@ export default function ObrasPage({
       return false
     }
 
-    // Financeiro — obrigatórios
     if (!(Number(fin?.valorObra) > 0)) {
       toast.error("Valor da obra é obrigatório.")
       focusById("fin.valorObra")
@@ -355,7 +488,7 @@ export default function ObrasPage({
     }
     const qui = fin?.pagamento?.quitacao ?? {}
     if (!(Number(qui?.valor) > 0)) {
-      toast.error("Valor da quitação é obrigatório.")
+      toast.error("Valor da quitação é obrigatória.")
       focusById("fin.quitacao.valor")
       return false
     }
@@ -365,12 +498,11 @@ export default function ObrasPage({
       return false
     }
     if (isEmpty(qui?.status)) {
-      toast.error("Status da quitação é obrigatório.")
+      toast.error("Status da quitação é obrigatória.")
       focusById("fin.quitacao.status")
       return false
     }
 
-    // Execução — obrigatórios (se não finalizado)
     if (vm.status !== "Finalizado") {
       if (!exec?.equipeId || Number(exec?.equipeId) <= 0) {
         toast.error("Equipe é obrigatória.")
@@ -392,11 +524,31 @@ export default function ObrasPage({
     return true
   }
 
+  async function uploadImagensIfNeeded(): Promise<ImgItem[]> {
+    const imgs = (vm.imagens ?? []).filter((img) => img != null)
+    const filesToUpload = imgs.map((it) => getImgFile(it as any)).filter((f): f is File => !!f)
+
+    if (filesToUpload.length === 0) {
+      return imgs
+        .filter((img) => String((img as any)?.url ?? "").trim() !== "")
+        .map((img, i) => ({ ...(img as any), ordem: Number((img as any)?.ordem ?? i + 1) })) as ImgItem[]
+    }
+
+    toast.message(`Enviando ${filesToUpload.length} imagem(ns)…`)
+    const up = await uploadImagensObra(filesToUpload)
+    const normalized = normalizeImgsAfterUpload(imgs, up.urls)
+
+    setVm((d) => ({ ...(d as any), imagens: normalized as any }))
+    return normalized
+  }
+
   async function onSave() {
     try {
       setSaving(true)
 
       if (!validateAndFocus()) return
+
+      const imagensFinal = await uploadImagensIfNeeded()
 
       if (mode === "new") {
         if (!orcamentoId) {
@@ -404,7 +556,6 @@ export default function ObrasPage({
           return
         }
 
-        // ========= montar itens nos formatos esperados pelo back =========
         const telhaItens = (pedido.telha?.itens ?? []).map((it) => ({
           descricao: String(it?.descricao ?? "").trim(),
           quantidade: Number(it?.quantidade ?? 0),
@@ -436,11 +587,9 @@ export default function ObrasPage({
           total: Number(it?.total ?? Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0)),
         }))
 
-        // ========= payload completo aceito pelo back =========
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
 
-          // ========= INFOS GERAIS =========
           endereco_obra: vm.endereco.logradouro.trim(),
           maps_url: vm.endereco.mapsUrl.trim(),
           tipo_obra: String(vm.tipoObra || "").trim(),
@@ -448,7 +597,6 @@ export default function ObrasPage({
           comprimento: Number(vm.comprimento),
           telha_escolhida: vm.telhaEscolhida.trim(),
 
-          // ========= FINANCEIRO =========
           valor_obra: Number(fin.valorObra),
           valor_mao_de_obra: Number(fin.maoDeObra),
 
@@ -460,27 +608,26 @@ export default function ObrasPage({
           forma_pagamento_quitacao: fin.pagamento?.quitacao?.forma ?? null,
           status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? null,
 
-          // ========= STATUS / OBS =========
           observacoes: vm.observacoes ?? null,
           status: vm.status as any,
 
-          // ========= EXECUÇÃO =========
           equipe_id: exec.equipeId ?? null,
           data_prev_inicio: (exec.dataPrevInicio as any) ?? null,
           data_prev_conclusao: (exec.dataPrevConclusao as any) ?? null,
 
-          // ========= IMAGENS =========
-          imagens: (vm.imagens ?? []).map((img, i) => ({
-            url: img.url.trim(),
-            ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-            legenda: img.legenda || null,
-          })),
+          imagens: (imagensFinal ?? [])
+            .filter((img) => String((img as any)?.url ?? "").trim() !== "")
+            .map((img: any, i: number) => ({
+              url: String(img.url ?? "").trim(),
+              ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
+              legenda: img.legenda || null,
+            })),
 
-          // ========= PEDIDO DE COMPRA (HEAD) =========
           area_telha: Number(pedido.telha?.area ?? 0),
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
           previsao_telha: (pedido.telha?.previsao as any) ?? null,
           status_telha: (pedido.telha?.status as any) ?? "Pendente",
+          fornecedor_telha_id: pedido.telha?.fornecedorId ? Number(pedido.telha.fornecedorId) : null,
 
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
           previsao_madeira: (pedido.madeira?.previsao as any) ?? null,
@@ -492,17 +639,14 @@ export default function ObrasPage({
           andaimes_status: (pedido.andaimes?.status as any) ?? "Pendente",
           andaimes_fornecedor_id: pedido.andaimes?.fornecedorId ? Number(pedido.andaimes.fornecedorId) : null,
 
-          // ========= PEDIDO DE COMPRA (ITENS) =========
           telhaItens,
           madeiraItens,
           materiaisItens,
           andaimesItens,
 
-          // ========= CLIENTE =========
-          clienteCpf: vm.cliente?.cpf?.trim() || null, // ✅ envia o CPF (se vier, fica desabilitado no input; se não, usuário digita)
+          clienteCpf: vm.cliente?.cpf?.trim() || null,
         }
 
-        // eslint-disable-next-line no-console
         console.log("[Obras] Payload de criação enviado ao back:", payload)
 
         const r = await createObra(payload)
@@ -515,7 +659,6 @@ export default function ObrasPage({
           data_prev_conclusao: (exec.dataPrevConclusao as any) ?? undefined,
         }
 
-        // Helpers de mapeamento (PUT)
         const mapTelhaItens = (arr: any[] = []) =>
           arr.map((it) => ({
             id: it?.id ?? undefined,
@@ -555,24 +698,22 @@ export default function ObrasPage({
                 : Number(it?.precoUnitario ?? 0) * Number(it?.quantidade ?? 0),
           }))
 
-        // Pedido de Compra (head + itens) para PUT
         const pedidoCompra: UpdateObraPayload["pedidoCompra"] = {
           area_telha: Number(pedido.telha?.area ?? 0),
           orcamento_telha: Number(pedido.telha?.orcamento ?? 0),
           previsao_telha: (pedido.telha?.previsao as any) ?? undefined,
           status_telha: (pedido.telha?.status as any) ?? undefined,
+          fornecedor_telha_id: pedido.telha?.fornecedorId != null ? Number(pedido.telha.fornecedorId) : undefined,
 
           orcamento_madeira: Number(pedido.madeira?.orcamento ?? 0),
           previsao_madeira: (pedido.madeira?.previsao as any) ?? undefined,
           status_madeira: (pedido.madeira?.status as any) ?? undefined,
-          fornecedor_madeira_id:
-            pedido.madeira?.fornecedorId != null ? Number(pedido.madeira.fornecedorId) : undefined,
+          fornecedor_madeira_id: pedido.madeira?.fornecedorId != null ? Number(pedido.madeira.fornecedorId) : undefined,
 
           materiais_status: (pedido.materiais?.status as any) ?? undefined,
 
           andaimes_status: (pedido.andaimes?.status as any) ?? undefined,
-          andaimes_fornecedor_id:
-            pedido.andaimes?.fornecedorId != null ? Number(pedido.andaimes.fornecedorId) : undefined,
+          andaimes_fornecedor_id: pedido.andaimes?.fornecedorId != null ? Number(pedido.andaimes.fornecedorId) : undefined,
 
           itens: {
             telha: mapTelhaItens(pedido.telha?.itens),
@@ -582,24 +723,19 @@ export default function ObrasPage({
           },
         }
 
-        // Imagens — replace total
         const imagensReplace: UpdateObraPayload["imagens"] = {
           replace: true,
-          list: (vm.imagens ?? [])
-            .filter((img) => String(img?.url ?? "").trim() !== "")
-            .map((img, i) => ({
+          list: (imagensFinal ?? [])
+            .filter((img: any) => String(img?.url ?? "").trim() !== "")
+            .map((img: any, i: number) => ({
               id: img.id ?? undefined,
               url: String(img.url ?? "").trim(),
               ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i,
-              legenda:
-                img?.legenda && String(img.legenda).trim() !== ""
-                  ? String(img.legenda).trim()
-                  : undefined,
+              legenda: img?.legenda && String(img.legenda).trim() !== "" ? String(img.legenda).trim() : undefined,
             })),
         }
 
         const upd: UpdateObraPayload = {
-          // INFOS GERAIS
           obra: {
             endereco_obra: vm.endereco.logradouro,
             maps_url: vm.endereco.mapsUrl,
@@ -611,7 +747,6 @@ export default function ObrasPage({
             observacoes: vm.observacoes ?? undefined,
           },
 
-          // FINANCEIRO
           financeiro: {
             valor_obra: Number(fin.valorObra ?? 0),
             valor_mao_de_obra: Number(fin.maoDeObra ?? 0),
@@ -623,13 +758,10 @@ export default function ObrasPage({
             status_pagamento_quitacao: fin.pagamento?.quitacao?.status ?? undefined,
           },
 
-          // ORDEM DE SERVIÇO
           ordemServico,
 
-          // PEDIDO DE COMPRA
           pedidoCompra,
 
-          // IMAGENS
           imagens: imagensReplace,
         }
 
@@ -652,7 +784,6 @@ export default function ObrasPage({
     setIsEditing(false)
   }
 
-  // ====== LINKS para o card Anexos ======
   const orcamentoLinkFinal = useMemo(() => {
     if (anexosInit?.orcamento) return anexosInit.orcamento
     if (typeof window !== "undefined" && orcamentoId) {
@@ -663,7 +794,6 @@ export default function ObrasPage({
 
   const propostaLinkFinal = anexosInit?.proposta ?? ""
   const contratoLinkFinal = anexosInit?.contrato ?? ""
-  const ordemServicoLinkFinal = anexosInit?.ordemServico ?? ""
 
   return (
     <PageLayout
@@ -675,14 +805,27 @@ export default function ObrasPage({
       headerActions={
         <div className="flex gap-2">
           {!isEditing ? (
-            <Button
-              size="sm"
-              className="h-8 min-w-[110px] bg-bege text-marromEscuro hover:bg-bege/80"
-              onClick={() => setIsEditing(true)}
-            >
-              <Pencil className="h-4 w-4 mr-1" />
-              Editar
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="secondary" className="h-8 w-10 px-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                <DropdownMenuItem onClick={onCopyClienteData}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copiar dados do cliente
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <>
               <Button size="sm" variant="secondary" className="h-8 min-w-[110px]" onClick={onCancel}>
@@ -703,26 +846,29 @@ export default function ObrasPage({
         </div>
       }
     >
-      {/* Card 1 — Informações Gerais */}
+      <ClienteModal
+        open={clienteModalOpen}
+        mode="edit"
+        clienteId={clienteId}
+        prefill={clientePrefill}
+        cidades={cidades}
+        onClose={() => setClienteModalOpen(false)}
+        onSaved={onClienteSaved}
+      />
+
       <InfosGerais
         value={vm}
         onChange={patchInfos}
         isEditing={isEditing}
         tiposObraOptions={tiposObraOptions}
         telhaOptions={telhaOptions}
+        onEditCliente={onEditCliente}
       />
 
-      {/* Card 2 — Observações & Imagens */}
       <div className="mt-6">
-        <ObsImagens
-          observacoes={vm.observacoes}
-          imagens={vm.imagens ?? []}
-          isEditing={isEditing}
-          onChange={patchInfos}
-        />
+        <ObsImagens observacoes={vm.observacoes} imagens={vm.imagens ?? []} isEditing={isEditing} onChange={patchInfos} />
       </div>
 
-      {/* Card 3 — Pedido de Compra (não obrigatório) */}
       <PedidoCompra
         value={pedido}
         onChange={patchPedido}
@@ -735,26 +881,19 @@ export default function ObrasPage({
         fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       />
 
-      {/* Linha: Financeiro (2/3) + Execução (1/3) */}
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Financeiro className="lg:col-span-2" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
-        <Execucao
-          className="lg:col-span-1"
-          value={exec}
-          onChange={patchExecucao}
-          isEditing={isEditing}
-          equipeOptions={equipeOptions}
-        />
+        <Execucao className="lg:col-span-1" value={exec} onChange={patchExecucao} isEditing={isEditing} equipeOptions={equipeOptions} />
       </div>
 
-      {/* Card 4 — Anexos */}
       <div className="mt-6">
         <Anexos
           mode={mode}
           orcamentoLink={orcamentoLinkFinal}
+          orcamentoId={orcamentoId ?? null}
           propostaLink={propostaLinkFinal}
           contratoLink={contratoLinkFinal}
-          ordemServicoLink={ordemServicoLinkFinal}
+          ordemServicoId={ordemServicoId ?? null}
         />
       </div>
     </PageLayout>

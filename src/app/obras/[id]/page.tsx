@@ -14,8 +14,8 @@ import type {
   PedidoStatusMateriais,
   PedidoStatusAndaimes,
 } from "@/app/obras/lib/types"
+import type { ImgItem } from "@/app/obras/_sections/ObsImagens"
 
-// catálogos/combos (SSR)
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
 
@@ -26,21 +26,30 @@ export const metadata: Metadata = { title: "Obras · Detalhe" }
 
 type Option = { value: string; label: string }
 
-/* ===== Normalizações vindas do back (UPPER_CASE) -> UI ===== */
 function mapObraStatus(raw: unknown): ObraStatus {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "ASSINATURA_DE_CONTRATO": return "Assinatura de contrato"
-    case "AGUARDANDO_VALIDACAO_TECNICA": return "Aguardando validação técnica"
-    case "COMPRAS": return "Compras"
-    case "A_INICIAR": return "À iniciar"
-    case "EXECUCAO": return "Execução"
-    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
-    case "PENDENCIA": return "Pendência"
-    case "FINALIZADO": return "Finalizado"
-    default: return "Assinatura de contrato"
+    case "ASSINATURA_DE_CONTRATO":
+      return "Assinatura de contrato"
+    case "AGUARDANDO_VALIDACAO_TECNICA":
+      return "Aguardando validação técnica"
+    case "COMPRAS":
+      return "Compras"
+    case "A_INICIAR":
+      return "À iniciar"
+    case "EXECUCAO":
+      return "Execução"
+    case "AGUARDANDO_PAGAMENTO":
+      return "Aguardando pagamento"
+    case "PENDENCIA":
+      return "Pendência"
+    case "FINALIZADO":
+      return "Finalizado"
+    default:
+      return "Assinatura de contrato"
   }
 }
+
 function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   const s = String(raw ?? "").trim().toLowerCase()
   if (!s) return null
@@ -51,36 +60,99 @@ function mapFormaPagamento(raw: unknown): FormaPagamento | null {
   if (s === "16x") return "16x"
   return null
 }
+
 function mapStatusPagamento(raw: unknown): PagamentoStatus {
   const s = String(raw ?? "").trim().toUpperCase()
   return s === "EFETUADO" ? "Efetuado" : "Pendente"
 }
+
 function mapPedidoStatusPadrao(raw: unknown): PedidoStatusPadrao {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "AGUARDANDO_PAGAMENTO": return "Aguardando pagamento"
-    case "PEDIDO_FEITO": return "Pedido feito"
-    case "ENTREGUE": return "Entregue"
-    default: return "Pendente"
+    case "AGUARDANDO_PAGAMENTO":
+      return "Aguardando pagamento"
+    case "PEDIDO_FEITO":
+      return "Pedido feito"
+    case "ENTREGUE":
+      return "Entregue"
+    default:
+      return "Pendente"
   }
 }
+
 function mapPedidoStatusMateriais(raw: unknown): PedidoStatusMateriais {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "EM_ESTOQUE": return "Em estoque"
-    case "ENTREGUE": return "Entregue"
-    default: return "Pendente"
+    case "EM_ESTOQUE":
+      return "Em estoque"
+    case "ENTREGUE":
+      return "Entregue"
+    default:
+      return "Pendente"
   }
 }
+
 function mapPedidoStatusAndaimes(raw: unknown): PedidoStatusAndaimes {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
-    case "PEDIDO_FEITO": return "Pedido feito"
-    case "ENTREGUE": return "Entregue"
-    case "A_COLETAR": return "À coletar"
-    case "COLETADO": return "Coletado"
-    default: return "Pendente"
+    case "PEDIDO_FEITO":
+      return "Pedido feito"
+    case "ENTREGUE":
+      return "Entregue"
+    case "A_COLETAR":
+      return "À coletar"
+    case "COLETADO":
+      return "Coletado"
+    default:
+      return "Pendente"
   }
+}
+
+type CidadeRow = { id: number; nome: string }
+
+function normalizeCidades(payload: unknown): CidadeRow[] {
+  const arr = (payload as any)?.data ?? (payload as any)?.items ?? (payload as any)?.rows ?? payload
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((c: any) => {
+      const idNum = Number(c?.id)
+      const nome = String(c?.nome ?? "").trim()
+      if (!Number.isFinite(idNum) || !nome) return null
+      return { id: idNum, nome }
+    })
+    .filter(Boolean) as CidadeRow[]
+}
+
+function normalizeImagens(dto: ObraDetalheDTO | null | undefined): ImgItem[] {
+  const arr = (dto?.imagens ?? []) as Array<any>
+  if (!Array.isArray(arr) || arr.length === 0) return []
+
+  const mapped = arr
+    .map((img: any, i: number) => {
+      const idNum = Number(img?.id)
+      const url = String(img?.url ?? "").trim()
+      if (!url) return null
+      const ordemRaw = img?.ordem
+      const ordem = ordemRaw === null || ordemRaw === undefined ? i + 1 : Number(ordemRaw)
+      return {
+        id: Number.isFinite(idNum) ? idNum : undefined,
+        url,
+        legenda: img?.legenda ?? null,
+        ordem: Number.isFinite(ordem) ? ordem : i + 1,
+      } as ImgItem
+    })
+    .filter(Boolean) as ImgItem[]
+
+  mapped.sort((a, b) => {
+    const ao = Number(a?.ordem ?? 999999)
+    const bo = Number(b?.ordem ?? 999999)
+    if (ao !== bo) return ao - bo
+    const ai = Number(a?.id ?? 999999)
+    const bi = Number(b?.id ?? 999999)
+    return ai - bi
+  })
+
+  return mapped
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -94,52 +166,72 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base = `${proto}://${host}`
 
-  // Obra + Tipos + Catálogos + Fornecedores + Equipes
-  const [resObra, resTipos, componentes, geraisDB, telhasDB, resFornMadeira, resFornAndaimes, resEquipes] =
-    await Promise.all([
-      fetch(`${base}/api/obras/${obraId}/detalhado`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      listarComponentesDB(),
-      listarMateriaisGerais(),
-      listarTelhas(),
-      fetch(`${base}/api/fornecedores?tipo=madeira`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/fornecedores?tipo=andaimes`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-      fetch(`${base}/api/equipes?page=1&pageSize=200`, {
-        cache: "no-store",
-        headers: { cookie },
-        credentials: "include",
-      }),
-    ])
+  const [
+    resObra,
+    resTipos,
+    componentes,
+    geraisDB,
+    telhasDB,
+    resFornTelha,
+    resFornMadeira,
+    resFornAndaimes,
+    resEquipes,
+    resCidades,
+  ] = await Promise.all([
+    fetch(`${base}/api/obras/${obraId}/detalhado`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    listarComponentesDB(),
+    listarMateriaisGerais(),
+    listarTelhas(),
+    fetch(`${base}/api/fornecedores?tipo=telha`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/fornecedores?tipo=madeira`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/fornecedores?tipo=andaimes`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/equipes?page=1&pageSize=200`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+    fetch(`${base}/api/cidades`, {
+      cache: "no-store",
+      headers: { cookie },
+      credentials: "include",
+    }),
+  ])
 
   if (!resObra.ok) notFound()
 
   const dtoJson = await resObra.json()
   const dto = (dtoJson?.data ?? dtoJson) as ObraDetalheDTO
 
-  // DEBUG SERVER LOG
   // eslint-disable-next-line no-console
   console.log("[/obras/[id]] DTO recebido:", JSON.stringify(dto, null, 2))
 
+  const cidadesRaw = await resCidades.json().catch(() => [])
+  const cidades = normalizeCidades(cidadesRaw)
+  const cidadeMap = new Map<number, string>(cidades.map((c) => [c.id, c.nome]))
+
   const tiposRaw = await resTipos.json().catch(() => null)
-  const tiposObraOptions: Option[] = Array.isArray(
-    tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw
-  )
+  const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
         .map((x: any) => {
           const label = x?.tipo_obra ?? x?.nome ?? x?.descricao ?? x?.label ?? ""
@@ -149,13 +241,19 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean)
     : []
 
-  // telhas do catálogo
   const telhaOptions: Option[] = Array.from(
     new Set((telhasDB ?? []).map((m) => String(m?.descricao ?? "").trim()).filter(Boolean))
   ).map((n) => ({ value: n, label: n }))
 
-  // ===== Infos Gerais =====
-  const initial: Partial<ObraInfosVM> = {
+  const cidadeIdDTO = dto?.cliente?.cidade?.id ?? null
+  const cidadeNomeDTO = dto?.cliente?.cidade?.nome ?? null
+  const cidadeNomeFinal =
+    (cidadeNomeDTO ? String(cidadeNomeDTO).trim() : "") ||
+    (Number.isFinite(Number(cidadeIdDTO)) && cidadeIdDTO != null ? cidadeMap.get(Number(cidadeIdDTO)) ?? "" : "")
+
+  const imagensInit = normalizeImagens(dto)
+
+  const initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] } = {
     titulo: dto.titulo ?? "",
     tipoObra: dto.dadosObra?.tipoObra ?? "",
     largura: dto.dadosObra?.largura ?? 0,
@@ -163,29 +261,30 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     telhaEscolhida: dto.dadosObra?.telhaEscolhida ?? "",
     status: mapObraStatus(dto.dadosObra?.status),
     cliente: {
+      id: dto.cliente?.id ?? undefined,
       nome: dto.cliente?.nome ?? "",
       telefone: dto.cliente?.telefone ?? "",
       cpf: dto.cliente?.cpf ?? "",
       bairro: dto.cliente?.bairro ?? "",
-      cidade: dto.cliente?.cidade?.nome ?? "",
+      cidadeId: dto.cliente?.cidade?.id ?? null,
+      cidade: cidadeNomeFinal || "",
     },
     endereco: {
       logradouro: dto.dadosObra?.endereco ?? "",
       bairro: dto.cliente?.bairro ?? "",
-      cidade: dto.cliente?.cidade?.nome ?? "",
+      cidade: cidadeNomeFinal || "",
       mapsUrl: dto.dadosObra?.mapsUrl ?? "",
     },
     observacoes: dto.dadosObra?.observacoes ?? null,
+    imagens: imagensInit,
   }
 
-  // ===== Catálogo para comboboxes do Pedido de Compra =====
   const catalogo = {
     madeiras: [] as { nome: string; preco: number }[],
     materiaisGerais: geraisDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
     telhas: telhasDB.map((m) => ({ nome: m.descricao, preco: Number(m.preco_unitario) })),
   }
 
-  // Fornecedores -> Options
   const toOptions = (arr: any[]): Option[] =>
     Array.isArray(arr)
       ? arr
@@ -197,9 +296,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           .filter(Boolean) as Option[]
       : []
 
+  const fornecedoresTelhaJson = await resFornTelha.json().catch(() => [])
   const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
   const fornecedoresAndaimesJson = await resFornAndaimes.json().catch(() => [])
 
+  const fornecedoresTelhaOptions: Option[] = toOptions((fornecedoresTelhaJson as any)?.data ?? fornecedoresTelhaJson)
   const fornecedoresMadeiraOptions: Option[] = toOptions(
     (fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson
   )
@@ -207,7 +308,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     (fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson
   )
 
-  // Equipes -> Options
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
     ? (equipesJson.data as any[])
@@ -219,10 +319,8 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean) as Option[]
     : []
 
-  // ===== Anexos (VIEW/EDIT)
   const orcId = dto?.orcamento?.id
-  const orcamentoLink =
-    Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
+  const orcamentoLink = Number.isFinite(orcId) && orcId ? `${proto}://${host}/orcamento/detalhes/${orcId}` : ""
 
   const anexosInit = {
     orcamento: orcamentoLink,
@@ -231,7 +329,11 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     ordemServico: String(dto?.anexos?.ordemServico ?? ""),
   }
 
-  // ===== Financeiro -> FinanceiroVM =====
+  const ordemServicoIdRaw =
+    (dto as any)?.ordemServico?.id ?? (dto as any)?.ordemServico?.ordemServicoId ?? (dto as any)?.ordem_servico?.id
+
+  const ordemServicoId = Number.isFinite(Number(ordemServicoIdRaw)) ? Number(ordemServicoIdRaw) : null
+
   const fin = (dto as any)?.financeiro ?? {}
   const financeiroInit = {
     valorObra: Number(dto?.dadosObra?.valorObra ?? 0),
@@ -250,7 +352,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     },
   }
 
-  // ===== Pedido de Compra -> PedidoCompraVM (com status mapeado) =====
   const pc = dto?.pedidoCompra
   const pedidoInit: Partial<PedidoCompraVM> | undefined = pc
     ? {
@@ -259,6 +360,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
           previsao: pc.telha?.previsao ?? null,
           orcamento: Number(pc.telha?.orcamento ?? 0),
           area: Number(pc.telha?.area ?? 0),
+          fornecedorId: (pc as any)?.fornecedores?.telha?.id ?? null,
           itens: Array.isArray(pc.itens?.telha)
             ? pc.itens.telha.map((it) => ({
                 id: it.id,
@@ -315,37 +417,38 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       }
     : undefined
 
-  // ===== Execução (ordem de serviço) — fallback da equipe da obra quando OS = null =====
-  const execucaoInit =
-    dto?.ordemServico
-      ? {
-          equipeId: dto.ordemServico.equipe?.id ?? dto.ordemServico.equipeId ?? null,
-          dataPrevInicio: dto.ordemServico.dataPrevInicio ?? null,
-          dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
-        }
-      : {
-          // se não existe OS, ao menos pré-seleciona a equipe da obra
-          equipeId: dto?.equipe?.id ?? null,
-          dataPrevInicio: null,
-          dataPrevConclusao: null,
-        }
+  const execucaoInit = dto?.ordemServico
+    ? {
+        equipeId: dto.ordemServico.equipe?.id ?? dto.ordemServico.equipeId ?? null,
+        dataPrevInicio: dto.ordemServico.dataPrevInicio ?? null,
+        dataPrevConclusao: dto.ordemServico.dataPrevConclusao ?? null,
+      }
+    : {
+        equipeId: dto?.equipe?.id ?? null,
+        dataPrevInicio: null,
+        dataPrevConclusao: null,
+      }
 
   return (
     <ObrasPage
       mode="view"
       obraId={obraId}
+      orcamentoId={dto?.orcamento?.id ?? undefined}
       initial={initial}
       tiposObraOptions={tiposObraOptions}
       telhaOptions={telhaOptions}
       pedidoInit={pedidoInit}
       catalogo={catalogo}
       componentes={componentes}
+      fornecedoresTelhaOptions={fornecedoresTelhaOptions}
       fornecedoresMadeiraOptions={fornecedoresMadeiraOptions}
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       equipeOptions={equipesOptions}
       anexosInit={anexosInit}
       financeiroInit={financeiroInit}
       execucaoInit={execucaoInit}
+      cidades={cidades}
+      ordemServicoId={ordemServicoId}
     />
   )
 }

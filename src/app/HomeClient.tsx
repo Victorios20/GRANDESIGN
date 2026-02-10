@@ -232,21 +232,52 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
 
   const columns: MUIDataTableColumnDef[] = [
     {
-      name: "obra",
-      label: "",
+      name: "id",
+      label: "id",
       options: {
         sort: false,
-        searchable: false,
         filter: false,
-        setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
-        setCellProps: () => ({ style: { textAlign: "center" } }),
-        customBodyRender: (_val, meta) => {
-          const r = rows[meta.rowIndex]
-          if (!r?.lancadoObra) return null
-          return <Hammer className="h-4 w-4 text-marromEscuro" aria-label="Obra lançada" />
-        },
+        searchable: false,
+        display: "excluded",
+        viewColumns: false,
+        download: false,
+        print: false,
       },
     },
+    {
+  name: "obra",
+  label: "",
+  options: {
+    sort: false,
+    searchable: false,
+    filter: false,
+    setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
+    setCellProps: () => ({ style: { textAlign: "center" } }),
+    customBodyRender: (_val, meta) => {
+      const r = rows[meta.rowIndex]
+      if (!r?.lancadoObra || r?.obraId == null) return null
+
+      return (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-marromEscuro hover:bg-marromClaro/20"
+          aria-label="Ir para a obra"
+          title="Ir para a obra"
+          data-no-row-nav
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            router.push(`/obras/${r.obraId}`)
+          }}
+        >
+          <Hammer className="h-4 w-4" />
+        </Button>
+      )
+    },
+  },
+},
+
     { name: "titulo", label: "Título", options: { sort: false, searchable: true } },
     { name: "cliente", label: "Cliente", options: { sort: false, searchable: true } },
     {
@@ -333,7 +364,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           const isExcluido = !!o.excluido
 
           return (
-            <div className="flex justify-end" data-no-row-nav>
+            <div
+              className="flex justify-end"
+              data-no-row-nav
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -342,12 +378,20 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     className="text-marromEscuro hover:bg-marromClaro/20"
                     aria-label="Ações"
                     data-no-row-nav
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <EllipsisVertical className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
 
-                <DropdownMenuContent align="end" className="w-64" data-no-row-nav>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-64"
+                  data-no-row-nav
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <DropdownMenuItem
                     className="cursor-pointer"
                     onSelect={async () => {
@@ -474,15 +518,12 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     sort: false,
     elevation: 0,
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
-
-    setRowProps: (_row, dataIndex) => ({
+    onRowClick: (_rowData, rowMeta) => {
+      const id = rows[rowMeta.dataIndex]?.id
+      if (id != null) router.push(`/orcamento/detalhes/${id}`)
+    },
+    setRowProps: () => ({
       className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
-      onClick: (e: React.MouseEvent<HTMLElement>) => {
-        const el = e.target as HTMLElement
-        if (el.closest("[data-no-row-nav]")) return
-        const id = (rows[dataIndex] as any)?.id
-        if (id != null) router.push(`/orcamento/detalhes/${id}`)
-      },
     }),
   }
 

@@ -24,10 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 
-import {
-  StatusSelect,
-  type StatusOption,
-} from "@/components/ui/StatusSelect"
+import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
 
 import type {
   PedidoCompraVM,
@@ -63,34 +60,30 @@ type Props = {
   fornecedoresAndaimesOptions?: Option[]
 }
 
-// Status de TELHA e MADEIRA (padrão)
 const STATUS_TELHA_MADEIRA: StatusOption<PedidoStatusPadrao>[] = [
-  { label: "Pendente",             value: "Pendente",             color: "yellow", icon: Clock },
-  { label: "Aguardando pagamento", value: "Aguardando pagamento", color: "amber",   icon: CreditCard },
-  { label: "Pedido feito",         value: "Pedido feito",         color: "blue",    icon: ShoppingCart },
-  { label: "Entregue",             value: "Entregue",             color: "green",   icon: CheckCircle2 },
+  { label: "Pendente", value: "Pendente", color: "yellow", icon: Clock },
+  { label: "Aguardando pagamento", value: "Aguardando pagamento", color: "amber", icon: CreditCard },
+  { label: "Pedido feito", value: "Pedido feito", color: "blue", icon: ShoppingCart },
+  { label: "Entregue", value: "Entregue", color: "green", icon: CheckCircle2 },
 ]
 
-// Status de MATERIAIS
 const STATUS_MATERIAIS: StatusOption<PedidoStatusMateriais>[] = [
-  { label: "Pendente",   value: "Pendente",   color: "yellow", icon: Clock },
-  { label: "Em estoque", value: "Em estoque", color: "violet",  icon: Boxes },
-  { label: "Entregue",   value: "Entregue",   color: "green",   icon: CheckCircle2 },
+  { label: "Pendente", value: "Pendente", color: "yellow", icon: Clock },
+  { label: "Em estoque", value: "Em estoque", color: "violet", icon: Boxes },
+  { label: "Entregue", value: "Entregue", color: "green", icon: CheckCircle2 },
 ]
 
-// Status de ANDAIMES
 const STATUS_ANDAIMES: StatusOption<PedidoStatusAndaimes>[] = [
-  { label: "Pendente",     value: "Pendente",     color: "yellow", icon: Clock },
-  { label: "Pedido feito", value: "Pedido feito", color: "blue",    icon: ShoppingCart },
-  { label: "Entregue",     value: "Entregue",     color: "green",   icon: CheckCircle2 },
-  { label: "À coletar",    value: "À coletar",    color: "cyan",    icon: Truck },
-  { label: "Coletado",     value: "Coletado",     color: "emerald", icon: CheckCircle2 },
+  { label: "Pendente", value: "Pendente", color: "yellow", icon: Clock },
+  { label: "Pedido feito", value: "Pedido feito", color: "blue", icon: ShoppingCart },
+  { label: "Entregue", value: "Entregue", color: "green", icon: CheckCircle2 },
+  { label: "À coletar", value: "À coletar", color: "cyan", icon: Truck },
+  { label: "Coletado", value: "Coletado", color: "emerald", icon: CheckCircle2 },
 ]
 
 const input =
   "h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
 
-// botão cinza com texto verde (gray-green)
 const inputGrayGreen =
   "h-9 border border-green/40 bg-cinza text-green rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-green focus-visible:outline-none"
 
@@ -99,7 +92,6 @@ function Money({ value }: { value?: number }) {
   return <span>{value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
 }
 
-// DateField com visual gray-green
 function DateField({
   iso,
   onChange,
@@ -118,11 +110,7 @@ function DateField({
         <Button
           type="button"
           variant="outline"
-          className={cn(
-            inputGrayGreen,
-            "pr-3 pl-2 text-left font-normal",
-            className
-          )}
+          className={cn(inputGrayGreen, "pr-3 pl-2 text-left font-normal", className)}
           disabled={disabled}
         >
           <CalendarDays className="mr-2 h-4 w-4 text-green opacity-90" />
@@ -146,6 +134,7 @@ function DateField({
 function nomeDoItemTelha(it: any): string {
   return (it?.descricao ?? it?.nome ?? "").toString().trim()
 }
+
 function totalItemTelha(it: any): number {
   const qtd = Number(it?.quantidade ?? 0)
   const preco = Number(it?.preco ?? it?.precoUnitario ?? 0)
@@ -172,10 +161,12 @@ export default function PedidoCompra({
     () => (catalogo?.materiaisGerais ?? []).map((m) => ({ value: m.nome, label: m.nome })),
     [catalogo?.materiaisGerais]
   )
+
   const madeirasOptions = useMemo(
     () => (catalogo?.madeiras ?? []).map((m) => ({ value: m.nome, label: m.nome })),
     [catalogo?.madeiras]
   )
+
   const componentesOptions = useMemo(
     () =>
       (componentes ?? []).map((c: any) => {
@@ -300,7 +291,6 @@ export default function PedidoCompra({
     return typeof total === "number" ? total : 0
   }
 
-  // --- Helpers para exibir o nome do fornecedor no botão do Combobox ---
   const selectedMadeiraFornecedorLabel = useMemo(() => {
     const id = value.madeira?.fornecedorId
     if (id == null) return undefined
@@ -318,7 +308,6 @@ export default function PedidoCompra({
       <CardContent className="p-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="flex flex-col gap-10">
-            {/* TELHAS */}
             <section>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Telhas</h3>
@@ -408,7 +397,6 @@ export default function PedidoCompra({
               </div>
             </section>
 
-            {/* MATERIAIS */}
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Materiais</h3>
@@ -514,7 +502,6 @@ export default function PedidoCompra({
               </div>
             </section>
 
-            {/* ANDAIMES */}
             <section>
               <div className="flex items-center gap-3 mb-2">
                 <h3 className="text-2xl font-semibold text-green m-0">Andaimes</h3>
@@ -539,7 +526,6 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              {/* Fornecedor (label + campo) */}
               <div className="flex items-center gap-0.5 mb-3 sm:w-[520px]">
                 <Label className="text-black shrink-0 w-24">Fornecedor:</Label>
                 {isEditing ? (
@@ -581,7 +567,11 @@ export default function PedidoCompra({
                     <div key={it?.id ?? idx} className="contents">
                       {isEditing ? (
                         <>
-                          <Input className={input} value={descricao} onChange={(e) => patchItem("descricao", e.target.value)} />
+                          <Input
+                            className={input}
+                            value={descricao}
+                            onChange={(e) => patchItem("descricao", e.target.value)}
+                          />
                           <Input
                             type="number"
                             className={input}
@@ -624,7 +614,6 @@ export default function PedidoCompra({
             </section>
           </div>
 
-          {/* COLUNA DIREITA — Madeiras */}
           <div>
             <section>
               <div className="flex items-center gap-3 mb-2">
@@ -650,7 +639,6 @@ export default function PedidoCompra({
                 )}
               </div>
 
-              {/* Orçamento/Previsão alinhados */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-1 sm:gap-x-0 gap-y-2 sm:w-[520px] mb-2">
                 <div className="flex items-center gap-0.5">
                   <Label className="text-black shrink-0 w-24">Orçamento:</Label>
@@ -686,7 +674,6 @@ export default function PedidoCompra({
                 </div>
               </div>
 
-              {/* Fornecedor no padrão Telhas */}
               <div className="flex items-center gap-0.5 mb-4 sm:w-[520px]">
                 <Label className="text-black shrink-0 w-24">Fornecedor:</Label>
                 {isEditing ? (
@@ -801,7 +788,6 @@ export default function PedidoCompra({
                 })}
               </div>
             </section>
-
           </div>
         </div>
       </CardContent>

@@ -192,6 +192,7 @@ export type CreateObraPayload = {
   orcamento_telha?: number | string
   previsao_telha?: string | Date | null
   status_telha?: PedidoStatusPadrao | null
+  fornecedor_telha_id?: number | null
 
   orcamento_madeira?: number | string
   previsao_madeira?: string | Date | null
@@ -237,7 +238,6 @@ export type CriarObraResult = {
   pedidos: { telhaId: number; madeiraId: number; materiaisId: number; andaimesId: number }
 }
 
-/* ===== VMs ===== */
 export type ObraInfosVM = {
   titulo?: string
   tipoObra: string | null
@@ -245,10 +245,19 @@ export type ObraInfosVM = {
   comprimento: number | null
   telhaEscolhida: string
   status: ObraStatus
-  cliente: { nome: string; telefone?: string | null; cpf?: string | null; bairro?: string | null; cidade?: string | null }
+  cliente: {
+    id?: number
+    nome: string
+    telefone?: string | null
+    cpf?: string | null
+    bairro?: string | null
+    cidadeId?: number | null
+    cidade?: string | null
+  }
   endereco: { logradouro: string; bairro: string; cidade: string; mapsUrl: string }
   observacoes?: string | null
 }
+
 
 export type ObsImagensVM = { observacoes?: string | null; imagens: Array<{ id?: number; url: string; ordem?: number | null; legenda?: string | null }> }
 
@@ -258,6 +267,7 @@ export type PedidoCompraVM = {
     previsao: string | null
     orcamento: number
     area: number
+    fornecedorId?: number | null
     itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }>
   }
   madeira: {
@@ -270,6 +280,7 @@ export type PedidoCompraVM = {
   materiais: { status: PedidoStatusMateriais; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
   andaimes: { status: PedidoStatusAndaimes; fornecedorId?: number | null; itens: Array<{ id?: number; descricao: string; quantidade: number; precoUnitario: number; total: number }> }
 }
+
 
 export type FinanceiroExecVM = {
   financeiro: {
@@ -317,6 +328,7 @@ export type PedidoCompraPayload = {
   previsao_telha?: string | Date
   status_telha?: PedidoStatusPadrao
   area_telha?: number | string
+  fornecedor_telha_id?: number | string | null
   orcamento_madeira?: number | string
   previsao_madeira?: string | Date
   status_madeira?: PedidoStatusPadrao
@@ -332,6 +344,7 @@ export type PedidoCompraPayload = {
     andaimes?: PedidoItensUpsert[]
   }
 }
+
 
 export type OrdemServicoPayload = {
   _delete?: boolean

@@ -16,9 +16,9 @@ import {
     ArrowUpRight,
     Copy,
     ChevronsUpDown,
-    UserPlus,
-    UserCheck
 } from "lucide-react"
+
+import DadosPessoaisCard from "./DadosPessoaisCard"
 import { FATOR_10X, FATOR_18X } from "@/app/orcamento/_utils/fatoresCartao"
 
 import { Toaster, toast } from "sonner"
@@ -32,7 +32,7 @@ import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { logOrcamentoWebhook } from "@/api/useLogWebhook"
 
-
+import ClienteModal from "@/components/modals/ClienteModal"
 import type { UpdateOrcamentoInput } from "@/actions/edit-orcamento-db/edit-orcamento-db"
 
 import { PageLayout } from "@/components/ui/pageLayout"
@@ -75,13 +75,31 @@ import {
 } from "@/components/ui/command"
 
 
-import ModalSucessoProposta from "@/components/ui/ModalSucessoProposta"
+import ModalSucessoProposta from "@/components/modals/ModalSucessoProposta"
 
 import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
 
-/* ===================================================================
- *                                Tipos
- * =================================================================== */
+// ===========================================
+//               CONSTANTES TELHAS
+// ===========================================
+const GRUPO_NATURAIS = ["super romana vermelha", "colonial", "americana vermelha"]
+const GRUPO_RESINADAS = ["maxxi", "romana marfim", "americana marfim"]
+
+type TileGroup = "naturais" | "resinadas" | null
+
+function getTileGroup(nome: string): TileGroup {
+    const n = nome.toLowerCase().trim()
+    if (GRUPO_NATURAIS.some(x => n.includes(x))) return "naturais"
+    if (GRUPO_RESINADAS.some(x => n.includes(x))) return "resinadas"
+    return null
+}
+
+const GROUP_CONFIG = {
+    naturais: { color: "bg-red-600", label: "Vermelha" },
+    resinadas: { color: "bg-[#FFFFF0] border border-gray-300", label: "Marfim" }, // Ivory-ish
+}
+
+
 export type Material = {
     id: number
     nome: string
@@ -152,7 +170,6 @@ export type InitialData = {
     telhaValores: Record<string, Pagto>
     links: { slide?: string; pdf?: string; slideUrl?: string | null; pdfUrl?: string | null }
 
-    // NOVO ↓
     fornecedorId?: number | null
     fornecedorNome?: string | null
     observacoes?: string | null
@@ -167,36 +184,32 @@ type Catalogo = {
 }
 
 
-// COLE este bloco NO MESMO LUGAR
 type BaseProps = {
-    // catálogos SEMPRE vêm por props
+
     catalogo: Catalogo
     componentes: Componente[]
     tiposObra: TipoObra[]
     cidades: Cidade[]
 }
 
-// "create": pode omitir mode (default "create"); NÃO tem id nem initialData
 type CreateProps = BaseProps & {
     mode?: "create"
 }
 
-// "edit": é obrigatório mode="edit" E também orcamentoId + initialData
+
 type EditProps = BaseProps & {
     mode: "edit"
     orcamentoId: number
     initialData: InitialData
 }
 
-// contrato final: union discriminada
 type OrcamentoPageProps = CreateProps | EditProps
 
 
 /* ===================================================================
  *                              Helpers
  * =================================================================== */
-// ------------------ Helpers de POST para API ------------------
-// ADICIONE AQUI (abaixo do cabeçalho "Helpers de POST para API")
+
 type ApiErrorShape = {
     error: string
     code?: string
@@ -209,10 +222,8 @@ type Pagto = { pix: number; x10: number; x18: number }
 type TotaisPayload = { madeiras: number; materiais: number; comissao: number; frete: number; empresaPS: number; empresaGD: number }
 
 type SalvarPayload = {
-    // NOVO: quando presente, usamos o cliente já existente
     clienteId?: number
 
-    // Mantido para preencher UI/relatórios e para fallback antigo
     cliente: { nome: string; telefone: string; bairro: string; cidade?: string | null }
 
     parametros: {
@@ -243,8 +254,6 @@ type SalvarPayload = {
     observacoes?: string | null
 }
 
-
-// SUBSTITUA a função postJSON atual por esta
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
     const r = await fetch(url, {
         method: "POST",
@@ -260,11 +269,11 @@ async function postJSON<T>(url: string, data: unknown): Promise<T> {
         if (isJson) {
             try {
                 const j = (await r.json()) as ApiErrorShape
-                if (j?.error) msg = j.error // usa mensagem amigável do backend
+                if (j?.error) msg = j.error
                 console.error("[API ERROR]", { url, status: r.status, ...j })
-            } catch { /* ignore */ }
+            } catch { }
         } else {
-            try { msg = `Falha ao salvar (${r.status}): ${(await r.text()) || "Erro"}` } catch { /* ignore */ }
+            try { msg = `Falha ao salvar (${r.status}): ${(await r.text()) || "Erro"}` } catch { }
         }
         throw new Error(msg)
     }
@@ -320,19 +329,22 @@ async function getMadeirasByFornecedor(fornecedorId: number): Promise<Array<{ no
         .map(r => ({ nome: r.descricao, preco: Number(r.preco_unitario ?? 0) }))
         .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
 }
-
+const ORCAMENTOS_ENDPOINT = "/api/Orcamentos"
 
 const updateOrcamentoAPI = (id: number, payload: UpdateOrcamentoInput) =>
-    putJSON<{ ok: true }>(`/api/Orcamentos/${id}`, payload).then(() => true)
-
-
+    putJSON<{ ok: true }>(`${ORCAMENTOS_ENDPOINT}/${id}`, payload).then(() => true)
 
 const salvarOrcamentoAPI = (payload: SalvarPayload) =>
-    postJSON<{ id: number }>("/api/Orcamentos", payload).then(r => r.id)
+    postJSON<{ id: number }>(ORCAMENTOS_ENDPOINT, payload).then(r => r.id)
 
 const salvarRascunhoAPI = (payload: SalvarPayload) =>
-    postJSON<{ id: number }>("/api/Orcamentos/rascunho", payload).then(r => r.id)
+    postJSON<{ id: number }>(`${ORCAMENTOS_ENDPOINT}/rascunho`, payload).then(r => r.id)
 
+const gerarPropostaAPI = (payload: SalvarPayload) =>
+    postJSON<{ id: number; links: { slideUrl: string; pdfUrl: string }; requestId?: string }>(
+        `${ORCAMENTOS_ENDPOINT}/gerar-proposta`,
+        payload
+    )
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
@@ -343,7 +355,7 @@ async function buscarClientes(by: "name" | "phone", q: string, limit = 10): Prom
     return r.json()
 }
 
-// tenta achar por nome exato (para associar em caso de 409)
+
 async function findClienteByNomeExato(nome: string): Promise<ClienteSearchResult | null> {
     const list = await buscarClientes("name", nome, 10)
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ")
@@ -351,7 +363,6 @@ async function findClienteByNomeExato(nome: string): Promise<ClienteSearchResult
     return list.find(c => norm(c.nome ?? "") === alvo) ?? null
 }
 
-// cria cliente OU associa ao existente quando back devolver 409
 async function criarOuAssociarCliente(
     form: { nome: string; telefone: string; bairro: string; cidade: string },
     cidades: { id: number; nome: string }[],
@@ -374,15 +385,15 @@ async function criarOuAssociarCliente(
     }
 
     if (r.status === 409) {
-        // tenta associar: buscar o id do existente
+
         const encontrado = await findClienteByNomeExato(nome)
         if (encontrado?.id) return { id: encontrado.id, associado: true }
 
-        // fallback: tenta extrair id do payload de erro (se vier)
+
         try {
             const j = await r.json()
             if (j?.id) return { id: Number(j.id), associado: true }
-        } catch { /* ignore */ }
+        } catch { }
 
         throw new Error("Cliente já existe.")
     }
@@ -391,7 +402,7 @@ async function criarOuAssociarCliente(
     try {
         const j = await r.json()
         if (j?.error) msg = j.error
-    } catch { /* ignore */ }
+    } catch { }
     throw new Error(msg)
 }
 
@@ -435,7 +446,7 @@ async function editarCliente(
 }
 
 
-// Cores mais fortes por ID
+
 const TIPO_OBRA_STYLE_BY_ID: Record<number, { item: string; trigger: string }> = {
     9: { // Caramanchão de 15 → amarelo suave
         item: "bg-yellow-400/30 hover:bg-yellow-400/40 data-[highlighted]:bg-yellow-400/40 data-[state=checked]:bg-yellow-400/50",
@@ -462,8 +473,6 @@ const styleForTriggerId = (id?: number | null) =>
 
 
 
-
-// IDs canônicos pros campos (pra scroll/focus rápido)
 const FIELD_IDS = {
     nome: "inp-nome",
     telefone: "inp-telefone",
@@ -645,7 +654,19 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         orcamentoId = props.orcamentoId
         initialData = props.initialData
     }
+
     const [isSavingClient, setIsSavingClient] = useState(false)
+
+    const [clienteModalOpen, setClienteModalOpen] = useState(false)
+    const [clienteModalMode, setClienteModalMode] = useState<"create" | "edit">("create")
+    const [clienteModalClienteId, setClienteModalClienteId] = useState<number | null>(null)
+    const [clienteModalPrefill, setClienteModalPrefill] = useState<{
+        nome?: string
+        telefone?: string
+        bairro?: string
+        cidade?: string
+    }>({})
+
 
     // (opcional) manter uma variável mode se você usa em outros lugares
     const mode: "create" | "edit" = isEdit ? "edit" : "create"
@@ -936,6 +957,55 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         toast.success("Cliente associado.")
     }
 
+    const openClienteModalCreate = () => {
+        setClienteModalMode("create")
+        setClienteModalClienteId(null)
+        setClienteModalPrefill({
+            nome: form.nome,
+            telefone: form.telefone,
+            bairro: form.bairro,
+            cidade: form.cidade,
+        })
+        setClienteModalOpen(true)
+    }
+
+    const openClienteModalEdit = () => {
+        if (!clienteId) {
+            toast.error("Selecione um cliente para editar.")
+            return
+        }
+        setClienteModalMode("edit")
+        setClienteModalClienteId(clienteId)
+        setClienteModalPrefill({})
+        setClienteModalOpen(true)
+    }
+
+    const onClienteSaved = (c: {
+        id: number
+        nome: string
+        telefone: string | null
+        bairro: string | null
+        cidade_nome: string | null
+    }) => {
+        const nome = c.nome ?? ""
+        const telefone = c.telefone ? formatPhone(c.telefone) : ""
+        const cidade = c.cidade_nome ?? ""
+        const bairro = c.bairro ?? ""
+
+        setClienteId(Number(c.id))
+        setForm({ nome, telefone, cidade, bairro })
+
+        const snap = { nome, telefone, cidade, bairro }
+        setClienteSnap(snap)
+
+        localStorage.setItem("orcamento.clienteId", String(Number(c.id)))
+        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
+
+        toast.success(clienteModalMode === "edit" ? "Cliente atualizado com sucesso!" : "Cliente cadastrado com sucesso!")
+        setClienteModalOpen(false)
+    }
+
+
 
 
 
@@ -1165,7 +1235,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             let resultado: { madeira: MaterialCalculado[]; materiais: MaterialCalculado[]; telhas: MaterialCalculado[] }
 
             if (isCobertaL) {
-                resultado = await calcularMateriais("Coberta em L", undefined, undefined, {
+                // Para coberta em L, respeita o texto escolhido no select (pode ser "Coberta em L - Linha na Parede 15" ou "Coberta em L com linha na parede")
+                const tipoSelecionado = tipoObra ?? "Coberta em L"
+                resultado = await calcularMateriais(tipoSelecionado, undefined, undefined, {
                     larguraMaior: dim.larguraMaior,
                     comprimentoMaior: dim.comprimentoMaior,
                     larguraMenor: dim.larguraMenor,
@@ -1197,20 +1269,30 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             const materGNew = mats.map(mapRow)
             let telhasNew = telhas.map(mapRow)
 
-
             telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
 
             setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
 
             const madeirasSubtotal = subtotalMadeiras(madeirasNew)
             const materiaisSubtotal = subtotalGeral(materGNew)
-            const { maoDeObra, empresaGD } = calcularTotais({ tipoObra })
+
+            console.group("🟡 DEBUG Antes de calcularTotais")
+            console.log("madeirasNew:", madeirasNew)
+            console.log("materGNew:", materGNew)
+            console.log("telhasNew:", telhasNew)
+            console.groupEnd()
+
+            const { maoDeObra, empresaGD } = calcularTotais({
+                madeiras: madeirasNew,
+                materiais: materGNew,
+                telhas: telhasNew
+            })
 
             setTotEdit({
                 madeiras: madeirasSubtotal,
                 materiais: materiaisSubtotal,
                 comissao: 0,
-                frete: 0,              // permanece manual/independente
+                frete: 0,
                 empresaPS: maoDeObra,
                 empresaGD: empresaGD,
             })
@@ -1224,6 +1306,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             setLoadingCalc(false)
         }
     }
+
 
 
     /* --------------------------- Edição inline --------------------------- */
@@ -1374,7 +1457,21 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     const telhaTipos = Array.from(
         new Set(materiais.telhas.map(t => (t.nome ?? "").trim()).filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    ).sort((a, b) => {
+        // Ordem de prioridade: Naturais (1) -> Resinadas (2) -> Outros (3)
+        const getPriority = (name: string) => {
+            const g = getTileGroup(name)
+            if (g === "naturais") return 1
+            if (g === "resinadas") return 2
+            return 3
+        }
+
+        const pA = getPriority(a)
+        const pB = getPriority(b)
+
+        if (pA !== pB) return pA - pB
+        return a.localeCompare(b, "pt-BR")
+    })
 
 
     const ensureTelha = (tipo: string): Pagto => ({
@@ -1507,14 +1604,62 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             return
         }
 
-        // exige cliente associado apenas na criação
         if (mode === "create" && !ensureClienteAssociado()) return
 
         try {
             setLoadingPDF(true)
             const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
             setTelhaValores(telhaValoresAtual)
+
+            if (mode === "create") {
+                try {
+                    setLoadingSave(true)
+
+                    if (!ensureClienteAssociado()) {
+                        setLoadingSave(false)
+                        return
+                    }
+
+                    const payloadCreate = {
+                        clienteId: Number(clienteId),
+                        cliente: form,
+                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        materiais,
+                        totais: totEdit,
+                        telhaValores: telhaValoresAtual,
+                        titulo: snap,
+                        fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
+                        observacoes: (observacoes || "").trim() || null,
+                    }
+
+                    const { id: novoId, links } = await gerarPropostaAPI(payloadCreate)
+
+                    setLinks({ slide: links.slideUrl, pdf: links.pdfUrl })
+
+                    await logOrcamentoWebhook({
+                        acao: "CRIAR_ORCAMENTO",
+                        orcamentoId: novoId,
+                        titulo: snap,
+                        cliente: buildClienteLog(),
+                        usuario: usuarioLog,
+                        dadosOrcamento: { ...payloadCreate, links },
+                    })
+
+                    toast.success("Orçamento salvo automaticamente.")
+                    toast.success("Proposta gerada! Links prontos abaixo.")
+                    setModalSucessoAberto(true)
+                } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
+                    toast.error(msg)
+                } finally {
+                    setLoadingSave(false)
+                }
+
+                return
+            }
+
             const result = await gerarPDF({
+                orcamentoId: Number(orcamentoId),
                 cliente: form,
                 parametros: { tipoObra: tipoObra ?? "", ...dim },
                 materiais,
@@ -1522,6 +1667,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 telhaValoresDinamicos: telhaValoresAtual,
                 titulo: snap,
             })
+
 
             const raw = result as any
             const r = Array.isArray(raw) ? raw[0] : raw
@@ -1546,54 +1692,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 }
 
                 toast.success("Proposta gerada! Links prontos abaixo.")
-
-                try {
-                    setLoadingSave(true)
-
-                    if (!ensureClienteAssociado()) {
-                        setLoadingSave(false)
-                        return
-                    }
-
-                    const payloadCreate = {
-                        clienteId: Number(clienteId),
-                        cliente: form,
-                        parametros: { tipoObra: tipoObra ?? "", ...dim },
-                        materiais,
-                        totais: totEdit,
-                        telhaValores: telhaValoresAtual,
-                        links: { slideUrl: slide, pdfUrl: pdf },
-                        titulo: snap,
-                        fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
-                        observacoes: (observacoes || "").trim() || null,
-                    }
-                    console.log("payload create", payloadCreate)
-                    const novoId = await salvarOrcamentoAPI(payloadCreate)
-
-                    await logOrcamentoWebhook({
-                        acao: "CRIAR_ORCAMENTO",
-                        orcamentoId: novoId,
-                        titulo: snap,
-                        cliente: buildClienteLog(),
-                        usuario: usuarioLog,
-                        dadosOrcamento: payloadCreate,
-                    })
-
-                    toast.success("Orçamento salvo automaticamente.")
-                    setModalSucessoAberto(true)
-                } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
-                    toast.error(msg)
-                } finally {
-                    setLoadingSave(false)
-                }
             } else {
                 toast.error(
                     "A proposta foi gerada, mas não salvamos porque os links não vieram completos (slide e PDF)."
                 )
                 console.debug("[handleGerarProposta] retorno sem links completos:", result)
             }
-
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
             toast.error(msg)
@@ -1601,6 +1705,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             setLoadingPDF(false)
         }
     }
+
 
 
 
@@ -1841,255 +1946,31 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
  * --------------------------------------------------------------- */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {/* Card: Dados Pessoais */}
-                <Card>
-                    <CardHeader className="p-4">
-                        <div className="flex justify-between items-start sm:items-center">
-                            <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                    Etapa 1
-                                </Badge>
-                                <CardTitle className="text-lg">Dados Pessoais</CardTitle>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={clearEtapa1}
-                                className="text-red-500 hover:text-red-700"
-                            >
-                                <Trash className="h-4 w-4 mr-1" /> Limpar
-                            </Button>
-                        </div>
-                    </CardHeader>
+                <DadosPessoaisCard
+                    fieldIds={FIELD_IDS}
+                    form={form}
+                    onFormChange={onFormChange}
+                    nomeBoxRef={nomeBoxRef}
+                    telBoxRef={telBoxRef}
+                    qNome={qNome}
+                    setQNome={setQNome}
+                    loadingNome={loadingNome}
+                    resNome={resNome}
+                    setResNome={setResNome}
+                    qTel={qTel}
+                    setQTel={setQTel}
+                    loadingTel={loadingTel}
+                    resTel={resTel}
+                    setResTel={setResTel}
+                    onPickCliente={onPickCliente}
+                    clearEtapa1={clearEtapa1}
+                    clienteId={clienteId}
+                    isSavingClient={isSavingClient}
+                    openClienteModalCreate={openClienteModalCreate}
+                    openClienteModalEdit={openClienteModalEdit}
+                />
 
-                    <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div ref={nomeBoxRef} className="flex flex-col gap-1 relative">
-                            <Label htmlFor={FIELD_IDS.nome}>Nome</Label>
-                            <Input
-                                id={FIELD_IDS.nome}
-                                name="nome"
-                                placeholder="Ex.: João Luiz"
-                                autoComplete="off"
-                                value={form.nome}
-                                onChange={(e) => {
-                                    onFormChange(e)
-                                    setQNome(e.target.value) // dispara busca
-                                }}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                            {(qNome.trim().length >= 2) && (loadingNome || resNome.length > 0) && (
-                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                    <Command shouldFilter={false}>
-                                        <CommandList>
-                                            {loadingNome && (
-                                                <CommandItem disabled>
-                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                    Buscando…
-                                                </CommandItem>
-                                            )}
 
-                                            {!loadingNome && resNome.length > 0 && (
-                                                <CommandGroup heading="Clientes">
-                                                    {resNome.map((c) => (
-                                                        <CommandItem
-                                                            key={c.id}
-                                                            value={String(c.id)}
-                                                            onSelect={() => {
-                                                                onPickCliente(c)
-                                                                setQNome("")        // fecha dropdown do Nome
-                                                                setResNome([])
-                                                            }}
-                                                        >
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{c.nome}</span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                                </span>
-                                                            </div>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            )}
-
-                                            {!loadingNome && resNome.length === 0 && (
-                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                            )}
-                                        </CommandList>
-                                    </Command>
-                                </div>
-                            )}
-                        </div>
-
-                        <div ref={telBoxRef} className="flex flex-col gap-1 relative">
-                            <Label htmlFor={FIELD_IDS.telefone}>Telefone</Label>
-                            <Input
-                                id={FIELD_IDS.telefone}
-                                name="telefone"
-                                placeholder="Ex.: (85) 98765-4321"
-                                autoComplete="off"
-                                value={form.telefone}
-                                onChange={(e) => {
-                                    onFormChange(e)           // mantém máscara/estado atual
-                                    setQTel(e.target.value)   // dispara busca
-                                }}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                            {(qTel.replace(/\D/g, "").length >= 3) && (loadingTel || resTel.length > 0) && (
-                                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-md border bg-background shadow max-h-64 overflow-y-auto">
-                                    <Command shouldFilter={false}>
-                                        <CommandList>
-                                            {loadingTel && (
-                                                <CommandItem disabled>
-                                                    <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                    Buscando…
-                                                </CommandItem>
-                                            )}
-
-                                            {!loadingTel && resTel.length > 0 && (
-                                                <CommandGroup heading="Clientes">
-                                                    {resTel.map((c) => (
-                                                        <CommandItem
-                                                            key={c.id}
-                                                            value={String(c.id)}
-                                                            onSelect={() => {
-                                                                onPickCliente(c)
-                                                                setQTel("")         // fecha dropdown do Telefone
-                                                                setResTel([])
-                                                            }}
-                                                        >
-                                                            <div className="flex flex-col">
-                                                                <span className="font-medium">{c.nome}</span>
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {(c.telefone ?? "").replace(/\D/g, "").length ? c.telefone : "—"} · {c.cidade_nome ?? "Sem cidade"} {c.bairro ? `· ${c.bairro}` : ""}
-                                                                </span>
-                                                            </div>
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            )}
-
-                                            {!loadingTel && resTel.length === 0 && (
-                                                <CommandEmpty>Nenhum cliente encontrado</CommandEmpty>
-                                            )}
-                                        </CommandList>
-                                    </Command>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor={FIELD_IDS.cidade}>Cidade</Label>
-                            {/* wrapper para “pintar” o trigger do ComboboxAdd sem alterar o componente */}
-                            <div className="rounded-xl [&_button]:bg-cinza [&_button]:border-0 [&_button]:rounded-xl [&_button]:h-9 [&_button]:px-3 focus-visible:[&_button]:ring-2 focus-visible:[&_button]:ring-marromEscuro">
-                                <ComboboxAdd
-                                    buttonText={form.cidade?.trim() || "Selecione"}
-                                    placeholder="Buscar cidade..."
-                                    widthClass="w-full"
-                                    items={cidades.map(c => ({ value: c.nome, label: c.nome }))}
-                                    onSelect={(v) => setForm(prev => ({ ...prev, cidade: v }))}
-                                    showEmptyOption={false}
-                                    colorVariant="gray-brown"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            <Label htmlFor={FIELD_IDS.bairro}>Bairro</Label>
-                            <Input
-                                id={FIELD_IDS.bairro}
-                                name="bairro"
-                                placeholder="Ex.: Meireles"
-                                value={form.bairro}
-                                onChange={onFormChange}
-                                className="h-9 border-0 bg-cinza rounded-xl px-3 focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none"
-                            />
-                        </div>
-                    </CardContent>
-
-                    {/* Botão fixo da Etapa 1 para associar/cadastrar cliente */}
-                    <div className="p-4 pt-0 flex justify-end">
-                        <Button
-                            id={FIELD_IDS.cadastrarCliente}
-                            className={[
-                                "min-w-[200px]",
-                                clienteId && !clienteDirty && !isSavingClient
-                                    ? "text-emerald-600 border-emerald-500 disabled:opacity-100 disabled:cursor-not-allowed"
-                                    : "",
-                            ].join(" ")}
-                            variant={clienteId ? "secondary" : "outline"}
-                            disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-                            aria-busy={isSavingClient ? "true" : "false"}
-                            aria-disabled={isSavingClient || (!!clienteId && !clienteDirty)}
-                            onClick={async () => {
-                                if (clienteId && !clienteDirty) {
-                                    toast.message("Cliente já associado.")
-                                    return
-                                }
-                                setIsSavingClient(true)
-                                try {
-                                    if (clienteId && clienteDirty) {
-                                        await editarCliente(clienteId, form, cidades)
-                                        const snap = {
-                                            nome: form.nome.trim(),
-                                            telefone: formatPhone(form.telefone),
-                                            cidade: form.cidade.trim(),
-                                            bairro: (form.bairro ?? "").trim(),
-                                        }
-                                        setClienteSnap(snap)
-                                        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-                                        toast.success("Cliente atualizado com sucesso!")
-                                    } else {
-                                        const { id, associado } = await criarOuAssociarCliente(form, cidades)
-                                        setClienteId(id)
-                                        const snap = {
-                                            nome: form.nome.trim(),
-                                            telefone: formatPhone(form.telefone),
-                                            cidade: form.cidade.trim(),
-                                            bairro: (form.bairro ?? "").trim(),
-                                        }
-                                        setClienteSnap(snap)
-                                        localStorage.setItem("orcamento.clienteId", String(id))
-                                        localStorage.setItem("orcamento.clienteSnap", JSON.stringify(snap))
-                                        toast.success(associado ? "Cliente já existia — associado com sucesso." : "Cliente cadastrado com sucesso!")
-                                    }
-                                } catch (e: any) {
-                                    toast.error(e?.message ?? "Falha ao salvar cliente.")
-                                    scrollToField(FIELD_IDS.nome)
-                                } finally {
-                                    setIsSavingClient(false)
-                                }
-                            }}
-                            title={
-                                clienteId
-                                    ? (clienteDirty ? "Aplicar alterações no cliente" : "Cliente já associado")
-                                    : "Cadastrar/associar cliente"
-                            }
-                        >
-                            {isSavingClient ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    {clienteId ? (clienteDirty ? "Salvando alterações..." : "Carregando...") : "Cadastrando..."}
-                                </>
-                            ) : clienteId ? (
-                                clienteDirty ? (
-                                    <>
-                                        <UserPlus className="h-4 w-4 mr-1" />
-                                        Editar cliente
-                                    </>
-                                ) : (
-                                    <>
-                                        <UserCheck className="h-4 w-4 mr-1 text-emerald-600" />
-                                        <span className="text-emerald-600">Cliente associado</span>
-                                    </>
-                                )
-                            ) : (
-                                <>
-                                    <UserPlus className="h-4 w-4 mr-1" />
-                                    Cadastrar cliente
-                                </>
-                            )}
-                        </Button>
-                    </div>
-                </Card>
 
                 {/* Card: Observações */}
                 <Card>
@@ -2626,7 +2507,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     {/* Telhas – valores fixos */}
                     <Card className="shadow-sm">
                         <CardHeader className="p-3">
-                            <CardTitle className="text-sm">Telhas – valores fixos</CardTitle>
+                            <CardTitle className="text-sm">Telhas – valores fixos*</CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
                             <Table>
@@ -2641,9 +2522,40 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 <TableBody>
                                     {telhaTipos.map((tipo) => {
                                         const v = ensureTelha(tipo)
+                                        const group = getTileGroup(tipo)
+
+                                        // Lógica de destaque (maior preço do grupo)
+                                        // Precisamos saber se este 'tipo' é o mais caro do seu grupo
+                                        let isMostExpensive = false
+                                        if (group) {
+                                            // Filtra todos dste grupo
+                                            const sameGroup = telhaTipos.filter(t => getTileGroup(t) === group)
+                                            // Encontra o maior preço pix
+                                            const maxPix = Math.max(...sameGroup.map(t => ensureTelha(t).pix))
+                                            // Se o atual for igual ao max
+                                            if (v.pix > 0 && v.pix >= maxPix) {
+                                                isMostExpensive = true
+                                            }
+                                        }
+
+                                        const styleRow = isMostExpensive ? "bg-yellow-50 font-medium" : ""
+
                                         return (
-                                            <TableRow key={tipo}>
-                                                <TableCell>{tipo}</TableCell>
+                                            <TableRow key={tipo} className={styleRow}>
+                                                <TableCell className="flex items-center gap-2">
+                                                    {group && (
+                                                        <div
+                                                            className={`w-3 h-3 rounded-full ${GROUP_CONFIG[group].color}`}
+                                                            title={`Grupo: ${group}`}
+                                                        />
+                                                    )}
+                                                    {tipo}
+                                                    {isMostExpensive && (
+                                                        <Badge variant="outline" className="ml-auto text-[10px] h-5 px-1 bg-yellow-100 text-yellow-800 border-yellow-200">
+                                                            Maior Valor
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
                                                 <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
                                                 <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
@@ -2653,6 +2565,9 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 </TableBody>
 
                             </Table>
+                            <p className="mt-2 text-xs text-marromEscuro/60">
+                                * A proposta ira com o valor maior de cada grupo de telha para preservar a margem de lucro
+                            </p>
                         </CardContent>
                     </Card>
                 </CardContent>
@@ -2955,12 +2870,24 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 </div>
             )}
 
+            <ClienteModal
+                open={clienteModalOpen}
+                mode={clienteModalMode}
+                clienteId={clienteModalClienteId ?? undefined}
+                prefill={clienteModalPrefill}
+                cidades={cidades}
+                onClose={() => setClienteModalOpen(false)}
+                onSaved={onClienteSaved}
+            />
+
+
             <ModalSucessoProposta
                 open={modalSucessoAberto}
                 onClose={() => setModalSucessoAberto(false)}
                 slideUrl={links.slide}
                 clearAll={clearAll}
             />
+
         </PageLayout>
     )
 }

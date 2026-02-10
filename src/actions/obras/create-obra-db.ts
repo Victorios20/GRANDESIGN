@@ -22,6 +22,7 @@ export type ObraCreateErrorCode =
   | "CPF_INVALIDO"
   | "CLIENTE_CPF_JA_PREENCHIDO"
   | "CLIENTE_NAO_ENCONTRADO"
+  | "CLIENTE_NAO_ENCONTRADO"
 
 export class ObraCreateError extends Error {
   code: ObraCreateErrorCode
@@ -149,6 +150,7 @@ export type CriarObraInput = {
   orcamento_telha?: Decimalish
   previsao_telha?: string | Date | null
   status_telha?: PedidoStatusPadrao | string | null
+  fornecedor_telha_id?: number | null
 
   orcamento_madeira?: Decimalish
   previsao_madeira?: string | Date | null
@@ -168,7 +170,7 @@ export type CriarObraInput = {
 
   // Aceitar também um objeto aninhado opcional (fallback)
   pedidoCompra?: {
-    telha?: { area?: Decimalish; orcamento?: Decimalish; previsao?: string | Date | null; status?: string | PedidoStatusPadrao }
+    telha?: { area?: Decimalish; orcamento?: Decimalish; previsao?: string | Date | null; status?: string | PedidoStatusPadrao; fornecedorId?: number | null }
     madeira?: { orcamento?: Decimalish; previsao?: string | Date | null; status?: string | PedidoStatusPadrao; fornecedorId?: number | null }
     materiais?: { status?: string | PedidoStatusMateriais }
     andaimes?: { status?: string | PedidoStatusAndaimes; fornecedorId?: number | null }
@@ -221,6 +223,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   const orcTelhaEff = input.orcamento_telha ?? telhaHead.orcamento ?? 0
   const prevTelhaEff = input.previsao_telha ?? telhaHead.previsao ?? null
   const statusTelhaEff = input.status_telha ?? telhaHead.status ?? null
+  const fornTelhaEff = input.fornecedor_telha_id ?? telhaHead.fornecedorId ?? null
 
   const orcMadeiraEff = input.orcamento_madeira ?? madeiraHead.orcamento ?? 0
   const prevMadeiraEff = input.previsao_madeira ?? madeiraHead.previsao ?? null
@@ -387,6 +390,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             ...(orcTelhaEff !== undefined ? { orcamento_telha: d(orcTelhaEff) } : {}),
             ...(prevTelhaEff !== undefined ? { previsao_telha: parseDateLoose(prevTelhaEff) } : {}),
             ...(mapPedidoPadraoStatus(statusTelhaEff) ? { status_telha: mapPedidoPadraoStatus(statusTelhaEff)! } : {}),
+            ...(Number.isFinite(Number(fornTelhaEff)) && Number(fornTelhaEff)
+              ? { fornecedor_telha: { connect: { id: Number(fornTelhaEff) } } }
+              : {}),
 
             ...(orcMadeiraEff !== undefined ? { orcamento_madeira: d(orcMadeiraEff) } : {}),
             ...(prevMadeiraEff !== undefined ? { previsao_madeira: parseDateLoose(prevMadeiraEff) } : {}),
