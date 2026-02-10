@@ -103,6 +103,9 @@
   background-color: #f4f4f4;
 }
 
+.border-cinza {
+  border-color: #f4f4f4;
+}
 
 .text-green {
   color: #376139;
@@ -110,4 +113,13 @@
 
 .border-green {
   border-color: #376139;
+}
+
+.border-marromEscuro {
+  border-color: #8B5E3C;
+}
+
+
+.bg-bege-pagina {
+  border-color: #FAF3E0;
 }

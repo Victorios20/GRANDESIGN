@@ -22,6 +22,8 @@ type PageLayoutProps = PropsWithChildren<{
   title?: string
   /** Com ações: mostra o título ao lado dos botões quando true. Sem ações: sempre mostra. */
   isTitulo?: boolean
+  /** Classe Tailwind para background da página (ex: "bg-white"). Default: bg-bege-pagina */
+  pageBackground?: string
 }>
 
 export function PageLayout({
@@ -31,6 +33,7 @@ export function PageLayout({
   headerActions,
   title,
   isTitulo,
+  pageBackground,
 }: PageLayoutProps) {
   const pathname = usePathname() || "/"
 
@@ -60,6 +63,7 @@ export function PageLayout({
         backgroundImage={backgroundImage}
         headerActions={headerActions}
         isTitulo={isTitulo}
+        pageBackground={pageBackground}
       >
         {children}
       </InnerLayout>
@@ -73,18 +77,20 @@ function InnerLayout({
   backgroundImage,
   headerActions,
   isTitulo,
+  pageBackground,
 }: PropsWithChildren<{
   breadcrumbs: Crumb[]
   backgroundImage?: boolean
   headerActions?: React.ReactNode
   isTitulo?: boolean
+  pageBackground?: string
 }>) {
   const { toggleSidebar } = useSidebar()
   const hasActions = !!headerActions && React.Children.count(headerActions) > 0
   const showTitleNearActions = hasActions ? (isTitulo ?? false) : true
 
   return (
-    <div className="flex h-screen w-full bg-bege-pagina">
+    <div className={`flex h-screen w-full ${pageBackground ?? "bg-bege-pagina"}`}>
       <CustomSidebar />
 
       <div className="flex-1 flex flex-col relative">
@@ -113,7 +119,7 @@ function InnerLayout({
                 {breadcrumbs.map((crumb, idx) => {
                   const isLast = idx === breadcrumbs.length - 1
                   return (
-                    <React.Fragment key={crumb.href}>
+                    <React.Fragment key={`${crumb.href}-${idx}`}>
                       <BreadcrumbItem>
                         <BreadcrumbLink
                           href={crumb.href}
@@ -149,7 +155,6 @@ function InnerLayout({
           {/* LADO DIREITO DO HEADER */}
           <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
             {hasActions ? (
-              // Botões à ESQUERDA  |  Título + ícone à DIREITA (com pequeno espaçamento)
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">{headerActions}</div>
 
@@ -164,7 +169,6 @@ function InnerLayout({
                 )}
               </div>
             ) : (
-              // Sem ações: título + avatar grande (legado)
               <>
                 <div className="hidden md:flex items-center gap-2">
                   <h2 className="text-base md:text-lg text-marromEscuro font-bold tracking-wide">GRANDESIGN</h2>
@@ -184,7 +188,7 @@ function InnerLayout({
             {breadcrumbs.map((crumb, idx) => {
               const isLast = idx === breadcrumbs.length - 1
               return (
-                <React.Fragment key={crumb.href}>
+                <React.Fragment key={`${crumb.href}-${idx}`}>
                   <BreadcrumbItem>
                     <BreadcrumbLink
                       href={crumb.href}

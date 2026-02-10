@@ -23,6 +23,17 @@ import { ComboboxAdd } from "@/components/ui/comboboxAdd"
 
 import type { ObraInfosVM, ObraStatus } from "../lib/types"
 import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { useState } from "react"
 
 type Option = { value: string; label: string }
 
@@ -67,6 +78,26 @@ export default function InfosGerais({
     }),
     [value.largura, value.comprimento]
   )
+
+  const [isConclusionModalOpen, setIsConclusionModalOpen] = useState(false)
+  const [conclusionDate, setConclusionDate] = useState<Date | undefined>(new Date())
+
+  const handleStatusChange = (newStatus: ObraStatus) => {
+    if (newStatus === "Finalizado" && value.status !== "Finalizado") {
+      setConclusionDate(new Date())
+      setIsConclusionModalOpen(true)
+    } else {
+      onChange({ status: newStatus })
+    }
+  }
+
+  const confirmConclusion = () => {
+    onChange({
+      status: "Finalizado",
+      dataConclusao: conclusionDate ? format(conclusionDate, "yyyy-MM-dd") : null,
+    })
+    setIsConclusionModalOpen(false)
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -126,7 +157,7 @@ export default function InfosGerais({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="flex flex-col gap-1">
               <Label className={labelText}>Telha</Label>
               {isEditing ? (
@@ -149,13 +180,118 @@ export default function InfosGerais({
               <StatusSelect<ObraStatus>
                 options={STATUS_OPTIONS}
                 value={value.status ?? null}
-                onChange={(s) => onChange({ status: s })}
+                onChange={handleStatusChange}
                 mode={isEditing ? "dynamic" : "static"}
                 staticVariant="pill"
                 size="md"
               />
             </div>
           </div>
+
+          {/* Datas de prazo contratual */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <Label className={labelText}>Início da Obra</Label>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  className={inputClass}
+                  value={value.dataInicioObra ?? ""}
+                  onChange={(e) => onChange({ dataInicioObra: e.target.value || null })}
+                />
+              ) : (
+                <div className={valueText}>
+                  {value.dataInicioObra
+                    ? new Date(value.dataInicioObra + "T00:00:00").toLocaleDateString("pt-BR")
+                    : "-"}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className={labelText}>Término da Obra</Label>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  className={inputClass}
+                  value={value.dataFimObra ?? ""}
+                  onChange={(e) => onChange({ dataFimObra: e.target.value || null })}
+                />
+              ) : (
+                <div className={valueText}>
+                  {value.dataFimObra
+                    ? new Date(value.dataFimObra + "T00:00:00").toLocaleDateString("pt-BR")
+                    : "-"}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div className="flex flex-col gap-1">
+              <Label className={labelText}>Assinatura do Contrato</Label>
+              {isEditing ? (
+                <Input
+                  type="date"
+                  className={inputClass}
+                  value={value.dataContrato ?? ""}
+                  onChange={(e) => onChange({ dataContrato: e.target.value || null })}
+                />
+              ) : (
+                <div className={valueText}>
+                  {value.dataContrato
+                    ? new Date(value.dataContrato + "T00:00:00").toLocaleDateString("pt-BR")
+                    : "-"}
+                </div>
+              )}
+            </div>
+
+            {value.status === "Finalizado" && (
+              <div className="flex flex-col gap-1">
+                <Label className={labelText}>Data de Conclusão</Label>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    className={inputClass}
+                    value={value.dataConclusao ?? ""}
+                    onChange={(e) => onChange({ dataConclusao: e.target.value || null })}
+                  />
+                ) : (
+                  <div className={valueText}>
+                    {value.dataConclusao
+                      ? new Date(value.dataConclusao + "T00:00:00").toLocaleDateString("pt-BR")
+                      : "-"}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <Dialog open={isConclusionModalOpen} onOpenChange={setIsConclusionModalOpen}>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Confirmar Conclusão</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Label>Data de Conclusão</Label>
+                <Calendar
+                  mode="single"
+                  selected={conclusionDate}
+                  onSelect={setConclusionDate}
+                  locale={ptBR}
+                  className="rounded-md border mx-auto"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsConclusionModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={confirmConclusion} className="bg-green hover:bg-green/90 text-white">
+                  Confirmar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 
@@ -168,7 +304,7 @@ export default function InfosGerais({
             </h3>
 
             <Button
-              variant="ghost"
+              variant="ghost-green"
               size="icon"
               onClick={onEditCliente}
               disabled={!value.cliente?.nome}

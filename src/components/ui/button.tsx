@@ -22,19 +22,22 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-marromEscuro text-white shadow-xs hover:bg-marromEscuro/90",
-        destructive:
-          "bg-destructive text-white shadow-xs hover:bg-destructive/90 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline: "bg-bege border text-marromEscuro shadow-xs hover:bg-bege/80",
-        secondary: "border text-marromEscuro shadow-xs bg-white hover:bg-bege/40",
-        ghost: "text-marromEscuro hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
-        success: "bg-[#376139] text-white shadow-xs hover:bg-[#376139]/90",
-        "outlined-bege":
-          "bg-transparent border border-marromEscuro text-marromEscuro hover:bg-bege/10 focus-visible:ring-bege/30",
-        "outlined-green":
-          "bg-transparent border border-[#376139] text-[#376139] hover:bg-[#376139]/10 focus-visible:ring-[#376139]/30",
-      },
+  default: "bg-marromEscuro text-white shadow-xs hover:bg-marromEscuro/90",
+  destructive:
+    "bg-destructive text-white shadow-xs hover:bg-destructive/90 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+  outline: "bg-bege border text-marromEscuro shadow-xs hover:bg-bege/80",
+  secondary: "border text-marromEscuro shadow-xs bg-white hover:bg-bege/40",
+  ghost: "text-marromEscuro hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+  "ghost-green":
+    "text-[#376139] hover:bg-[#376139]/10 hover:text-[#376139] dark:hover:bg-[#376139]/20",
+  link: "text-primary underline-offset-4 hover:underline",
+  success: "bg-[#376139] text-white shadow-xs hover:bg-[#376139]/90",
+  "outlined-bege":
+    "bg-transparent border border-marromEscuro text-marromEscuro hover:bg-bege/10 focus-visible:ring-bege/30",
+  "outlined-green":
+    "bg-transparent border border-[#376139] text-[#376139] hover:bg-[#376139]/10 focus-visible:ring-[#376139]/30",
+},
+
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
         sm: "h-8 rounded-lg gap-1.5 px-3 has-[>svg]:px-2.5",

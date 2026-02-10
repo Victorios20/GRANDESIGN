@@ -1,5 +1,4 @@
-// GRANDESIGN · PUT /api/obras/[id]
-import { NextResponse, NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { updateObraDB, type UpdateObraPayload } from "@/actions/obras/update-obra-db"
@@ -18,115 +17,42 @@ function getActorId(session: SessionLike): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function json(resBody: any, status = 200, requestId?: string) {
-  const headers = new Headers({
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store",
+function json(body: any, status = 200) {
+  return new NextResponse(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
   })
-  if (requestId) headers.set("X-Request-Id", requestId)
-  return new NextResponse(JSON.stringify(resBody), { status, headers })
 }
 
-function makeErrorBody(
-  title: string,
-  code: string,
-  requestId: string,
-  description?: string,
-  meta?: any
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const dev = process.env.NODE_ENV !== "production"
-  const body: Record<string, any> = { title, code, requestId }
-  if (dev && description) body.description = description
-  if (dev && meta) body.meta = meta
-  return body
-}
+  const session = (await getServerSession(authOptions as any)) as SessionLike
+  const actorId = getActorId(session)
 
-export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const requestId =
-    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-  const dev = process.env.NODE_ENV !== "production"
-
-  try {
-    const session = (await getServerSession(authOptions as any)) as SessionLike
-    const actorId = getActorId(session)
-    if (!actorId) {
-      return json(
-        makeErrorBody("Não autorizado", "UNAUTHORIZED", requestId, "Sessão ausente ou inválida."),
-        401,
-        requestId
-      )
-    }
-
-    const { id: idStr } = await ctx.params
-    const obraId = Number(idStr)
-    if (!Number.isFinite(obraId) || obraId <= 0) {
-      return json(
-        makeErrorBody(
-          "ID da obra inválido",
-          "OBRA_ID_INVALIDO",
-          requestId,
-          "O parâmetro 'id' deve ser um número > 0."
-        ),
-        400,
-        requestId
-      )
-    }
-
-    const ct = (req.headers.get("content-type") || "").toLowerCase()
-    if (!ct.startsWith("application/json")) {
-      return json(
-        makeErrorBody(
-          "Content-Type inválido",
-          "INVALID_CONTENT_TYPE",
-          requestId,
-          "Use application/json no corpo da requisição."
-        ),
-        415,
-        requestId
-      )
-    }
-
-    let payload: UpdateObraPayload
-    try {
-      payload = (await req.json()) as UpdateObraPayload
-    } catch {
-      return json(
-        makeErrorBody("JSON inválido", "INVALID_JSON", requestId, "Corpo da requisição não é um JSON válido."),
-        400,
-        requestId
-      )
-    }
-
-    const resp = await updateObraDB(obraId, payload, actorId)
-
-    if (!resp?.ok) {
-      const status = resp?.status ?? 400
-      const title = (resp as any)?.title ?? "Falha ao atualizar obra"
-      const code = (resp as any)?.code ?? (resp as any)?.error ?? "UPDATE_FAILED"
-      const description = (resp as any)?.description ?? (resp as any)?.message
-      const meta = (resp as any)?.meta
-      const body = makeErrorBody(title, code, requestId, description, meta)
-      console.error("[PUT /api/obras/:id] update failed", { status, ...body })
-      return json(body, status, requestId)
-    }
-
-    return json({ data: resp.data, requestId }, 200, requestId)
-  } catch (err: any) {
-    if (err?.code === "ORDEM_SERVICO_DADOS_INSUFICIENTES") {
-      const body = makeErrorBody(
-        "Ordem de serviço com dados insuficientes",
-        "ORDEM_SERVICO_DADOS_INSUFICIENTES",
-        requestId,
-        String(err?.message ?? err)
-      )
-      return json(body, 400, requestId)
-    }
-
-    const code = err?.code || err?.name || "UNEXPECTED_ERROR"
-    const message = dev ? String(err?.message ?? err) : undefined
-    const meta = dev ? err?.meta : undefined
-    const body = makeErrorBody("Erro inesperado", code, requestId, message, meta)
-    console.error("[PUT /api/obras/:id] unexpected", { code, message, meta, requestId })
-    return json(body, 500, requestId)
+  if (!actorId) {
+    return json({ error: "UNAUTHORIZED" }, 401)
   }
+
+  const { id } = await params
+  const obraId = Number(id)
+  if (!Number.isFinite(obraId) || obraId <= 0) {
+    return json({ error: "OBRA_ID_INVALIDO" }, 400)
+  }
+
+  let payload: UpdateObraPayload
+  try {
+    payload = await req.json()
+  } catch {
+    return json({ error: "INVALID_JSON" }, 400)
+  }
+
+  const result = await updateObraDB(obraId, payload, actorId)
+
+  if (!result.ok) {
+    return json({ error: result.code }, result.status ?? 500)
+  }
+
+  return json({ data: result.data }, 200)
 }

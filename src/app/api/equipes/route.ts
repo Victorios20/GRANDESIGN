@@ -35,7 +35,9 @@ export async function POST(req: Request) {
     const nome: string = (body?.nome || "").trim()
     if (!nome) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 })
 
-    const created = await prisma.equipes.create({ data: { nome } })
+    const cor: string | null = body?.cor || null
+
+    const created = await prisma.equipes.create({ data: { nome, cor } })
     return NextResponse.json({ data: created }, { status: 201 })
   } catch {
     return NextResponse.json({ error: "Falha ao criar equipe" }, { status: 500 })

@@ -52,7 +52,7 @@ export function calcularTotais({
     arrTelhas as Item[]
   )
 
-  const empresaGDBase = (valorTotalMateriais + maoDeObra) * 0.2
+  const empresaGDBase = (valorTotalMateriais + maoDeObra) * 0.3
   const empresaGD = Math.ceil(empresaGDBase / 100) * 100
 
   /* =======================

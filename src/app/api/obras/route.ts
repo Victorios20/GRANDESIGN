@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
         )
       }
     }
+
     const reqNum = ["orcamentoId", "largura", "comprimento", "valor_obra", "valor_mao_de_obra"] as const
     for (const k of reqNum) {
       if (!Number.isFinite(Number(body?.[k]))) {
@@ -92,44 +93,26 @@ export async function POST(req: NextRequest) {
       valor_obra: Number(body.valor_obra),
       valor_mao_de_obra: Number(body.valor_mao_de_obra),
 
-      pagamento_entrada:
-        body.pagamento_entrada != null ? Number(body.pagamento_entrada) : undefined,
-      forma_pagamento_entrada:
-        body.forma_pagamento_entrada != null ? String(body.forma_pagamento_entrada) : null,
+      pagamento_entrada: body.pagamento_entrada != null ? Number(body.pagamento_entrada) : undefined,
+      forma_pagamento_entrada: body.forma_pagamento_entrada != null ? String(body.forma_pagamento_entrada) : null,
       status_pagamento_entrada: body.status_pagamento_entrada ?? null,
 
-      pagamento_quitacao:
-        body.pagamento_quitacao != null ? Number(body.pagamento_quitacao) : undefined,
-      forma_pagamento_quitacao:
-        body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
+      pagamento_quitacao: body.pagamento_quitacao != null ? Number(body.pagamento_quitacao) : undefined,
+      forma_pagamento_quitacao: body.forma_pagamento_quitacao != null ? String(body.forma_pagamento_quitacao) : null,
       status_pagamento_quitacao: body.status_pagamento_quitacao ?? null,
 
       imagens: Array.isArray(body.imagens) ? body.imagens : undefined,
-
-      area_telha: body.area_telha != null ? Number(body.area_telha) : undefined,
-      orcamento_telha: body.orcamento_telha != null ? Number(body.orcamento_telha) : undefined,
-
-      previsao_telha: body.previsao_telha ?? null,
-      status_telha: body.status_telha ?? null,
-      fornecedor_telha_id:
-        body.fornecedor_telha_id != null ? Number(body.fornecedor_telha_id) : null,
-
-      orcamento_madeira: body.orcamento_madeira != null ? Number(body.orcamento_madeira) : undefined,
-      previsao_madeira: body.previsao_madeira ?? null,
-      status_madeira: body.status_madeira ?? null,
-      fornecedor_madeira_id:
-        body.fornecedor_madeira_id != null ? Number(body.fornecedor_madeira_id) : null,
-
-      materiais_status: body.materiais_status ?? null,
-
-      andaimes_status: body.andaimes_status ?? null,
-      andaimes_fornecedor_id:
-        body.andaimes_fornecedor_id != null ? Number(body.andaimes_fornecedor_id) : null,
 
       telhaItens: Array.isArray(body.telhaItens) ? body.telhaItens : undefined,
       madeiraItens: Array.isArray(body.madeiraItens) ? body.madeiraItens : undefined,
       materiaisItens: Array.isArray(body.materiaisItens) ? body.materiaisItens : undefined,
       andaimesItens: Array.isArray(body.andaimesItens) ? body.andaimesItens : undefined,
+
+      fornecedor_telha_id: body.fornecedor_telha_id != null ? Number(body.fornecedor_telha_id) : null,
+      fornecedor_madeira_id: body.fornecedor_madeira_id != null ? Number(body.fornecedor_madeira_id) : null,
+      andaimes_fornecedor_id: body.andaimes_fornecedor_id != null ? Number(body.andaimes_fornecedor_id) : null,
+
+      pedidosCompra: Array.isArray(body.pedidosCompra) ? body.pedidosCompra : undefined,
 
       clienteCpf: body.clienteCpf ?? null,
       forceUpdateClienteCpf: !!body.forceUpdateClienteCpf,
@@ -162,6 +145,7 @@ export async function POST(req: NextRequest) {
         requestId2
       )
     }
+
     console.error("[POST /api/obras] unexpected", err)
     return json({ error: "UNEXPECTED_ERROR", requestId: requestId2 }, 500, requestId2)
   }
