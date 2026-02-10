@@ -325,9 +325,12 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
       const formatTitle = (cat: string) => `${cat} - ${clienteName} - ${locationSuffix}`
 
+      // Resolve supplier IDs with fallback from orcamento
+      const madeiraFornecedorId = input.fornecedor_madeira_id ?? orc.id_fornecedor ?? null
+
       const gruposAutomated: { categoria: PedidoCategoria; itens: PedidoItemInput[]; fornecedor?: number | null }[] = [
         { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: input.fornecedor_telha_id },
-        { categoria: PedidoCategoria.MADEIRA, itens: madeiraItems, fornecedor: input.fornecedor_madeira_id },
+        { categoria: PedidoCategoria.MADEIRA, itens: madeiraItems, fornecedor: madeiraFornecedorId },
         { categoria: PedidoCategoria.ANDAIMES, itens: andaimeItems, fornecedor: input.andaimes_fornecedor_id },
       ]
 

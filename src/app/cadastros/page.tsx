@@ -89,7 +89,7 @@ export default function CadastrosPage() {
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "equipe" | "cidade">("material")
+  const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "andaime" | "equipe" | "cidade">("material")
   const [editingItem, setEditingItem] = useState<any>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<{ type: string; item: any } | null>(null)
@@ -253,7 +253,7 @@ export default function CadastrosPage() {
       // Normalize tipo to lowercase since DB stores in uppercase
       const tipoNormalized = item.tipo?.toLowerCase() || "material"
       setFormData({ nome: item.nome, tipo: tipoNormalized })
-    } else if (type === "material" || type === "madeira" || type === "telha") {
+    } else if (type === "material" || type === "madeira" || type === "telha" || type === "andaime") {
       setFormData({ nome: item.descricao, preco: String(item.preco_unitario) })
     } else if (type === "componente") {
       setFormData({ nome: item.nome })
@@ -272,6 +272,7 @@ export default function CadastrosPage() {
       case "fornecedor": return `${action} Fornecedor`
       case "material": return `${action} Material`
       case "madeira": return `${action} Madeira`
+      case "andaime": return `${action} Andaime`
       case "telha": return `${action} Telha`
       case "componente": return `${action} Componente`
       case "equipe": return `${action} Equipe`
@@ -294,13 +295,13 @@ export default function CadastrosPage() {
           toast.success("Fornecedor criado!")
         }
         await loadFornecedores()
-      } else if (modalType === "material" || modalType === "madeira" || modalType === "telha") {
+      } else if (modalType === "material" || modalType === "madeira" || modalType === "telha" || modalType === "andaime") {
         const payload: any = {
           descricao: formData.nome,
           preco_unitario: parseFloat(formData.preco) || 0
         }
 
-        if (modalType === "madeira" || modalType === "telha") {
+        if (modalType === "madeira" || modalType === "telha" || modalType === "andaime") {
           payload.fornecedorId = selectedFornecedor?.id
           payload.tipo = modalType
         } else {
@@ -396,7 +397,7 @@ export default function CadastrosPage() {
         await deleteFornecedor(itemToDelete.item.id)
         toast.success("Fornecedor excluído!")
         await loadFornecedores()
-      } else if (itemToDelete.type === "material" || itemToDelete.type === "madeira" || itemToDelete.type === "telha") {
+      } else if (itemToDelete.type === "material" || itemToDelete.type === "madeira" || itemToDelete.type === "telha" || itemToDelete.type === "andaime") {
         await deleteMaterial(itemToDelete.item.id)
         toast.success("Material excluído!")
         await loadMateriais()
@@ -428,7 +429,9 @@ export default function CadastrosPage() {
   // Navigation helpers
   const getAddButtonType = (): typeof modalType => {
     if (selectedFornecedor) {
-      return selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
+      const t = selectedFornecedor.tipo?.toLowerCase()
+      if (t === "andaime") return "andaime"
+      return t === "madeira" ? "madeira" : "telha"
     }
     switch (activeCategory) {
       case "fornecedores": return "fornecedor"
@@ -441,9 +444,9 @@ export default function CadastrosPage() {
   }
 
   const handleFornecedorClick = (fornecedor: FornecedorDTO) => {
-    // Apenas fornecedores de madeira podem ser expandidos
-    // Telhas mantidas sem separação por fornecedor conforme solicitado
-    if (fornecedor.tipo?.toLowerCase() !== "madeira") return
+    // Fornecedores de madeira e andaime podem ser expandidos
+    const t = fornecedor.tipo?.toLowerCase()
+    if (t !== "madeira" && t !== "andaime") return
     setSelectedFornecedor(fornecedor)
     setSearchTerm("")
   }
@@ -500,7 +503,7 @@ export default function CadastrosPage() {
                   className="bg-marromEscuro text-bege hover:bg-marromEscuro/90"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Adicionar {selectedFornecedor.tipo === "madeira" ? "Madeira" : "Telha"}
+                  Adicionar {selectedFornecedor.tipo?.toLowerCase() === "madeira" ? "Madeira" : selectedFornecedor.tipo?.toLowerCase() === "andaime" ? "Andaime" : "Telha"}
                 </Button>
               </div>
 
@@ -553,7 +556,7 @@ export default function CadastrosPage() {
                   ) : (
                     filteredData.map((item) => {
                       const product = item as MaterialDTO
-                      const type = selectedFornecedor.tipo === "madeira" ? "madeira" : "telha"
+                      const type = selectedFornecedor.tipo?.toLowerCase() === "madeira" ? "madeira" : selectedFornecedor.tipo?.toLowerCase() === "andaime" ? "andaime" : "telha"
 
                       return (
                         <TableRow key={product.id} className="hover:bg-muted/30">
@@ -677,7 +680,7 @@ export default function CadastrosPage() {
                         filteredData.map((item) => {
                           const fornecedor = item as FornecedorDTO
                           const Icon = getTipoFornecedorIcon(fornecedor.tipo)
-                          const isClickable = fornecedor.tipo?.toLowerCase() === "madeira"
+                          const isClickable = fornecedor.tipo?.toLowerCase() === "madeira" || fornecedor.tipo?.toLowerCase() === "andaime"
                           const productCount = materiais.filter(m => m.fornecedorId === fornecedor.id).length
 
                           return (
@@ -1204,7 +1207,7 @@ export default function CadastrosPage() {
             </div>
 
             {/* Price field - for materials, woods, tiles */}
-            {(modalType === "material" || modalType === "madeira" || modalType === "telha") && (
+            {(modalType === "material" || modalType === "madeira" || modalType === "telha" || modalType === "andaime") && (
               <div className="space-y-2">
                 <Label htmlFor="preco">Preço (R$)</Label>
                 <Input

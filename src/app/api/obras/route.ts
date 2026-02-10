@@ -108,6 +108,10 @@ export async function POST(req: NextRequest) {
       materiaisItens: Array.isArray(body.materiaisItens) ? body.materiaisItens : undefined,
       andaimesItens: Array.isArray(body.andaimesItens) ? body.andaimesItens : undefined,
 
+      fornecedor_telha_id: body.fornecedor_telha_id != null ? Number(body.fornecedor_telha_id) : null,
+      fornecedor_madeira_id: body.fornecedor_madeira_id != null ? Number(body.fornecedor_madeira_id) : null,
+      andaimes_fornecedor_id: body.andaimes_fornecedor_id != null ? Number(body.andaimes_fornecedor_id) : null,
+
       pedidosCompra: Array.isArray(body.pedidosCompra) ? body.pedidosCompra : undefined,
 
       clienteCpf: body.clienteCpf ?? null,
