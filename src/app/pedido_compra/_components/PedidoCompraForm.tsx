@@ -3,7 +3,8 @@
 import type React from "react"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, ChevronsUpDown, Edit, MapPin, MoreVertical, Plus, Save, Trash2 } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, Check, ChevronsUpDown, Edit, ExternalLink, MapPin, MoreVertical, Plus, Save, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageLayout } from "@/components/ui/pageLayout"
@@ -765,7 +766,24 @@ export default function PedidoCompraForm({
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   {isView ? (
-                    <ReadOnlyField label="Obra" value={obraSelected ? ObraOptionLabelTop(obraSelected) : String(formData.obraId)} />
+                    <ReadOnlyField
+                      label="Obra"
+                      value={
+                        (obraSelected || formData.obraId) ? (
+                          <Link
+                            href={`/obras/${obraSelected?.id || formData.obraId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-blue-600 hover:underline hover:text-blue-800 transition-colors"
+                          >
+                            {obraSelected ? ObraOptionLabelTop(obraSelected) : String(formData.obraId)}
+                            <ExternalLink className="size-3.5" />
+                          </Link>
+                        ) : (
+                          "-"
+                        )
+                      }
+                    />
                   ) : (
                     <>
                       <Label>Obra</Label>
@@ -895,7 +913,7 @@ export default function PedidoCompraForm({
                   {isView ? (
                     <ReadOnlyField
                       label="Fornecedor"
-                      value={fornecedores.find((f) => String(f.id) === String(formData.fornecedorId))?.nome}
+                      value={initialData?.fornecedor?.nome ?? fornecedores.find((f) => String(f.id) === String(formData.fornecedorId))?.nome}
                     />
                   ) : (
                     <>
