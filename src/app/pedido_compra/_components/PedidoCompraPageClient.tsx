@@ -16,6 +16,8 @@ import {
   TrendingUp,
   ChevronLeft,
   ChevronRight,
+  Building2,
+  MapPin,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -28,81 +30,32 @@ import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
-type PedidoCategoria = "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES"
-type PedidoStatus =
-  | "RASCUNHO"
-  | "PENDENTE"
-  | "APROVADO"
-  | "EM_COMPRA"
-  | "AGUARDANDO_PAGAMENTO"
-  | "AGUARDANDO_ENTREGA"
-  | "ENTREGUE"
-  | "CANCELADO"
+// Shared utilities (centralized - no more duplication)
+import { statusConfig, statusList, type StatusSlug } from "@/lib/pedido-compra-theme"
+import {
+  formatMoney,
+  asNumber,
+  toSlugStatus,
+  fromSlugStatus,
+  toCategoryLabel,
+  normalizeStatus as normalizeStatusUtil
+} from "@/lib/pedido-compra-utils"
+import type {
+  PedidoCategoria,
+  PedidoStatus,
+  PurchaseOrderStatusSlug,
+  PurchaseOrderCategoryLabel,
+  FornecedorOption,
+  ObraSearchItem,
+  PedidoCompraListItem,
+  ListarResult,
+  PurchaseOrder,
+} from "@/types/pedido-compra"
 
-type PurchaseOrderStatusSlug =
-  | "todos"
-  | "rascunho"
-  | "pendente"
-  | "aprovado"
-  | "em-compra"
-  | "aguardando-pagamento"
-  | "aguardando-entrega"
-  | "entregue"
-  | "cancelado"
-
-type PurchaseOrderCategoryLabel = "Madeira" | "Telha" | "Andaime" | "Materiais"
-
-type FornecedorOption = { id: number; nome: string }
-
-type ObraSearchItem = {
-  id: number
-  titulo: string | null
-  nomeReceptor: string | null
-  telefoneReceptor: string | null
-  enderecoEntrega: string | null
-  linkMaps: string | null
-}
-
-type PedidoCompraListItem = {
-  id: number
-  descricao: string | null
-  categoria: PedidoCategoria
-  status: PedidoStatus
-  valor_orcado: string | number | null
-  valor_realizado: string | number | null
-  data_entrega: string | null
-  fornecedor: { id: number; nome: string } | null
-  obra_id: number
-  created_at: string
-}
-
-type ListarResult = {
-  items: PedidoCompraListItem[]
-  page: number
-  pageSize: number
-  total: number
-  totalPages: number
-}
-
-type PurchaseOrder = {
-  id: string
-  number: string
-  description: string
-  category: PurchaseOrderCategoryLabel
-  supplier: string
-  supplierId: number | null
-  project: string
-  obraId: number
-  expectedValue: number
-  actualValue?: number
-  deliveryDate: string | null
-  status: PurchaseOrderStatusSlug
-  integrated: boolean
-  integratedCode?: string
-  viewed?: boolean
-  createdAt: string
-}
+// Types are now imported from @/types/pedido-compra
 
 type Props = {
   initialList: ListarResult
@@ -117,6 +70,7 @@ type PedidoCompraUIState = {
   viewMode: "list" | "kanban"
   kanbanGroupBy: "category" | "status"
   showEmptyColumns: boolean
+  onlyActiveObras: boolean
 
   searchTerm: string
   selectedStatus: PurchaseOrderStatusSlug
@@ -144,62 +98,9 @@ function saveUIState(state: PedidoCompraUIState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
 }
 
-function asNumber(v: any) {
-  const n = Number(String(v ?? "").replace(",", "."))
-  return Number.isFinite(n) ? n : 0
-}
+// asNumber removed - using shared utility
 
-function normalizeStatus(input: any): PedidoStatus | null {
-  if (input == null) return null
-  const raw = String(input).trim()
-  if (!raw) return null
-
-  const s = raw
-    .toUpperCase()
-    .replace(/\s+/g, "_")
-    .replace(/-+/g, "_")
-
-  if (s === "RASCUNHO") return "RASCUNHO"
-  if (s === "PENDENTE") return "PENDENTE"
-  if (s === "APROVADO") return "APROVADO"
-  if (s === "EM_COMPRA") return "EM_COMPRA"
-  if (s === "AGUARDANDO_PAGAMENTO") return "AGUARDANDO_PAGAMENTO"
-  if (s === "AGUARDANDO_ENTREGA") return "AGUARDANDO_ENTREGA"
-  if (s === "ENTREGUE") return "ENTREGUE"
-  if (s === "CANCELADO") return "CANCELADO"
-  return null
-}
-
-function toSlugStatus(sRaw: any): PurchaseOrderStatusSlug {
-  const s = normalizeStatus(sRaw)
-  if (s === "RASCUNHO") return "rascunho"
-  if (s === "PENDENTE") return "pendente"
-  if (s === "APROVADO") return "aprovado"
-  if (s === "EM_COMPRA") return "em-compra"
-  if (s === "AGUARDANDO_PAGAMENTO") return "aguardando-pagamento"
-  if (s === "AGUARDANDO_ENTREGA") return "aguardando-entrega"
-  if (s === "ENTREGUE") return "entregue"
-  if (s === "CANCELADO") return "cancelado"
-  return "pendente"
-}
-
-function fromSlugStatus(s: PurchaseOrderStatusSlug): PedidoStatus {
-  if (s === "rascunho") return "RASCUNHO"
-  if (s === "pendente") return "PENDENTE"
-  if (s === "aprovado") return "APROVADO"
-  if (s === "em-compra") return "EM_COMPRA"
-  if (s === "aguardando-pagamento") return "AGUARDANDO_PAGAMENTO"
-  if (s === "aguardando-entrega") return "AGUARDANDO_ENTREGA"
-  if (s === "entregue") return "ENTREGUE"
-  return "CANCELADO"
-}
-
-function toCategoryLabel(c: PedidoCategoria): PurchaseOrderCategoryLabel {
-  if (c === "MADEIRA") return "Madeira"
-  if (c === "TELHA") return "Telha"
-  if (c === "MATERIAIS") return "Materiais"
-  return "Andaime"
-}
+// Type converters removed - using shared utilities
 
 function formatProjectLabel(obraId: number, obrasById: Record<number, ObraSearchItem>) {
   const o = obrasById?.[obraId]
@@ -208,32 +109,13 @@ function formatProjectLabel(obraId: number, obrasById: Record<number, ObraSearch
   return `Obra #${obraId}`
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
+// fmtMoney replaced by formatMoney from utils
 
-const statusConfig: Record<Exclude<PurchaseOrderStatusSlug, "todos">, { label: string; color: string }> = {
-  rascunho: { label: "Rascunho", color: "bg-gray-100 text-gray-800 border-gray-300" },
-  pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  aprovado: { label: "Aprovado", color: "bg-blue-100 text-blue-800 border-blue-300" },
-  "em-compra": { label: "Em Compra", color: "bg-purple-100 text-purple-800 border-purple-300" },
-  "aguardando-pagamento": { label: "Aguardando Pagamento", color: "bg-orange-100 text-orange-800 border-orange-300" },
-  "aguardando-entrega": { label: "Aguardando Entrega", color: "bg-cyan-100 text-cyan-800 border-cyan-300" },
-  entregue: { label: "Entregue", color: "bg-green-100 text-green-800 border-green-300" },
-  cancelado: { label: "Cancelado", color: "bg-red-100 text-red-800 border-red-300" },
-}
+// statusConfig removed - using shared theme
 
 const categories: PurchaseOrderCategoryLabel[] = ["Madeira", "Telha", "Andaime", "Materiais"]
-const statuses: Exclude<PurchaseOrderStatusSlug, "todos">[] = [
-  "rascunho",
-  "pendente",
-  "aprovado",
-  "em-compra",
-  "aguardando-pagamento",
-  "aguardando-entrega",
-  "entregue",
-  "cancelado",
-]
+// statuses replaced by statusList from theme
+const statuses = statusList
 
 function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearchItem>): PurchaseOrder[] {
   const items = list?.items ?? []
@@ -245,6 +127,7 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
     const actual = x.valor_realizado == null ? undefined : asNumber(x.valor_realizado)
     const createdAt = x.created_at ? String(x.created_at) : new Date().toISOString()
 
+    // Using shared utilities for conversion
     return {
       id: String(x.id),
       number: `PC-${x.id}`,
@@ -254,6 +137,9 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
       supplierId: fornecedorId,
       project: formatProjectLabel(obraId, obrasById),
       obraId,
+      obraStatus: (x as any).obra_status ?? null,
+      obraTitulo: (x as any).obra_titulo ?? null,
+      obraCidade: (x as any).obra_cidade ?? null,
       expectedValue: expected,
       actualValue: actual,
       deliveryDate: x.data_entrega ? String(x.data_entrega).slice(0, 10) : null,
@@ -317,8 +203,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const [itemsPerPage, setItemsPerPage] = React.useState(15)
 
   const [viewMode, setViewMode] = React.useState<"list" | "kanban">(persisted?.viewMode ?? "list")
-  const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "category")
+  const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "status")
   const [showEmptyColumns, setShowEmptyColumns] = React.useState(persisted?.showEmptyColumns ?? true)
+  const [onlyActiveObras, setOnlyActiveObras] = React.useState(persisted?.onlyActiveObras ?? true)
 
   const [sortBy, setSortBy] = React.useState<"date" | "value" | "delivery" | "status">(persisted?.sortBy ?? "date")
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">(persisted?.sortOrder ?? "desc")
@@ -363,7 +250,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
           .map((f) => ({ id: Number(f?.id), nome: String(f?.nome ?? "") }))
           .filter((x) => Number.isFinite(x.id) && x.id > 0)
         setFornecedores(mapped)
-      } catch {}
+      } catch { }
     }
     if ((initialFornecedores ?? []).length === 0) loadFornecedores()
   }, [initialFornecedores])
@@ -453,7 +340,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
         setObrasById((prev) => ({ ...prev, [mapped.id]: mapped }))
         setObraSelected(mapped)
-      } catch {}
+      } catch { }
     }, 0)
 
     return () => {
@@ -466,13 +353,11 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     return {
       todos: orders.length,
       rascunho: orders.filter((o) => o.status === "rascunho").length,
-      pendente: orders.filter((o) => o.status === "pendente").length,
       aprovado: orders.filter((o) => o.status === "aprovado").length,
       "em-compra": orders.filter((o) => o.status === "em-compra").length,
       "aguardando-pagamento": orders.filter((o) => o.status === "aguardando-pagamento").length,
       "aguardando-entrega": orders.filter((o) => o.status === "aguardando-entrega").length,
       entregue: orders.filter((o) => o.status === "entregue").length,
-      cancelado: orders.filter((o) => o.status === "cancelado").length,
     }
   }, [orders])
 
@@ -493,6 +378,8 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     const st = searchTerm.trim().toLowerCase()
 
     return orders.filter((order) => {
+      if (onlyActiveObras && order.obraStatus === "Finalizado") return false
+
       const matchesSearch =
         !st ||
         order.number.toLowerCase().includes(st) ||
@@ -505,7 +392,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
       return matchesSearch && matchesProject && matchesSupplier && matchesStatus
     })
-  }, [orders, searchTerm, selectedProjectId, selectedSupplierId, selectedStatus])
+  }, [orders, searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, onlyActiveObras])
 
   const sortedOrders = React.useMemo(() => {
     const arr = [...filteredOrders]
@@ -524,13 +411,11 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
         const statusOrder: PurchaseOrderStatusSlug[] = [
           "todos",
           "rascunho",
-          "pendente",
           "aprovado",
           "em-compra",
           "aguardando-pagamento",
           "aguardando-entrega",
           "entregue",
-          "cancelado",
         ]
         comparison = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
       }
@@ -680,21 +565,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     router.push(`/pedido_compra/ver/${order.id}`)
   }
 
-  const handleCancelar = async (order: PurchaseOrder) => {
-    if (order.status === "cancelado") return
-    const ok = window.confirm(`Cancelar o pedido ${order.number}?`)
-    if (!ok) return
-    const prevOrders = orders
-    setOrders((p) => p.map((o) => (o.id === order.id ? { ...o, status: "cancelado" } : o)))
-    try {
-      await patchStatus(order.id, "CANCELADO")
-      toast.success("Pedido cancelado")
-    } catch (err: any) {
-      setOrders(prevOrders)
-      toast.error(err?.message || "Falha ao cancelar pedido")
-    }
-  }
-
   const handleExcluir = async (order: PurchaseOrder) => {
     const ok = window.confirm(`Excluir o pedido ${order.number}? Esta acao nao pode ser desfeita.`)
     if (!ok) return
@@ -792,7 +662,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     if (el && pointerId != null) {
       try {
         el.releasePointerCapture(pointerId)
-      } catch {}
+      } catch { }
     }
     panStateRef.current.active = false
     setIsPanning(false)
@@ -809,6 +679,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       viewMode,
       kanbanGroupBy,
       showEmptyColumns,
+      onlyActiveObras,
       searchTerm,
       selectedStatus,
       selectedSupplierId,
@@ -820,6 +691,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     viewMode,
     kanbanGroupBy,
     showEmptyColumns,
+    onlyActiveObras,
     searchTerm,
     selectedStatus,
     selectedSupplierId,
@@ -880,8 +752,8 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="category">Categoria</SelectItem>
                       <SelectItem value="status">Status</SelectItem>
+                      <SelectItem value="category">Categoria</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -925,9 +797,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
             </div>
           )}
 
-          <div className="bg-card border rounded-lg p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative md:col-span-2">
+          <div className="bg-card border rounded-lg p-4">
+            <div className="flex flex-col md:flex-row md:items-center gap-3">
+              <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por número, fornecedor ou descrição"
@@ -939,7 +811,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
               <Popover open={obraOpen} onOpenChange={setObraOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="secondary" className="justify-between w-full">
+                  <Button variant="secondary" className="justify-between w-full md:w-48 shrink-0">
                     <span className="truncate">
                       {obraSelected
                         ? `Obra #${obraSelected.id}${obraSelected.titulo ? ` — ${obraSelected.titulo}` : ""}`
@@ -999,7 +871,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 value={selectedSupplierId === "all" ? "all" : String(selectedSupplierId)}
                 onValueChange={(v) => setSelectedSupplierId(v === "all" ? "all" : Number(v))}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full md:w-48 shrink-0">
                   <SelectValue placeholder="Fornecedor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1011,14 +883,28 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="w-4 h-4 mr-2" />
-                Limpar Filtros
-              </Button>
-            )}
+              <div className="flex items-center gap-2 shrink-0">
+                <Switch
+                  id="only-active-obras"
+                  checked={onlyActiveObras}
+                  onCheckedChange={setOnlyActiveObras}
+                />
+                <Label
+                  htmlFor="only-active-obras"
+                  className="text-sm text-muted-foreground whitespace-nowrap cursor-pointer select-none"
+                >
+                  Apenas obras ativas
+                </Label>
+              </div>
+
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="shrink-0">
+                  <X className="w-4 h-4 mr-1" />
+                  Limpar
+                </Button>
+              )}
+            </div>
           </div>
 
           {viewMode === "list" && (
@@ -1029,9 +915,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 </TabsTrigger>
                 <TabsTrigger value="rascunho" className="gap-2">
                   Rascunho <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.rascunho}</span>
-                </TabsTrigger>
-                <TabsTrigger value="pendente" className="gap-2">
-                  Pendente <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.pendente}</span>
                 </TabsTrigger>
                 <TabsTrigger value="aprovado" className="gap-2">
                   Aprovado <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.aprovado}</span>
@@ -1049,9 +932,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 </TabsTrigger>
                 <TabsTrigger value="entregue" className="gap-2">
                   Entregue <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.entregue}</span>
-                </TabsTrigger>
-                <TabsTrigger value="cancelado" className="gap-2">
-                  Cancelado <span className="bg-muted px-2 py-0.5 rounded text-xs">{statusCounts.cancelado}</span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -1140,25 +1020,24 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                             <td className="p-4">
                               <Badge
                                 variant="outline"
-                                className={statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color}
+                                className={statusConfig[order.status as StatusSlug]?.badgeClass}
                               >
-                                {statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].label}
+                                {statusConfig[order.status as StatusSlug]?.label}
                               </Badge>
                             </td>
 
                             <td className="p-4">
-                              <div className="text-sm font-medium">{fmtMoney(order.expectedValue)}</div>
+                              <div className="text-sm font-medium">{formatMoney(order.expectedValue)}</div>
                             </td>
 
                             <td className="p-4">
                               {order.actualValue != null ? (
                                 <div className="space-y-1">
-                                  <div className="text-sm font-medium">{fmtMoney(order.actualValue)}</div>
+                                  <div className="text-sm font-medium">{formatMoney(order.actualValue)}</div>
                                   {variance !== null && (
                                     <div
-                                      className={`flex items-center gap-1 text-xs ${
-                                        variance > 0 ? "text-red-600" : "text-green-600"
-                                      }`}
+                                      className={`flex items-center gap-1 text-xs ${variance > 0 ? "text-red-600" : "text-green-600"
+                                        }`}
                                     >
                                       {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                                       {Math.abs(variance).toFixed(1)}%
@@ -1200,9 +1079,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   </DropdownMenuItem>
                                   <DropdownMenuItem asChild>
                                     <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem className="text-orange-600" onClick={() => handleCancelar(order)}>
-                                    Cancelar pedido
                                   </DropdownMenuItem>
                                   <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
                                     Excluir pedido
@@ -1264,7 +1140,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                             </Badge>
                           </div>
 
-                          <div className="space-y-3">
+                          <div className="space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] pr-1">
                             {group.orders.map((order) => {
                               const variance =
                                 order.actualValue != null && order.expectedValue
@@ -1276,7 +1152,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   key={order.id}
                                   draggable={kanbanGroupBy === "status"}
                                   onDragStart={(e) => handleDragStart(e, order)}
-                                  className="bg-card border rounded-lg p-4 space-y-3 cursor-move hover:shadow-md transition-shadow"
+                                  className={`bg-card border rounded-lg p-4 space-y-3 hover:shadow-md transition-shadow ${kanbanGroupBy === "status" ? "cursor-move" : "cursor-pointer"}`}
                                   onClick={() => {
                                     if (didPanRef.current) {
                                       didPanRef.current = false
@@ -1303,14 +1179,18 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => router.push(`/pedido_compra/ver/${order.id}`)}>
-                                          Visualizar pedido
+                                        <DropdownMenuItem asChild>
+                                          <Link href={`/pedido_compra/ver/${order.id}`} target="_blank" rel="noopener noreferrer">
+                                            Visualizar pedido
+                                          </Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem asChild>
+                                          <Link href={`/obras/${order.obraId}`} target="_blank" rel="noopener noreferrer">
+                                            Visualizar obra
+                                          </Link>
                                         </DropdownMenuItem>
                                         <DropdownMenuItem asChild>
                                           <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-orange-600" onClick={() => handleCancelar(order)}>
-                                          Cancelar pedido
                                         </DropdownMenuItem>
                                         <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
                                           Excluir pedido
@@ -1318,6 +1198,30 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   </div>
+
+                                  {(order.obraTitulo || order.obraCidade) && (
+                                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                      {order.obraTitulo && (
+                                        <Link
+                                          href={`/obras/${order.obraId}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1 truncate hover:text-primary transition-colors hover:underline"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title="Ver obra (nova aba)"
+                                        >
+                                          <Building2 className="w-3 h-3 flex-shrink-0" />
+                                          {order.obraTitulo}
+                                        </Link>
+                                      )}
+                                      {order.obraCidade && (
+                                        <span className="flex items-center gap-1 truncate">
+                                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                                          {order.obraCidade}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
 
                                   <p className="text-sm line-clamp-2">{order.description}</p>
 
@@ -1330,9 +1234,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                     {kanbanGroupBy === "category" && (
                                       <Badge
                                         variant="outline"
-                                        className={`text-xs ${statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].color}`}
+                                        className={`text-xs ${statusConfig[order.status as StatusSlug]?.badgeClass}`}
                                       >
-                                        {statusConfig[order.status as Exclude<PurchaseOrderStatusSlug, "todos">].label}
+                                        {statusConfig[order.status as StatusSlug]?.label}
                                       </Badge>
                                     )}
                                   </div>
@@ -1340,14 +1244,14 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   <div className="space-y-2 text-xs">
                                     <div className="flex justify-between">
                                       <span className="text-muted-foreground">Previsto:</span>
-                                      <span className="font-medium">{fmtMoney(order.expectedValue)}</span>
+                                      <span className="font-medium">{formatMoney(order.expectedValue)}</span>
                                     </div>
 
                                     {order.actualValue != null && (
                                       <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">Realizado:</span>
                                         <div className="flex items-center gap-2">
-                                          <span className="font-medium">{fmtMoney(order.actualValue)}</span>
+                                          <span className="font-medium">{formatMoney(order.actualValue)}</span>
                                           {variance !== null && (
                                             <span className={`flex items-center gap-0.5 ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
                                               {variance > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}

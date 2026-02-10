@@ -38,6 +38,9 @@ export type PedidoCompraListItem = {
   data_entrega: Date | null
   fornecedor: { id: number; nome: string } | null
   obra_id: number
+  obra_status: string | null
+  obra_titulo: string | null
+  obra_cidade: string | null
   created_at: Date
 }
 
@@ -164,9 +167,15 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
       pc.obra_id,
       pc.created_at,
       f.id as fornecedor_id,
-      f.nome as fornecedor_nome
+      f.nome as fornecedor_nome,
+      o.status as obra_status,
+      o.titulo as obra_titulo,
+      ci.nome as obra_cidade
     FROM pedido_compra pc
     LEFT JOIN fornecedores f ON f.id = pc.fornecedor_id
+    LEFT JOIN obras o ON o.id = pc.obra_id
+    LEFT JOIN cliente cl ON cl.id = o.cliente_id
+    LEFT JOIN cidades ci ON ci.id = cl.cidade_id
   `
 
   const whereParts: Prisma.Sql[] = []
@@ -254,6 +263,9 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     valor_realizado: r.valor_realizado as any,
     data_entrega: r.data_entrega == null ? null : new Date(r.data_entrega),
     obra_id: Number(r.obra_id),
+    obra_status: r.obra_status == null ? null : String(r.obra_status),
+    obra_titulo: r.obra_titulo == null ? null : String(r.obra_titulo),
+    obra_cidade: r.obra_cidade == null ? null : String(r.obra_cidade),
     created_at: new Date(r.created_at),
     fornecedor:
       r.fornecedor_id == null

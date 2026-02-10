@@ -25,6 +25,7 @@ type PedidoCompraListItem = {
   data_entrega: string | null
   fornecedor: { id: number; nome: string } | null
   obra_id: number
+  obra_status: string | null
   created_at: string
 }
 

@@ -50,7 +50,7 @@ function statusChip(raw: unknown) {
   if (s === "RASCUNHO") return "bg-gray-500"
   if (s === "PENDENTE") return "bg-orange-500"
   if (s === "APROVADO") return "bg-blue-500"
-  if (s === "EM_COMPRA") return "bg-purple-500"
+  if (s === "EM_COMPRA") return "bg-amber-500"
   if (s === "AGUARDANDO_PAGAMENTO") return "bg-red-400"
   if (s === "AGUARDANDO_ENTREGA") return "bg-blue-700"
   if (s === "ENTREGUE") return "bg-green-500"

@@ -17,6 +17,9 @@ import { MoreVertical, Calendar, TrendingDown, TrendingUp } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
+import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
+import { statusConfig, statusList, type StatusSlug } from "@/lib/pedido-compra-theme"
+
 type PurchaseOrderStatus =
   | "rascunho"
   | "pendente"
@@ -208,17 +211,8 @@ export default function PurchaseOrdersPage() {
           new Date(a.deliveryDate || "9999-12-31").getTime() - new Date(b.deliveryDate || "9999-12-31").getTime()
         break
       case "status":
-        const statusOrder = [
-          "rascunho",
-          "pendente",
-          "aprovado",
-          "em-compra",
-          "aguardando-pagamento",
-          "aguardando-entrega",
-          "entregue",
-          "cancelado",
-        ]
-        comparison = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
+        const statusOrder = statusList
+        comparison = statusOrder.indexOf(a.status as StatusSlug) - statusOrder.indexOf(b.status as StatusSlug)
         break
     }
 
@@ -237,32 +231,10 @@ export default function PurchaseOrdersPage() {
     setSelectedSupplier("all")
   }
 
-  const statusConfig = {
-    rascunho: { label: "Rascunho", color: "bg-gray-100 text-gray-800 border-gray-300" },
-    pendente: { label: "Pendente", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-    aprovado: { label: "Aprovado", color: "bg-blue-100 text-blue-800 border-blue-300" },
-    "em-compra": { label: "Em Compra", color: "bg-purple-100 text-purple-800 border-purple-300" },
-    "aguardando-pagamento": {
-      label: "Aguardando Pagamento",
-      color: "bg-orange-100 text-orange-800 border-orange-300",
-    },
-    "aguardando-entrega": { label: "Aguardando Entrega", color: "bg-cyan-100 text-cyan-800 border-cyan-300" },
-    entregue: { label: "Entregue", color: "bg-green-100 text-green-800 border-green-300" },
-    cancelado: { label: "Cancelado", color: "bg-red-100 text-red-800 border-red-300" },
-  }
-
   const categories: PurchaseOrderCategory[] = ["Madeira", "Telha", "Andaime", "Materiais", "Outros"]
 
-  const statuses: PurchaseOrderStatus[] = [
-    "rascunho",
-    "pendente",
-    "aprovado",
-    "em-compra",
-    "aguardando-pagamento",
-    "aguardando-entrega",
-    "entregue",
-    "cancelado",
-  ]
+  // Using shared statusList
+  const statuses = statusList
 
   const ordersByCategory = categories.reduce(
     (acc, category) => {
@@ -292,7 +264,7 @@ export default function PurchaseOrdersPage() {
       if (showEmptyColumns) {
         return statuses.map((status) => ({
           key: status,
-          label: statusConfig[status].label,
+          label: statusConfig[status as StatusSlug]?.label,
           orders: ordersByStatus[status],
         }))
       }
@@ -300,7 +272,7 @@ export default function PurchaseOrdersPage() {
         .filter((status) => ordersByStatus[status].length > 0)
         .map((status) => ({
           key: status,
-          label: statusConfig[status].label,
+          label: statusConfig[status as StatusSlug]?.label,
           orders: ordersByStatus[status],
         }))
     }
@@ -588,9 +560,7 @@ export default function PurchaseOrdersPage() {
                               </Badge>
                             </td>
                             <td className="p-4">
-                              <Badge variant="outline" className={statusConfig[order.status].color}>
-                                {statusConfig[order.status].label}
-                              </Badge>
+                              <StatusBadge status={order.status} className="text-xs" />
                             </td>
                             <td className="p-4">
                               <div className="text-sm font-medium">
@@ -742,9 +712,7 @@ export default function PurchaseOrdersPage() {
                                     </Badge>
                                   )}
                                   {kanbanGroupBy === "category" && (
-                                    <Badge variant="outline" className={`text-xs ${statusConfig[order.status].color}`}>
-                                      {statusConfig[order.status].label}
-                                    </Badge>
+                                    <StatusBadge status={order.status} className="text-xs" />
                                   )}
                                 </div>
 

@@ -51,7 +51,7 @@ const statusConfig = {
   rascunho: { label: "Rascunho", color: "bg-gray-500" },
   pendente: { label: "Pendente", color: "bg-orange-500" },
   aprovado: { label: "Aprovado", color: "bg-blue-500" },
-  "em-compra": { label: "Em Compra", color: "bg-purple-500" },
+  "em-compra": { label: "Em Compra", color: "bg-amber-500" },
   "aguardando-pagamento": { label: "Aguardando Pagamento", color: "bg-red-400" },
   "aguardando-entrega": { label: "Aguardando Entrega", color: "bg-blue-700" },
   entregue: { label: "Entregue", color: "bg-green-500" },
@@ -207,7 +207,7 @@ export function PurchaseOrderCard({ order, onClick }: PurchaseOrderCardProps) {
       {/* Integration Status */}
       <div>
         {order.integrated ? (
-          <Badge className="bg-purple-500 text-white hover:bg-purple-600 cursor-pointer">
+          <Badge className="bg-emerald-500 text-white hover:bg-emerald-600 cursor-pointer">
             Integrado - {order.integratedCode}
           </Badge>
         ) : (

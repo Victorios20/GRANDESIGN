@@ -33,6 +33,9 @@ import { PedidoCompraDetailsModal } from "./PedidoCompraDetailsModal"
 import { deletePedidoCompra } from "@/actions/pedido_compra/delete-pedido-compra"
 import { cancelPedidoCompra } from "@/actions/pedido_compra/cancel-pedido-compra"
 
+import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
+import { formatMoney, formatDateBR, calcVariancePercent } from "@/lib/pedido-compra-utils"
+
 type Props = {
   pedidos: PedidoCompraVM[]
   obraId?: number | null
@@ -43,52 +46,7 @@ type Props = {
   onIntegrar?: (pedidoId: number) => void
 }
 
-function moneyBRL(v: unknown) {
-  const n = Number(String(v ?? "").replace(",", "."))
-  if (!Number.isFinite(n)) return "-"
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-}
-
-function onlyDateBR(input: unknown) {
-  if (!input) return "-"
-  const d = typeof input === "string" || typeof input === "number" ? new Date(input) : (input as Date)
-  if (Number.isNaN(d?.getTime?.())) return "-"
-  return d.toLocaleDateString("pt-BR")
-}
-
-function statusLabel(raw: unknown) {
-  const s = String(raw ?? "").toUpperCase()
-  if (s === "RASCUNHO") return "Rascunho"
-  if (s === "PENDENTE") return "Pendente"
-  if (s === "APROVADO") return "Aprovado"
-  if (s === "EM_COMPRA") return "Em Compra"
-  if (s === "AGUARDANDO_PAGAMENTO") return "Aguardando Pagamento"
-  if (s === "AGUARDANDO_ENTREGA") return "Aguardando Entrega"
-  if (s === "ENTREGUE") return "Entregue"
-  if (s === "CANCELADO") return "Cancelado"
-  return s ? s : "Pendente"
-}
-
-function statusBadgeClass(raw: unknown) {
-  const s = String(raw ?? "").toUpperCase()
-  if (s === "RASCUNHO") return "bg-gray-100 text-gray-800 border-gray-300"
-  if (s === "PENDENTE") return "bg-yellow-100 text-yellow-800 border-yellow-300"
-  if (s === "APROVADO") return "bg-blue-100 text-blue-800 border-blue-300"
-  if (s === "EM_COMPRA") return "bg-purple-100 text-purple-800 border-purple-300"
-  if (s === "AGUARDANDO_PAGAMENTO") return "bg-orange-100 text-orange-800 border-orange-300"
-  if (s === "AGUARDANDO_ENTREGA") return "bg-cyan-100 text-cyan-800 border-cyan-300"
-  if (s === "ENTREGUE") return "bg-green-100 text-green-800 border-green-300"
-  if (s === "CANCELADO") return "bg-red-100 text-red-800 border-red-300"
-  return "bg-yellow-100 text-yellow-800 border-yellow-300"
-}
-
-function calcVariancePercent(previsto: unknown, realizado: unknown) {
-  const p = Number(previsto)
-  const r = Number(realizado)
-  if (!Number.isFinite(p) || p <= 0) return null
-  if (!Number.isFinite(r)) return null
-  return ((r - p) / p) * 100
-}
+// Helper functions removed - using shared utilities
 
 function isEmptyPedido(p: any) {
   const id = Number(p?.id ?? 0)
@@ -346,19 +304,17 @@ export function PedidoCompraCardSection({
                       </td>
 
                       <td className="p-4">
-                        <Badge variant="outline" className={statusBadgeClass(status)}>
-                          {statusLabel(status)}
-                        </Badge>
+                        <StatusBadge status={String(status)} />
                       </td>
 
                       <td className="p-4">
-                        <div className="text-sm font-medium">{moneyBRL(previsto)}</div>
+                        <div className="text-sm font-medium">{formatMoney(previsto)}</div>
                       </td>
 
                       <td className="p-4">
                         {realizado != null && String(realizado) !== "" ? (
                           <div className="space-y-1">
-                            <div className="text-sm font-medium">{moneyBRL(realizado)}</div>
+                            <div className="text-sm font-medium">{formatMoney(realizado)}</div>
 
                             {variance != null && (
                               <div
@@ -388,7 +344,7 @@ export function PedidoCompraCardSection({
                         {entrega ? (
                           <div className="flex items-center gap-2 text-sm">
                             <Calendar className="w-4 h-4 text-muted-foreground" />
-                            {onlyDateBR(entrega)}
+                            {formatDateBR(entrega)}
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">-</span>
@@ -397,7 +353,7 @@ export function PedidoCompraCardSection({
 
                       <td className="p-4">
                         {integrado ? (
-                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                             Integrado
                           </Badge>
                         ) : (

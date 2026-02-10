@@ -36,142 +36,34 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 
 import { ComboboxAdd, type ComboItem } from "@/components/ui/comboboxAdd"
 
+
+// Shared utilities
+import {
+  formatMoney,
+  formatMoneyCompact,
+  asNumber,
+  asNumberOrNull,
+  normalizeStatus as normalizeStatusUtil,
+  normalizeCategoria as normalizeCategoriaUtil
+} from "@/lib/pedido-compra-utils"
+import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
+import { statusConfig, statusList } from "@/lib/pedido-compra-theme"
+import type {
+  PedidoCategoria,
+  PedidoStatus,
+  FornecedorOption,
+  FornecedorItem,
+  MaterialDTO,
+  MateriaisByTipo,
+  OrderItem,
+  DeliveryAddress,
+  PedidoFormData,
+  PedidoCompraDetalhadoSnake,
+  ObraSearchItem
+} from "@/types/pedido-compra"
+
 type Mode = "create" | "edit" | "view"
-
-type PedidoCategoria = "MADEIRA" | "TELHA" | "ANDAIME" | "ANDAIMES" | "MATERIAIS"
-type PedidoStatus =
-  | "RASCUNHO"
-  | "PENDENTE"
-  | "APROVADO"
-  | "EM_COMPRA"
-  | "AGUARDANDO_PAGAMENTO"
-  | "AGUARDANDO_ENTREGA"
-  | "ENTREGUE"
-  | "CANCELADO"
-
-type FornecedorOption = { id: number; nome: string }
-
-type FornecedorItem = { id: number; nome: string; tipo: string | null }
-
-type MaterialDTO = {
-  id: number
-  descricao: string
-  tipo: string
-  preco_unitario: number
-  unidade_de_medida: string
-  fornecedorId: number | null
-}
-
-type MateriaisByTipo = {
-  madeira: MaterialDTO[]
-  telha: MaterialDTO[]
-  geral: MaterialDTO[]
-  andaime: MaterialDTO[]
-}
-
-type OrderItem = {
-  id?: number
-  clientId: string
-  descricao: string
-  quantidade: number
-  precoUnitario: number
-  total: number
-  tamanho?: number | null
-}
-
-type DeliveryAddress = {
-  nomeReceptor: string
-  telefoneReceptor: string
-  enderecoEntrega: string
-  linkMaps: string
-}
-
-type FormData = {
-  obraId: string
-  categoria: PedidoCategoria | ""
-  fornecedorId: string
-  descricao: string
-  valorOrcado: string
-  valorRealizado: string
-  dataEntrega: string
-  status: PedidoStatus
-  frete: string
-  observacoes: string
-}
-
-type PedidoCompraDetalhadoSnake = {
-  id: number
-  obra_id: number
-  obra?: { titulo: string | null } | null
-
-  categoria: PedidoCategoria
-  status: PedidoStatus
-  valor_orcado: string | null
-  valor_realizado: string | null
-  frete: string | null
-  descricao: string | null
-  observacoes: string | null
-  fornecedor_id: number | null
-  data_entrega: string | null
-  endereco_entrega: string | null
-  nome_receptor: string | null
-  telefone_receptor: string | null
-  link_maps: string | null
-  fornecedor: { id: number; nome: string; tipo: string | null } | null
-  itens: Array<{
-    id: number
-    pedido_compra_id: number
-    descricao: string
-    quantidade: string
-    tamanho: string | null
-    preco_unitario: string
-    total: string
-  }>
-}
-
-type ObraSearchItem = {
-  id: number
-  titulo: string | null
-  nomeReceptor: string | null
-  telefoneReceptor: string | null
-  enderecoEntrega: string | null
-  linkMaps: string | null
-}
-
-function asNumber(v: string) {
-  const n = Number(String(v ?? "").replace(",", "."))
-  return Number.isFinite(n) ? n : 0
-}
-
-function asNumberOrNull(v: string) {
-  const raw = String(v ?? "").trim()
-  if (!raw) return null
-  const n = Number(raw.replace(",", "."))
-  return Number.isFinite(n) ? n : null
-}
-
-function money(n: number) {
-  if (!Number.isFinite(n)) return "0.00"
-  return n.toFixed(2)
-}
-
-const statusLabels: Record<PedidoStatus, string> = {
-  RASCUNHO: "Rascunho",
-  PENDENTE: "Pendente",
-  APROVADO: "Aprovado",
-  EM_COMPRA: "Em Compra",
-  AGUARDANDO_PAGAMENTO: "Aguardando Pagamento",
-  AGUARDANDO_ENTREGA: "Aguardando Entrega",
-  ENTREGUE: "Entregue",
-  CANCELADO: "Cancelado",
-}
-
-const statusBadgeClass = (s: PedidoStatus) => {
-  if (s === "ENTREGUE") return "border-green-500/20 bg-green-500/10 text-green-700"
-  if (s === "APROVADO") return "border-blue-500/20 bg-blue-500/10 text-blue-700"
-  if (s === "CANCELADO") return "border-red-500/20 bg-red-500/10 text-red-700"
-  return "border-yellow-500/20 bg-yellow-500/10 text-yellow-700"
-}
+type FormData = PedidoFormData
 
 function ObraOptionLabelTop(o: ObraSearchItem) {
   const t = (o.titulo ?? "").trim()
@@ -185,31 +77,9 @@ function ObraOptionLabelBottom(o: ObraSearchItem) {
   return parts.length ? parts.join(" • ") : "Sem dados do cliente"
 }
 
-const allowedCategorias = new Set<PedidoCategoria>(["MADEIRA", "TELHA", "ANDAIMES", "MATERIAIS", "ANDAIME"])
-const allowedStatus = new Set<PedidoStatus>([
-  "RASCUNHO",
-  "PENDENTE",
-  "APROVADO",
-  "EM_COMPRA",
-  "AGUARDANDO_PAGAMENTO",
-  "AGUARDANDO_ENTREGA",
-  "ENTREGUE",
-  "CANCELADO",
-])
-
-function normalizeCategoria(raw: any): PedidoCategoria | "" {
-  const v = String(raw ?? "").trim().toUpperCase()
-  if (!v) return ""
-  if (v === "ANDAIME") return "ANDAIMES"
-  if (allowedCategorias.has(v as PedidoCategoria)) return v as PedidoCategoria
-  return ""
-}
-
-function normalizeStatus(raw: any): PedidoStatus {
-  const v = String(raw ?? "").trim().toUpperCase()
-  if (allowedStatus.has(v as PedidoStatus)) return v as PedidoStatus
-  return "RASCUNHO"
-}
+// Local aliases for imported utilities
+const normalizeCategoria = normalizeCategoriaUtil
+const normalizeStatus = normalizeStatusUtil
 
 function normTipo(v: string | null | undefined) {
   return (v ?? "").trim().toUpperCase()
@@ -234,7 +104,7 @@ function categoriaToKey(categoria: PedidoCategoria | ""): keyof MateriaisByTipo 
 function materialLabel(m: MaterialDTO) {
   const desc = (m.descricao ?? "").trim()
   const un = (m.unidade_de_medida ?? "un").trim() || "un"
-  const p = Number.isFinite(m.preco_unitario) ? money(m.preco_unitario) : "0.00"
+  const p = Number.isFinite(m.preco_unitario) ? formatMoneyCompact(m.preco_unitario) : "0.00"
   return `${desc} • ${un} • R$ ${p}`
 }
 
@@ -258,15 +128,20 @@ const ReadOnlyField = ({
   label,
   value,
   className,
+  highlight,
 }: {
   label: string
-  value: string | number | null | undefined
+  value: string | number | null | undefined | React.ReactNode
   className?: string
+  highlight?: boolean
 }) => (
-  <div className={`space-y-1.5 ${className}`}>
-    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
-    <div className="font-medium text-foreground text-sm min-h-[20px] bg-muted/20 p-2 rounded-md border border-transparent">
-      {value || "-"}
+  <div className={`space-y-1 ${className}`}>
+    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+    <div className={`min-h-[24px] py-1.5 ${highlight
+      ? "text-base font-semibold text-foreground"
+      : "text-sm text-foreground"
+      }`}>
+      {value || <span className="text-muted-foreground">—</span>}
     </div>
   </div>
 )
@@ -293,44 +168,134 @@ export default function PedidoCompraForm({
     () => initialMateriaisByTipo ?? emptyMateriaisByTipo
   )
 
-  const [formData, setFormData] = useState<FormData>({
-    obraId: "",
-    categoria: "",
-    fornecedorId: "",
-    descricao: "",
-    valorOrcado: "",
-    valorRealizado: "",
-    dataEntrega: "",
-    status: "RASCUNHO",
-    frete: "0",
-    observacoes: "",
-  })
+  const initialState = useMemo(() => {
+    if (mode === "create" || !initialData) {
+      return {
+        formData: {
+          obraId: "",
+          categoria: "" as PedidoCategoria | "",
+          fornecedorId: "",
+          descricao: "",
+          valorOrcado: "",
+          valorRealizado: "",
+          dataEntrega: "",
+          status: "RASCUNHO" as PedidoStatus,
+          frete: "0",
+          observacoes: ""
+        } satisfies FormData,
+        deliveryAddress: {
+          nomeReceptor: "",
+          telefoneReceptor: "",
+          enderecoEntrega: "",
+          linkMaps: ""
+        } satisfies DeliveryAddress,
+        items: [] as OrderItem[],
+        obraSelected: null as ObraSearchItem | null
+      }
+    }
 
-  const [items, setItems] = useState<OrderItem[]>([])
+    const categoriaNorm = normalizeCategoria(initialData.categoria)
+    const statusNorm = normalizeStatus(initialData.status)
+    const fornecedorIdStr = initialData.fornecedor_id ? String(initialData.fornecedor_id) : ""
 
-  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>({
-    nomeReceptor: "",
-    telefoneReceptor: "",
-    enderecoEntrega: "",
-    linkMaps: "",
-  })
+    return {
+      formData: {
+        obraId: String(initialData.obra_id ?? ""),
+        categoria: categoriaNorm,
+        fornecedorId: fornecedorIdStr,
+        descricao: initialData.descricao ?? "",
+        valorOrcado: initialData.valor_orcado == null ? "" : String(initialData.valor_orcado),
+        valorRealizado: initialData.valor_realizado == null ? "" : String(initialData.valor_realizado),
+        dataEntrega: initialData.data_entrega ? String(initialData.data_entrega).slice(0, 10) : "",
+        status: statusNorm,
+        frete: initialData.frete == null ? "0" : String(initialData.frete),
+        observacoes: initialData.observacoes ?? "",
+      } satisfies FormData,
+      deliveryAddress: {
+        nomeReceptor: initialData.nome_receptor ?? "",
+        telefoneReceptor: initialData.telefone_receptor ?? "",
+        enderecoEntrega: initialData.endereco_entrega ?? "",
+        linkMaps: initialData.link_maps ?? "",
+      } satisfies DeliveryAddress,
+      items: (initialData.itens ?? []).map((i) => ({
+        id: i.id,
+        clientId: `db-${i.id}`,
+        descricao: i.descricao ?? "",
+        quantidade: Number(i.quantidade ?? 0),
+        precoUnitario: Number(i.preco_unitario ?? 0),
+        total: Number(i.total ?? 0),
+        tamanho: i.tamanho == null ? null : Number(i.tamanho),
+      })) as OrderItem[],
+      obraSelected: {
+        id: Number(initialData.obra_id),
+        titulo: initialData.obra?.titulo ?? null,
+        nomeReceptor: initialData.nome_receptor ?? null,
+        telefoneReceptor: initialData.telefone_receptor ?? null,
+        enderecoEntrega: initialData.endereco_entrega ?? null,
+        linkMaps: initialData.link_maps ?? null,
+      } as ObraSearchItem | null
+    }
+  }, [mode, initialData])
+
+  const [formData, setFormData] = useState<FormData>(initialState.formData)
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>(initialState.deliveryAddress)
+  const [items, setItems] = useState<OrderItem[]>(initialState.items)
+  const [obraSelected, setObraSelected] = useState<ObraSearchItem | null>(initialState.obraSelected)
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
 
   const [obraOpen, setObraOpen] = useState(false)
   const [obraQuery, setObraQuery] = useState("")
   const [obraLoading, setObraLoading] = useState(false)
   const [obraOptions, setObraOptions] = useState<ObraSearchItem[]>([])
 
-  const [obraSelected, setObraSelected] = useState<ObraSearchItem | null>(null)
+  // Dirty check
+  const isDirty = useMemo(() => {
+    if (mode === "view") return false
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    // Compare current with initial state
+    const current = JSON.stringify({
+      formData,
+      deliveryAddress,
+      items: items.map(i => ({ ...i, total: i.total })),
+      obraSelected
+    })
+
+    const initial = JSON.stringify({
+      formData: initialState.formData,
+      deliveryAddress: initialState.deliveryAddress,
+      items: initialState.items,
+      obraSelected: initialState.obraSelected
+    })
+
+    return current !== initial
+  }, [formData, deliveryAddress, items, obraSelected, initialState, mode])
+
+  // Prevent accidental close/refresh
+  useEffect(() => {
+    if (!isDirty) return
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [isDirty])
+
+  const [showExitAlert, setShowExitAlert] = useState(false)
 
   const handleBack = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
+    if (isDirty) {
+      setShowExitAlert(true)
+    } else {
       router.back()
-      return
     }
-    router.push("/pedido_compra")
-  }, [router])
+  }, [isDirty, router])
+
+  const confirmExit = () => {
+    setShowExitAlert(false)
+    router.back()
+  }
 
   useEffect(() => {
     setFornecedores(initialFornecedores ?? [])
@@ -390,56 +355,6 @@ export default function PedidoCompraForm({
     const setAllowed = new Set(allowed.map((x) => normTipo(x)))
     return fornecedoresRaw.filter((f) => setAllowed.has(normTipo(f.tipo)))
   }, [fornecedoresRaw, formData.categoria])
-
-  useEffect(() => {
-    if (isCreate) return
-    if (!initialData) return
-
-    const categoriaNorm = normalizeCategoria(initialData.categoria)
-    const statusNorm = normalizeStatus(initialData.status)
-    const fornecedorIdStr = initialData.fornecedor_id ? String(initialData.fornecedor_id) : ""
-
-    setFormData({
-      obraId: String(initialData.obra_id ?? ""),
-      categoria: categoriaNorm,
-      fornecedorId: fornecedorIdStr,
-      descricao: initialData.descricao ?? "",
-      valorOrcado: initialData.valor_orcado == null ? "" : String(initialData.valor_orcado),
-      valorRealizado: initialData.valor_realizado == null ? "" : String(initialData.valor_realizado),
-      dataEntrega: initialData.data_entrega ? String(initialData.data_entrega).slice(0, 10) : "",
-      status: statusNorm,
-      frete: initialData.frete == null ? "0" : String(initialData.frete),
-      observacoes: initialData.observacoes ?? "",
-    })
-
-    setDeliveryAddress({
-      nomeReceptor: initialData.nome_receptor ?? "",
-      telefoneReceptor: initialData.telefone_receptor ?? "",
-      enderecoEntrega: initialData.endereco_entrega ?? "",
-      linkMaps: initialData.link_maps ?? "",
-    })
-
-    setItems(
-      (initialData.itens ?? []).map((i) => ({
-        id: i.id,
-        clientId: `db-${i.id}`,
-        descricao: i.descricao ?? "",
-        quantidade: Number(i.quantidade ?? 0),
-        precoUnitario: Number(i.preco_unitario ?? 0),
-        total: Number(i.total ?? 0),
-        tamanho: i.tamanho == null ? null : Number(i.tamanho),
-      }))
-    )
-
-    setObraSelected({
-      id: Number(initialData.obra_id),
-      titulo: initialData.obra?.titulo ?? null,
-      nomeReceptor: initialData.nome_receptor ?? null,
-      telefoneReceptor: initialData.telefone_receptor ?? null,
-      enderecoEntrega: initialData.endereco_entrega ?? null,
-      linkMaps: initialData.link_maps ?? null,
-    })
-  }, [isCreate, initialData])
 
   const isMadeira = formData.categoria === "MADEIRA"
 
@@ -816,7 +731,7 @@ export default function PedidoCompraForm({
               type="submit"
               form="pedido-compra-form"
               disabled={saving}
-              className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+              className="gap-2 bg-[#2c201b] hover:bg-[#2c201b]/90 text-white"
             >
               <Save className="size-4" />
               {saving ? "Salvando..." : isCreate ? "Cadastrar" : "Salvar"}
@@ -839,9 +754,7 @@ export default function PedidoCompraForm({
             </div>
           </div>
 
-          <Badge variant="outline" className={statusBadgeClass(formData.status)}>
-            {statusLabels[formData.status]}
-          </Badge>
+          <StatusBadge status={formData.status} />
         </div>
 
         <form id="pedido-compra-form" onSubmit={onSubmit} className={formSpacing}>
@@ -862,7 +775,7 @@ export default function PedidoCompraForm({
                             type="button"
                             variant="secondary"
                             className="w-full justify-between"
-                            disabled={!isCreate}
+                            disabled={false}
                           >
                             <span className="truncate text-left">
                               {obraSelected ? ObraOptionLabelTop(obraSelected) : "Pesquisar por ID ou título..."}
@@ -1011,7 +924,7 @@ export default function PedidoCompraForm({
 
                 <div className="space-y-2">
                   {isView ? (
-                    <ReadOnlyField label="Status do Pedido" value={statusLabels[formData.status]} />
+                    <ReadOnlyField label="Status do Pedido" value={<StatusBadge status={formData.status} />} />
                   ) : (
                     <>
                       <Label htmlFor="status">Status do Pedido</Label>
@@ -1026,13 +939,11 @@ export default function PedidoCompraForm({
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="RASCUNHO">Rascunho</SelectItem>
-                          <SelectItem value="PENDENTE">Pendente</SelectItem>
                           <SelectItem value="APROVADO">Aprovado</SelectItem>
                           <SelectItem value="EM_COMPRA">Em Compra</SelectItem>
                           <SelectItem value="AGUARDANDO_PAGAMENTO">Aguardando Pagamento</SelectItem>
                           <SelectItem value="AGUARDANDO_ENTREGA">Aguardando Entrega</SelectItem>
                           <SelectItem value="ENTREGUE">Entregue</SelectItem>
-                          <SelectItem value="CANCELADO">Cancelado</SelectItem>
                         </SelectContent>
                       </Select>
                     </>
@@ -1045,7 +956,8 @@ export default function PedidoCompraForm({
                   {isView ? (
                     <ReadOnlyField
                       label="Valor Previsto (R$)"
-                      value={formData.valorOrcado ? `R$ ${formData.valorOrcado}` : undefined}
+                      value={formData.valorOrcado ? formatMoney(Number(formData.valorOrcado)) : undefined}
+                      highlight
                     />
                   ) : (
                     <>
@@ -1067,7 +979,8 @@ export default function PedidoCompraForm({
                   {isView ? (
                     <ReadOnlyField
                       label="Valor Realizado (R$)"
-                      value={formData.valorRealizado ? `R$ ${formData.valorRealizado}` : undefined}
+                      value={formData.valorRealizado ? formatMoney(Number(formData.valorRealizado)) : undefined}
+                      highlight
                     />
                   ) : (
                     <>
@@ -1090,7 +1003,11 @@ export default function PedidoCompraForm({
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   {isView ? (
-                    <ReadOnlyField label="Data de Entrega" value={formData.dataEntrega} />
+                    <ReadOnlyField label="Data de Entrega" value={
+                      formData.dataEntrega
+                        ? new Date(formData.dataEntrega + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+                        : undefined
+                    } />
                   ) : (
                     <>
                       <Label htmlFor="dataEntrega">Data de Entrega</Label>
@@ -1107,7 +1024,7 @@ export default function PedidoCompraForm({
 
                 <div className="space-y-2">
                   {isView ? (
-                    <ReadOnlyField label="Frete (R$)" value={formData.frete ? `R$ ${formData.frete}` : undefined} />
+                    <ReadOnlyField label="Frete (R$)" value={formData.frete ? formatMoney(Number(formData.frete)) : undefined} highlight />
                   ) : (
                     <>
                       <Label htmlFor="frete">Frete (R$)</Label>
@@ -1157,7 +1074,7 @@ export default function PedidoCompraForm({
             </div>
 
             {isView ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {items.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border bg-muted/30 p-6 text-center">
                     <p className="text-sm text-muted-foreground">Nenhum item adicionado ainda</p>
@@ -1165,31 +1082,31 @@ export default function PedidoCompraForm({
                 ) : (
                   <div className="overflow-hidden rounded-lg border border-border">
                     <table className="w-full text-sm">
-                      <thead className="bg-muted/50 border-b">
-                        <tr>
-                          <th className="text-left px-3 py-2 text-xs font-semibold">Item</th>
-                          <th className="text-left px-3 py-2 text-xs font-semibold">Descrição</th>
-                          <th className="text-right px-3 py-2 text-xs font-semibold">Qtd</th>
-                          {isMadeira && <th className="text-right px-3 py-2 text-xs font-semibold">Tamanho</th>}
-                          <th className="text-right px-3 py-2 text-xs font-semibold">Vlr. Unit.</th>
-                          <th className="text-right px-3 py-2 text-xs font-semibold">Total</th>
+                      <thead>
+                        <tr className="bg-[#FAF3E0] border-b border-[#f5d193]/40">
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-12">#</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide">Descrição</th>
+                          <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-20">Qtd</th>
+                          {isMadeira && <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-24">Tamanho</th>}
+                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Vlr. Unit.</th>
+                          <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item, index) => (
-                          <tr key={item.clientId} className="border-b last:border-b-0">
-                            <td className="px-3 py-2 text-xs text-muted-foreground">{index + 1}</td>
-                            <td className="px-3 py-2">
-                              <div className="text-sm leading-tight line-clamp-1">{item.descricao || "—"}</div>
+                          <tr key={item.clientId} className={`border-b border-border/30 last:border-b-0 ${index % 2 === 1 ? "bg-[#FAF3E0]/30" : "bg-background"}`}>
+                            <td className="px-4 py-2.5 text-sm text-muted-foreground">{index + 1}</td>
+                            <td className="px-4 py-2.5">
+                              <div className="text-sm leading-tight">{item.descricao || "—"}</div>
                             </td>
-                            <td className="px-3 py-2 text-right text-sm">{item.quantidade}</td>
+                            <td className="px-4 py-2.5 text-center text-sm">{item.quantidade}</td>
                             {isMadeira && (
-                              <td className="px-3 py-2 text-right text-sm">
+                              <td className="px-4 py-2.5 text-center text-sm">
                                 {item.tamanho != null && item.tamanho !== 0 ? item.tamanho : "—"}
                               </td>
                             )}
-                            <td className="px-3 py-2 text-right font-mono text-sm">R$ {money(item.precoUnitario)}</td>
-                            <td className="px-3 py-2 text-right font-mono text-sm">R$ {money(item.total)}</td>
+                            <td className="px-4 py-2.5 text-right text-sm">{formatMoney(item.precoUnitario)}</td>
+                            <td className="px-4 py-2.5 text-right text-sm font-medium">{formatMoney(item.total)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1198,9 +1115,9 @@ export default function PedidoCompraForm({
                 )}
 
                 <div className="flex justify-end">
-                  <div className="rounded-lg border border-border bg-muted/50 px-4 py-2">
+                  <div className="rounded-lg border border-[#f5d193]/50 bg-[#FAF3E0]/60 px-5 py-2.5">
                     <div className="text-xs text-muted-foreground">Subtotal (itens + frete)</div>
-                    <div className="font-mono text-lg font-semibold">R$ {money(subtotal)}</div>
+                    <div className="text-xl font-semibold text-[#2c201b] mt-0.5">{formatMoney(subtotal)}</div>
                   </div>
                 </div>
               </div>
@@ -1300,7 +1217,7 @@ export default function PedidoCompraForm({
                             <div className="md:col-span-2">
                               <Label className="text-xs">Preço Total</Label>
                               <div className="mt-1 flex h-10 items-center rounded-md border border-border bg-background px-3 font-mono text-sm">
-                                R$ {money(item.total)}
+                                R$ {formatMoneyCompact(item.total)}
                               </div>
                             </div>
                           </div>
@@ -1314,7 +1231,7 @@ export default function PedidoCompraForm({
                   <div className="flex items-end">
                     <div className="w-full rounded-lg border border-border bg-muted/50 p-3">
                       <div className="text-sm text-muted-foreground">Subtotal (itens + frete)</div>
-                      <div className="font-mono text-2xl font-semibold">R$ {money(subtotal)}</div>
+                      <div className="font-mono text-2xl font-semibold">R$ {formatMoneyCompact(subtotal)}</div>
                     </div>
                   </div>
                 </div>
@@ -1385,23 +1302,23 @@ export default function PedidoCompraForm({
 
               <div className="space-y-2">
                 {isView ? (
-                  <div className="space-y-1.5">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
                       Link do Google Maps
                     </span>
-                    <div className="font-medium text-foreground text-sm min-h-[20px] bg-muted/20 p-2 rounded-md border border-transparent">
+                    <div className="min-h-[24px] py-1.5 text-sm text-foreground">
                       {deliveryAddress.linkMaps ? (
                         <a
                           href={deliveryAddress.linkMaps}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                          className="inline-flex items-center gap-1.5 text-blue-600 hover:underline"
                         >
-                          <MapPin className="size-3" />
+                          <MapPin className="size-4" />
                           Abrir no Google Maps
                         </a>
                       ) : (
-                        "-"
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </div>
                   </div>
@@ -1445,6 +1362,22 @@ export default function PedidoCompraForm({
           )}
         </form>
       </div>
+      <AlertDialog open={showExitAlert} onOpenChange={setShowExitAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem alterações não salvas</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se você sair agora, perderá todas as alterações feitas neste formulário. Deseja realmente sair?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar e Salvar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmExit} className="bg-destructive hover:bg-destructive/90">
+              Sair sem Salvar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageLayout>
   )
 }
