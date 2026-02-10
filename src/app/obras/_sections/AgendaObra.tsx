@@ -30,9 +30,10 @@ type Props = {
     // New props for bubbling up
     onChange?: (segments: AgendaSegmentInput[]) => void
     onValidationChange?: (isValid: boolean, error?: string | null) => void
+    className?: string
 }
 
-export default function AgendaObra({ obraId, agenda, equipes, isEditing = false, obraStatus, onChange, onValidationChange }: Props) {
+export default function AgendaObra({ obraId, agenda, equipes, isEditing = false, obraStatus, onChange, onValidationChange, className }: Props) {
     const router = useRouter()
 
     const initialSegments: AgendaSegmentInput[] = useMemo(() => agenda.map(s => ({
@@ -49,12 +50,12 @@ export default function AgendaObra({ obraId, agenda, equipes, isEditing = false,
     // const handleSuccess = () => { ... }
 
     return (
-        <Card id="agenda" className="border shadow-sm">
-            <CardHeader className="pb-3 border-b bg-muted/20">
+        <Card id="agenda" className={`rounded-2xl shadow-sm bg-white border-0 ${className ?? ""}`}>
+            <CardHeader className="pb-3 border-b bg-white">
                 <div className="flex items-center gap-2">
-                    <CalendarDays className="w-5 h-5 text-muted-foreground" />
+                    <CalendarDays className="w-5 h-5 text-green" />
                     <div>
-                        <CardTitle className="text-lg">Agenda & Histórico</CardTitle>
+                        <CardTitle className="text-xl text-green">Agenda & Histórico</CardTitle>
                         <CardDescription>
                             Gerencie períodos de execução e manutenção.
                         </CardDescription>

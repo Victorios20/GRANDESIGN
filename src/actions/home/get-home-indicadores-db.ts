@@ -18,6 +18,7 @@ const pct = (cur: number, prev: number) => {
 export type HomeUltimaObraDTO = {
   id: number
   cliente: { nome: string; bairro: string | null; cidade: string | null }
+  titulo: string | null
   tipo_obra: string
   equipe: string | null
   status: string
@@ -140,6 +141,7 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
       select: {
         id: true,
         tipo_obra: true,
+        titulo: true,
         status: true,
         data_criacao: true,
         cliente: { select: { nome: true, bairro: true, cidades: { select: { nome: true } } } },
@@ -167,6 +169,7 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
       bairro: o.cliente.bairro ?? null,
       cidade: o.cliente.cidades?.nome ?? null,
     },
+    titulo: o.titulo ?? null,
     tipo_obra: o.tipo_obra,
     equipe: o.equipe?.nome ?? null,
     status: String(o.status),

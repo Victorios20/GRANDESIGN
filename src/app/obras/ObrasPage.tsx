@@ -1214,6 +1214,7 @@ export default function ObrasPage({
             setAgendaValid(valid)
             setAgendaError(err || null)
           }}
+          className="w-full h-full"
         />
       </div>
 

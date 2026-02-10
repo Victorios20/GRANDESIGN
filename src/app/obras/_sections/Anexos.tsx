@@ -173,7 +173,7 @@ export default function Anexos({
 
   return (
     <>
-      <Card className={`w-full rounded-2xl border-0 shadow-md bg-white ${className ?? ""}`}>
+      <Card className={`w-full rounded-2xl border-0 shadow-sm bg-white ${className ?? ""}`}>
         <CardHeader className="px-6 pt-6 pb-3 flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-green text-xl">
             <Paperclip className="h-5 w-5" />

@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation"
 type HomeUltimaObraDTO = {
   id: number
   cliente: { nome: string; bairro: string | null; cidade: string | null }
+  titulo: string | null
   tipo_obra: string
   equipe: string | null
   status: string
@@ -267,6 +268,7 @@ export default function HomeClient({ initial }: Props) {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Título</th>
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Cliente</th>
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Bairro</th>
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Cidade</th>
@@ -283,7 +285,10 @@ export default function HomeClient({ initial }: Props) {
                           onClick={() => router.push(`/obras/${obra.id}`)}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
                         >
-                          <td className="px-4 py-3 text-sm font-medium text-foreground">
+                          <td className="px-4 py-3 text-sm font-medium text-foreground max-w-[200px] truncate" title={obra.titulo ?? ""}>
+                            {obra.titulo ?? "-"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">
                             <Link href={`/obras/${obra.id}`} className="hover:underline">
                               {obra.cliente.nome}
                             </Link>
@@ -302,7 +307,7 @@ export default function HomeClient({ initial }: Props) {
 
                       {ultimasObras.length === 0 && (
                         <tr>
-                          <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={6}>
+                          <td className="px-4 py-6 text-sm text-muted-foreground" colSpan={7}>
                             Nenhuma obra encontrada.
                           </td>
                         </tr>

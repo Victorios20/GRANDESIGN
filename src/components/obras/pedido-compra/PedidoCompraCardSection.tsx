@@ -177,10 +177,10 @@ export function PedidoCompraCardSection({
 
   return (
     <>
-      <Card className="p-6 rounded-2xl shadow-md bg-white border-0">
+      <Card className="p-6 rounded-2xl shadow-sm bg-white border-0">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-semibold text-green">
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-green">
               <ShoppingCart className="h-5 w-5" />
               Pedidos de Compra
               <Button

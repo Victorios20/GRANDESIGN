@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { Wallet, CreditCard, CheckCircle2, Clock } from "lucide-react"
 import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
 
-type FormaPagamento = "Pix" | "6x" | "10x" | "12x" | "16x"
+type FormaPagamento = string
 type StatusPagamento = "Efetuado" | "Pendente"
 
 export type FinanceiroVM = {
@@ -40,10 +40,7 @@ const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-ti
 
 const FORMAS: Option[] = [
   { value: "Pix", label: "Pix" },
-  { value: "6x", label: "6x" },
-  { value: "10x", label: "10x" },
-  { value: "12x", label: "12x" },
-  { value: "16x", label: "16x" },
+  ...Array.from({ length: 21 }, (_, i) => ({ value: `${i + 1}x`, label: `${i + 1}x` })),
 ]
 
 const STATUS_OPTIONS: StatusOption<StatusPagamento>[] = [
@@ -67,171 +64,174 @@ export default function Financeiro({ value, onChange, isEditing, className }: Pr
     patch({ pagamento: { ...value.pagamento, quitacao: { ...quitacao, ...p } } })
 
   return (
-    <Card className={cn("rounded-2xl shadow-md bg-white border-0", className)} id="financeiro">
-      <CardContent className="p-6">
-        <h3 className="text-2xl font-semibold text-green mb-4 flex items-center gap-2">
-          <Wallet className="h-6 w-6 text-green" />
+    <Card className={cn("rounded-2xl shadow-sm bg-white border-0", className)} id="financeiro">
+      <CardContent className="p-6 space-y-8">
+        <h3 className="text-xl font-semibold text-green mb-4 flex items-center gap-2">
+          <Wallet className="h-5 w-5 text-green" />
           Financeiro
         </h3>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-          {/* Totais */}
-          <div className="lg:col-span-1 flex flex-col justify-center">
-            <div className="flex items-center gap-1 mb-3">
-              <Label className={cn("w-32 shrink-0", labelText)}>Valor da obra</Label>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  className={cn(inputBase, "w-40")}
-                  value={Number(value.valorObra ?? 0)}
-                  onChange={(e) => patch({ valorObra: Number(e.target.value || 0) })}
-                />
-              ) : (
-                <span className={cn(valueText, "inline-block w-40")}>
-                  <Money value={value.valorObra} />
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1">
-              <Label className={cn("w-32 shrink-0", labelText)}>Mão de obra</Label>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  className={cn(inputBase, "w-40")}
-                  value={Number(value.maoDeObra ?? 0)}
-                  onChange={(e) => patch({ maoDeObra: Number(e.target.value || 0) })}
-                />
-              ) : (
-                <span className={cn(valueText, "inline-block w-40")}>
-                  <Money value={value.maoDeObra} />
-                </span>
-              )}
-            </div>
+        {/* 1. Totais (Topo) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 p-4 bg-green/5 rounded-xl border border-green/10">
+          <div className="flex flex-col gap-1">
+            <Label className={cn("text-green font-semibold mb-1")}>Valor da Obra</Label>
+            {isEditing ? (
+              <Input
+                type="number"
+                className={cn(inputWhite, "w-full text-lg h-11")}
+                value={Number(value.valorObra ?? 0)}
+                onChange={(e) => patch({ valorObra: Number(e.target.value || 0) })}
+              />
+            ) : (
+              <span className="text-2xl font-semibold text-green tracking-tight">
+                <Money value={value.valorObra} />
+              </span>
+            )}
           </div>
 
-          {/* Pagamento */}
-          <div className="lg:col-span-2">
-            <div className="rounded-xl bg-neutral-100 p-5 h-full">
-              <div className="mb-4 flex items-center gap-2">
-                <CreditCard className="h-6 w-6 text-green" />
-                <span className="text-2xl font-semibold text-green tracking-tight uppercase">
-                  Pagamento
-                </span>
-              </div>
+          <div className="flex flex-col gap-1">
+            <Label className={cn("text-green font-semibold mb-1")}>Mão de Obra</Label>
+            {isEditing ? (
+              <Input
+                type="number"
+                className={cn(inputWhite, "w-full text-lg h-11")}
+                value={Number(value.maoDeObra ?? 0)}
+                onChange={(e) => patch({ maoDeObra: Number(e.target.value || 0) })}
+              />
+            ) : (
+              <span className="text-2xl font-semibold text-green tracking-tight">
+                <Money value={value.maoDeObra} />
+              </span>
+            )}
+          </div>
+        </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Entrada */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Entrada</Label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        className={cn(inputWhite, "w-40")}
-                        value={Number(entrada.valor ?? 0)}
-                        onChange={(e) => patchEntrada({ valor: Number(e.target.value || 0) })}
-                      />
-                    ) : (
-                      <span className={cn(valueText, "inline-block w-40")}>
-                        <Money value={entrada.valor} />
-                      </span>
-                    )}
-                  </div>
+        {/* 2. Pagamentos (Abaixo) */}
+        <div>
+          <div className="mb-4 flex items-center gap-2 pb-2 border-b border-gray-100">
+            <CreditCard className="h-5 w-5 text-green" />
+            <span className="text-lg font-semibold text-green">
+              Pagamento
+            </span>
+          </div>
 
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Forma</Label>
-                    {isEditing ? (
-                      <div className="w-40">
-                        <ComboboxAdd
-                          widthClass="w-full"
-                          placeholder="Selecionar…"
-                          buttonText={entrada.forma || "Selecione"}
-                          items={FORMAS}
-                          onSelect={(v) => patchEntrada({ forma: v as FormaPagamento })}
-                          showEmptyOption={false}
-                          colorVariant="white-green"
-                        />
-                      </div>
-                    ) : (
-                      <span className={cn(valueText, "inline-block w-40")}>
-                        {entrada.forma || "-"}
-                      </span>
-                    )}
-                  </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Coluna Entrada */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900 border-l-4 border-green pl-3">Entrada</h4>
 
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Status</Label>
-                    <div className="w-40">
-                      <StatusSelect
-                        options={STATUS_OPTIONS}
-                        value={entrada.status ?? null}
-                        onChange={(v) => patchEntrada({ status: v })}
-                        mode={isEditing ? "dynamic" : "static"}
-                        staticVariant="pill"
-                        size="sm"
-                      />
-                    </div>
-                  </div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Valor</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      className={cn(inputBase, "w-full bg-white")}
+                      value={Number(entrada.valor ?? 0)}
+                      onChange={(e) => patchEntrada({ valor: Number(e.target.value || 0) })}
+                    />
+                  ) : (
+                    <span className={valueText}>
+                      <Money value={entrada.valor} />
+                    </span>
+                  )}
                 </div>
 
-                {/* Quitação */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Quitação</Label>
-                    {isEditing ? (
-                      <Input
-                        type="number"
-                        className={cn(inputWhite, "w-40")}
-                        value={Number(quitacao.valor ?? 0)}
-                        onChange={(e) => patchQuitacao({ valor: Number(e.target.value || 0) })}
-                      />
-                    ) : (
-                      <span className={cn(valueText, "inline-block w-40")}>
-                        <Money value={quitacao.valor} />
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Forma</Label>
-                    {isEditing ? (
-                      <div className="w-40">
-                        <ComboboxAdd
-                          widthClass="w-full"
-                          placeholder="Selecionar…"
-                          buttonText={quitacao.forma || "Selecione"}
-                          items={FORMAS}
-                          onSelect={(v) => patchQuitacao({ forma: v as FormaPagamento })}
-                          showEmptyOption={false}
-                          colorVariant="white-green"
-                        />
-                      </div>
-                    ) : (
-                      <span className={cn(valueText, "inline-block w-40")}>
-                        {quitacao.forma || "-"}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <Label className={cn("w-20 shrink-0", labelText)}>Status</Label>
-                    <div className="w-40">
-                      <StatusSelect
-                        options={STATUS_OPTIONS}
-                        value={quitacao.status ?? null}
-                        onChange={(v) => patchQuitacao({ status: v })}
-                        mode={isEditing ? "dynamic" : "static"}
-                        staticVariant="pill"
-                        size="sm"
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Forma</Label>
+                  {isEditing ? (
+                    <div className="w-full">
+                      <ComboboxAdd
+                        widthClass="w-full"
+                        placeholder="Selecionar…"
+                        buttonText={entrada.forma || "Selecione"}
+                        items={FORMAS}
+                        onSelect={(v) => patchEntrada({ forma: v as FormaPagamento })}
+                        showEmptyOption={false}
+                        colorVariant="white-green"
                       />
                     </div>
+                  ) : (
+                    <span className={valueText}>
+                      {entrada.forma || "-"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Status</Label>
+                  <div className="w-full">
+                    <StatusSelect
+                      options={STATUS_OPTIONS}
+                      value={entrada.status ?? null}
+                      onChange={(v) => patchEntrada({ status: v })}
+                      mode={isEditing ? "dynamic" : "static"}
+                      staticVariant="pill"
+                      size="sm"
+                    />
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Coluna Quitação */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900 border-l-4 border-green pl-3">Quitação</h4>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Valor</Label>
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      className={cn(inputBase, "w-full bg-white")}
+                      value={Number(quitacao.valor ?? 0)}
+                      onChange={(e) => patchQuitacao({ valor: Number(e.target.value || 0) })}
+                    />
+                  ) : (
+                    <span className={valueText}>
+                      <Money value={quitacao.valor} />
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Forma</Label>
+                  {isEditing ? (
+                    <div className="w-full">
+                      <ComboboxAdd
+                        widthClass="w-full"
+                        placeholder="Selecionar…"
+                        buttonText={quitacao.forma || "Selecione"}
+                        items={FORMAS}
+                        onSelect={(v) => patchQuitacao({ forma: v as FormaPagamento })}
+                        showEmptyOption={false}
+                        colorVariant="white-green"
+                      />
+                    </div>
+                  ) : (
+                    <span className={valueText}>
+                      {quitacao.forma || "-"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-[5rem_1fr] gap-2 items-center">
+                  <Label className={labelText}>Status</Label>
+                  <div className="w-full">
+                    <StatusSelect
+                      options={STATUS_OPTIONS}
+                      value={quitacao.status ?? null}
+                      onChange={(v) => patchQuitacao({ status: v })}
+                      mode={isEditing ? "dynamic" : "static"}
+                      staticVariant="pill"
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          {/* fim pagamento */}
         </div>
       </CardContent>
     </Card>

@@ -122,7 +122,7 @@ async function criarOuAssociarCliente(
     try {
       const j = await r.json()
       if (j?.id) return { id: Number(j.id), associado: true }
-    } catch {}
+    } catch { }
     throw new Error("Cliente já existe.")
   }
 
@@ -130,7 +130,7 @@ async function criarOuAssociarCliente(
   try {
     const j = await r.json()
     if (j?.error) msg = j.error
-  } catch {}
+  } catch { }
   throw new Error(msg)
 }
 
@@ -162,7 +162,7 @@ async function editarCliente(
     try {
       const j = await r.json()
       msg = j?.error || msg
-    } catch {}
+    } catch { }
     throw new Error(msg)
   }
 
@@ -170,7 +170,7 @@ async function editarCliente(
   try {
     const j = await r.json()
     if (j?.error) msg = j.error
-  } catch {}
+  } catch { }
   throw new Error(msg)
 }
 
@@ -378,7 +378,7 @@ export default function ClienteModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="rounded-2xl p-3 w-[92vw] max-w-[640px]">
+      <DialogContent className="rounded-2xl p-3 w-[92vw] max-w-[640px] bg-white" style={{ backgroundColor: 'white' }}>
         <DialogHeader className="space-y-1">
           <DialogTitle className="flex items-center justify-between gap-3 text-base">
             <span className="flex items-center gap-2">

@@ -100,285 +100,282 @@ export default function InfosGerais({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <Card className="rounded-2xl shadow-md bg-white border-0">
-        <CardContent className="p-5">
-          <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">
-            <Hammer className="h-5 w-5" />
-            Tipo de obra
-          </h3>
-
-          <div className="flex flex-col gap-1 mb-4">
-            <Label className={labelText}>Tipo de obra</Label>
-            {isEditing ? (
-              <ComboboxAdd
-                widthClass="w-full"
-                placeholder="Buscar tipo…"
-                buttonText={value.tipoObra || "Selecione"}
-                items={tiposObraOptions}
-                colorVariant="gray-green"
-                onSelect={(val) => onChange({ tipoObra: val })}
-                showEmptyOption={false}
-              />
-            ) : (
-              <div className={valueText}>{value.tipoObra || "-"}</div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Largura</Label>
+    <div className="flex flex-col gap-6">
+      {/* SECTION 1: IDENTITY (Header) */}
+      <Card className="rounded-2xl shadow-sm bg-white border-0 overflow-hidden">
+        {/* Removed top green line as requested */}
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex-1 w-full">
+              <Label className="text-xs font-semibold text-green uppercase tracking-wider mb-1 block">
+                Obra
+              </Label>
               {isEditing ? (
-                <Input
-                  type="number"
-                  step={0.01}
-                  className={`${inputClass} text-right`}
-                  value={value.largura ?? 0}
-                  onChange={(e) => onChange({ largura: Number(e.target.value || 0) })}
-                />
+                <div className="flex flex-col gap-2">
+                  <Input
+                    className="text-2xl font-bold h-auto py-2 px-0 border-0 border-b border-marromClaro/50 rounded-none focus-visible:ring-0 focus-visible:border-marromEscuro bg-transparent placeholder:text-muted-foreground/50"
+                    value={value.titulo ?? ""}
+                    placeholder="Nome do Cliente [Bairro - Cidade]"
+                    onChange={(e) => onChange({ titulo: e.target.value ?? "" })}
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Tipo:</span>
+                    <ComboboxAdd
+                      widthClass="w-[200px]"
+                      placeholder="Tipo de obra..."
+                      buttonText={value.tipoObra || "Selecione"}
+                      items={tiposObraOptions}
+                      colorVariant="gray-green"
+                      onSelect={(val) => onChange({ tipoObra: val })}
+                      showEmptyOption={false}
+                    />
+                  </div>
+                </div>
               ) : (
-                <div className={valueText}>{dims.L}</div>
+                <div>
+                  <h1 className="text-2xl font-bold text-marromEscuro leading-tight">
+                    {value.titulo || "Sem título definido"}
+                  </h1>
+                  <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
+                    <Hammer className="w-3 h-3" />
+                    {value.tipoObra || "Tipo não informado"}
+                  </p>
+                </div>
               )}
             </div>
 
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Comprimento</Label>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  step={0.01}
-                  className={`${inputClass} text-right`}
-                  value={value.comprimento ?? 0}
-                  onChange={(e) => onChange({ comprimento: Number(e.target.value || 0) })}
-                />
-              ) : (
-                <div className={valueText}>{dims.C}</div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Telha</Label>
-              {isEditing ? (
-                <ComboboxAdd
-                  widthClass="w-full"
-                  placeholder="Selecionar telha…"
-                  buttonText={value.telhaEscolhida || "Selecione"}
-                  items={telhaOptions}
-                  colorVariant="gray-green"
-                  onSelect={(val) => onChange({ telhaEscolhida: val })}
-                  showEmptyOption={false}
-                />
-              ) : (
-                <div className={valueText}>{value.telhaEscolhida || "-"}</div>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Status</Label>
+            <div className="flex flex-col items-end gap-2 min-w-[200px]">
+              <Label className="text-xs font-medium text-muted-foreground">Status Atual</Label>
               <StatusSelect<ObraStatus>
                 options={STATUS_OPTIONS}
                 value={value.status ?? null}
                 onChange={handleStatusChange}
                 mode={isEditing ? "dynamic" : "static"}
-                staticVariant="pill"
-                size="md"
+                staticVariant="badge"
+                size="lg"
               />
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Datas de prazo contratual */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Início da Obra</Label>
-              {isEditing ? (
-                <Input
-                  type="date"
-                  className={inputClass}
-                  value={value.dataInicioObra ?? ""}
-                  onChange={(e) => onChange({ dataInicioObra: e.target.value || null })}
-                />
-              ) : (
-                <div className={valueText}>
-                  {value.dataInicioObra
-                    ? new Date(value.dataInicioObra + "T00:00:00").toLocaleDateString("pt-BR")
-                    : "-"}
-                </div>
-              )}
-            </div>
+      {/* SECTION 2: THE GRID (Asymmetric) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* LEFT COLUMN: TECHNICAL SPECS (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-6">
+          <Card className="rounded-2xl shadow-sm bg-white border-0 h-full">
+            <CardContent className="p-6">
+              <h3 className="text-base font-semibold text-marromEscuro mb-6 flex items-center gap-2 pb-2 border-b border-marromClaro/20">
+                <Wrench className="w-4 h-4 text-green" />
+                Especificações Técnicas
+              </h3>
 
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Término da Obra</Label>
-              {isEditing ? (
-                <Input
-                  type="date"
-                  className={inputClass}
-                  value={value.dataFimObra ?? ""}
-                  onChange={(e) => onChange({ dataFimObra: e.target.value || null })}
-                />
-              ) : (
-                <div className={valueText}>
-                  {value.dataFimObra
-                    ? new Date(value.dataFimObra + "T00:00:00").toLocaleDateString("pt-BR")
-                    : "-"}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <div className="flex flex-col gap-1">
-              <Label className={labelText}>Assinatura do Contrato</Label>
-              {isEditing ? (
-                <Input
-                  type="date"
-                  className={inputClass}
-                  value={value.dataContrato ?? ""}
-                  onChange={(e) => onChange({ dataContrato: e.target.value || null })}
-                />
-              ) : (
-                <div className={valueText}>
-                  {value.dataContrato
-                    ? new Date(value.dataContrato + "T00:00:00").toLocaleDateString("pt-BR")
-                    : "-"}
-                </div>
-              )}
-            </div>
-
-            {value.status === "Finalizado" && (
-              <div className="flex flex-col gap-1">
-                <Label className={labelText}>Data de Conclusão</Label>
-                {isEditing ? (
-                  <Input
-                    type="date"
-                    className={inputClass}
-                    value={value.dataConclusao ?? ""}
-                    onChange={(e) => onChange({ dataConclusao: e.target.value || null })}
-                  />
-                ) : (
-                  <div className={valueText}>
-                    {value.dataConclusao
-                      ? new Date(value.dataConclusao + "T00:00:00").toLocaleDateString("pt-BR")
-                      : "-"}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+                {/* Dimensions Group */}
+                <div className="col-span-full bg-cinza/50 rounded-xl p-4 border border-marromClaro/10">
+                  <Label className="text-xs font-medium text-muted-foreground mb-3 block">Dimensões (m)</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <Label className="text-xs text-marromEscuro mb-1 block">Largura</Label>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step={0.01}
+                          className="bg-white border-marromClaro/30"
+                          value={value.largura ?? 0}
+                          onChange={(e) => onChange({ largura: Number(e.target.value || 0) })}
+                        />
+                      ) : (
+                        <div className="text-xl font-medium text-marromEscuro">{dims.L}</div>
+                      )}
+                    </div>
+                    <span className="text-muted-foreground pt-4">x</span>
+                    <div className="flex-1">
+                      <Label className="text-xs text-marromEscuro mb-1 block">Comprimento</Label>
+                      {isEditing ? (
+                        <Input
+                          type="number"
+                          step={0.01}
+                          className="bg-white border-marromClaro/30"
+                          value={value.comprimento ?? 0}
+                          onChange={(e) => onChange({ comprimento: Number(e.target.value || 0) })}
+                        />
+                      ) : (
+                        <div className="text-xl font-medium text-marromEscuro">{dims.C}</div>
+                      )}
+                    </div>
+                    <div className="flex-1 pl-4 border-l border-marromClaro/20">
+                      <Label className="text-xs text-muted-foreground mb-1 block">Área Total</Label>
+                      <div className="text-xl font-bold text-green">
+                        {(Number(value.largura || 0) * Number(value.comprimento || 0)).toFixed(2)} m²
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label className={labelText}>Telha Escolhida</Label>
+                  {isEditing ? (
+                    <ComboboxAdd
+                      widthClass="w-full"
+                      placeholder="Selecionar telha…"
+                      buttonText={value.telhaEscolhida || "Selecione"}
+                      items={telhaOptions}
+                      colorVariant="gray-green"
+                      onSelect={(val) => onChange({ telhaEscolhida: val })}
+                      showEmptyOption={false}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-green/5 text-green text-sm font-medium border border-green/10">
+                      <Hammer className="w-4 h-4" />
+                      {value.telhaEscolhida || "Não definida"}
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-full mt-2">
+                  <div className="flex items-center gap-2 mb-4">
+                    <FileCheck className="w-4 h-4 text-marromEscuro" />
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Auditoria de Datas</Label>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* Dates */}
+                    {[
+                      { label: "Início", val: value.dataInicioObra, key: "dataInicioObra" },
+                      { label: "Contrato", val: value.dataContrato, key: "dataContrato" },
+                      { label: "Data de Conclusão", val: value.dataFimObra, key: "dataFimObra" },
+                      { label: "Entrega Final", val: value.dataConclusao, key: "dataConclusao", hide: value.status !== "Finalizado" }
+                    ].map((item: any) => (
+                      !item.hide && (
+                        <div key={item.label} className="flex flex-col gap-1">
+                          <Label className="text-[10px] text-muted-foreground">{item.label}</Label>
+                          {isEditing ? (
+                            <Input
+                              type="date"
+                              className="h-8 text-xs bg-cinza border-0"
+                              value={item.val ?? ""}
+                              onChange={(e: any) => onChange({ [item.key]: e.target.value || null })}
+                            />
+                          ) : (
+                            <div className="text-sm font-medium text-marromEscuro">
+                              {item.val ? format(new Date(item.val + "T00:00:00"), "dd/MM/yyyy") : "-"}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
+        </div>
 
-          <Dialog open={isConclusionModalOpen} onOpenChange={setIsConclusionModalOpen}>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Confirmar Conclusão</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <Label>Data de Conclusão</Label>
-                <Calendar
-                  mode="single"
-                  selected={conclusionDate}
-                  onSelect={setConclusionDate}
-                  locale={ptBR}
-                  className="rounded-md border mx-auto"
-                />
+        {/* RIGHT COLUMN: CONTEXT (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          {/* Client Card */}
+          <Card className="rounded-2xl shadow-sm bg-white border-0">
+            <CardContent className="p-5">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-sm font-semibold text-marromEscuro flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Cliente
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-marromEscuro hover:bg-marromClaro/20"
+                  onClick={onEditCliente}
+                  disabled={!value.cliente?.nome}
+                >
+                  <Pencil className="w-3 h-3" />
+                </Button>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsConclusionModalOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={confirmConclusion} className="bg-green hover:bg-green/90 text-white">
-                  Confirmar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardContent>
-      </Card>
 
-      <Card className="rounded-2xl shadow-md bg-white border-0">
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-green flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Cliente
-            </h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="text-base font-bold text-marromEscuro">
+                    {value.cliente?.nome || "Cliente não vinculado"}
+                  </div>
+                  {value.cliente?.cpf && (
+                    <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                      CPF: {value.cliente.cpf}
+                    </div>
+                  )}
+                </div>
 
-            <Button
-              variant="ghost-green"
-              size="icon"
-              onClick={onEditCliente}
-              disabled={!value.cliente?.nome}
-              title={!value.cliente?.nome ? "Cliente não carregado" : "Editar cliente"}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </div>
+                <div className="flex items-center gap-3 pt-2 border-t border-marromEscuro/10">
+                  <div className="flex-1">
+                    <Label className="text-[10px] text-muted-foreground">Telefone</Label>
+                    <div className="text-sm">{value.cliente?.telefone || "-"}</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="flex flex-col gap-1 mb-4">
-            <Label>Nome</Label>
-            <Input disabled readOnly className={inputClass} value={value.cliente?.nome ?? ""} />
-          </div>
+          {/* Location Card */}
+          <Card className="rounded-2xl shadow-sm bg-white border-0 flex-1">
+            <CardContent className="p-5 h-full flex flex-col">
+              <h3 className="text-sm font-semibold text-marromEscuro mb-4 flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Localização
+              </h3>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <Label>Telefone</Label>
-              <Input disabled readOnly className={inputClass} value={value.cliente?.telefone ?? ""} />
-            </div>
+              <div className="space-y-4 flex-1">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-xs text-muted-foreground">Logradouro</Label>
+                  {isEditing ? (
+                    <Input
+                      className={inputClass}
+                      value={value.endereco?.logradouro ?? ""}
+                      onChange={(e) => onChange({ endereco: { ...value.endereco, logradouro: e.target.value } })}
+                    />
+                  ) : (
+                    <div className="text-sm font-medium">{value.endereco?.logradouro || "-"}</div>
+                  )}
+                </div>
 
-            <div className="flex flex-col gap-1">
-              <Label>CPF</Label>
-              <Input disabled readOnly className={inputClass} value={value.cliente?.cpf ?? ""} />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">Bairro</Label>
+                    <div className="text-sm text-marromEscuro">{value.endereco?.bairro || "-"}</div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs text-muted-foreground">Cidade</Label>
+                    <div className="text-sm text-marromEscuro">{value.endereco?.cidade || "-"}</div>
+                  </div>
+                </div>
 
-      <Card className="rounded-2xl shadow-md bg-white border-0">
-        <CardContent className="p-5">
-          <h3 className="text-lg font-semibold text-green mb-4 flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Endereço
-          </h3>
-
-          <div className="flex flex-col gap-1 mb-4">
-            <Label>Logradouro</Label>
-            {isEditing ? (
-              <Input
-                className={inputClass}
-                value={value.endereco?.logradouro ?? ""}
-                onChange={(e) => onChange({ endereco: { ...value.endereco, logradouro: e.target.value } })}
-              />
-            ) : (
-              <Input disabled readOnly className={inputClass} value={value.endereco?.logradouro ?? ""} />
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="flex flex-col gap-1">
-              <Label>Bairro</Label>
-              <Input disabled readOnly className={inputClass} value={value.endereco?.bairro ?? ""} />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <Label>Cidade</Label>
-              <Input disabled readOnly className={inputClass} value={value.endereco?.cidade ?? ""} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <Label>Maps</Label>
-            {isEditing ? (
-              <Input
-                className={inputClass}
-                value={value.endereco?.mapsUrl ?? ""}
-                onChange={(e) => onChange({ endereco: { ...value.endereco, mapsUrl: e.target.value } })}
-              />
-            ) : (
-              <Input disabled readOnly className={inputClass} value={value.endereco?.mapsUrl ?? ""} />
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                {/* Google Maps Link */}
+                <div className="pt-2">
+                  {isEditing ? (
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Link do Maps</Label>
+                      <Input
+                        className={inputClass}
+                        value={value.endereco?.mapsUrl ?? ""}
+                        onChange={(e) => onChange({ endereco: { ...value.endereco, mapsUrl: e.target.value } })}
+                        placeholder="https://maps.google.com..."
+                      />
+                    </div>
+                  ) : value.endereco?.mapsUrl ? (
+                    <a
+                      href={value.endereco.mapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 text-xs text-green hover:underline bg-green/5 p-2 rounded-lg border border-green/10 transition-colors hover:bg-green/10"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      Abrir no Google Maps
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

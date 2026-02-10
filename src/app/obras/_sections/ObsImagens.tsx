@@ -313,7 +313,7 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
                 return next
               })
             })
-            .catch(() => {})
+            .catch(() => { })
         )
       })
 
@@ -374,7 +374,7 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
     if (isBlobUrl(blob)) {
       try {
         URL.revokeObjectURL(blob)
-      } catch {}
+      } catch { }
     }
 
     const next = imgs.filter((_, i) => i !== idx)
@@ -433,9 +433,9 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
   }, [current, currentKey, signedMap])
 
   return (
-    <Card className="rounded-2xl bg-white border-0 shadow-md">
+    <Card className="rounded-2xl bg-white border-0 shadow-sm">
       <CardHeader className="p-5">
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold text-green">
+        <CardTitle className="flex items-center gap-2 text-xl font-semibold text-green">
           <ImageIcon className="h-5 w-5" />
           Observação & Imagens
         </CardTitle>
@@ -495,8 +495,8 @@ export default function ObsImagens({ observacoes, imagens, onChange, isEditing }
                       !url
                         ? ""
                         : isBlobUrl(url) || isSignedUrl(url)
-                        ? url
-                        : signedMap[key] ?? url
+                          ? url
+                          : signedMap[key] ?? url
 
                     return (
                       <SortableCard

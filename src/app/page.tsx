@@ -8,6 +8,7 @@ import HomeClient from "./home/HomeClient"
 type HomeUltimaObraDTO = {
   id: number
   cliente: { nome: string; bairro: string | null; cidade: string | null }
+  titulo: string | null
   tipo_obra: string
   equipe: string | null
   status: string

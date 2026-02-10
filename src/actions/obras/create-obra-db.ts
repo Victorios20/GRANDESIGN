@@ -194,7 +194,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           orcamento: { connect: { id: input.orcamentoId } },
           cliente: { connect: { id: orc.cliente_id } },
           ...(input.equipe_id ? { equipe: { connect: { id: input.equipe_id } } } : {}),
-          titulo: (orc as any).titulo ?? null,
+          titulo: `${orc.cliente.nome || "Cliente"} [${orc.cliente.bairro || ""} - ${orc.cliente.cidades?.nome || ""}]`,
+
           endereco_obra: input.endereco_obra,
           maps_url: input.maps_url,
           tipo_obra: input.tipo_obra,
@@ -246,8 +247,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
       // 1. ANDAIME (Fixed rule: 12 Andames + 3 Plataformas)
       const andaimeItems: PedidoItemInput[] = [
-        { descricao: "Andames", quantidade: 12, preco_unitario: 0, total: 0 },
-        { descricao: "Plataformas", quantidade: 3, preco_unitario: 0, total: 0 },
+        { descricao: "Andames", quantidade: 12, preco_unitario: 8, total: 12 * 8 },
+        { descricao: "Plataformas", quantidade: 3, preco_unitario: 8, total: 3 * 8 },
       ]
 
       // 2. MADEIRA (Exact copy from Budget)

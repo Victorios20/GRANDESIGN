@@ -12,7 +12,7 @@ export type ObraStatus =
 
 export type PagamentoStatus = "Pendente" | "Efetuado"
 
-export type FormaPagamento = "Pix" | "6x" | "10x" | "12x" | "16x"
+export type FormaPagamento = string
 
 export type PedidoStatusPadrao = "Pendente" | "Aguardando pagamento" | "Pedido feito" | "Entregue"
 export type PedidoStatusMateriais = "Pendente" | "Em estoque" | "Entregue"
