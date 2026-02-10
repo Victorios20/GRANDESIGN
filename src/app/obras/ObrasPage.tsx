@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Save, Pencil, X, Copy, MoreHorizontal, FileText, FileSignature, ScrollText } from "lucide-react"
+import { Save, Pencil, X, Copy, MoreHorizontal, FileText, FileSignature, ScrollText, Trash2 } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
@@ -33,6 +33,10 @@ import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/u
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
 import { gerarContratoN8nESalvar } from "./lib/useGerarContrato"
+
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { deleteObraDB } from "@/actions/obras/delete-obra-db"
+
 
 type Option = { value: string; label: string }
 type VM = ObraInfosVM & { imagens?: ImgItem[] }
@@ -412,6 +416,8 @@ export default function ObrasPage({
   const [isEditing, setIsEditing] = useState(mode === "new")
   const [saving, setSaving] = useState(false)
   const [gerandoContrato, setGerandoContrato] = useState(false)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
 
@@ -1058,6 +1064,24 @@ export default function ObrasPage({
     }
   }
 
+  async function handleDelete() {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      const res = await deleteObraDB(deleteId)
+      if (res.success) {
+        toast.success("Obra excluída com sucesso!")
+        router.push("/obras")
+      } else {
+        toast.error(`Erro: ${res.error}`)
+      }
+    } catch (error) {
+      toast.error("Erro inesperado ao excluir obra")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <PageLayout
       links={[
@@ -1103,6 +1127,17 @@ export default function ObrasPage({
                 <DropdownMenuItem onClick={() => setIsEditing(true)}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className="cursor-pointer text-red-600 focus:text-red-700"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    if (obraId) setDeleteId(obraId)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir Obra
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1191,6 +1226,31 @@ export default function ObrasPage({
           ordemServicoId={ordemServicoId ?? null}
         />
       </div>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta obra? Esta ação removerá a obra e todos os dados vinculados (pedidos, imagens, agendamentos) permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </PageLayout>
   )
 }

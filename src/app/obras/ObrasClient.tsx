@@ -118,6 +118,11 @@ export type ObraStatusFilter =
   | "PENDENCIA"
   | "FINALIZADO"
 
+
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { deleteObraDB } from "@/actions/obras/delete-obra-db"
+import { Trash2 } from "lucide-react"
+
 export default function ObrasClient({ initial }: { initial: InitialData }) {
   const router = useRouter()
 
@@ -142,6 +147,10 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
   const [page, setPage] = useState(0)
   const [perPage, setPerPage] = useState(20)
+
+  // State for delete dialog
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (nome.trim() && page !== 0) setPage(0)
@@ -200,6 +209,26 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     setObras(mapped)
     setTotal(Number(json.total ?? 0))
     setLoadingTabela(false)
+  }
+
+  async function handleDelete() {
+    if (!deleteId) return
+    setIsDeleting(true)
+    try {
+      const res = await deleteObraDB(deleteId)
+      if (res.success) {
+        toast.success("Obra excluída com sucesso!")
+        setDeleteId(null)
+        // Refresh table
+        consultar()
+      } else {
+        toast.error(`Erro: ${res.error}`)
+      }
+    } catch (error) {
+      toast.error("Erro inesperado ao excluir obra")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   function limparFiltros() {
@@ -457,6 +486,17 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                       Ver orçamento
                     </Link>
                   </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    className="cursor-pointer text-red-600 focus:text-red-700"
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      if (obraId) setDeleteId(obraId)
+                    }}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Excluir Obra
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -676,6 +716,30 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           </CardContent>
         </Card>
       </TooltipProvider>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir esta obra? Esta ação removerá a obra e todos os dados vinculados (pedidos, imagens, agendamentos) permanentemente. Clientes e orçamentos vinculados não serão excluídos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageLayout>
   )
 }
