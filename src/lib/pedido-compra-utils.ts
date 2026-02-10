@@ -132,7 +132,7 @@ const categoryLabelMap: Record<PedidoCategoria, PurchaseOrderCategoryLabel> = {
     TELHA: "Telha",
     MADEIRA: "Madeira",
     MATERIAIS: "Materiais",
-    ANDAIMES: "Andaimes",
+    ANDAIMES: "Andaime", // Normalize to singular
     ANDAIME: "Andaime",
 }
 

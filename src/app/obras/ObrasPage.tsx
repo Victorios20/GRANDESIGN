@@ -919,6 +919,7 @@ export default function ObrasPage({
 
         const upd: UpdateObraPayload = {
           obra: {
+            titulo: vm.titulo || "",
             endereco_obra: vm.endereco.logradouro,
             maps_url: vm.endereco.mapsUrl,
             tipo_obra: vm.tipoObra || "",

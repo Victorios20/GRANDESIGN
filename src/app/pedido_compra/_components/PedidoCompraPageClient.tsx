@@ -75,6 +75,7 @@ type PedidoCompraUIState = {
 
   searchTerm: string
   selectedStatus: PurchaseOrderStatusSlug
+  selectedCategory: PurchaseOrderCategoryLabel | "todas" // Added
   selectedSupplierId: number | "all"
   selectedProjectId: number | null
 
@@ -199,6 +200,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     persisted?.selectedSupplierId ?? "all"
   )
   const [selectedStatus, setSelectedStatus] = React.useState<PurchaseOrderStatusSlug>(persisted?.selectedStatus ?? "todos")
+  const [selectedCategory, setSelectedCategory] = React.useState<PurchaseOrderCategoryLabel | "todas">( // Added
+    persisted?.selectedCategory ?? "todas"
+  )
 
   const [currentPage, setCurrentPage] = React.useState(1)
   const [itemsPerPage, setItemsPerPage] = React.useState(15)
@@ -363,13 +367,18 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   }, [orders])
 
   const hasActiveFilters =
-    selectedProjectId != null || selectedSupplierId !== "all" || searchTerm !== "" || selectedStatus !== "todos"
+    selectedProjectId != null ||
+    selectedSupplierId !== "all" ||
+    searchTerm !== "" ||
+    selectedStatus !== "todos" ||
+    selectedCategory !== "todas" // Added
 
   const clearFilters = () => {
     setSearchTerm("")
     setSelectedProjectId(null)
     setSelectedSupplierId("all")
     setSelectedStatus("todos")
+    setSelectedCategory("todas") // Added
     setObraSelected(null)
     setObraQuery("")
     if (typeof window !== "undefined") localStorage.removeItem(STORAGE_KEY)
@@ -390,10 +399,11 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       const matchesProject = selectedProjectId == null || order.obraId === selectedProjectId
       const matchesSupplier = selectedSupplierId === "all" || order.supplierId === selectedSupplierId
       const matchesStatus = selectedStatus === "todos" || order.status === selectedStatus
+      const matchesCategory = selectedCategory === "todas" || order.category === selectedCategory // Added
 
-      return matchesSearch && matchesProject && matchesSupplier && matchesStatus
+      return matchesSearch && matchesProject && matchesSupplier && matchesStatus && matchesCategory
     })
-  }, [orders, searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, onlyActiveObras])
+  }, [orders, searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, selectedCategory, onlyActiveObras])
 
   const sortedOrders = React.useMemo(() => {
     const arr = [...filteredOrders]
@@ -689,6 +699,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       onlyActiveObras,
       searchTerm,
       selectedStatus,
+      selectedCategory,
       selectedSupplierId,
       selectedProjectId,
       sortBy,
@@ -701,6 +712,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     onlyActiveObras,
     searchTerm,
     selectedStatus,
+    selectedCategory,
     selectedSupplierId,
     selectedProjectId,
     sortBy,
@@ -815,6 +827,23 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                   className="pl-10"
                 />
               </div>
+
+              <Select
+                value={selectedCategory}
+                onValueChange={(v) => setSelectedCategory(v as PurchaseOrderCategoryLabel | "todas")}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as categorias</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               <Popover open={obraOpen} onOpenChange={setObraOpen}>
                 <PopoverTrigger asChild>
@@ -1107,7 +1136,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                         type="button"
                         variant="secondary"
                         onClick={() => scrollKanbanBy("left")}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full shadow z-10"
+                        className="absolute left-2 top-[calc(50%-20px)] h-10 w-10 p-0 rounded-full shadow z-10"
                       >
                         <ChevronLeft className="w-5 h-5" />
                       </Button>
@@ -1118,7 +1147,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                         type="button"
                         variant="secondary"
                         onClick={() => scrollKanbanBy("right")}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 p-0 rounded-full shadow z-10"
+                        className="absolute right-2 top-[calc(50%-20px)] h-10 w-10 p-0 rounded-full shadow z-10"
                       >
                         <ChevronRight className="w-5 h-5" />
                       </Button>

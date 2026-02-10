@@ -4,7 +4,7 @@ import type React from "react"
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Check, ChevronsUpDown, Edit, ExternalLink, MapPin, MoreVertical, Plus, Save, Trash2 } from "lucide-react"
+import { ArrowLeft, Check, ChevronsUpDown, Edit, ExternalLink, MapPin, MoreVertical, Plus, Save, Trash2, Copy, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { PageLayout } from "@/components/ui/pageLayout"
@@ -160,6 +160,7 @@ export default function PedidoCompraForm({
   const isView = mode === "view"
   const isEdit = mode === "edit"
   const isCreate = mode === "create"
+  const resolvedPedidoId = Number(pedidoCompraId ?? initialData?.id ?? 0)
 
   const [saving, setSaving] = useState(false)
 
@@ -287,8 +288,12 @@ export default function PedidoCompraForm({
   const [showExitAlert, setShowExitAlert] = useState(false)
 
   const goBack = useCallback(() => {
-    router.push("/pedido_compra")
-  }, [router])
+    if (isEdit && resolvedPedidoId) {
+      router.push(`/pedido_compra/ver/${resolvedPedidoId}`)
+    } else {
+      router.push("/pedido_compra")
+    }
+  }, [router, isEdit, resolvedPedidoId])
 
   const handleBack = useCallback(() => {
     if (isDirty) {
@@ -389,7 +394,6 @@ export default function PedidoCompraForm({
   }, [isCreate, isView, pedidoCompraId, obraSelected, formData.obraId])
 
   useEffect(() => {
-    if (!isCreate) return
     if (!obraOpen) return
 
     const q = obraQuery.trim()
@@ -433,7 +437,7 @@ export default function PedidoCompraForm({
       canceled = true
       clearTimeout(t)
     }
-  }, [obraOpen, obraQuery, isCreate])
+  }, [obraOpen, obraQuery])
 
   function selectObra(o: ObraSearchItem) {
     setObraSelected(o)
@@ -632,9 +636,10 @@ export default function PedidoCompraForm({
 
       toast.success(isEditMode ? "Pedido atualizado" : "Pedido cadastrado")
 
-      if (!isEditMode && savedId) {
-        router.replace(`/pedido_compra/edit/${savedId}`)
-        router.refresh()
+      // Redirect to view page
+      if (savedId) {
+        // Force navigation to view page, bypassing potential dirty checks since we just saved
+        window.location.href = `/pedido_compra/ver/${savedId}`
         return
       }
 
@@ -650,7 +655,7 @@ export default function PedidoCompraForm({
   const cardPadding = isView ? "p-4" : "p-6"
   const formSpacing = isView ? "space-y-4" : "space-y-6"
 
-  const resolvedPedidoId = Number(pedidoCompraId ?? initialData?.id ?? 0)
+
 
   async function patchPedidoStatus(pedidoId: number, status: PedidoStatus) {
     const res = await fetch(`/api/pedido_compra/status/${pedidoId}`, {
@@ -751,15 +756,16 @@ export default function PedidoCompraForm({
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <Button variant="outline" type="button" onClick={handleBack} className="gap-2">
-              <ArrowLeft className="size-4" />
-              Voltar
+            <Button variant="outline" type="button" onClick={handleBack} className="gap-2 text-muted-foreground hover:text-foreground">
+              <X className="size-4" />
+              Cancelar
             </Button>
             <Button
               type="submit"
               form="pedido-compra-form"
               disabled={saving}
-              className="gap-2 bg-[#2c201b] hover:bg-[#2c201b]/90 text-white"
+              variant="success"
+              className="gap-2"
             >
               <Save className="size-4" />
               {saving ? "Salvando..." : isCreate ? "Cadastrar" : "Salvar"}
@@ -1280,10 +1286,42 @@ export default function PedidoCompraForm({
           </Card>
 
           <Card className={cardPadding}>
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <MapPin className="size-5" />
-              Endereço de Entrega
-            </h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <MapPin className="size-5" />
+                Endereço de Entrega
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-2 text-muted-foreground hover:text-foreground"
+                onClick={async () => {
+                  const text = [
+                    deliveryAddress.nomeReceptor,
+                    deliveryAddress.telefoneReceptor,
+                    deliveryAddress.enderecoEntrega,
+                    deliveryAddress.linkMaps
+                  ].filter(Boolean).join("\n")
+
+                  if (!text) {
+                    toast.error("Sem dados para copiar")
+                    return
+                  }
+
+                  try {
+                    await navigator.clipboard.writeText(text)
+                    toast.success("Dados copiados!")
+                  } catch {
+                    toast.error("Erro ao copiar")
+                  }
+                }}
+                title="Copiar dados do cliente"
+              >
+                <Copy className="size-4" />
+                Copiar
+              </Button>
+            </div>
 
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">

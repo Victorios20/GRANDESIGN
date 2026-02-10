@@ -198,6 +198,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         link_slide: true,
         link_pdf: true,
         titulo: true,
+        id_fornecedor: true,
       },
     })
     : null
@@ -208,6 +209,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       linkSlide: orcamento.link_slide ?? null,
       linkPdf: orcamento.link_pdf ?? null,
       titulo: orcamento.titulo ?? null,
+      fornecedorId: orcamento.id_fornecedor ?? null,
     }
     : null
 

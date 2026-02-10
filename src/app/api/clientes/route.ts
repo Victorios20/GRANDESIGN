@@ -35,3 +35,40 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "UNEXPECTED_ERROR" }, { status: 500 })
   }
 }
+
+import { criarClienteBasico } from "@/actions/clientes-db/clientes-db"
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { nome, telefone, bairro, cidade_id, cpf } = body
+
+    // Basic validation
+    if (!nome?.trim()) {
+      return NextResponse.json({ error: "Nome obrigatório" }, { status: 400 })
+    }
+
+    const created = await criarClienteBasico({
+      nome,
+      telefone,
+      bairro,
+      cidade_id: Number(cidade_id) || null,
+      cpf,
+    })
+
+    return NextResponse.json(created, { status: 201 })
+  } catch (err: any) {
+    if (err.status === 409) {
+      return NextResponse.json(
+        { error: err.message, id: err.clienteId },
+        { status: 409 }
+      )
+    }
+
+    console.error("[POST /api/clientes] unexpected", err)
+    return NextResponse.json(
+      { error: err.message || "Falha ao criar cliente" },
+      { status: err.status || 500 }
+    )
+  }
+}

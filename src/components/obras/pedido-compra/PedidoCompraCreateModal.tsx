@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Loader2, Plus, Trash2, MapPin } from "lucide-react"
+import { Loader2, Plus, Trash2, MapPin, Copy } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -213,10 +214,51 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
     setFornecedorNome(f?.nome ?? "")
   }, [fornecedorId, fornecedores])
 
+  const [budgetFornecedorId, setBudgetFornecedorId] = React.useState<number | null>(null)
+
   React.useEffect(() => {
-    setFornecedorId("")
-    setFornecedorNome("")
-  }, [categoria])
+    if (!open || !obraId) return
+    let cancelled = false
+    const loadObra = async () => {
+      try {
+        const res = await fetch(`/api/obras/${obraId}/detalhado`, { cache: "no-store" })
+        if (!res.ok) return
+        const body = await res.json()
+        if (cancelled) return
+
+        const fId = body?.data?.orcamento?.fornecedorId
+        if (Number.isFinite(Number(fId))) {
+          setBudgetFornecedorId(Number(fId))
+        }
+
+        // Auto-fill Client/Address info
+        const clientName = body?.data?.cliente?.nome ?? ""
+        const clientPhone = body?.data?.cliente?.telefone ?? ""
+        const obraAddress = body?.data?.obra?.endereco ?? ""
+        const obraMaps = body?.data?.obra?.mapsUrl ?? ""
+
+        if (clientName) setNomeReceptor(clientName)
+        if (clientPhone) setTelefoneReceptor(clientPhone)
+        if (obraAddress) setEnderecoEntrega(obraAddress)
+        if (obraMaps) setLinkMaps(obraMaps)
+
+      } catch (e) {
+        console.error("Erro ao carregar obra", e)
+      }
+    }
+    loadObra()
+    return () => { cancelled = true }
+  }, [open, obraId])
+
+  React.useEffect(() => {
+    // If category is MADEIRA and we have a budget supplier, use it
+    if (categoria === "MADEIRA" && budgetFornecedorId) {
+      setFornecedorId(String(budgetFornecedorId))
+    } else {
+      setFornecedorId("")
+      setFornecedorNome("")
+    }
+  }, [categoria, budgetFornecedorId])
 
   const addItem = () => {
     setItems((prev) => [
@@ -315,6 +357,27 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
         return next
       })
     )
+  }
+
+  const handleCopyClientInfo = async () => {
+    const text = [
+      nomeReceptor,
+      telefoneReceptor,
+      enderecoEntrega,
+      linkMaps
+    ].filter(Boolean).join("\n")
+
+    if (!text) {
+      toast.error("Sem dados para copiar")
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success("Dados copiados!")
+    } catch {
+      toast.error("Erro ao copiar")
+    }
   }
 
   const handleCreate = () => {
@@ -564,10 +627,23 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
           </div>
 
           <div className="rounded-lg border border-border bg-card p-6">
-            <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-              <MapPin className="size-5" />
-              Endereço de Entrega
-            </h3>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-lg font-semibold">
+                <MapPin className="size-5" />
+                Endereço de Entrega
+              </h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-2 text-muted-foreground hover:text-foreground"
+                onClick={handleCopyClientInfo}
+                title="Copiar dados do cliente"
+              >
+                <Copy className="size-4" />
+                Copiar
+              </Button>
+            </div>
 
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">

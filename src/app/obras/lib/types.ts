@@ -341,6 +341,7 @@ export type ImagensPayload = { replace?: boolean; list?: ImagemPayload[] }
 
 export type UpdateObraPayload = {
   obra?: {
+    titulo?: string
     endereco_obra?: string
     maps_url?: string
     tipo_obra?: string

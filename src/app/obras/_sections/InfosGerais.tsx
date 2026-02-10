@@ -13,7 +13,9 @@ import {
   CreditCard,
   AlertTriangle,
   CheckCircle2,
+  Copy,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -97,6 +99,27 @@ export default function InfosGerais({
       dataConclusao: conclusionDate ? format(conclusionDate, "yyyy-MM-dd") : null,
     })
     setIsConclusionModalOpen(false)
+  }
+
+  const handleCopyClientInfo = async () => {
+    const text = [
+      value.cliente?.nome,
+      value.cliente?.telefone,
+      value.endereco?.logradouro,
+      value.endereco?.mapsUrl
+    ].filter(Boolean).join("\n")
+
+    if (!text.trim()) {
+      toast.error("Sem dados para copiar")
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success("Dados copiados!")
+    } catch {
+      toast.error("Erro ao copiar")
+    }
   }
 
   return (
@@ -281,15 +304,26 @@ export default function InfosGerais({
                   <User className="w-4 h-4" />
                   Cliente
                 </h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-marromEscuro hover:bg-marromClaro/20"
-                  onClick={onEditCliente}
-                  disabled={!value.cliente?.nome}
-                >
-                  <Pencil className="w-3 h-3" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-marromEscuro hover:bg-marromClaro/20"
+                    onClick={handleCopyClientInfo}
+                    title="Copiar dados do cliente"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-marromEscuro hover:bg-marromClaro/20"
+                    onClick={onEditCliente}
+                    disabled={!value.cliente?.nome}
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-3">
