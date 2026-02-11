@@ -128,10 +128,21 @@ async function fetchWithCache(url: string, bustCache = false): Promise<any> {
   return data
 }
 
-function addDay(dateStr: string): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + 1)
+// Helper for safe date math (avoiding timezone shifts)
+function safeDateMath(dateStr: string, daysToAdd: number): string {
+  // Ensure we operate on T12:00:00 to avoid midnight offsets
+  const base = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr
+  const d = new Date(base + "T12:00:00")
+  d.setDate(d.getDate() + daysToAdd)
   return d.toISOString().split("T")[0]
+}
+
+function addDay(dateStr: string): string {
+  return safeDateMath(dateStr, 1)
+}
+
+function subtractDay(dateStr: string): string {
+  return safeDateMath(dateStr, -1)
 }
 
 // Calculate days since a date (uses contract date if available, otherwise creation date)
@@ -146,6 +157,7 @@ function calcDaysSinceDate(dataCriacao: string | null, dataContrato: string | nu
     source: dataContrato ? 'assinatura' : 'criação'
   }
 }
+
 
 export default function CalendarioPage() {
   const calendarRef = useRef<FullCalendar>(null)
@@ -376,9 +388,7 @@ export default function CalendarioPage() {
     setEditorObraStatus("") // Reset status
     setFormInicio(arg.startStr.split("T")[0])
     // Subtract 1 day from end since FullCalendar uses exclusive end
-    const endDate = new Date(arg.endStr)
-    endDate.setDate(endDate.getDate() - 1)
-    setFormFim(endDate.toISOString().split("T")[0])
+    setFormFim(subtractDay(arg.endStr))
     setModalOpen(true)
   }
 
@@ -408,9 +418,7 @@ export default function CalendarioPage() {
     // Calculate end date (subtract 1 since FullCalendar uses exclusive end)
     let end = start
     if (info.event.endStr) {
-      const endDate = new Date(info.event.endStr)
-      endDate.setDate(endDate.getDate() - 1)
-      end = endDate.toISOString().split("T")[0]
+      end = subtractDay(info.event.endStr)
     }
 
     // Remove the temporary event
@@ -440,9 +448,7 @@ export default function CalendarioPage() {
     // Calculate new end (subtract 1 from FullCalendar's exclusive end)
     let newEnd = newStart
     if (arg.event.endStr) {
-      const endDate = new Date(arg.event.endStr)
-      endDate.setDate(endDate.getDate() - 1)
-      newEnd = endDate.toISOString().split("T")[0]
+      newEnd = subtractDay(arg.event.endStr)
     }
 
     try {
@@ -481,9 +487,7 @@ export default function CalendarioPage() {
     // Calculate new end (subtract 1 from FullCalendar's exclusive end)
     let newEnd = segmento.fim
     if (arg.event.endStr) {
-      const endDate = new Date(arg.event.endStr)
-      endDate.setDate(endDate.getDate() - 1)
-      newEnd = endDate.toISOString().split("T")[0]
+      newEnd = subtractDay(arg.event.endStr)
     }
 
     try {

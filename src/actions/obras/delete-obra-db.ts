@@ -27,7 +27,7 @@ export async function deleteObraDB(id: number) {
         revalidatePath("/obras")
         revalidatePath(`/obras/${id}`)
 
-        return { success: true, data: deleted }
+        return { success: true }
     } catch (error: any) {
         console.error("Erro ao excluir obra:", error)
         return { success: false, error: error.message || "Erro ao excluir obra" }

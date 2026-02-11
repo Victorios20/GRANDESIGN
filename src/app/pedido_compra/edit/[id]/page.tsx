@@ -26,25 +26,21 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     prisma.materiais.findMany({
       where: { tipo: "madeira" },
       orderBy: { descricao: "asc" },
-      take: 50,
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
     }),
     prisma.materiais.findMany({
       where: { tipo: "telha" },
       orderBy: { descricao: "asc" },
-      take: 50,
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
     }),
     prisma.materiais.findMany({
       where: { tipo: "geral" },
       orderBy: { descricao: "asc" },
-      take: 50,
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
     }),
     prisma.materiais.findMany({
       where: { tipo: "andaime" },
       orderBy: { descricao: "asc" },
-      take: 50,
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
     }),
   ])

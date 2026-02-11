@@ -358,6 +358,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
             valor_orcado: somaTotal > 0 ? new Prisma.Decimal(somaTotal) : null,
             descricao: tituloAuto, // Auto-filled Title
+            nome_receptor: orc.cliente.nome,
+            telefone_receptor: orc.cliente.telefone,
+            link_maps: input.maps_url,
             endereco_entrega: input.endereco_obra, // Auto-filled Address
           },
           select: { id: true },
