@@ -345,6 +345,26 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
 
         const somaTotal = g.itens.reduce((acc, it) => acc + Number(d(it.total)), 0)
 
+        // Calculate total frete for this group
+        // Note: For 'TELHA', we might have aggregated items, but 'frete' might be per truck or per item. 
+        // In 'orcamento_material', 'frete' is a Decimal field. We sum it up.
+        // We need to access the original items to get the frete, but 'g.itens' only has 'PedidoItemInput' which doesn't have frete.
+        // However, we built 'g.itens' from source data. 
+        // Let's improve the data collection above to include frete, or just recalculate here if possible. 
+        // Actually, 'PedidoItemInput' doesn't have frete. 
+        // We should calculate 'somaFrete' BEFORE this loop when we are building the items.
+
+        // REFACTORING STRATEGY: 
+        // 1. I will calculate `somaFrete` for each group (Telha, Madeira, Andaime) separately above.
+        // 2. Then I will pass it here. 
+
+        let somaFrete = 0
+
+        // For Telha, we already found `telhaBudgetItem` above. 
+        if (g.categoria === PedidoCategoria.TELHA && telhaBudgetItem) {
+          somaFrete = Number(telhaBudgetItem.frete || 0)
+        }
+
         const catLabel = g.categoria === PedidoCategoria.ANDAIMES ? "Andaimes" :
           g.categoria === PedidoCategoria.TELHA ? "Telha" : "Madeira"
 
@@ -357,6 +377,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             status: PedidoCompraStatus.RASCUNHO,
             ...(g.fornecedor ? { fornecedor: { connect: { id: g.fornecedor } } } : {}),
             valor_orcado: somaTotal > 0 ? new Prisma.Decimal(somaTotal) : null,
+            frete: somaFrete > 0 ? new Prisma.Decimal(somaFrete) : null,
             descricao: tituloAuto, // Auto-filled Title
             nome_receptor: orc.cliente.nome,
             telefone_receptor: orc.cliente.telefone,

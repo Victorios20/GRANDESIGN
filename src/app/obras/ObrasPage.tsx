@@ -1,5 +1,7 @@
 "use client"
 
+import { useSession } from "next-auth/react"
+
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -418,6 +420,10 @@ export default function ObrasPage({
   const [gerandoContrato, setGerandoContrato] = useState(false)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const { data: session } = useSession()
+  const roles = (session?.user as any)?.roles ?? []
+  const canDelete = roles.includes("ADMIN") || roles.includes("DEV")
 
   const [vm, setVm] = useState<VM>(() => hydrateInfos(initial))
 
@@ -1132,16 +1138,18 @@ export default function ObrasPage({
                   Editar
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  className="cursor-pointer text-red-600 focus:text-red-700"
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    if (obraId) setDeleteId(obraId)
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir Obra
-                </DropdownMenuItem>
+                {canDelete && (
+                  <DropdownMenuItem
+                    className="cursor-pointer text-red-600 focus:text-red-700"
+                    onSelect={(e) => {
+                      e.preventDefault()
+                      if (obraId) setDeleteId(obraId)
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir Obra
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (

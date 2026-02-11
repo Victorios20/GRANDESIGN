@@ -2,9 +2,18 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 export async function deleteObraDB(id: number) {
     try {
+        const session = await getServerSession(authOptions)
+        const roles = session?.user?.roles ?? []
+
+        if (!roles.includes("ADMIN") && !roles.includes("DEV")) {
+            return { success: false, error: "Permissão negada. Apenas administradores e desenvolvedores podem excluir obras." }
+        }
+
         if (!id) throw new Error("ID da obra não informado")
 
         // Prisma handles cascading deletes for:

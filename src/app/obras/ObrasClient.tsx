@@ -1,6 +1,8 @@
 // app/obras/ObrasClient.tsx
 "use client"
 
+import { useSession } from "next-auth/react"
+
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -141,6 +143,10 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       ...(o as any),
     }))
   )
+
+  const { data: session } = useSession()
+  const roles = (session?.user as any)?.roles ?? []
+  const canDelete = roles.includes("ADMIN") || roles.includes("DEV")
 
   const [total, setTotal] = useState<number>(initial.total ?? 0)
   const [loadingTabela, setLoadingTabela] = useState(false)
@@ -487,16 +493,18 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                     </Link>
                   </DropdownMenuItem>
 
-                  <DropdownMenuItem
-                    className="cursor-pointer text-red-600 focus:text-red-700"
-                    onSelect={(e) => {
-                      e.preventDefault()
-                      if (obraId) setDeleteId(obraId)
-                    }}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Excluir Obra
-                  </DropdownMenuItem>
+                  {canDelete && (
+                    <DropdownMenuItem
+                      className="cursor-pointer text-red-600 focus:text-red-700"
+                      onSelect={(e) => {
+                        e.preventDefault()
+                        if (obraId) setDeleteId(obraId)
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir Obra
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
