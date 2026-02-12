@@ -1,0 +1,1317 @@
+## 1. Executive Summary
+
+Integration of a comprehensive financial module into the GRANDESIGN platform to bridge the gap between construction project management and corporate financial health, providing real-time visibility into cash flow, profitability, and project-specific cost tracking.
+
+---
+
+## 2. Problem Statement
+
+Currently, financial management is disconnected from construction project tracking. Managers lack real-time visibility into:
+
+- Project-specific profitability (Cost Centers)
+- Overall company cash flow and liquidity
+- Accounts payable/receivable consolidation
+- Financial projections and trends
+
+This leads to manual reconciliation, delayed decision-making, and inability to identify cash flow bottlenecks before they become critical.
+
+---
+
+## 3. Target Audience
+
+### Primary Users
+
+- **Admin/Proprietário**: Needs high-level DRE, DFC, cash flow trends, and overall profitability analysis
+- **Financeiro/Operacional**: Handles daily entries, account reconciliation, supplier payments, and cash management
+- **Gestor de Obras**: Monitors project-specific expenses against budget using Cost Centers
+
+### Secondary Users
+
+- **Contabilidade Externa**: Exports data for tax reporting and compliance
+
+---
+
+## 4. User Stories
+
+### P0 (Critical - MVP)
+
+#### Financial Foundation
+
+1. **Bank Account Management**: As a Finance Officer, I want to register and manage multiple bank accounts, cash registers, and digital wallets, so that I can track all company liquidity sources.
+2. **Category System**: As a Finance Officer, I want to create hierarchical revenue and expense categories (with subcategories), so that I can organize transactions consistently.
+3. **Cost Center Sync**: As a Manager, I want every new "Obra" to automatically create a "Centro de Custo", so that I can track expenses specifically for that project without manual setup.
+
+#### Transaction Management
+
+4. **Accounts Payable (CRUD)**: As a Finance Officer, I want to create, edit, and manage bills to pay, linking them to suppliers, categories, and optionally to cost centers.
+5. **Accounts Receivable (CRUD)**: As a Finance Officer, I want to create, edit, and manage bills to receive, linking them to clients, budgets, and optionally to cost centers.
+6. **Payment Processing**: As a Finance Officer, I want to record a payment for a bill, selecting which bank account to use, so that the system automatically creates a financial transaction and updates balances.
+7. **Receipt Processing**: As a Finance Officer, I want to record receipt of payment, selecting which account received the funds, so that the system automatically creates a financial transaction and updates balances.
+8. **Direct Transactions**: As a Finance Officer, I want to record direct income/expenses (not linked to payables/receivables) for operational movements like bank fees, transfers, or cash adjustments.
+9. **Installments**: As a Finance Officer, I want to split a bill into multiple installments (up to 36x), so that the system automatically creates all installments with sequential due dates.
+10. **Partial Payments**: As a Finance Officer, I want to pay/receive partial amounts of a bill, so that the system tracks what's pending and updates status accordingly.
+
+#### Visibility & Control
+
+11. **Dashboard Overview**: As a Manager, I want a real-time dashboard showing current cash position, upcoming payables/receivables, overdue items, and balance trends.
+12. **Transaction Listing**: As a Finance Officer, I want to view all financial transactions with filters (date range, account, category, cost center, type), so that I can audit cash flow.
+13. **Automatic Status Updates**: As a Finance Officer, I want the system to automatically flag overdue bills based on current date, so that I can prioritize late payments.
+
+### P1 (Important - Post-MVP)
+
+#### Financial Reports
+
+14. **DRE (Income Statement)**: As a Manager, I want a monthly/quarterly DRE showing revenues, costs, expenses grouped by category, and net profit, so that I can understand business profitability.
+15. **Balancete (Trial Balance)**: As a Manager, I want a balancete showing opening balance + period movements + closing balance per category, so that I can verify accounting accuracy.
+16. **Projected Cash Flow**: As a Manager, I want a daily/weekly cash flow projection including pending bills, so that I can anticipate liquidity gaps.
+17. **DFC (Cash Flow Statement)**: As a Manager, I want a DFC showing operational, investment, and financing activities, so that I can understand cash generation sources.
+
+#### Advanced Features
+
+18. **Bank Transfers**: As a Finance Officer, I want to transfer money between accounts, so that the system creates dual transactions automatically.
+19. **Cost Center Analysis**: As a Construction Manager, I want to see all transactions linked to my project's cost center, comparing against budget.
+20. **Recurring Bills**: As a Finance Officer, I want to mark bills as recurring (monthly/yearly), so that the system automatically generates future installments.
+21. **Bank Reconciliation**: As a Finance Officer, I want to mark transactions as "reconciled" against bank statements, so that I can ensure accuracy.
+
+### P2 (Nice to Have - Future)
+
+22. **Document Attachments**: As a Finance Officer, I want to attach invoices, receipts, and boletos to bills.
+23. **Approval Workflow**: As a Manager, I want to approve high-value payments before execution.
+24. **Multi-currency**: As Admin, I want to handle foreign currency transactions for international suppliers.
+25. **Budget vs. Actual**: As a Manager, I want to set budgets per category/cost center and compare against actual spending.
+
+---
+
+## 5. Information Architecture
+
+### 5.1 Data Model
+
+#### Core Financial Entities
+
+```
+┌─────────────────────┐
+│  contas_bancarias   │  (Bank Accounts)
+├─────────────────────┤
+│ id                  │
+│ nome                │
+│ tipo                │  ENUM: banco, caixa, carteira_digital
+│ banco               │  (optional: Banco do Brasil, Nubank, etc.)
+│ agencia             │  (optional)
+│ conta               │  (optional)
+│ saldo_inicial       │  DECIMAL
+│ saldo_atual         │  DECIMAL (calculated)
+│ cor                 │  (for UI differentiation)
+│ ativo               │  BOOLEAN
+│ created_at          │
+│ updated_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│    categorias       │  (Revenue/Expense Categories)
+├─────────────────────┤
+│ id                  │
+│ nome                │
+│ tipo                │  ENUM: receita, despesa
+│ categoria_pai_id    │  FK (self-reference for hierarchy)
+│ cor                 │
+│ icone               │  (optional: for UI)
+│ ativo               │  BOOLEAN
+│ created_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│  centros_custo      │  (Cost Centers)
+├─────────────────────┤
+│ id                  │
+│ nome                │
+│ descricao           │
+│ obra_id             │  FK (nullable: can have non-project cost centers)
+│ ativo               │  BOOLEAN
+│ created_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│   contas_pagar      │  (Accounts Payable)
+├─────────────────────┤
+│ id                  │
+│ fornecedor_id       │  FK
+│ centro_custo_id     │  FK (nullable)
+│ categoria_id        │  FK
+│ descricao           │
+│ valor_total         │  DECIMAL
+│ valor_pago          │  DECIMAL (default: 0)
+│ data_emissao        │  DATE
+│ data_vencimento     │  DATE
+│ data_pagamento      │  DATE (nullable)
+│ status              │  ENUM: pendente, pago, parcial, atrasado, cancelado
+│ numero_documento    │  VARCHAR (NF, boleto, etc.)
+│ observacoes         │  TEXT
+│ parcela_atual       │  INT (1 if single, 1-N if installment)
+│ total_parcelas      │  INT (1 if single)
+│ recorrente          │  BOOLEAN
+│ frequencia          │  ENUM: mensal, anual (if recorrente)
+│ anexos              │  JSON (array of file URLs)
+│ created_at          │
+│ updated_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│  contas_receber     │  (Accounts Receivable)
+├─────────────────────┤
+│ id                  │
+│ cliente_id          │  FK
+│ centro_custo_id     │  FK (nullable)
+│ orcamento_id        │  FK (nullable)
+│ categoria_id        │  FK
+│ descricao           │
+│ valor_total         │  DECIMAL
+│ valor_recebido      │  DECIMAL (default: 0)
+│ data_emissao        │  DATE
+│ data_vencimento     │  DATE
+│ data_recebimento    │  DATE (nullable)
+│ status              │  ENUM: pendente, recebido, parcial, atrasado, cancelado
+│ numero_documento    │  VARCHAR
+│ observacoes         │  TEXT
+│ parcela_atual       │  INT
+│ total_parcelas      │  INT
+│ recorrente          │  BOOLEAN
+│ frequencia          │  ENUM: mensal, anual
+│ anexos              │  JSON
+│ created_at          │
+│ updated_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│    lancamentos      │  (Financial Transactions - the CORE)
+├─────────────────────┤
+│ id                  │
+│ tipo                │  ENUM: entrada, saida
+│ conta_bancaria_id   │  FK (REQUIRED)
+│ categoria_id        │  FK (REQUIRED)
+│ centro_custo_id     │  FK (nullable)
+│ valor               │  DECIMAL
+│ data_lancamento     │  DATE (transaction date)
+│ data_competencia    │  DATE (accrual date - for accounting)
+│ descricao           │  VARCHAR
+│ conta_pagar_id      │  FK (nullable - if originated from payment)
+│ conta_receber_id    │  FK (nullable - if originated from receipt)
+│ transferencia_id    │  FK (nullable - if is a transfer)
+│ conciliado          │  BOOLEAN (for bank reconciliation)
+│ observacoes         │  TEXT
+│ created_by          │  FK user_id
+│ created_at          │
+│ updated_at          │
+└─────────────────────┘
+
+┌─────────────────────┐
+│   transferencias    │  (Account Transfers)
+├─────────────────────┤
+│ id                  │
+│ conta_origem_id     │  FK contas_bancarias
+│ conta_destino_id    │  FK contas_bancarias
+│ valor               │  DECIMAL
+│ data                │  DATE
+│ descricao           │  VARCHAR
+│ lancamento_origem_id│  FK lancamentos (saida)
+│ lancamento_destino_id│ FK lancamentos (entrada)
+│ created_at          │
+└─────────────────────┘
+```
+
+### 5.2 Business Rules & Logic
+
+#### 5.2.1 Bank Account Management
+
+- **Initial Balance**: Set once during account creation. Cannot be edited after transactions exist.
+- **Current Balance**: Calculated automatically: `saldo_inicial + SUM(entradas) - SUM(saidas)`
+- **Soft Delete**: Accounts with transactions cannot be deleted, only deactivated (`ativo: false`)
+- **Minimum 1 Account**: System requires at least one active account
+
+#### 5.2.2 Category Management
+
+- **Hierarchy**: Maximum 2 levels (Category > Subcategory)
+- **Type Validation**: Receita categories can only be used for income; Despesa only for expenses
+- **Soft Delete**: Categories with historical transactions cannot be deleted
+- **Required Categories**: System creates default categories on first use:
+    - **Receitas**: Vendas, Serviços, Outros Recebimentos
+    - **Despesas**: Fornecedores, Salários, Impostos, Despesas Administrativas, Despesas Operacionais
+
+#### 5.2.3 Cost Center Integration
+
+- **Auto-sync with Obras**:
+
+```
+  ON Obra.create → Centro_Custo.create (nome = Obra.titulo, obra_id = Obra.id)
+  ON Obra.update (titulo) → Centro_Custo.update (nome = Obra.titulo)
+  ON Obra.delete → Centro_Custo.deactivate (ativo = false)
+```
+
+- **Optional Linking**: Transactions, Payables, and Receivables CAN be linked to cost centers but it's not mandatory
+- **Manual Cost Centers**: Users can create cost centers not linked to Obras (e.g., "Administrativo", "Marketing")
+
+#### 5.2.4 Accounts Payable/Receivable
+
+- **Status Automation**:
+
+```
+  IF data_vencimento < TODAY AND status = 'pendente' → status = 'atrasado'
+  IF valor_pago = valor_total → status = 'pago'
+  IF valor_pago > 0 AND valor_pago < valor_total → status = 'parcial'
+```
+
+- **Installment Generation**:
+    - When `total_parcelas > 1`, create N individual records
+    - Each installment: `valor_total / total_parcelas`
+    - Due dates: `data_vencimento + (n-1) months`
+    - Description: `{descricao_original} - Parcela {n}/{total}`
+    - Use **database transaction** to ensure atomicity
+- **Recurrence**:
+    - If `recorrente = true`, system generates next occurrence 5 days before current due date
+    - Copies all fields except dates
+    - Only for single (non-installment) bills
+
+#### 5.2.5 Payment/Receipt Flow
+
+**Payment Process:**
+
+```
+1. User selects Conta a Pagar (status: pendente/parcial/atrasado)
+2. Clicks "Registrar Pagamento"
+3. Modal opens with:
+   - Data de Pagamento (default: today)
+   - Conta Bancária (dropdown)
+   - Valor a Pagar (default: valor_total - valor_pago, editable)
+   - Juros/Multas (optional, adds to valor)
+   - Desconto (optional, subtracts from valor)
+   - Observações
+4. On submit:
+   a. Validate: valor_final <= (valor_total - valor_pago)
+   b. Create Lancamento:
+      - tipo: 'saida'
+      - conta_bancaria_id: selected
+      - categoria_id: from conta_pagar
+      - centro_custo_id: from conta_pagar
+      - valor: valor_final (with fees/discounts)
+      - data_lancamento: data_pagamento
+      - data_competencia: data_vencimento (original)
+      - conta_pagar_id: link
+   c. Update Conta_Pagar:
+      - valor_pago += valor_final
+      - data_pagamento = data_pagamento (if full payment)
+      - status: update based on rules
+   d. Update Conta_Bancaria.saldo_atual -= valor_final
+5. Show success message
+```
+
+**Receipt Process:** (identical logic, opposite direction)
+
+#### 5.2.6 Direct Transactions
+
+- User can create Lançamentos directly without linking to payables/receivables
+- Use cases: bank fees, interest earned, manual adjustments, petty cash
+- Required fields: tipo, conta_bancaria_id, categoria_id, valor, data_lancamento, descricao
+- Optional: centro_custo_id
+
+#### 5.2.7 Transfers
+
+```
+1. User clicks "Nova Transferência"
+2. Form:
+   - Conta Origem (dropdown)
+   - Conta Destino (dropdown - excludes origem)
+   - Valor
+   - Data
+   - Descrição
+3. On submit (database transaction):
+   a. Create Transferencia record
+   b. Create Lancamento_Origem:
+      - tipo: 'saida'
+      - conta_bancaria_id: origem
+      - categoria_id: "Transferências" (system category)
+      - valor: valor
+      - transferencia_id: link
+   c. Create Lancamento_Destino:
+      - tipo: 'entrada'
+      - conta_bancaria_id: destino
+      - categoria_id: "Transferências"
+      - valor: valor
+      - transferencia_id: link
+   d. Update both account balances
+```
+
+#### 5.2.8 Data Validation
+
+- **Dates**: Cannot be more than 10 years in the past or 5 years in the future
+- **Amounts**: Must be > 0, max 2 decimal places
+- **Status changes**: Only valid transitions allowed (e.g., cannot go from 'pago' to 'pendente')
+- **Account deletion**: Blocked if saldo_atual ≠ saldo_inicial
+
+---
+
+## 6. User Experience & Interface Design
+
+### 6.1 Navigation Structure
+
+```
+📊 Dashboard (Home)
+├─ 💰 Transações
+│  ├─ Todas as Transações
+│  ├─ Nova Transação
+│  └─ Transferências
+├─ 📤 Contas a Pagar
+│  ├─ Listagem
+│  └─ Nova Conta
+├─ 📥 Contas a Receber
+│  ├─ Listagem
+│  └─ Nova Conta
+├─ 💵 Contas Bancárias
+│  ├─ Listagem
+│  └─ Nova Conta
+├─ 📑 Relatórios
+│  ├─ DRE (Demonstrativo do Resultado)
+│  ├─ Balancete
+│  ├─ Fluxo de Caixa Projetado
+│  └─ DFC (Demonstrativo de Fluxo de Caixa)
+└─ ⚙️ Configurações
+   ├─ Categorias
+   ├─ Centros de Custo
+   └─ Plano de Contas
+```
+
+### 6.2 Dashboard Design (P0)
+
+#### Layout Structure
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     DASHBOARD FINANCEIRO                     │
+├──────────────┬──────────────┬──────────────┬────────────────┤
+│  Saldo Total │  A Receber   │   A Pagar    │   Projeção     │
+│              │  (30 dias)   │  (30 dias)   │   (30 dias)    │
+│  R$ 45.320   │  R$ 12.500   │  R$ 8.200    │  R$ 49.620     │
+│  ↑ 12%       │  5 faturas   │  3 faturas   │  ↑ R$ 4.300    │
+└──────────────┴──────────────┴──────────────┴────────────────┘
+
+┌──────────────────────────────┬──────────────────────────────┐
+│  PRÓXIMOS VENCIMENTOS (7d)   │   CONTAS VENCIDAS           │
+├──────────────────────────────┼──────────────────────────────┤
+│  [Lista de 5-10 itens]       │   [Lista com alertas]        │
+│  Fornecedor | Valor | Data   │   Fornecedor | Atraso | Ação │
+│  🟡 Amanhã                    │   🔴 15 dias                 │
+│  🟢 Em 3 dias                 │   🔴 8 dias                  │
+└──────────────────────────────┴──────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│          ENTRADAS x SAÍDAS (Últimos 12 meses)               │
+│  [Gráfico de barras - Receitas (verde) vs Despesas (vermelho)]│
+└──────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┬─────────────────────────────────┐
+│  SALDO POR CONTA        │   TOP 5 CATEGORIAS (mês atual)  │
+├─────────────────────────┼─────────────────────────────────┤
+│  💳 Banco do Brasil     │   1. Fornecedores  R$ 15.200    │
+│      R$ 32.500          │   2. Salários      R$ 12.000    │
+│  💰 Caixa               │   3. Impostos      R$ 3.500     │
+│      R$ 2.820           │   4. Aluguel       R$ 2.800     │
+│  📱 Nubank              │   5. Materiais     R$ 2.100     │
+│      R$ 10.000          │                                 │
+└─────────────────────────┴─────────────────────────────────┘
+```
+
+#### Widget Specifications
+
+**KPI Cards (4 cards no topo):**
+
+- Size: 1/4 width each, responsive stack on mobile
+- Update: Real-time (on any transaction change)
+- Interactions: Click to drill-down into detail page
+- Icons: Clear visual indicators
+- Trend indicators: Arrow up/down with % change vs. previous period
+
+**Próximos Vencimentos:**
+
+- Show: Next 7 days only
+- Sort: By date ASC
+- Max items: 10, then "Ver todos" link
+- Color coding:
+    - 🔴 Vence hoje
+    - 🟡 Vence amanhã
+    - 🟢 Vence em 2-7 dias
+- Quick action: "Pagar agora" button
+
+**Contas Vencidas:**
+
+- Show: All overdue (atrasado status)
+- Sort: Most overdue first
+- Display: Days late
+- Highlight: Red background/border
+- Quick action: "Regularizar" button
+
+### 6.3 Contas a Pagar/Receber - List View (P0)
+
+#### Filters (Always Visible Top Bar)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 🔍 Buscar... │ 📅 Período ▾ │ 📊 Status ▾ │ 🏷️ Categoria ▾ │
+│              │               │             │ 🏗️ Centro Custo ▾│
+└─────────────────────────────────────────────────────────────┘
+```
+
+- **Buscar**: Search by descrição, numero_documento, fornecedor/cliente name
+- **Período**: Presets (Hoje, Esta semana, Este mês, Personalizado)
+- **Status**: Multi-select (Pendente, Pago, Atrasado, Parcial, Cancelado)
+- **Categoria**: Dropdown with hierarchy
+- **Centro de Custo**: Dropdown (including "Sem centro de custo")
+
+#### Summary Cards (Above Table)
+
+```
+┌──────────────┬──────────────┬──────────────┬──────────────┐
+│ Total a Pagar│   Vencidas   │  Venc. Hoje  │ Próx. 7 dias │
+│  R$ 45.320   │  R$ 2.500    │  R$ 1.200    │  R$ 8.600    │
+│  12 faturas  │  2 faturas   │  1 fatura    │  5 faturas   │
+└──────────────┴──────────────┴──────────────┴──────────────┘
+```
+
+#### Table Design
+
+```
+┌──────┬────────────┬──────────────┬────────┬─────────┬────────┬──────────┬─────────┐
+│ ST │ Fornecedor │ Descrição    │ Venc.  │  Valor  │  Pago  │ Centro   │ Ações   │
+├──────┼────────────┼──────────────┼────────┼─────────┼────────┼──────────┼─────────┤
+│ 🔴 │ ABC Ltda   │ NF 1234      │ 10/02  │ 2.500   │ 0      │ Obra X   │ [Pagar] │
+│ 🟡 │ XYZ Inc    │ Boleto 567   │ 13/02  │ 1.200   │ 0      │ -        │ [Pagar] │
+│ 🟢 │ DEF SA     │ Aluguel 02/26│ 15/02  │ 3.500   │ 0      │ Admin    │ [Pagar] │
+│ ✅ │ GHI Comércio│Compra Mat.  │ 08/02  │ 850     │ 850    │ Obra Y   │ [Ver]   │
+└──────┴────────────┴──────────────┴────────┴─────────┴────────┴──────────┴─────────┘
+
+Legenda Status: 🔴 Atrasado | 🟡 Vence em 3 dias | 🟢 Pendente | ✅ Pago
+```
+
+**Table Features:**
+
+- Sortable columns
+- Row hover: Shows quick preview with observações
+- Bulk actions: Select multiple + "Pagar selecionadas"
+- Pagination: 25/50/100 items per page
+- Export: CSV/Excel with current filters
+- Responsive: Stack cards on mobile
+
+#### Action Buttons
+
+- **Primary CTA**: "Nova Conta a Pagar" (top-right, always visible)
+- **Row Actions**:
+    - Pagar (status: pendente, parcial, atrasado)
+    - Editar (all except pago)
+    - Cancelar (all except pago)
+    - Ver Detalhes (all)
+    - Duplicar (convenience)
+
+### 6.4 Payment/Receipt Modal (P0)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                  REGISTRAR PAGAMENTO                    │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Conta: Fornecedor ABC - NF 1234                       │
+│  Valor Original: R$ 2.500,00                           │
+│  Já Pago: R$ 0,00                                      │
+│  Restante: R$ 2.500,00                                 │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Data do Pagamento *        │ 📅 12/02/2026      │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Conta Bancária *           │ ▾ Banco do Brasil  │  │
+│  │                            │   Saldo: R$ 32.500 │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Valor a Pagar *            │ R$ 2.500,00        │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ + Juros/Multas (opcional)  │ R$ 0,00            │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ - Desconto (opcional)      │ R$ 0,00            │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Valor Final:               │ R$ 2.500,00        │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ Observações (opcional)                           │  │
+│  │                                                  │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│         [Cancelar]              [Confirmar Pagamento]  │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Validation Rules:**
+
+- Valor a Pagar cannot exceed Restante
+- Account must have sufficient balance (warning, not blocking)
+- Date cannot be in future (warning, not blocking)
+- All required fields must be filled
+
+**Success Feedback:**
+
+- Toast notification: "Pagamento registrado com sucesso!"
+- Auto-redirect to list view
+- Highlight the updated row (green flash)
+
+### 6.5 Transaction List (Todas as Transações) (P0)
+
+Similar structure to Contas a Pagar, but shows:
+
+- All Lançamentos (both manual and auto-generated)
+- Columns: Data | Tipo | Categoria | Descrição | Conta Bancária | Centro Custo | Valor | Conciliado | Origem
+- **Origem column**: Shows icon/label if linked to Conta a Pagar, Receber, or Transfer
+- **Filter additions**: Tipo (Entrada/Saída), Conciliado (Sim/Não)
+- **Bulk action**: "Marcar como conciliado"
+
+### 6.6 Forms (Create/Edit) - Best Practices
+
+**Layout Pattern:**
+
+```
+┌─────────────────────────────────────┐
+│  [Título do Formulário]             │
+├─────────────────────────────────────┤
+│                                     │
+│  Seção 1: Informações Básicas       │
+│  ┌────────────┐  ┌────────────┐    │
+│  │  Campo 1   │  │  Campo 2   │    │
+│  └────────────┘  └────────────┘    │
+│  ┌──────────────────────────────┐  │
+│  │  Campo 3 (full width)        │  │
+│  └──────────────────────────────┘  │
+│                                     │
+│  Seção 2: Detalhes Financeiros      │
+│  [campos...]                        │
+│                                     │
+│  Seção 3: Parcelamento (opcional)   │
+│  [campos...]                        │
+│                                     │
+│  [Cancelar]  [Salvar como Rascunho] [Criar] │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+**Form Design Principles:**
+
+- Progressive disclosure: Show advanced options only when needed
+- Inline validation: Real-time feedback on field blur
+- Smart defaults: Pre-fill based on context (e.g., data_emissao = today)
+- Conditional fields: Show parcelamento fields only if selected
+- Autosave: Save draft every 30s (for large forms)
+- Keyboard navigation: Full tab support
+- Error summary: Top of form with anchor links to invalid fields
+
+### 6.7 Responsive Design (continuação)
+
+**Breakpoints:**
+
+- Desktop: > 1024px (full layout)
+- Tablet: 768-1023px (adapted layout, some stacking)
+- Mobile: < 767px (single column, bottom sheets for modals)
+
+**Mobile Adaptations:**
+
+- Dashboard: Cards stack vertically, charts become scrollable
+- Tables: Convert to card list with swipe actions
+- Filters: Collapse into drawer/bottom sheet
+- Forms: Full-screen modal experience
+- FAB (Floating Action Button): "+" for quick actions
+
+---
+
+## 7. Financial Reports Specifications
+
+### 7.1 DRE (Demonstrativo do Resultado do Exercício) - P1
+
+**Purpose**: Show profitability by comparing revenues vs. expenses in a structured format.
+
+**Structure:**
+
+```
+DEMONSTRATIVO DO RESULTADO DO EXERCÍCIO
+Período: [Selecionável: Mês/Trimestre/Ano]
+
+(+) RECEITAS BRUTAS                                    R$ 150.000,00
+    ├─ Vendas de Serviços                             R$ 120.000,00
+    └─ Outras Receitas                                R$ 30.000,00
+
+(-) DEDUÇÕES DA RECEITA                               (R$ 15.000,00)
+    └─ Impostos sobre Vendas                          (R$ 15.000,00)
+
+(=) RECEITA LÍQUIDA                                    R$ 135.000,00
+
+(-) CUSTOS DIRETOS                                    (R$ 60.000,00)
+    ├─ Materiais                                      (R$ 35.000,00)
+    ├─ Mão de Obra Direta                            (R$ 20.000,00)
+    └─ Subempreiteiros                               (R$ 5.000,00)
+
+(=) LUCRO BRUTO                                        R$ 75.000,00
+    Margem Bruta: 55,6%
+
+(-) DESPESAS OPERACIONAIS                             (R$ 45.000,00)
+    ├─ Despesas Administrativas                       (R$ 25.000,00)
+    │   ├─ Salários Administrativos                   (R$ 15.000,00)
+    │   ├─ Aluguel                                    (R$ 5.000,00)
+    │   └─ Materiais de Escritório                    (R$ 5.000,00)
+    └─ Despesas Comerciais                            (R$ 20.000,00)
+
+(=) RESULTADO OPERACIONAL (EBITDA)                     R$ 30.000,00
+    Margem EBITDA: 22,2%
+
+(-) DESPESAS FINANCEIRAS                              (R$ 5.000,00)
+    └─ Juros sobre Empréstimos                        (R$ 5.000,00)
+
+(+) RECEITAS FINANCEIRAS                               R$ 1.000,00
+    └─ Rendimentos de Aplicações                      R$ 1.000,00
+
+(=) RESULTADO ANTES DE IMPOSTOS                        R$ 26.000,00
+
+(-) IMPOSTOS SOBRE LUCRO                              (R$ 3.900,00)
+
+(=) LUCRO LÍQUIDO                                      R$ 22.100,00
+    Margem Líquida: 16,4%
+```
+
+**Features:**
+
+- **Period Selector**: Month, Quarter, Year, Custom Range
+- **Comparison Mode**: Side-by-side comparison of 2-3 periods
+- **Drill-down**: Click any category to see transactions
+- **Export**: PDF (formatted report), Excel (with formulas)
+- **Cost Center Filter**: Can generate DRE per project
+- **Category Grouping**: Auto-groups by category hierarchy
+
+**Data Source:**
+
+- Uses `data_competencia` from Lançamentos
+- Categories must be properly classified (Receita/Despesa)
+- System categories for tax grouping
+## 7.1.1 DRE Gerencial Simplificada (Resultado Operacional) - P0
+
+**Purpose**: Quick view of operational profitability without detailed breakdowns. Ideal for daily/weekly management decisions.
+
+**Structure:**
+
+```
+RESULTADO OPERACIONAL
+Período: Fevereiro/2026
+
+(+) RECEITAS TOTAIS                                    R$ 150.000,00
+
+(-) CUSTOS E DESPESAS TOTAIS                          (R$ 120.000,00)
+
+(=) RESULTADO OPERACIONAL                              R$ 30.000,00
+
+    Margem Operacional: 20,0%
+```
+
+**Simplified Calculation:**
+
+javascript
+
+````javascript
+receitas_totais = SUM(
+  Lancamentos WHERE tipo = 'entrada' 
+  AND categoria.tipo = 'receita'
+  AND data_competencia BETWEEN start_date AND end_date
+)
+
+custos_despesas_totais = SUM(
+  Lancamentos WHERE tipo = 'saida'
+  AND categoria.tipo = 'despesa'
+  AND data_competencia BETWEEN start_date AND end_date
+)
+
+resultado_operacional = receitas_totais - custos_despesas_totais
+margem_operacional = (resultado_operacional / receitas_totais) * 100
+```
+
+**Features:**
+- **Fast Loading**: No category grouping, just totals
+- **Trend Chart**: Line chart showing monthly evolution
+- **Comparison**: Current vs. Previous Period
+- **Cost Center Filter**: Can show per-project operational result
+- **Dashboard Widget**: Mini version in dashboard showing current month
+
+**Use Cases:**
+- Daily check: "Are we profitable this month?"
+- Quick comparison: "How does this month compare to last?"
+- Project profitability: "Is Project X generating positive results?"
+
+**Visual Example:**
+```
+┌──────────────────────────────────────────────────────┐
+│         RESULTADO OPERACIONAL - Fevereiro/2026       │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  💰 Receitas             R$ 150.000,00              │
+│  📉 Custos e Despesas    R$ 120.000,00              │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  ✅ Resultado            R$ 30.000,00 (20,0%)       │
+│                                                      │
+│  📊 Comparação com Jan/2026:                        │
+│     Resultado Anterior:  R$ 25.000,00               │
+│     Variação:           +R$ 5.000,00 (↑ 20%)       │
+│                                                      │
+│  [Gráfico de tendência dos últimos 6 meses]         │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## Atualização da Estrutura de Relatórios:
+```
+📑 Relatórios
+├─ 📊 Resultado Operacional (DRE Simplificada) [P0 - MVP]
+├─ 📈 DRE Completa (Demonstrativo do Resultado)  [P1]
+├─ 📋 Balancete                                   [P1]
+├─ 💵 Fluxo de Caixa Projetado                    [P1]
+└─ 📄 DFC (Demonstrativo de Fluxo de Caixa)       [P1]
+```
+
+---
+
+## Priorização Revisada:
+
+### P0 (MVP) - Relatórios Essenciais:
+1. ✅ **Dashboard com KPIs**
+2. ✅ **Resultado Operacional (DRE Simplificada)** ← NOVO
+
+### P1 (Pós-MVP) - Relatórios Completos:
+3. DRE Completa (estruturada)
+4. Balancete
+5. Fluxo de Caixa Projetado
+6. DFC
+
+---
+
+## Justificativa:
+
+A **DRE Simplificada** vai para **P0** porque:
+- É o relatório mais consultado no dia a dia
+- Responde rapidamente: "Estamos no lucro ou prejuízo?"
+- Não exige categorização complexa
+- Performance superior (consulta mais simples)
+- Essencial para gestores de obra acompanharem seus projetos
+
+A **DRE Completa** fica em **P1** porque:
+- Exige estruturação mais complexa de categorias
+- Usado principalmente para análises mensais/trimestrais
+- Contadores/CFOs precisam, mas não diariamente
+
+---
+
+## Adição ao Dashboard (Widget):
+```
+┌─────────────────────────────────────────────┐
+│  RESULTADO DO MÊS ATUAL (Fev/2026)          │
+├─────────────────────────────────────────────┤
+│  Receitas:        R$ 150.000,00             │
+│  Despesas:        R$ 120.000,00             │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│  Resultado:       R$ 30.000,00 ✅           │
+│  Margem:          20,0% (↑ 2% vs Jan)       │
+│                                             │
+│  [Ver Detalhes]                             │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## API Endpoint:
+```
+GET /api/financial/reports/operational-result
+
+Query params:
+- period_start: ISO date
+- period_end: ISO date
+- cost_center_id: optional (filter by project)
+- compare_previous: boolean (includes previous period)
+
+Response:
+{
+  "period": {
+    "start": "2026-02-01",
+    "end": "2026-02-28"
+  },
+  "receitas_totais": 150000.00,
+  "custos_despesas_totais": 120000.00,
+  "resultado_operacional": 30000.00,
+  "margem_operacional": 20.0,
+  "previous_period": {
+    "resultado_operacional": 25000.00,
+    "variacao_absoluta": 5000.00,
+    "variacao_percentual": 20.0
+  }
+}
+````
+---
+
+### 7.2 Balancete (Trial Balance) - P1
+
+**Purpose**: Verify accounting accuracy by showing opening balance + movements + closing balance per category.
+
+**Structure:**
+
+```
+BALANCETE DE VERIFICAÇÃO
+Período: 01/02/2026 a 28/02/2026
+
+┌──────────────────────┬─────────────┬──────────┬──────────┬─────────────┐
+│ Categoria            │ Saldo       │ Débitos  │ Créditos │ Saldo       │
+│                      │ Anterior    │ (Despesas)│ (Receitas)│ Final      │
+├──────────────────────┼─────────────┼──────────┼──────────┼─────────────┤
+│ RECEITAS             │             │          │          │             │
+│ ├─ Vendas            │ 0,00        │ 0,00     │ 85.000   │ 85.000      │
+│ ├─ Serviços          │ 0,00        │ 0,00     │ 35.000   │ 35.000      │
+│ └─ Outras            │ 0,00        │ 0,00     │ 5.000    │ 5.000       │
+│ TOTAL RECEITAS       │ 0,00        │ 0,00     │ 125.000  │ 125.000     │
+├──────────────────────┼─────────────┼──────────┼──────────┼─────────────┤
+│ DESPESAS             │             │          │          │             │
+│ ├─ Fornecedores      │ 0,00        │ 45.000   │ 0,00     │ 45.000      │
+│ ├─ Salários          │ 0,00        │ 25.000   │ 0,00     │ 25.000      │
+│ ├─ Impostos          │ 0,00        │ 8.500    │ 0,00     │ 8.500       │
+│ └─ Administrativas   │ 0,00        │ 12.000   │ 0,00     │ 12.000      │
+│ TOTAL DESPESAS       │ 0,00        │ 90.500   │ 0,00     │ 90.500      │
+├──────────────────────┼─────────────┼──────────┼──────────┼─────────────┤
+│ RESULTADO DO PERÍODO │             │          │          │ 34.500      │
+└──────────────────────┴─────────────┴──────────┴──────────┴─────────────┘
+
+Totais: Débitos = R$ 90.500,00 | Créditos = R$ 125.000,00
+```
+
+**Features:**
+
+- Hierarchical category display
+- Period comparison
+- Export to Excel
+- Filter by Cost Center
+- Expandable/collapsible categories
+
+---
+
+### 7.3 Fluxo de Caixa Projetado (Projected Cash Flow) - P1
+
+**Purpose**: Forecast liquidity by projecting pending bills into future dates.
+
+**View Options:**
+
+1. **Daily View** (next 30 days)
+2. **Weekly View** (next 12 weeks)
+3. **Monthly View** (next 12 months)
+
+**Structure (Daily Example):**
+
+```
+FLUXO DE CAIXA PROJETADO - Próximos 30 Dias
+Data de Referência: 12/02/2026
+
+┌────────┬─────────────┬──────────┬──────────┬─────────────┬─────────────┐
+│ Data   │ Saldo       │ Entradas │ Saídas   │ Saldo       │ Status      │
+│        │ Inicial     │ Previstas│ Previstas│ Final       │             │
+├────────┼─────────────┼──────────┼──────────┼─────────────┼─────────────┤
+│ 12/02  │ 45.320,00   │ 5.000    │ 8.200    │ 42.120,00   │ ✅ Positivo │
+│ 13/02  │ 42.120,00   │ 0        │ 1.200    │ 40.920,00   │ ✅ Positivo │
+│ 14/02  │ 40.920,00   │ 0        │ 0        │ 40.920,00   │ ✅ Positivo │
+│ 15/02  │ 40.920,00   │ 12.500   │ 3.500    │ 49.920,00   │ ✅ Positivo │
+│ ...    │             │          │          │             │             │
+│ 25/02  │ 38.500,00   │ 2.000    │ 45.000   │ -4.500,00   │ 🔴 ALERTA!  │
+│ 26/02  │ -4.500,00   │ 0        │ 1.500    │ -6.000,00   │ 🔴 CRÍTICO! │
+└────────┴─────────────┴──────────┴──────────┴─────────────┴─────────────┘
+
+[Gráfico de Linha: Saldo Final ao longo do tempo]
+```
+
+**Calculation Logic:**
+
+javascript
+
+````javascript
+For each date in range:
+  saldo_inicial = previous_day.saldo_final || current_actual_balance
+  
+  entradas_previstas = SUM(
+    Contas_Receber WHERE data_vencimento = date AND status != 'recebido'
+  )
+  
+  saidas_previstas = SUM(
+    Contas_Pagar WHERE data_vencimento = date AND status != 'pago'
+  )
+  
+  saldo_final = saldo_inicial + entradas_previstas - saidas_previstas
+```
+
+**Features:**
+- **Alert Levels**:
+  - ✅ Green: saldo_final > R$ 10.000
+  - 🟡 Yellow: R$ 0 < saldo_final < R$ 10.000
+  - 🔴 Red: saldo_final < 0
+- **Scenario Planning**: Toggle on/off specific bills to simulate scenarios
+- **Account Filtering**: Show projection per bank account or consolidated
+- **Date Mode Toggle**: Use `data_vencimento` or `data_competencia`
+
+---
+
+### 7.4 DFC (Demonstrativo de Fluxo de Caixa) - P1
+
+**Purpose**: Analyze cash generation from operations, investments, and financing.
+
+**Structure:**
+```
+DEMONSTRATIVO DE FLUXO DE CAIXA (Método Indireto)
+Período: Fevereiro/2026
+
+A) FLUXO DE CAIXA DAS ATIVIDADES OPERACIONAIS
+   Lucro Líquido do Período                           R$ 22.100,00
+   
+   (+) Depreciação e Amortização                      R$ 0,00
+   
+   Variações nas Contas Operacionais:
+   (+/-) Aumento/Redução Contas a Receber            (R$ 5.000,00)
+   (+/-) Aumento/Redução Contas a Pagar               R$ 3.000,00
+   
+   (=) Caixa Gerado pelas Operações                   R$ 20.100,00
+
+B) FLUXO DE CAIXA DAS ATIVIDADES DE INVESTIMENTO
+   (-) Aquisição de Equipamentos                     (R$ 10.000,00)
+   (-) Aquisição de Veículos                          R$ 0,00
+   
+   (=) Caixa Usado em Investimentos                  (R$ 10.000,00)
+
+C) FLUXO DE CAIXA DAS ATIVIDADES DE FINANCIAMENTO
+   (+) Novos Empréstimos Obtidos                      R$ 0,00
+   (-) Pagamento de Empréstimos                      (R$ 2.000,00)
+   (-) Distribuição de Lucros                         R$ 0,00
+   
+   (=) Caixa de Financiamentos                       (R$ 2.000,00)
+
+D) AUMENTO/REDUÇÃO DE CAIXA (A+B+C)                    R$ 8.100,00
+
+   Saldo Inicial de Caixa (01/02)                     R$ 37.220,00
+   Saldo Final de Caixa (28/02)                       R$ 45.320,00
+````
+
+**Category Mapping:** System needs pre-defined category classification:
+
+- **Operacionais**: All regular revenue/expense categories
+- **Investimentos**: Categories marked as "investment" (equipment, vehicles, etc.)
+- **Financiamentos**: Loans, dividend distributions
+
+**Features:**
+
+- Period comparison (month-over-month, year-over-year)
+- Export to PDF/Excel
+- Drill-down to transaction detail
+
+---
+
+## 8. Technical Specifications
+
+### 8.1 Technology Stack
+
+**Frontend:**
+
+- Next.js 14+ (App Router)
+- TypeScript
+- React 18+
+- Tailwind CSS
+- shadcn/ui components
+- React Hook Form + Zod validation
+- TanStack Table (data tables)
+- Recharts (charts)
+- date-fns (date manipulation)
+
+**Backend:**
+
+- Next.js API Routes
+- Prisma ORM
+- PostgreSQL 14+
+
+**Additional Libraries:**
+
+- next-auth (authentication)
+- react-hot-toast (notifications)
+- jsPDF / react-pdf (PDF generation)
+- xlsx (Excel export)
+
+### 8.2 Database Considerations
+
+**Indexes (Critical for Performance):**
+
+sql
+
+```sql
+-- Contas Pagar/Receber
+CREATE INDEX idx_contas_pagar_status ON contas_pagar(status);
+CREATE INDEX idx_contas_pagar_vencimento ON contas_pagar(data_vencimento);
+CREATE INDEX idx_contas_pagar_centro_custo ON contas_pagar(centro_custo_id);
+CREATE INDEX idx_contas_receber_status ON contas_receber(status);
+CREATE INDEX idx_contas_receber_vencimento ON contas_receber(data_vencimento);
+
+-- Lançamentos
+CREATE INDEX idx_lancamentos_data_comp ON lancamentos(data_competencia);
+CREATE INDEX idx_lancamentos_data_lanc ON lancamentos(data_lancamento);
+CREATE INDEX idx_lancamentos_tipo ON lancamentos(tipo);
+CREATE INDEX idx_lancamentos_categoria ON lancamentos(categoria_id);
+CREATE INDEX idx_lancamentos_centro_custo ON lancamentos(centro_custo_id);
+CREATE INDEX idx_lancamentos_conta_bancaria ON lancamentos(conta_bancaria_id);
+
+-- Composite indexes
+CREATE INDEX idx_lancamentos_comp_periodo ON lancamentos(data_competencia, categoria_id);
+CREATE INDEX idx_contas_pagar_periodo_status ON contas_pagar(data_vencimento, status);
+```
+
+**Triggers/Functions:**
+
+sql
+
+````sql
+-- Auto-update conta_bancaria.saldo_atual on lancamento insert/update/delete
+-- Auto-update status on contas_pagar/receber based on data_vencimento
+-- Prevent deletion of categories with transactions
+```
+
+### 8.3 API Endpoints Structure
+```
+/api/financial/
+├── accounts/
+│   ├── GET /list
+│   ├── POST /create
+│   ├── PUT /:id/update
+│   ├── DELETE /:id/deactivate
+│   └── GET /:id/balance-history
+│
+├── categories/
+│   ├── GET /list (with hierarchy)
+│   ├── POST /create
+│   ├── PUT /:id/update
+│   └── DELETE /:id/deactivate
+│
+├── cost-centers/
+│   ├── GET /list
+│   ├── POST /create
+│   ├── PUT /:id/update
+│   └── GET /:id/transactions
+│
+├── payables/
+│   ├── GET /list (with filters)
+│   ├── POST /create
+│   ├── POST /create-installments
+│   ├── PUT /:id/update
+│   ├── POST /:id/pay (creates lancamento)
+│   ├── POST /:id/cancel
+│   └── GET /summary (KPIs)
+│
+├── receivables/
+│   ├── GET /list
+│   ├── POST /create
+│   ├── POST /create-installments
+│   ├── PUT /:id/update
+│   ├── POST /:id/receive
+│   ├── POST /:id/cancel
+│   └── GET /summary
+│
+├── transactions/
+│   ├── GET /list (all lancamentos)
+│   ├── POST /create-direct
+│   ├── PUT /:id/update
+│   ├── DELETE /:id/delete
+│   ├── POST /bulk-reconcile
+│   └── GET /by-account/:account_id
+│
+├── transfers/
+│   ├── GET /list
+│   ├── POST /create (creates 2 lancamentos)
+│   └── DELETE /:id/delete
+│
+└── reports/
+    ├── GET /dre?period={start}&period={end}&costCenter={id}
+    ├── GET /balancete?period={start}&period={end}
+    ├── GET /cash-flow-projection?days={30}
+    ├── GET /dfc?period={start}&period={end}
+    └── GET /dashboard-summary
+```
+
+### 8.4 Security & Permissions
+
+**Role-Based Access Control:**
+
+| Feature | Admin | Financeiro | Gestor Obras | Visualizador |
+|---------|-------|------------|--------------|--------------|
+| View Dashboard | ✅ | ✅ | ✅ (filtered) | ✅ |
+| Create/Edit Accounts | ✅ | ✅ | ❌ | ❌ |
+| Create Payables/Receivables | ✅ | ✅ | ✅ (own projects) | ❌ |
+| Process Payments | ✅ | ✅ | ❌ | ❌ |
+| View Reports | ✅ | ✅ | ✅ (own projects) | ✅ |
+| Manage Categories | ✅ | ✅ | ❌ | ❌ |
+| Delete Transactions | ✅ | ❌ | ❌ | ❌ |
+
+**Audit Trail:**
+- All financial operations logged with: user_id, timestamp, action, old_value, new_value
+- Immutable logs (append-only table)
+
+---
+
+## 9. Performance Requirements
+
+- Dashboard load time: < 2s
+- Report generation: < 5s for 12-month period
+- Transaction list (1000 items): < 1s
+- Real-time balance updates: < 500ms
+- Concurrent users: Support 50+ simultaneous users
+
+---
+
+## 10. Success Metrics (KPIs)
+
+**User Adoption:**
+- 90% of financial team using system daily within 1 month
+- < 5 support tickets per week after onboarding
+
+**Efficiency:**
+- 70% reduction in time to generate DRE (from manual Excel)
+- 50% reduction in payment processing time
+- 100% elimination of manual balance calculations
+
+**Accuracy:**
+- 0 balance discrepancies between system and bank statements
+- < 1% error rate in automated status updates
+
+---
+
+## 11. Acceptance Criteria Summary
+
+### P0 (MVP Launch Criteria)
+✅ Every Obra automatically creates Centro de Custo  
+✅ Complete CRUD for Contas a Pagar/Receber  
+✅ Payment/Receipt flow creates Lançamentos automatically  
+✅ Bank account balances update in real-time  
+✅ Installment generation works for up to 36 months  
+✅ Dashboard shows accurate KPIs (current balance, payables, receivables)  
+✅ Transaction list with filters works  
+✅ Overdue status auto-updates daily  
+✅ Soft delete prevents data loss  
+
+### P1 (Post-MVP)
+✅ DRE generates correctly with category grouping  
+✅ Balancete shows accurate opening/closing balances  
+✅ Projected Cash Flow identifies negative balance dates  
+✅ DFC categorizes activities correctly  
+✅ Bank transfers create dual lançamentos  
+✅ Recurring bills generate automatically  
+
+---
+
+## 12. Out of Scope (Future Phases)
+
+### Phase 2 (3-6 months post-launch)
+- Bank integration (CNAB/OFX import)
+- Automated bank reconciliation
+- Multi-currency support
+- Mobile app (native iOS/Android)
+- Email/SMS payment reminders
+- Custom report builder
+
+### Phase 3 (6-12 months)
+- Budgeting & forecasting module
+- Approval workflows for high-value payments
+- Integration with accounting software (ContaAzul, Omie)
+- Advanced analytics (predictive cash flow, AI recommendations)
+- Inventory-financial integration
+- Tax calculation automation
+
+---
+
+## 13. Migration & Onboarding Plan
+
+**Data Migration:**
+1. Import existing contas bancárias with opening balances
+2. Import categorias from existing system
+3. Import outstanding payables/receivables
+4. Validate: Total payables + receivables match manual records
+
+**User Onboarding:**
+1. Training sessions (2 hours): Dashboard, basic operations
+2. Advanced training (2 hours): Reports, reconciliation
+3. Documentation: Video tutorials + written guides
+4. Support: Dedicated Slack channel for first 30 days
+
+**Rollout Strategy:**
+- Week 1-2: Parallel run (old + new system)
+- Week 3: New system primary, old as backup
+- Week 4: Full migration, old system retired
+
+---
+
+## 14. Risks & Mitigation
+
+| Risk | Impact | Probability | Mitigation |
+|------|--------|-------------|------------|
+| Data migration errors | High | Medium | Extensive validation scripts, parallel run period |
+| User resistance | Medium | High | Comprehensive training, executive sponsorship |
+| Performance issues | High | Low | Load testing before launch, indexes optimization |
+| Balance calculation errors | Critical | Low | Automated tests, manual reconciliation in parallel run |
+| Bank account deletion with transactions | Medium | Low | Soft delete enforcement, clear UI warnings |
+
+---
+
+## 15. Appendices
+
+### A. Glossary
+- **Lançamento**: Individual financial transaction (entry/exit of money)
+- **Competência**: Accrual date (when the revenue/expense is recognized)
+- **Conciliação**: Bank reconciliation (matching transactions with bank statements)
+- **Centro de Custo**: Cost center (project or department for expense tracking)
+- **Parcela**: Installment
+- **Recorrente**: Recurring bill
+
+### B. UI Color Scheme
+- Primary: Blue (#0066CC) - Actions, links
+- Success: Green (#10B981) - Paid/Received status
+- Warning: Yellow (#F59E0B) - Due soon (3 days)
+- Danger: Red (#EF4444) - Overdue, critical alerts
+- Neutral: Gray (#6B7280) - Pending, inactive
+
+### C. Example Category Hierarchy
+```
+RECEITAS
+├── Vendas de Serviços
+│   ├── Projetos Residenciais
+│   └── Projetos Comerciais
+├── Vendas de Produtos
+└── Outras Receitas
+    └── Rendimentos Financeiros
+
+DESPESAS
+├── Custos Diretos
+│   ├── Materiais
+│   ├── Mão de Obra
+│   └── Subempreiteiros
+├── Despesas Operacionais
+│   ├── Administrativas
+│   │   ├── Salários
+│   │   ├── Aluguel
+│   │   └── Materiais de Escritório
+│   └── Comerciais
+│       ├── Marketing
+│       └── Comissões
+└── Despesas Financeiras
+    ├── Juros
+    └── Tarifas Bancárias
+````
