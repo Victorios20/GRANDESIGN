@@ -133,4 +133,56 @@ export interface DashboardSummary {
     top_categorias_mes: { nome: string; cor: string | null; total: number; tipo: string }[]
     proximos_vencimentos: UpcomingItem[]
     vencidas: UpcomingItem[]
+    operational_result?: OperationalResult
+}
+
+// ── Reports ──
+
+export interface MonthlyTrendItem {
+    month: string
+    receitas: number
+    despesas: number
+    resultado: number
+}
+
+export interface OperationalResult {
+    periodo: {
+        start: string
+        end: string
+    }
+    receitas_totais: number
+    custos_despesas_totais: number
+    resultado_operacional: number
+    margem_operacional: number | null
+
+    previous?: {
+        periodo: {
+            start: string
+            end: string
+        }
+        receitas_totais: number
+        custos_despesas_totais: number
+        resultado_operacional: number
+        margem_operacional: number | null
+        variacao_receitas: number | null
+        variacao_despesas: number | null
+        variacao_resultado: number | null
+    }
+
+    trend_6m: MonthlyTrendItem[]
+}
+
+export interface BalanceteItem {
+    categoria_id: number
+    nome: string
+    nivel: 1 | 2
+    tipo: string // 'Receita' | 'Despesa'
+
+    saldo_anterior: number
+    debitos: number
+    creditos: number
+    saldo_final: number
+
+    // For UI expansion
+    subcontas: BalanceteItem[]
 }

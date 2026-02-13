@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma"
-import { StatusFinanceiro, TipoLancamento } from "@prisma/client"
+import { StatusFinanceiro } from "@prisma/client"
+import { getOperationalResult } from "@/actions/financeiro/reports/get-operational-result"
+import { format, startOfMonth, endOfMonth } from "date-fns"
+import type { DashboardSummary, UpcomingItem } from "@/types/financeiro"
 
 const ACTIVE_STATUSES: StatusFinanceiro[] = ["PENDENTE", "PARCIAL", "ATRASADO"]
 
@@ -17,28 +20,7 @@ interface CategoryRow {
     total: number
 }
 
-export interface UpcomingItem {
-    id: number
-    descricao: string
-    valor_pendente: number
-    data_vencimento: string
-    tipo: "pagar" | "receber"
-    entidade: string | null
-    categoria: string
-}
-
-export interface DashboardSummaryResult {
-    saldo_total: number
-    a_receber_30d: number
-    a_pagar_30d: number
-    projecao_30d: number
-    entradas_saidas_12m: { month: string; receitas: number; despesas: number }[]
-    top_categorias_mes: { nome: string; cor: string | null; total: number; tipo: string }[]
-    proximos_vencimentos: UpcomingItem[]
-    vencidas: UpcomingItem[]
-}
-
-export async function getDashboardSummary(): Promise<DashboardSummaryResult> {
+export async function getDashboardSummary(): Promise<DashboardSummary> {
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const in7days = new Date(today)
@@ -53,145 +35,159 @@ export async function getDashboardSummary(): Promise<DashboardSummaryResult> {
     const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
     const currentMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
 
+    // For Operational Result
+    const opStart = format(currentMonthStart, "yyyy-MM-dd")
+    const opEnd = format(currentMonthEnd, "yyyy-MM-dd")
+
     const [
-        saldoResult,
-        aReceberResult,
-        aPagarResult,
-        monthlyData,
-        topCategories,
-        proximosPagar,
-        proximosReceber,
-        vencidasPagar,
-        vencidasReceber,
-    ] = await prisma.$transaction([
-        // 1. Saldo total — sum saldo_atual from active bank accounts
-        prisma.contasBancaria.aggregate({
-            where: { ativo: true },
-            _sum: { saldo_atual: true },
-        }),
+        [
+            saldoResult,
+            aReceberResult,
+            aPagarResult,
+            monthlyData,
+            topCategories,
+            proximosPagar,
+            proximosReceber,
+            vencidasPagar,
+            vencidasReceber,
+        ],
+        operationalResult
+    ] = await Promise.all([
+        prisma.$transaction([
+            // 1. Saldo total — sum saldo_atual from active bank accounts
+            prisma.contasBancaria.aggregate({
+                where: { ativo: true },
+                _sum: { saldo_atual: true },
+            }),
 
-        // 2. A receber 30d — pending receivables within 30 days
-        prisma.contaReceber.aggregate({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { lte: in30days },
-            },
-            _sum: { valor_total: true, valor_recebido: true },
-        }),
+            // 2. A receber 30d — pending receivables within 30 days
+            prisma.contaReceber.aggregate({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { lte: in30days },
+                },
+                _sum: { valor_total: true, valor_recebido: true },
+            }),
 
-        // 3. A pagar 30d — pending payables within 30 days
-        prisma.contaPagar.aggregate({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { lte: in30days },
-            },
-            _sum: { valor_total: true, valor_pago: true },
-        }),
+            // 3. A pagar 30d — pending payables within 30 days
+            prisma.contaPagar.aggregate({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { lte: in30days },
+                },
+                _sum: { valor_total: true, valor_pago: true },
+            }),
 
-        // 4. Entradas vs Saídas últimos 12 meses — raw SQL for GROUP BY month
-        prisma.$queryRaw<MonthlyRow[]>`
-            SELECT
-                to_char(data_competencia, 'YYYY-MM') AS month,
-                tipo,
-                COALESCE(SUM(valor), 0)::float AS total
-            FROM lancamentos
-            WHERE data_competencia >= ${monthStart}
-            GROUP BY month, tipo
-            ORDER BY month ASC
-        `,
+            // 4. Entradas vs Saídas últimos 12 meses — raw SQL for GROUP BY month
+            prisma.$queryRaw<MonthlyRow[]>`
+                SELECT 
+                    to_char(data_competencia, 'YYYY-MM') AS month,
+                    tipo,
+                    COALESCE(SUM(valor), 0)::float AS total
+                FROM lancamentos
+                WHERE data_competencia >= ${monthStart}
+                GROUP BY month, tipo
+                ORDER BY month ASC
+            `,
 
-        // 5. Top 5 categorias do mês
-        prisma.$queryRaw<CategoryRow[]>`
-            SELECT
-                l.categoria_id,
-                c.nome,
-                c.cor,
-                c.tipo,
-                COALESCE(SUM(l.valor), 0)::float AS total
-            FROM lancamentos l
-            JOIN categorias c ON c.id = l.categoria_id
-            WHERE l.data_competencia >= ${currentMonthStart}
-              AND l.data_competencia <= ${currentMonthEnd}
-            GROUP BY l.categoria_id, c.nome, c.cor, c.tipo
-            ORDER BY total DESC
-            LIMIT 5
-        `,
+            // 5. Top 5 categorias do mês
+            prisma.$queryRaw<CategoryRow[]>`
+                SELECT 
+                    l.categoria_id,
+                    c.nome,
+                    c.cor,
+                    c.tipo,
+                    COALESCE(SUM(l.valor), 0)::float AS total
+                FROM lancamentos l
+                JOIN categorias c ON c.id = l.categoria_id
+                WHERE l.data_competencia >= ${currentMonthStart}
+                  AND l.data_competencia <= ${currentMonthEnd}
+                GROUP BY l.categoria_id, c.nome, c.cor, c.tipo
+                ORDER BY total DESC
+                LIMIT 5
+            `,
 
-        // 6. Próximos vencimentos - Pagar (7 dias)
-        prisma.contaPagar.findMany({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { gte: today, lte: in7days },
-            },
-            select: {
-                id: true,
-                descricao: true,
-                valor_total: true,
-                valor_pago: true,
-                data_vencimento: true,
-                fornecedor: { select: { nome: true } },
-                categoria: { select: { nome: true } },
-            },
-            orderBy: { data_vencimento: "asc" },
-            take: 10,
-        }),
+            // 6. Próximos vencimentos - Pagar (7 dias)
+            prisma.contaPagar.findMany({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { gte: today, lte: in7days },
+                },
+                select: {
+                    id: true,
+                    descricao: true,
+                    valor_total: true,
+                    valor_pago: true,
+                    data_vencimento: true,
+                    fornecedor: { select: { nome: true } },
+                    categoria: { select: { nome: true } },
+                },
+                orderBy: { data_vencimento: "asc" },
+                take: 10,
+            }),
 
-        // 7. Próximos vencimentos - Receber (7 dias)
-        prisma.contaReceber.findMany({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { gte: today, lte: in7days },
-            },
-            select: {
-                id: true,
-                descricao: true,
-                valor_total: true,
-                valor_recebido: true,
-                data_vencimento: true,
-                cliente: { select: { nome: true } },
-                categoria: { select: { nome: true } },
-            },
-            orderBy: { data_vencimento: "asc" },
-            take: 10,
-        }),
+            // 7. Próximos vencimentos - Receber (7 dias)
+            prisma.contaReceber.findMany({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { gte: today, lte: in7days },
+                },
+                select: {
+                    id: true,
+                    descricao: true,
+                    valor_total: true,
+                    valor_recebido: true,
+                    data_vencimento: true,
+                    cliente: { select: { nome: true } },
+                    categoria: { select: { nome: true } },
+                },
+                orderBy: { data_vencimento: "asc" },
+                take: 10,
+            }),
 
-        // 8. Vencidas - Pagar
-        prisma.contaPagar.findMany({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { lt: today },
-            },
-            select: {
-                id: true,
-                descricao: true,
-                valor_total: true,
-                valor_pago: true,
-                data_vencimento: true,
-                fornecedor: { select: { nome: true } },
-                categoria: { select: { nome: true } },
-            },
-            orderBy: { data_vencimento: "asc" },
-            take: 10,
-        }),
+            // 8. Vencidas - Pagar
+            prisma.contaPagar.findMany({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { lt: today },
+                },
+                select: {
+                    id: true,
+                    descricao: true,
+                    valor_total: true,
+                    valor_pago: true,
+                    data_vencimento: true,
+                    fornecedor: { select: { nome: true } },
+                    categoria: { select: { nome: true } },
+                },
+                orderBy: { data_vencimento: "asc" },
+                take: 10,
+            }),
 
-        // 9. Vencidas - Receber
-        prisma.contaReceber.findMany({
-            where: {
-                status: { in: ACTIVE_STATUSES },
-                data_vencimento: { lt: today },
-            },
-            select: {
-                id: true,
-                descricao: true,
-                valor_total: true,
-                valor_recebido: true,
-                data_vencimento: true,
-                cliente: { select: { nome: true } },
-                categoria: { select: { nome: true } },
-            },
-            orderBy: { data_vencimento: "asc" },
-            take: 10,
-        }),
+            // 9. Vencidas - Receber
+            prisma.contaReceber.findMany({
+                where: {
+                    status: { in: ACTIVE_STATUSES },
+                    data_vencimento: { lt: today },
+                },
+                select: {
+                    id: true,
+                    descricao: true,
+                    valor_total: true,
+                    valor_recebido: true,
+                    data_vencimento: true,
+                    cliente: { select: { nome: true } },
+                    categoria: { select: { nome: true } },
+                },
+                orderBy: { data_vencimento: "asc" },
+                take: 10,
+            }),
+        ]),
+        getOperationalResult({
+            period_start: opStart,
+            period_end: opEnd,
+            compare_previous: true,
+        })
     ])
 
     const saldo_total = Number(saldoResult._sum.saldo_atual ?? 0)
@@ -201,14 +197,18 @@ export async function getDashboardSummary(): Promise<DashboardSummaryResult> {
 
     // Build 12-month chart data
     const monthMap = new Map<string, { receitas: number; despesas: number }>()
+    // Initialize last 12 months with 0
     for (let i = 11; i >= 0; i--) {
         const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
         monthMap.set(key, { receitas: 0, despesas: 0 })
     }
+    // Fill with data
     for (const row of monthlyData) {
-        const entry = monthMap.get(row.month)
-        if (entry) {
+        let key = row.month
+        // Ensure month format matches map key if necessary (to_char 'YYYY-MM' matches)
+        if (monthMap.has(key)) {
+            const entry = monthMap.get(key)!
             if (row.tipo === "Receita") entry.receitas = Number(row.total)
             else if (row.tipo === "Despesa") entry.despesas = Number(row.total)
         }
@@ -275,5 +275,6 @@ export async function getDashboardSummary(): Promise<DashboardSummaryResult> {
         top_categorias_mes,
         proximos_vencimentos,
         vencidas,
+        operational_result: operationalResult,
     }
 }

@@ -1,504 +1,260 @@
 "use client"
 
 import {
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
+    Sidebar,
+    SidebarContent,
+    SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
 import {
-  HomeIcon,
-  PlusIcon,
-  LogOutIcon,
-  ClockIcon,
-  Loader2,
-  Users2,
-  HardHat,
-  ShoppingCart,
-  CalendarDays,
-  Settings as SettingsIcon,
-  Contact,
-  Wallet,
-  HandCoins,
-  ArrowLeftRight,
-  BarChart3,
+    HomeIcon,
+    PlusIcon,
+    LogOutIcon,
+    ClockIcon,
+    Loader2,
+    Users2,
+    HardHat,
+    ShoppingCart,
+    CalendarDays,
+    Settings as SettingsIcon,
+    Contact,
+    Wallet,
+    HandCoins,
+    ArrowLeftRight,
+    BarChart3,
+    PieChart,
+    Scale,
+    Package,
 } from "lucide-react"
 
 import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
-import { cn } from "@/lib/utils"
-import { motion, AnimatePresence } from "framer-motion"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { useSidebar } from "@/components/ui/sidebar"
-import { signOut, useSession } from "next-auth/react"
-import versionInfo from "@/../version.json"
-
-function formatPtBR(dateIso: string) {
-  try {
-    const d = new Date(dateIso)
-    return new Intl.DateTimeFormat("pt-BR").format(d)
-  } catch {
-    return "-"
-  }
-}
+import { usePathname, useRouter } from "next/navigation"
+import { signOut } from "next-auth/react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function CustomSidebar() {
-  const { open: isOpen } = useSidebar()
-  const { data: session, status } = useSession()
+    const pathname = usePathname()
+    const router = useRouter()
 
-  const pathname = usePathname()
-  const [loggingOut, setLoggingOut] = useState(false)
+    return (
+        <Sidebar>
+            <SidebarHeader>
+                <div className="flex items-center gap-2 px-2 py-1">
+                    <Avatar className="h-8 w-8 rounded-lg">
+                        <AvatarImage src="/favicon.ico" alt="Grandesign" />
+                        <AvatarFallback className="rounded-lg">GD</AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">Grandesign</span>
+                        <span className="truncate text-xs">Gestão</span>
+                    </div>
+                </div>
+            </SidebarHeader>
 
-  const isActive = (href: string) => pathname.startsWith(href)
+            <SidebarContent>
+                {/* ESSENTIALS */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Principal</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/"}
+                                    onClick={() => router.push("/")}
+                                    tooltip="Home"
+                                >
+                                    <HomeIcon className="size-4" />
+                                    <span>Home</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/obras")}
+                                    onClick={() => router.push("/obras")}
+                                    tooltip="Obras"
+                                >
+                                    <HardHat className="size-4" />
+                                    <span>Obras</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
 
-  const iconClass = (active: boolean) =>
-    cn("size-5 transition-all duration-300", active && "text-primary scale-110")
+                {/* FINANCEIRO */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Financeiro</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/dashboard-financeiro"}
+                                    onClick={() => router.push("/dashboard-financeiro")}
+                                    tooltip="Dashboard Financeiro"
+                                >
+                                    <BarChart3 className="size-4" />
+                                    <span>Dashboard</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
 
-  const menuItemVariants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: (i: number) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: i * 0.05, duration: 0.3 },
-    }),
-  }
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/lancamentos"}
+                                    onClick={() => router.push("/lancamentos")}
+                                    tooltip="Lançamentos"
+                                >
+                                    <ArrowLeftRight className="size-4" />
+                                    <span>Lançamentos</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
 
-  const submenuVariants = {
-    hidden: { opacity: 0, height: 0 },
-    visible: {
-      opacity: 1,
-      height: "auto",
-      transition: { duration: 0.3, when: "beforeChildren", staggerChildren: 0.05 },
-    },
-    exit: { opacity: 0, height: 0, transition: { duration: 0.2 } },
-  }
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/contas-pagar"}
+                                    onClick={() => router.push("/contas-pagar")}
+                                    tooltip="Contas a Pagar"
+                                >
+                                    <Wallet className="size-4" />
+                                    <span>Contas a Pagar</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
 
-  async function handleLogout() {
-    try {
-      setLoggingOut(true)
-      await signOut({ callbackUrl: "/login", redirect: true })
-    } finally {
-      setLoggingOut(false)
-    }
-  }
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/contas-receber"}
+                                    onClick={() => router.push("/contas-receber")}
+                                    tooltip="Contas a Receber"
+                                >
+                                    <HandCoins className="size-4" />
+                                    <span>Contas a Receber</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
 
-  const rolesUpper = useMemo(() => {
-    const rs = (session?.user as any)?.roles ?? []
-    return Array.isArray(rs) ? rs.map((r: any) => String(r).toUpperCase()) : []
-  }, [session])
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/relatorios/resultado-operacional"}
+                                    onClick={() => router.push("/relatorios/resultado-operacional")}
+                                    tooltip="Resultado Operacional"
+                                >
+                                    <PieChart className="size-4" />
+                                    <span>Resultado Op.</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
 
-  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname === "/relatorios/balancete"}
+                                    onClick={() => router.push("/relatorios/balancete")}
+                                    tooltip="Balancete Financeiro"
+                                >
+                                    <Scale className="size-4" />
+                                    <span>Balancete</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
 
-  return (
-    <motion.aside
-      initial={{ width: isOpen ? 240 : 80 }}
-      animate={{ width: isOpen ? 240 : 80 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className={cn("h-screen bg-sidebar border-r border-zinc-200 transition-all flex flex-col")}
-    >
-      <SidebarHeader className="justify-center px-4 py-4">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center"
-        >
-          <Image
-            src="/favicon.ico"
-            alt="Logo"
-            width={32}
-            height={32}
-            className="transition-transform duration-300 hover:scale-110"
-          />
-          {isOpen && (
-            <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="ml-2 font-bold text-marromEscuro"
-            >
-              GRANDESIGN
-            </motion.span>
-          )}
-        </motion.div>
-      </SidebarHeader>
+                {/* SUPRIMENTOS */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>Suprimentos</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/pedidos-compra")}
+                                    onClick={() => router.push("/pedidos-compra")}
+                                    tooltip="Pedidos de Compra"
+                                >
+                                    <ShoppingCart className="size-4" />
+                                    <span>Pedidos de Compra</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/fornecedores")}
+                                    onClick={() => router.push("/fornecedores")}
+                                    tooltip="Fornecedores"
+                                >
+                                    <Users2 className="size-4" />
+                                    <span>Fornecedores</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/insumos")}
+                                    onClick={() => router.push("/insumos")}
+                                    tooltip="Insumos"
+                                >
+                                    <Package className="size-4" />
+                                    <span>Insumos</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
 
-      <SidebarContent className="flex-1 overflow-y-hidden">
-        <SidebarMenu>
-          <TooltipProvider delayDuration={300}>
-            <AnimatePresence>
-              {/* Home */}
-              <motion.div custom={0} initial="hidden" animate="visible" variants={menuItemVariants}>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip="Home"
-                    isActive={pathname === "/"}
-                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                  >
-                    <Link href="/">
-                      <HomeIcon className={iconClass(isActive("/"))} />
-                      {isOpen && (
-                        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                          Home
-                        </motion.span>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </motion.div>
-            </AnimatePresence>
-          </TooltipProvider>
+                {/* CRM */}
+                <SidebarGroup>
+                    <SidebarGroupLabel>CRM</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/leads")}
+                                    onClick={() => router.push("/leads")}
+                                    tooltip="Leads"
+                                >
+                                    <Contact className="size-4" />
+                                    <span>Leads</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    isActive={pathname?.startsWith("/clientes")}
+                                    onClick={() => router.push("/clientes")}
+                                    tooltip="Clientes"
+                                >
+                                    <Users2 className="size-4" />
+                                    <span>Clientes</span>
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </SidebarContent>
 
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.2 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: GERAR */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Gerar
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={1} initial="hidden" animate="visible" variants={menuItemVariants}>
+            <SidebarFooter>
+                <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Novo Orçamento"
-                        isActive={isActive("/orcamento/new")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/orcamento/new">
-                          <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Novo Orçamento
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: GERENCIAR */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Gerenciar
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={2} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Orçamentos"
-                        isActive={isActive("/orcamento") && !isActive("/orcamento/new")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/orcamento">
-                          <ClockIcon className={iconClass(isActive("/orcamento"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Orçamentos
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Clientes"
-                        isActive={isActive("/clientes")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/clientes">
-                          <Contact className={iconClass(isActive("/clientes"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Clientes
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Obras"
-                        isActive={isActive("/obras")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/obras">
-                          <HardHat className={iconClass(isActive("/obras"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Obras
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Calendário"
-                        isActive={isActive("/calendario")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/calendario">
-                          <CalendarDays className={iconClass(isActive("/calendario"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Calendário
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Pedidos de Compra"
-                        isActive={isActive("/pedido_compra")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/pedido_compra">
-                          <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Pedidos de Compra
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.35 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: FINANCEIRO */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Financeiro
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Dashboard Financeiro"
-                        isActive={isActive("/dashboard-financeiro")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/dashboard-financeiro">
-                          <BarChart3 className={iconClass(isActive("/dashboard-financeiro"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Dashboard Fin.
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Transações"
-                        isActive={isActive("/lancamentos")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/lancamentos">
-                          <ArrowLeftRight className={iconClass(isActive("/lancamentos"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Transações
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Contas a Pagar"
-                        isActive={isActive("/contas-pagar")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/contas-pagar">
-                          <Wallet className={iconClass(isActive("/contas-pagar"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Contas a Pagar
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={10} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Contas a Receber"
-                        isActive={isActive("/contas-receber")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/contas-receber">
-                          <HandCoins className={iconClass(isActive("/contas-receber"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Contas a Receber
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: CONFIGURAÇÕES */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Configurações
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Cadastros"
-                        isActive={isActive("/cadastros")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/cadastros">
-                          <SettingsIcon className={iconClass(isActive("/cadastros"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Cadastros
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  {canSeeAdmin && (
-                    <motion.div custom={10} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
                         <SidebarMenuButton
-                          asChild
-                          tooltip="Usuários"
-                          isActive={isActive("/admin/users")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                            isActive={pathname === "/configuracoes"}
+                            onClick={() => router.push("/configuracoes")}
+                            tooltip="Configurações"
                         >
-                          <Link href="/admin/users">
-                            <Users2 className={iconClass(isActive("/admin/users"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Usuários
-                              </motion.span>
-                            )}
-                          </Link>
+                            <SettingsIcon className="size-4" />
+                            <span>Configurações</span>
                         </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  )}
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarMenu>
-      </SidebarContent>
-
-      <SidebarFooter className="p-2 hover:bg-transparent">
-        <SidebarMenu>
-          <TooltipProvider delayDuration={300}>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={handleLogout}
-                disabled={loggingOut}
-                aria-busy={loggingOut}
-                tooltip={loggingOut ? "Saindo..." : "Sair"}
-                className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-transparent transition-all duration-200")}
-              >
-                {loggingOut ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : (
-                  <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
-                )}
-                {isOpen && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                    {loggingOut ? "Saindo..." : "Sair"}
-                  </motion.span>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </TooltipProvider>
-        </SidebarMenu>
-
-        <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
-          <span className="text-marromEscuro text-xs font-medium select-none">
-            Versão {versionInfo.version} | {formatPtBR(versionInfo.releasedAt)}
-          </span>
-        </div>
-      </SidebarFooter>
-    </motion.aside>
-  )
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                        <SidebarMenuButton
+                            onClick={() => signOut({ callbackUrl: "/login" })}
+                            tooltip="Sair do sistema"
+                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                        >
+                            <LogOutIcon className="size-4" />
+                            <span>Sair</span>
+                        </SidebarMenuButton>
+                    </SidebarMenuItem>
+                </SidebarMenu>
+            </SidebarFooter>
+        </Sidebar>
+    )
 }
