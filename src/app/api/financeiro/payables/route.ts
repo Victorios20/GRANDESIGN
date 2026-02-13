@@ -15,12 +15,20 @@ export async function GET(req: Request) {
     const limit = Number(searchParams.get("limit")) || 20
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
-    const status = searchParams.get("status") as StatusFinanceiro | undefined
     const fornecedor_id = searchParams.get("fornecedor_id") ? Number(searchParams.get("fornecedor_id")) : undefined
     const categoria_id = searchParams.get("categoria_id") ? Number(searchParams.get("categoria_id")) : undefined
+    const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined
+    const search = searchParams.get("search") || undefined
+
+    const statusParam = searchParams.get("status")
+    let status: StatusFinanceiro | StatusFinanceiro[] | undefined
+    if (statusParam) {
+        const arr = statusParam.split(",").filter(Boolean) as StatusFinanceiro[]
+        status = arr.length === 1 ? arr[0] : arr
+    }
 
     try {
-        const result = await getPayables({ page, limit, startDate, endDate, status, fornecedor_id, categoria_id })
+        const result = await getPayables({ page, limit, startDate, endDate, status, fornecedor_id, categoria_id, centro_custo_id, search })
         return NextResponse.json(result)
     } catch (error) {
         return NextResponse.json({ error: (error as Error).message }, { status: 500 })

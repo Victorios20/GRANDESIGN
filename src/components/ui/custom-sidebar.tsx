@@ -24,6 +24,9 @@ import {
   CalendarDays,
   Settings as SettingsIcon,
   Contact,
+  Wallet,
+  HandCoins,
+  ArrowLeftRight,
 } from "lucide-react"
 
 import Link from "next/link"
@@ -307,6 +310,82 @@ export function CustomSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
+          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.35 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
+
+          {/* GRUPO: FINANCEIRO */}
+          <SidebarGroup>
+            {isOpen && (
+              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
+                Financeiro
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <TooltipProvider delayDuration={300}>
+                  <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Transações"
+                        isActive={isActive("/lancamentos")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/lancamentos">
+                          <ArrowLeftRight className={iconClass(isActive("/lancamentos"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Transações
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+
+                  <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Contas a Pagar"
+                        isActive={isActive("/contas-pagar")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/contas-pagar">
+                          <Wallet className={iconClass(isActive("/contas-pagar"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Contas a Pagar
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+
+                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
+                        tooltip="Contas a Receber"
+                        isActive={isActive("/contas-receber")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/contas-receber">
+                          <HandCoins className={iconClass(isActive("/contas-receber"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Contas a Receber
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+                </TooltipProvider>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
           <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
 
           {/* GRUPO: CONFIGURAÇÕES */}
@@ -319,7 +398,7 @@ export function CustomSidebar() {
             <SidebarGroupContent>
               <SidebarMenu>
                 <TooltipProvider delayDuration={300}>
-                  <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -340,7 +419,7 @@ export function CustomSidebar() {
                   </motion.div>
 
                   {canSeeAdmin && (
-                    <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <motion.div custom={10} initial="hidden" animate="visible" variants={menuItemVariants}>
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
