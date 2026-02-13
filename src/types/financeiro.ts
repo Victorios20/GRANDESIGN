@@ -186,3 +186,14 @@ export interface BalanceteItem {
     // For UI expansion
     subcontas: BalanceteItem[]
 }
+
+// ── Cash Flow ──
+
+export interface CashFlowProjectionItem {
+    date: string
+    saldo_inicial: number
+    entradas_previstas: number
+    saidas_previstas: number
+    saldo_final: number
+    status: "OK" | "ALERTA" | "CRITICO"
+}

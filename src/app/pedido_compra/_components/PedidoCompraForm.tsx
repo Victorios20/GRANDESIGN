@@ -184,7 +184,9 @@ export default function PedidoCompraForm({
           dataEntrega: "",
           status: "RASCUNHO" as PedidoStatus,
           frete: "0",
-          observacoes: ""
+          observacoes: "",
+          naoPrevisto: false,
+          motivoExtra: ""
         } satisfies FormData,
         deliveryAddress: {
           nomeReceptor: "",
@@ -213,6 +215,8 @@ export default function PedidoCompraForm({
         status: statusNorm,
         frete: initialData.frete == null ? "0" : String(initialData.frete),
         observacoes: initialData.observacoes ?? "",
+        naoPrevisto: initialData.nao_previsto ?? false,
+        motivoExtra: initialData.motivo_extra ?? "",
       } satisfies FormData,
       deliveryAddress: {
         nomeReceptor: initialData.nome_receptor ?? "",
@@ -599,6 +603,9 @@ export default function PedidoCompraForm({
 
         frete: asNumberOrNull(formData.frete) ?? 0,
         observacoes: formData.observacoes?.trim() || null,
+
+        nao_previsto: formData.naoPrevisto,
+        motivo_extra: formData.motivoExtra?.trim() || null,
 
         data_entrega: formData.dataEntrega ? formData.dataEntrega : null,
         nome_receptor: deliveryAddress.nomeReceptor?.trim() || null,

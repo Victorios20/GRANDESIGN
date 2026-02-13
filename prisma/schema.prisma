@@ -369,6 +369,9 @@ model pedido_compra {
   descricao   String? @db.VarChar(500)
   observacoes String? @db.Text
 
+  nao_previsto Boolean @default(false)
+  motivo_extra String? @db.Text
+
   fornecedor_id Int?
   fornecedor    fornecedores? @relation("FornecedorPedidoCompra", fields: [fornecedor_id], references: [id], onDelete: SetNull)
 
@@ -501,6 +504,31 @@ model obras {
 
   // Financeiro
   centro_custo CentroCusto[]
+  
+  // Snapshot Orçamento
+  budget_snapshot obra_budget_snapshot?
+}
+
+model obra_budget_snapshot {
+  id Int @id @default(autoincrement())
+  obra_id Int @unique
+  
+  // Receita
+  receita_orcada Decimal @default(0.00) @db.Decimal(15, 2)
+  
+  // Custos Previstos (Originais do Orçamento)
+  mao_de_obra_orcada Decimal @default(0.00) @db.Decimal(15, 2)
+  materiais_previsto Decimal @default(0.00) @db.Decimal(15, 2)
+  madeira_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+  telha_previsto     Decimal @default(0.00) @db.Decimal(15, 2)
+  andaime_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+  
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  
+  @@map("obra_budget_snapshots")
 }
 
 model obra_imagens {

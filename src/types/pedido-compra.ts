@@ -142,6 +142,8 @@ export interface PedidoFormData {
     status: PedidoStatus
     frete: string
     observacoes: string
+    naoPrevisto?: boolean
+    motivoExtra?: string | null
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -186,6 +188,10 @@ export interface PedidoCompraDetalhadoSnake {
     frete: string | null
     descricao: string | null
     observacoes: string | null
+
+    nao_previsto: boolean
+    motivo_extra: string | null
+
     fornecedor_id: number | null
     data_entrega: string | null
     endereco_entrega: string | null

@@ -1,181 +1,184 @@
-import { prisma } from "../../../lib/prisma"
-import { BalanceteItem } from "../../../types/financeiro"
-import { parseISO } from "date-fns"
+import { prisma } from "@/lib/prisma"
+import { BalanceteItem } from "@/types/financeiro"
+import { TipoLancamento } from "@prisma/client"
+import { startOfDay, endOfDay, isValid, parseISO } from "date-fns"
 
-interface GetBalanceteParams {
-    period_start: string // YYYY-MM-DD
-    period_end: string   // YYYY-MM-DD
-    cost_center_id?: number
+interface BalanceteParams {
+    period_start: string
+    period_end: string
+    cost_center_id?: string | null
+    show_empty?: boolean
 }
 
-interface CategoryMod {
-    id: number
-    nome: string
-    tipo: string
-    categoria_pai_id: number | null
-}
-
-interface AggregationRow {
+interface RawAggregation {
     categoria_id: number
-    receitas: number
-    despesas: number
+    saldo_anterior: number
+    creditos: number
+    debitos: number
 }
 
-export async function getBalancete({
-    period_start,
-    period_end,
-    cost_center_id,
-}: GetBalanceteParams): Promise<BalanceteItem[]> {
-    const startDate = parseISO(period_start)
-    const endDate = parseISO(period_end)
+export async function getBalanceteReport(params: BalanceteParams): Promise<BalanceteItem[]> {
+    const { period_start, period_end, cost_center_id, show_empty } = params
 
-    // 1. Fetch all categories
+    // 1. Validation
+    if (!period_start || !period_end) throw new Error("Período obrigatório")
+    const start = startOfDay(parseISO(period_start))
+    const end = endOfDay(parseISO(period_end))
+
+    if (!isValid(start) || !isValid(end)) throw new Error("Datas inválidas")
+    if (start > end) throw new Error("Data inicial deve ser anterior à final")
+
+    const costCenterId = cost_center_id && cost_center_id !== "all" ? Number(cost_center_id) : null
+
+    // 2. Fetch all active categories
     const categories = await prisma.categoria.findMany({
-        select: {
-            id: true,
-            nome: true,
-            tipo: true,
-            categoria_pai_id: true,
-        },
-        orderBy: { nome: "asc" },
+        where: { ativo: true },
+        select: { id: true, nome: true, tipo: true, categoria_pai_id: true }
     })
 
-    // 2. Fetch Aggregations
-    // We need two aggregations: Before Period (Opening) and During Period.
+    // 3. Raw Aggregation
+    // Note: Prisma QueryRaw returns Decimal for sums, need to cast or handle BigInt/Decimal
+    // We strictly use data_competencia for DRE/Balancete compatibility
 
-    async function fetchAggregation(start: Date | null, end: Date, isBefore: boolean) {
-        let query = ""
-        const params: any[] = []
+    let whereClause = `WHERE 1=1`
+    const queryParams: any[] = [start, end] // $1, $2
 
-        if (isBefore) {
-            // Opening Balance: UP TO (strictly less than?) Or include previous day?
-            // "Saldo Anterior" usually means balance at start of period.
-            // So if period starts 2024-02-01, Opening Balance is end of 2024-01-31.
-            // Which means < period_start (as date). Or <= prevEndDate.
-            query = `
-                SELECT 
-                    categoria_id,
-                    COALESCE(SUM(CASE WHEN tipo = 'Receita' THEN valor ELSE 0 END), 0)::float as receitas,
-                    COALESCE(SUM(CASE WHEN tipo = 'Despesa' THEN valor ELSE 0 END), 0)::float as despesas
-                FROM lancamentos
-                WHERE data_competencia <= $1::date
-            `
-            params.push(end)
-        } else {
-            // During Period: inclusive
-            query = `
-                SELECT 
-                    categoria_id,
-                    COALESCE(SUM(CASE WHEN tipo = 'Receita' THEN valor ELSE 0 END), 0)::float as receitas,
-                    COALESCE(SUM(CASE WHEN tipo = 'Despesa' THEN valor ELSE 0 END), 0)::float as despesas
-                FROM lancamentos
-                WHERE data_competencia >= $1::date AND data_competencia <= $2::date
-            `
-            if (start) params.push(start)
-            params.push(end)
-        }
-
-        if (cost_center_id) {
-            query += ` AND centro_custo_id = $${params.length + 1}`
-            params.push(cost_center_id)
-        }
-
-        query += ` GROUP BY categoria_id`
-
-        return prisma.$queryRawUnsafe<AggregationRow[]>(query, ...params)
+    if (costCenterId) {
+        whereClause += ` AND centro_custo_id = $3`
+        queryParams.push(costCenterId)
     }
 
-    // Previous Balance: everything strictly BEFORE period_start
-    // So <= period_start - 1 day
-    const prevEndDate = new Date(startDate)
-    prevEndDate.setDate(prevEndDate.getDate() - 1)
+    // Types for mapping
+    const RECEITA = TipoLancamento.RECEITA
+    const DESPESA = TipoLancamento.DESPESA
 
-    // During Period
-    const [openingRows, periodRows] = await Promise.all([
-        fetchAggregation(null, prevEndDate, true),
-        fetchAggregation(startDate, endDate, false),
-    ])
+    // SQL Aggregation
+    // saldo_anterior: everything before start. Receita (+), Despesa (-)
+    // creditos: range [start, end]. Receita (+)
+    // debitos: range [start, end]. Despesa (+) - note we sum positive values for display
 
-    // Map rows for easy lookup
-    const openingMap = new Map<number, { r: number, d: number }>()
-    openingRows.forEach(row => openingMap.set(row.categoria_id, { r: row.receitas, d: row.despesas }))
+    const sql = `
+        SELECT 
+            categoria_id,
+            SUM(CASE 
+                WHEN data_competencia < $1 AND tipo = '${RECEITA}' THEN valor 
+                WHEN data_competencia < $1 AND tipo = '${DESPESA}' THEN -valor 
+                ELSE 0 
+            END) as saldo_anterior,
+            SUM(CASE 
+                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${RECEITA}' THEN valor 
+                ELSE 0 
+            END) as creditos,
+            SUM(CASE 
+                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${DESPESA}' THEN valor 
+                ELSE 0 
+            END) as debitos
+        FROM lancamentos
+        ${whereClause}
+        GROUP BY categoria_id
+    `
 
-    const periodMap = new Map<number, { r: number, d: number }>()
-    periodRows.forEach(row => periodMap.set(row.categoria_id, { r: row.receitas, d: row.despesas }))
+    const rawData = await prisma.$queryRawUnsafe<RawAggregation[]>(sql, ...queryParams)
 
-    // 3. Build Tree & Calculate (Bottom-up or build full list then rollup)
+    // 4. Map results to Category Map
+    // Helper to parse decimal/number from raw query
+    const toNum = (val: any) => Number(val || 0)
 
-    // Initialize all items map
-    // We perform extensive mutation, so interface allows mutation or we create temp object
-    const itemMap = new Map<number, BalanceteItem>()
+    const categoryMap = new Map<number, BalanceteItem>()
 
-    // Pass 1: Create BalanceteItem for every category (Leaf logic)
-    for (const cat of categories) {
-        const op = openingMap.get(cat.id) || { r: 0, d: 0 }
-        const per = periodMap.get(cat.id) || { r: 0, d: 0 }
-
-        // Logic: 
-        // Saldo Anterior = Receitas(antes) - Despesas(antes)
-        const saldo_anterior = op.r - op.d
-
-        // Movimentação do período
-        const creditos = per.r
-        const debitos = per.d
-
-        // Saldo Final = Anterior + Créditos - Débitos
-        const saldo_final = saldo_anterior + creditos - debitos
-
-        const item: BalanceteItem = {
+    // Initialize all categories with 0
+    categories.forEach(cat => {
+        categoryMap.set(cat.id, {
             categoria_id: cat.id,
             nome: cat.nome,
-            nivel: cat.categoria_pai_id ? 2 : 1,
-            tipo: cat.tipo,
-            saldo_anterior,
-            debitos,
-            creditos,
-            saldo_final,
-            subcontas: [],
+            tipo: cat.tipo === 'RECEITA' ? 'Receita' : 'Despesa', // Match Frontend Enum/String
+            nivel: cat.categoria_pai_id ? 2 : 1, // Simple logic for now
+            saldo_anterior: 0,
+            creditos: 0,
+            debitos: 0,
+            saldo_final: 0,
+            subcontas: [] // We'll fill this later
+        })
+    })
+
+    // Fill with aggregated data
+    rawData.forEach((row: any) => {
+        const item = categoryMap.get(row.categoria_id)
+        if (item) {
+            item.saldo_anterior = toNum(row.saldo_anterior)
+            item.creditos = toNum(row.creditos)
+            item.debitos = toNum(row.debitos)
+            item.saldo_final = item.saldo_anterior + item.creditos - item.debitos
         }
-        itemMap.set(cat.id, item)
-    }
+    })
 
-    // Pass 2: Link Children to Parents
-    const rootItems: BalanceteItem[] = []
+    // 5. Build Hierarchy (Bottom-Up Summation or Post-Order Traversal)
+    // We can iterate roots and build recursively.
 
-    // We need to iterate categories again to link parents
-    for (const cat of categories) {
-        const item = itemMap.get(cat.id)!
+    const roots: BalanceteItem[] = []
+    const childrenMap = new Map<number, BalanceteItem[]>()
 
+    // Separate roots and children
+    categories.forEach(cat => {
+        const item = categoryMap.get(cat.id)!
         if (cat.categoria_pai_id) {
-            const parent = itemMap.get(cat.categoria_pai_id)
-            if (parent) {
-                parent.subcontas.push(item)
-            } else {
-                // If parent not found (inactive?), treat as root
-                rootItems.push(item)
+            if (!childrenMap.has(cat.categoria_pai_id)) {
+                childrenMap.set(cat.categoria_pai_id, [])
             }
+            childrenMap.get(cat.categoria_pai_id)?.push(item)
         } else {
-            rootItems.push(item)
+            roots.push(item)
         }
+    })
+
+    // Recursive function to process node: returns whether it (or children) has non-zero data
+    const processNode = (node: BalanceteItem): boolean => {
+        const children = childrenMap.get(node.categoria_id) || []
+
+        // Recursively process children
+        let computedSaldoAnt = node.saldo_anterior
+        let computedCreditos = node.creditos
+        let computedDebitos = node.debitos
+
+        const activeChildren: BalanceteItem[] = []
+
+        for (const child of children) {
+            const hasData = processNode(child)
+
+            // Sum children values to parent (Bubbling up)
+            // NOTE: Requirement says "categorias pai somam valores dos filhos". 
+            // We assume database aggregation only caught direct assignments. 
+            // So we MUST add children values.
+            computedSaldoAnt += child.saldo_anterior
+            computedCreditos += child.creditos
+            computedDebitos += child.debitos
+
+            // Filter logic
+            if (show_empty || hasData) {
+                activeChildren.push(child)
+            }
+        }
+
+        // Update Parent
+        node.saldo_anterior = computedSaldoAnt
+        node.creditos = computedCreditos
+        node.debitos = computedDebitos
+        node.saldo_final = computedSaldoAnt + computedCreditos - computedDebitos
+        node.subcontas = activeChildren
+
+        // Check availability strictly
+        // Use epsilon for float comparison if needed, but 0 check is usually fine for "empty"
+        const isNonZero =
+            Math.abs(node.saldo_anterior) > 0.001 ||
+            Math.abs(node.creditos) > 0.001 ||
+            Math.abs(node.debitos) > 0.001
+
+        return isNonZero
     }
 
-    // Pass 3: Rollup Logic (Sum children into parent)
-    // Since depth is max 2 (Root -> Child), iterating roots is sufficient.
-    // Parent values already contain "Own values" (direct transactions on parent category, if any).
-    // Just add children sums.
-
-    for (const root of rootItems) {
-        // Sort children alphabetically
-        root.subcontas.sort((a, b) => a.nome.localeCompare(b.nome))
-
-        for (const child of root.subcontas) {
-            root.saldo_anterior += child.saldo_anterior
-            root.debitos += child.debitos
-            root.creditos += child.creditos
-            root.saldo_final += child.saldo_final
-        }
-    }
-
-    // Sort roots alphabetically
-    return rootItems.sort((a, b) => a.nome.localeCompare(b.nome))
+    // Process roots
+    return roots.filter(root => {
+        const hasData = processNode(root)
+        return show_empty || hasData
+    })
 }
