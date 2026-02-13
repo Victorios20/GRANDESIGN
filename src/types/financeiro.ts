@@ -111,3 +111,26 @@ export interface PaginatedResponse<T> {
         totalPages: number
     }
 }
+
+// ── Dashboard ──
+
+export interface UpcomingItem {
+    id: number
+    descricao: string
+    valor_pendente: number
+    data_vencimento: string
+    tipo: "pagar" | "receber"
+    entidade: string | null
+    categoria: string
+}
+
+export interface DashboardSummary {
+    saldo_total: number
+    a_receber_30d: number
+    a_pagar_30d: number
+    projecao_30d: number
+    entradas_saidas_12m: { month: string; receitas: number; despesas: number }[]
+    top_categorias_mes: { nome: string; cor: string | null; total: number; tipo: string }[]
+    proximos_vencimentos: UpcomingItem[]
+    vencidas: UpcomingItem[]
+}

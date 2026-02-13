@@ -27,6 +27,7 @@ import {
   Wallet,
   HandCoins,
   ArrowLeftRight,
+  BarChart3,
 } from "lucide-react"
 
 import Link from "next/link"
@@ -326,6 +327,26 @@ export function CustomSidebar() {
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
+                        tooltip="Dashboard Financeiro"
+                        isActive={isActive("/dashboard-financeiro")}
+                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                      >
+                        <Link href="/dashboard-financeiro">
+                          <BarChart3 className={iconClass(isActive("/dashboard-financeiro"))} />
+                          {isOpen && (
+                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                              Dashboard Fin.
+                            </motion.span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </motion.div>
+
+                  <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        asChild
                         tooltip="Transações"
                         isActive={isActive("/lancamentos")}
                         className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
@@ -342,7 +363,7 @@ export function CustomSidebar() {
                     </SidebarMenuItem>
                   </motion.div>
 
-                  <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
@@ -362,7 +383,7 @@ export function CustomSidebar() {
                     </SidebarMenuItem>
                   </motion.div>
 
-                  <motion.div custom={9} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  <motion.div custom={10} initial="hidden" animate="visible" variants={menuItemVariants}>
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         asChild
