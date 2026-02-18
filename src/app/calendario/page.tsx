@@ -1,5 +1,5 @@
-// src/app/calendario/page.tsx
 "use client"
+import { useSession } from "next-auth/react"
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
@@ -209,8 +209,13 @@ export default function CalendarioPage() {
   // Sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  // User permissions
-  const [canEdit] = useState(true)
+  // Permissions logic
+  const { data: session } = useSession()
+  const canEdit = useMemo(() => {
+    if (!session?.user) return false
+    const userRoles = (session.user as any)?.roles || []
+    return userRoles.some((r: string) => ["ADMIN", "GERENTE"].includes(r.toUpperCase()))
+  }, [session])
 
   // Initialize external draggable - stable initialization
   useEffect(() => {

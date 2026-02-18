@@ -43,8 +43,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     nome_receptor: pedido.nome_receptor ?? null,
     telefone_receptor: pedido.telefone_receptor ?? null,
     link_maps: pedido.link_maps ?? null,
-    created_at: pedido.created_at ? pedido.created_at.toISOString() : null,
-    updated_at: pedido.updated_at ? pedido.updated_at.toISOString() : null,
     fornecedor: pedido.fornecedor
       ? { id: pedido.fornecedor.id, nome: pedido.fornecedor.nome, tipo: pedido.fornecedor.tipo ?? null }
       : null,
@@ -56,8 +54,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       tamanho: i.tamanho == null ? null : i.tamanho?.toString?.(),
       preco_unitario: i.preco_unitario?.toString?.() ?? "0",
       total: i.total?.toString?.() ?? "0",
-      created_at: i.created_at ? i.created_at.toISOString() : null,
-      updated_at: i.updated_at ? i.updated_at.toISOString() : null,
+      componente: i.componente ?? null,
     })),
   }
 

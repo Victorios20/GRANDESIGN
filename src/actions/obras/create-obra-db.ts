@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { Prisma, ObraStatus, PagamentoStatus, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
+import { formatObraTitle, formatClientName, formatLocation } from "@/utils/name-formatter"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -105,6 +106,7 @@ export type PedidoItemInput = {
   tamanho?: Decimalish
   preco_unitario: Decimalish
   total: Decimalish
+  componente?: string | null
 }
 
 export type PedidoCompraInput = {
@@ -194,7 +196,11 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           orcamento: { connect: { id: input.orcamentoId } },
           cliente: { connect: { id: orc.cliente_id } },
           ...(input.equipe_id ? { equipe: { connect: { id: input.equipe_id } } } : {}),
-          titulo: `${orc.cliente.nome || "Cliente"} [${orc.cliente.bairro || ""} - ${orc.cliente.cidades?.nome || ""}]`,
+          titulo: formatObraTitle(
+            orc.cliente.nome || "Cliente",
+            orc.cliente.bairro || "",
+            orc.cliente.cidades?.nome || ""
+          ),
 
           endereco_obra: input.endereco_obra,
           maps_url: input.maps_url,
@@ -274,6 +280,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               preco_unitario: m.preco_unitario,
               tamanho: m.tamanho ?? undefined,
               total: total,
+              // @ts-ignore
+              componente: m.componente,
             })
           }
         })
@@ -319,12 +327,12 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
 
       // Auto-Fill Data
-      const clienteName = orc.cliente.nome || "Cliente"
-      const cidadeName = orc.cliente.cidades?.nome || ""
-      const bairroName = orc.cliente.bairro || ""
-      const locationSuffix = `${cidadeName} ${bairroName}`.trim()
+      const clienteName = formatClientName(orc.cliente.nome || "Cliente")
+      // const cidadeName = orc.cliente.cidades?.nome || ""
+      // const bairroName = orc.cliente.bairro || ""
+      const locationSuffix = formatLocation(orc.cliente.bairro || "", orc.cliente.cidades?.nome || "")
 
-      const formatTitle = (cat: string) => `${cat} - ${clienteName} - ${locationSuffix}`
+      const formatTitle = (cat: string) => `${cat} - ${clienteName} [${locationSuffix}]`
 
       // Resolve supplier IDs with fallback from orcamento
       const madeiraFornecedorId = input.fornecedor_madeira_id ?? orc.id_fornecedor ?? null
@@ -399,6 +407,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               tamanho: g.categoria === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
               preco_unitario: d(it.preco_unitario),
               total: d(it.total),
+              // @ts-ignore
+              componente: it.componente,
             },
           })
         }

@@ -11,7 +11,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   if (!Number.isFinite(pedidoCompraId) || pedidoCompraId <= 0) notFound()
 
-  const [pedido, fornecedores, madeiras, telhas, gerais, andaimes] = await Promise.all([
+  const [pedido, fornecedores, madeiras, telhas, gerais, andaimes, componentes] = await Promise.all([
     prisma.pedido_compra.findUnique({
       where: { id: pedidoCompraId },
       include: {
@@ -42,6 +42,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       where: { tipo: "andaime" },
       orderBy: { descricao: "asc" },
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
+    }),
+    prisma.componentes.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
     }),
   ])
 
@@ -76,6 +80,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       tamanho: i.tamanho == null ? null : i.tamanho?.toString?.(),
       preco_unitario: i.preco_unitario?.toString?.() ?? "0",
       total: i.total?.toString?.() ?? "0",
+      componente: i.componente ?? null,
       created_at: i.created_at ? i.created_at.toISOString() : null,
       updated_at: i.updated_at ? i.updated_at.toISOString() : null,
     })),
@@ -125,6 +130,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       initialData={initialData}
       initialFornecedores={initialFornecedores}
       initialMateriaisByTipo={initialMateriaisByTipo}
+      initialComponentes={componentes}
     />
   )
 }

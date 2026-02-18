@@ -41,7 +41,7 @@ export type HomeIndicadoresDTO = {
   orcamentosVsMesAnteriorPercent: number | null
 
   obrasAtivas: number
-  obrasIniciadasHoje: number
+  obrasIniciadasMes: number
   comprasPendentes: number
 
   valorObrasMes: number
@@ -91,8 +91,8 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
         SELECT COUNT(*)::int AS n
         FROM obras
         WHERE data_criacao IS NOT NULL
-          AND data_criacao >= date_trunc('day', (now() AT TIME ZONE 'America/Sao_Paulo'))
-          AND data_criacao <  (date_trunc('day', (now() AT TIME ZONE 'America/Sao_Paulo')) + interval '1 day')
+          AND data_criacao >= date_trunc('month', (now() AT TIME ZONE 'America/Sao_Paulo'))
+          AND data_criacao <  (date_trunc('month', (now() AT TIME ZONE 'America/Sao_Paulo')) + interval '1 month')
       `),
       prisma.$queryRaw<{ n: number }[]>(Prisma.sql`
         SELECT COUNT(*)::int AS n
@@ -127,7 +127,7 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
   const orcamentosVsMesAnteriorPercent = pct(orcamentosMes, orcamentosMesAnterior)
 
   const obrasAtivasN = Number((obrasAtivas?.[0]?.n ?? 0) as any) || 0
-  const obrasIniciadasHoje = Number((obrasHoje?.[0]?.n ?? 0) as any) || 0
+  const obrasIniciadasMes = Number((obrasHoje?.[0]?.n ?? 0) as any) || 0
   const comprasPendentesN = Number((comprasPendentes?.[0]?.n ?? 0) as any) || 0
 
   const valorObrasMes = n(valorMes?.[0]?.total)
@@ -193,7 +193,7 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
       orcamentosVsMesAnteriorPercent,
 
       obrasAtivas: obrasAtivasN,
-      obrasIniciadasHoje,
+      obrasIniciadasMes,
       comprasPendentes: comprasPendentesN,
 
       valorObrasMes,

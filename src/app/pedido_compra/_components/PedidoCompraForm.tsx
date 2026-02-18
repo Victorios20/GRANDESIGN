@@ -122,6 +122,7 @@ type Props = {
   initialData?: PedidoCompraDetalhadoSnake | null
   initialFornecedores?: FornecedorOption[]
   initialMateriaisByTipo?: MateriaisByTipo
+  initialComponentes?: { id: number; nome: string }[]
 }
 
 const emptyMateriaisByTipo: MateriaisByTipo = { madeira: [], telha: [], geral: [], andaime: [] }
@@ -154,6 +155,7 @@ export default function PedidoCompraForm({
   initialData,
   initialFornecedores,
   initialMateriaisByTipo,
+  initialComponentes,
 }: Props) {
   const router = useRouter()
 
@@ -227,7 +229,9 @@ export default function PedidoCompraForm({
         quantidade: Number(i.quantidade ?? 0),
         precoUnitario: Number(i.preco_unitario ?? 0),
         total: Number(i.total ?? 0),
+
         tamanho: i.tamanho == null ? null : Number(i.tamanho),
+        componente: i.componente ?? null,
       })) as OrderItem[],
       obraSelected: {
         id: Number(initialData.obra_id),
@@ -276,14 +280,14 @@ export default function PedidoCompraForm({
 
   // Prevent accidental close/refresh
   useEffect(() => {
-    if (!isDirty) return
+    if (!isDirty || saving) return
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ""
     }
     window.addEventListener("beforeunload", handleBeforeUnload)
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
-  }, [isDirty])
+  }, [isDirty, saving])
 
   const [showExitAlert, setShowExitAlert] = useState(false)
 
@@ -461,6 +465,7 @@ export default function PedidoCompraForm({
       precoUnitario: 0,
       total: 0,
       tamanho: null,
+      componente: null,
     }
     setItems((prev) => [...prev, newItem])
   }
@@ -1123,6 +1128,7 @@ export default function PedidoCompraForm({
                         <tr className="bg-[#FAF3E0] border-b border-[#f5d193]/40">
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-12">#</th>
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide">Descrição</th>
+                          {isMadeira && <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Componente</th>}
                           <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-20">Qtd</th>
                           {isMadeira && <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-24">Tamanho</th>}
                           <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Vlr. Unit.</th>
@@ -1136,6 +1142,11 @@ export default function PedidoCompraForm({
                             <td className="px-4 py-2.5">
                               <div className="text-sm leading-tight">{item.descricao || "—"}</div>
                             </td>
+                            {isMadeira && (
+                              <td className="px-4 py-2.5">
+                                <div className="text-sm leading-tight text-muted-foreground">{item.componente || "—"}</div>
+                              </td>
+                            )}
                             <td className="px-4 py-2.5 text-center text-sm">{item.quantidade}</td>
                             {isMadeira && (
                               <td className="px-4 py-2.5 text-center text-sm">
@@ -1192,7 +1203,7 @@ export default function PedidoCompraForm({
                           </div>
 
                           <div className="grid gap-4 md:grid-cols-12">
-                            <div className={isMadeira ? "md:col-span-4" : "md:col-span-5"}>
+                            <div className={isMadeira ? "md:col-span-3" : "md:col-span-5"}>
                               <Label className="text-xs">Descrição</Label>
 
                               <div className="mt-1">
@@ -1217,6 +1228,29 @@ export default function PedidoCompraForm({
                                 <p className="mt-1 text-xs text-amber-600">Selecione um fornecedor para ver a lista de preços.</p>
                               )}
                             </div>
+
+                            {isMadeira && (
+                              <div className="md:col-span-3">
+                                <Label className="text-xs">Componente</Label>
+                                <div className="mt-1">
+                                  <Select
+                                    value={item.componente || ""}
+                                    onValueChange={(v) => updateItem(item.clientId, "componente", v)}
+                                  >
+                                    <SelectTrigger className="h-10 text-sm rounded-md border border-border justify-between">
+                                      <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(initialComponentes || []).map((c) => (
+                                        <SelectItem key={c.id} value={c.nome}>
+                                          {c.nome}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            )}
 
                             <div className="md:col-span-2">
                               <Label className="text-xs">Quantidade</Label>

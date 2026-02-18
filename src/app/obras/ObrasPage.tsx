@@ -35,6 +35,7 @@ import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/u
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
 import { gerarContratoN8nESalvar } from "./lib/useGerarContrato"
+import { gerarOrdemServicoWebhook } from "@/actions/obras/gerar-ordem-servico"
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { deleteObraDB } from "@/actions/obras/delete-obra-db"
@@ -76,6 +77,7 @@ type PedidoCompraDTO = {
     tamanho: number | null
     precoUnitario: number
     total: number
+    componente?: string | null
   }>
   descricao?: string | null
   observacoes?: string | null
@@ -279,6 +281,7 @@ function dtoToPedidoVM(p: PedidoCompraDTO): PedidoCompraVM {
       tamanho: i.tamanho ?? null,
       precoUnitario: Number(i.precoUnitario ?? 0),
       total: Number(i.total ?? 0),
+      componente: i.componente ?? null,
     })),
   }
 }
@@ -661,7 +664,23 @@ export default function ObrasPage({
   }
 
   async function onGerarOrdemServico() {
-    toast.message("Gerar ordem de serviço (ação pendente).")
+    if (!obraId) return
+    const toastId = toast.loading("Gerando ordem de serviço...")
+    try {
+      const res = await gerarOrdemServicoWebhook(obraId)
+      if (res.success) {
+        toast.success("Ordem de serviço gerada com sucesso!", { id: toastId })
+        if (res.url) {
+          window.open(res.url, "_blank", "noopener,noreferrer")
+          router.refresh()
+        }
+      } else {
+        toast.error(`Erro: ${res.error}`, { id: toastId })
+      }
+    } catch (error: any) {
+      toast.error("Falha ao gerar ordem de serviço.", { id: toastId })
+      console.error(error)
+    }
   }
 
   function validateAndFocus(): boolean {
@@ -802,6 +821,7 @@ export default function ObrasPage({
         quantidade,
         preco_unitario: precoUnitario,
         total,
+        componente: it?.componente?.trim() || null,
       }
 
       const cat = normCategoria(String(categoria ?? ""))
@@ -1236,6 +1256,7 @@ export default function ObrasPage({
           propostaLink={propostaLinkFinal}
           contratoLink={contratoLinkFinal}
           ordemServicoId={ordemServicoId ?? null}
+          ordemServicoLink={anexosInit?.ordemServico}
         />
       </div>
 

@@ -17,6 +17,7 @@ export type PedidoCompraItemVM = {
   tamanho?: number | null
   precoUnitario: number
   total: number
+  componente?: string | null
 }
 
 export type PedidoCompraVM = {

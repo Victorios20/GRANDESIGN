@@ -41,6 +41,7 @@ type Props = {
   propostaLink?: string | null
   contratoLink?: string | null
   ordemServicoId?: number | null
+  ordemServicoLink?: string | null
   className?: string
 }
 
@@ -111,7 +112,9 @@ export default function Anexos({
   orcamentoId,
   propostaLink,
   contratoLink,
+
   ordemServicoId,
+  ordemServicoLink,
   className,
 }: Props) {
   const router = useRouter()
@@ -127,9 +130,10 @@ export default function Anexos({
   }, [orcamentoLink, orcamentoId])
 
   const ordemServicoUrl = useMemo(() => {
+    if (ordemServicoLink && ordemServicoLink.trim()) return ordemServicoLink.trim()
     if (!ordemServicoId) return ""
     return `/ordemServico/${ordemServicoId}`
-  }, [ordemServicoId])
+  }, [ordemServicoId, ordemServicoLink])
 
   const showExtra = mode !== "new"
   const isEditable = mode === "edit"

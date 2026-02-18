@@ -45,7 +45,7 @@ type HomeIndicadoresDTO = {
   orcamentosVsMesAnteriorPercent: number | null
 
   obrasAtivas: number
-  obrasIniciadasHoje: number
+  obrasIniciadasMes: number
   comprasPendentes: number
 
   valorObrasMes: number
@@ -113,7 +113,7 @@ export default function HomeClient({ initial }: Props) {
       title: "Obras ativas",
       value: String(indicadores.obrasAtivas ?? 0),
       icon: Building2,
-      change: `${indicadores.obrasIniciadasHoje ?? 0} iniciadas hoje`,
+      change: `${indicadores.obrasIniciadasMes ?? 0} iniciadas este mês`,
       trend: "up" as const,
     },
     {

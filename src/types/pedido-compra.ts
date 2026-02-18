@@ -122,6 +122,7 @@ export interface OrderItem {
     precoUnitario: number
     total: number
     tamanho?: number | null
+    componente?: string | null
 }
 
 export interface DeliveryAddress {
@@ -201,5 +202,6 @@ export interface PedidoCompraDetalhadoSnake {
         tamanho: string | null
         preco_unitario: number | string
         total: number | string
+        componente: string | null
     }>
 }

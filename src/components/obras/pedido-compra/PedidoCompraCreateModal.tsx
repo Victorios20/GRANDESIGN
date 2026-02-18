@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Loader2, Plus, Trash2, MapPin, Copy } from "lucide-react"
 import { toast } from "sonner"
+import { formatClientName, formatLocation } from "@/utils/name-formatter"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -11,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import type { PedidoCompraVM } from "./types"
+import { type PedidoCompraVM, categoriaLabel } from "./types"
 
 type ItemDraft = {
   clientId: string
@@ -20,6 +21,7 @@ type ItemDraft = {
   quantidade: number
   precoUnitario: number
   tamanho?: number | null
+  componente?: string
 }
 
 type FornecedorItem = {
@@ -180,17 +182,20 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
     const loadAll = async () => {
       setMateriaisLoading(true)
       try {
-        const [madeira, telha, geral, andaime] = await Promise.all([
+        const [madeira, telha, geral, andaime, comps] = await Promise.all([
           loadTipo("MADEIRA"),
           loadTipo("TELHA"),
           loadTipo("MATERIAIS"),
           loadTipo("ANDAIMES"),
+          fetch("/api/componentes").then(r => r.json().catch(() => [])).then(data => Array.isArray(data) ? data : [])
         ])
         if (cancelled) return
         setMateriaisByTipo({ madeira, telha, geral, andaime })
+        setComponentesList(comps)
       } catch {
         if (cancelled) return
         setMateriaisByTipo(emptyMateriaisByTipo)
+        setComponentesList([])
       } finally {
         if (cancelled) return
         setMateriaisLoading(false)
@@ -203,6 +208,8 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
       cancelled = true
     }
   }, [open])
+
+  const [componentesList, setComponentesList] = React.useState<Array<{ id: number, nome: string }>>([])
 
   React.useEffect(() => {
     const idNum = Number(fornecedorId)
@@ -242,6 +249,25 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
         if (obraAddress) setEnderecoEntrega(obraAddress)
         if (obraMaps) setLinkMaps(obraMaps)
 
+        // Auto-fill Description
+        const clientBairro = body?.data?.cliente?.bairro ?? ""
+        const clientCity = body?.data?.cliente?.cidade?.nome ?? ""
+
+        const cName = formatClientName(clientName)
+        const cLoc = formatLocation(clientBairro, clientCity)
+        const suffix = `${cName} [${cLoc}]`
+
+        // Store suffix in data attribute or state to use when category changes? 
+        // Or just update now if category is empty?
+        // Actually, we can just update the description right now if it's empty, 
+        // but we don't have category yet probably. 
+        // Let's store these derived strings in a ref or state if needed, 
+        // but simplest is to just set it here if description is empty, 
+        // maybe without category prefix yet.
+
+        // Better: Update state so we can use it when category changes
+        setClientInfoForTitle({ name: cName, location: cLoc })
+
       } catch (e) {
         console.error("Erro ao carregar obra", e)
       }
@@ -249,6 +275,30 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
     loadObra()
     return () => { cancelled = true }
   }, [open, obraId])
+
+  // State to hold client info for title generation
+  const [clientInfoForTitle, setClientInfoForTitle] = React.useState<{ name: string, location: string } | null>(null)
+
+  // Effect to update description when Category or ClientInfo changes
+  React.useEffect(() => {
+    if (!clientInfoForTitle) return
+
+    // Only auto-update if description is empty or looks like an auto-generated one (to avoid overwriting user edits)
+    // Heuristic: check if it ends with the location suffix
+    const suffix = `${clientInfoForTitle.name} [${clientInfoForTitle.location}]`
+    const catLabel = categoria ? categoriaLabel(categoria as any) : "Pedido"
+
+    const newDesc = `${catLabel} - ${suffix}`
+
+    // Logic: If description is empty -> set it.
+    // If description matches "OldCategory - Suffix" -> update to "NewCategory - Suffix"
+
+    setDescricao(prev => {
+      if (!prev) return newDesc
+      if (prev.includes(suffix)) return newDesc // simple replace if suffix exists
+      return prev
+    })
+  }, [categoria, clientInfoForTitle])
 
   React.useEffect(() => {
     // If category is MADEIRA and we have a budget supplier, use it
@@ -270,6 +320,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
         quantidade: 0,
         precoUnitario: 0,
         tamanho: null,
+        componente: "",
       },
     ])
   }
@@ -409,6 +460,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
         precoUnitario: Number(x.precoUnitario) || 0,
         total: itemTotal(x),
         tamanho: isMadeira ? (x.tamanho ?? null) : null,
+        componente: x.componente?.trim() || null,
       })) as any,
 
       status: "PENDENTE" as any,
@@ -596,6 +648,27 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
                             placeholder="0,00"
                             className="mt-1"
                           />
+                        </div>
+
+                        <div className="md:col-span-3">
+                          <Label className="text-xs">Componente</Label>
+                          <div className="mt-1">
+                            <Select
+                              value={item.componente || ""}
+                              onValueChange={(v) => updateItem(item.clientId, { componente: v })}
+                            >
+                              <SelectTrigger className="h-10 text-sm rounded-md border border-border justify-between">
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {componentesList.map((c) => (
+                                  <SelectItem key={c.id} value={c.nome}>
+                                    {c.nome}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
 
                         <div className="md:col-span-3">
