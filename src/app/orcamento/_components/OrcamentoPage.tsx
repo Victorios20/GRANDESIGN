@@ -1975,40 +1975,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     isSavingClient={false}
                 />
 
-                {/* NOVO: Fornecedor Madeiras */}
-                <Card>
-                    <CardHeader className="p-4">
-                        <CardTitle className="text-lg">Configurações da Obra</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-0">
-                        <div className="space-y-4">
-                            <div className="flex flex-col gap-2">
-                                <Label>Fornecedor (Madeira)</Label>
-                                <Select
-                                    value={fornecedorSel ? String(fornecedorSel) : ""}
-                                    onValueChange={(val) => {
-                                        const id = Number(val)
-                                        setFornecedorSel(Number.isFinite(id) ? id : null)
-                                    }}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Selecione o fornecedor..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {fornecedores.map((f) => (
-                                            <SelectItem key={f.id} value={String(f.id)}>
-                                                {f.nome}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    Define a tabela de preços de madeira e o fornecedor padrão para pedidos.
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+
 
 
 
