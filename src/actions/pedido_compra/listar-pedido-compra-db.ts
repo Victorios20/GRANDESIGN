@@ -261,7 +261,14 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     status: r.status as PedidoCompraStatus,
     valor_orcado: r.valor_orcado as any,
     valor_realizado: r.valor_realizado as any,
-    data_entrega: r.data_entrega == null ? null : new Date(r.data_entrega),
+    data_entrega: r.data_entrega == null ? null : (() => {
+      const dt = new Date(r.data_entrega)
+      if (!Number.isFinite(dt.getTime())) return null
+      const y = dt.getFullYear()
+      const m = String(dt.getMonth() + 1).padStart(2, "0")
+      const d2 = String(dt.getDate()).padStart(2, "0")
+      return new Date(`${y}-${m}-${d2}T12:00:00Z`) // noon UTC avoids any timezone edge
+    })(),
     obra_id: Number(r.obra_id),
     obra_status: r.obra_status == null ? null : String(r.obra_status),
     obra_titulo: r.obra_titulo == null ? null : String(r.obra_titulo),
