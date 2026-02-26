@@ -218,6 +218,14 @@ export default function CalendarioPage() {
     return userRoles.some((r: string) => ["ADMIN", "GERENTE"].includes(r.toUpperCase()))
   }, [session])
 
+  useEffect(() => {
+    if (session) {
+      console.log("CURRENT SESSION:", session)
+      console.log("ROLES IN SESSION:", (session.user as any)?.roles)
+      console.log("CAN EDIT?", canEdit)
+    }
+  }, [session, canEdit])
+
   // Initialize external draggable - stable initialization
   useEffect(() => {
     if (sidebarCollapsed || !draggableContainerRef.current) {
