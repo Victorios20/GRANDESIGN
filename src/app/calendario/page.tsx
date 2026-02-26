@@ -120,7 +120,8 @@ async function fetchWithCache(url: string, bustCache = false): Promise<any> {
     return cached.data
   }
 
-  const res = await fetch(url)
+  const fetchUrl = bustCache ? (url.includes("?") ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`) : url
+  const res = await fetch(fetchUrl)
   if (!res.ok) throw new Error(`Failed to fetch ${url}`)
 
   const data = await res.json()
@@ -619,7 +620,7 @@ export default function CalendarioPage() {
     try {
       setIsFetchingAgenda(true)
 
-      const res = await fetch(`/api/obras/${idOfObra}/detalhado`)
+      const res = await fetch(`/api/obras/${idOfObra}/detalhado?_t=${Date.now()}`)
       if (!res.ok) {
         throw new Error(`API error: ${res.status}`)
       }
