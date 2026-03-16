@@ -5,7 +5,7 @@ import { getToken } from "next-auth/jwt"
 const PUBLIC_EXACT = ["/favicon.ico", "/robots.txt", "/sitemap.xml"]
 const PUBLIC_PREFIX = ["/_next", "/assets", "/images", "/public"]
 
-const LOGIN_PATH = "/login"
+const PUBLIC_LOGIN_PATHS = ["/login", "/esqueci-senha", "/reset-senha"]
 
 // GET liberados (exatos)
 function isExactPublicApiGet(req: NextRequest) {
@@ -63,7 +63,7 @@ export async function middleware(req: NextRequest) {
   const token = await getToken({ req, secret })
 
   const isApi = pathname.startsWith("/api/")
-  const isLogin = pathname === LOGIN_PATH
+  const isPublicAuthPage = PUBLIC_LOGIN_PATHS.includes(pathname)
 
   if (!token || isExpired((token as any).exp)) {
     if (isApi) {
@@ -73,10 +73,10 @@ export async function middleware(req: NextRequest) {
       })
     }
 
-    if (isLogin) return NextResponse.next()
+    if (isPublicAuthPage) return NextResponse.next()
 
     const url = req.nextUrl.clone()
-    url.pathname = LOGIN_PATH
+    url.pathname = "/login"
     url.search = new URLSearchParams({ callbackUrl: pathname + search }).toString()
 
     const res = NextResponse.redirect(url)
