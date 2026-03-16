@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff } from "lucide-react";
+import Link from "next/link";
 
 const LS_KEY_KEEP_LOGGED = "gd_keep_logged";
 
@@ -137,15 +138,12 @@ export default function LoginPageClient() {
                       Manter conectado
                     </Label>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      toast.info("Recuperação de senha em breve. Fale com o suporte para redefinir por enquanto.")
-                    }
+                  <Link
+                    href="/esqueci-senha"
                     className="text-sm text-muted-foreground underline underline-offset-2 hover:opacity-80"
                   >
                     Esqueci minha senha
-                  </button>
+                  </Link>
                 </div>
 
                 {/* opcional: dica de duração */}
