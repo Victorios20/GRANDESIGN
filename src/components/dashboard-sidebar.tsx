@@ -4,20 +4,38 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/orcamentos", label: "Orçamentos", icon: FileText },
-  { href: "/clientes", label: "Clientes", icon: Contact },
-  { href: "/obras", label: "Obras", icon: Building2 },
-  { href: "/calendario", label: "Calendário", icon: CalendarDays },
-  { href: "/pedidos", label: "Compras", icon: ShoppingCart },
-  { href: "/cadastros", label: "Cadastros", icon: Settings },
-  { href: "/usuarios", label: "Usuários", icon: Users },
-]
+import { useSession } from "next-auth/react"
+import { useMemo } from "react"
 
 export function DashboardSidebar() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+
+  const navItems = [
+    { href: "/", label: "Home", icon: Home },
+    { href: "/orcamentos", label: "Orçamentos", icon: FileText },
+    { href: "/clientes", label: "Clientes", icon: Contact },
+    { href: "/obras", label: "Obras", icon: Building2 },
+    { href: "/calendario", label: "Calendário", icon: CalendarDays },
+    { href: "/pedidos", label: "Compras", icon: ShoppingCart },
+    { href: "/cadastros", label: "Cadastros", icon: Settings },
+    { href: "/usuarios", label: "Usuários", icon: Users },
+  ]
+
+  const rolesUpper = useMemo(() => {
+    const rs = (session?.user as any)?.roles ?? []
+    return Array.isArray(rs) ? rs.map((r: string) => String(r).toUpperCase()) : []
+  }, [session])
+
+  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
+  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
+
+  const allowedNavItems = useMemo(() => {
+    if (isVendedor) {
+      return navItems.filter((item) => ["Home", "Orçamentos"].includes(item.label))
+    }
+    return navItems
+  }, [isVendedor])
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar text-sidebar-foreground flex flex-col">
@@ -31,7 +49,7 @@ export function DashboardSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-4 py-6 space-y-1">
-        {navItems.map((item) => {
+        {allowedNavItems.map((item) => {
           const isActive = pathname === item.href ||
             (item.href !== "/" && pathname.startsWith(item.href))
 

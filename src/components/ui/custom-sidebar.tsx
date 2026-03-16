@@ -92,6 +92,7 @@ export function CustomSidebar() {
   }, [session])
 
   const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
+  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
 
   return (
     <motion.aside
@@ -223,136 +224,86 @@ export function CustomSidebar() {
                     </SidebarMenuItem>
                   </motion.div>
 
-                  <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Clientes"
-                        isActive={isActive("/clientes")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/clientes">
-                          <Contact className={iconClass(isActive("/clientes"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Clientes
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Obras"
-                        isActive={isActive("/obras")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/obras">
-                          <HardHat className={iconClass(isActive("/obras"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Obras
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Calendário"
-                        isActive={isActive("/calendario")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/calendario">
-                          <CalendarDays className={iconClass(isActive("/calendario"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Calendário
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Pedidos de Compra"
-                        isActive={isActive("/pedido_compra")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/pedido_compra">
-                          <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Pedidos de Compra
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: CONFIGURAÇÕES */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Configurações
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Cadastros"
-                        isActive={isActive("/cadastros")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/cadastros">
-                          <SettingsIcon className={iconClass(isActive("/cadastros"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Cadastros
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  {canSeeAdmin && (
-                    <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                  {!isVendedor && (
+                    <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          tooltip="Usuários"
-                          isActive={isActive("/admin/users")}
+                          tooltip="Clientes"
+                          isActive={isActive("/clientes")}
                           className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
                         >
-                          <Link href="/admin/users">
-                            <Users2 className={iconClass(isActive("/admin/users"))} />
+                          <Link href="/clientes">
+                            <Contact className={iconClass(isActive("/clientes"))} />
                             {isOpen && (
                               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Usuários
+                                Clientes
+                              </motion.span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </motion.div>
+                  )}
+
+                  {!isVendedor && (
+                    <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Obras"
+                          isActive={isActive("/obras")}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <Link href="/obras">
+                            <HardHat className={iconClass(isActive("/obras"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Obras
+                              </motion.span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </motion.div>
+                  )}
+
+                  {!isVendedor && (
+                    <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Calendário"
+                          isActive={isActive("/calendario")}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <Link href="/calendario">
+                            <CalendarDays className={iconClass(isActive("/calendario"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Calendário
+                              </motion.span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </motion.div>
+                  )}
+
+                  {!isVendedor && (
+                    <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Pedidos de Compra"
+                          isActive={isActive("/pedido_compra")}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <Link href="/pedido_compra">
+                            <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Pedidos de Compra
                               </motion.span>
                             )}
                           </Link>
@@ -364,6 +315,69 @@ export function CustomSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+
+          {!isVendedor && (
+            <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
+          )}
+
+          {/* GRUPO: CONFIGURAÇÕES */}
+          {!isVendedor && (
+            <SidebarGroup>
+              {isOpen && (
+                <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
+                  Configurações
+                </SidebarGroupLabel>
+              )}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <TooltipProvider delayDuration={300}>
+                    <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          asChild
+                          tooltip="Cadastros"
+                          isActive={isActive("/cadastros")}
+                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                        >
+                          <Link href="/cadastros">
+                            <SettingsIcon className={iconClass(isActive("/cadastros"))} />
+                            {isOpen && (
+                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                Cadastros
+                              </motion.span>
+                            )}
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    </motion.div>
+
+                    {canSeeAdmin && (
+                      <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
+                        <SidebarMenuItem>
+                          <SidebarMenuButton
+                            asChild
+                            tooltip="Usuários"
+                            isActive={isActive("/admin/users")}
+                            className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
+                          >
+                            <Link href="/admin/users">
+                              <Users2 className={iconClass(isActive("/admin/users"))} />
+                              {isOpen && (
+                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
+                                  Usuários
+                                </motion.span>
+                              )}
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      </motion.div>
+                    )}
+                  </TooltipProvider>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )}
+
         </SidebarMenu>
       </SidebarContent>
 

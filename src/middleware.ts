@@ -84,11 +84,28 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  const roles = (token as { roles?: string[] }).roles ?? []
+  const rolesUpper = roles.map(r => String(r).toUpperCase())
+  
+  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
+  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
+
+  // Bloquear acesso a páginas diferentes de / e /orcamento... para VENDEDOR
+  if (isVendedor && !isApi) {
+    // Rotas permitidas para UI do vendedor
+    const allowedPrefixes = ["/orcamento"]
+    const isAllowed = pathname === "/" || allowedPrefixes.some(prefix => pathname.startsWith(prefix))
+
+    if (!isAllowed) {
+      const url = req.nextUrl.clone()
+      url.pathname = "/"
+      return NextResponse.redirect(url)
+    }
+  }
+
   // 🔒 BLOQUEIO DE EXCLUSÃO DE ORÇAMENTO
   if (pathname === "/api/Orcamentos/excluir" && method === "PATCH") {
-    const roles = (token as { roles?: string[] }).roles ?? []
-
-    if (!roles.includes("ADMIN") && !roles.includes("DEV")) {
+    if (!canSeeAdmin) {
       return new NextResponse(
         JSON.stringify({ error: "Você não tem permissão para excluir um orçamento" }),
         {
