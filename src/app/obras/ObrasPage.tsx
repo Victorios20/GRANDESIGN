@@ -871,12 +871,16 @@ export default function ObrasPage({
 
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
-
+          titulo: vm.titulo?.trim() || undefined,
           endereco_obra: vm.endereco.logradouro.trim(),
           maps_url: vm.endereco.mapsUrl.trim(),
           tipo_obra: String(vm.tipoObra || "").trim(),
           largura: Number(vm.largura),
           comprimento: Number(vm.comprimento),
+          largura_maior: vm.larguraMaior ? Number(vm.larguraMaior) : null,
+          largura_menor: vm.larguraMenor ? Number(vm.larguraMenor) : null,
+          comprimento_maior: vm.comprimentoMaior ? Number(vm.comprimentoMaior) : null,
+          comprimento_menor: vm.comprimentoMenor ? Number(vm.comprimentoMenor) : null,
           telha_escolhida: vm.telhaEscolhida.trim(),
 
           valor_obra: Number(fin.valorObra),
@@ -912,7 +916,7 @@ export default function ObrasPage({
 
         const r = await createObra(payload)
         toast.success("Obra criada.")
-        router.push(`/obras/${r.obraId}`)
+        window.open(`/obras/${r.obraId}`, '_blank')
         return
       }
 
@@ -951,6 +955,10 @@ export default function ObrasPage({
             tipo_obra: vm.tipoObra || "",
             largura: vm.largura ?? 0,
             comprimento: vm.comprimento ?? 0,
+            largura_maior: vm.larguraMaior ?? null,
+            largura_menor: vm.larguraMenor ?? null,
+            comprimento_maior: vm.comprimentoMaior ?? null,
+            comprimento_menor: vm.comprimentoMenor ?? null,
             telha_escolhida: vm.telhaEscolhida || "",
             status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,

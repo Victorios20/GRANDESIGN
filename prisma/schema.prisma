@@ -427,6 +427,11 @@ model obras {
   valor_obra        Decimal @db.Decimal(10, 2)
   valor_mao_de_obra Decimal @db.Decimal(10, 2)
 
+  largura_menor     Decimal?  @db.Decimal(10, 2)
+  largura_maior     Decimal?  @db.Decimal(10, 2)
+  comprimento_menor Decimal?  @db.Decimal(10, 2)
+  comprimento_maior Decimal?  @db.Decimal(10, 2)
+
   status      ObraStatus @default(ASSINATURA_DE_CONTRATO)
   observacoes String?    @db.Text
 
@@ -529,6 +534,7 @@ model obra_documentos {
   titulo     String   @db.VarChar(200)
   url        String?  @db.VarChar(500) // Arquivo S3
   link       String?  @db.VarChar(500) // Link externo
+  ordem      Int?
   created_at DateTime @default(now())
 
   obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)

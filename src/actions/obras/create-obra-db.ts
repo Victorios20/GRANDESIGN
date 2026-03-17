@@ -128,11 +128,16 @@ export type PedidoCompraInput = {
 
 export type CriarObraInput = {
   orcamentoId: number
+  titulo?: string | null
   endereco_obra: string
   maps_url: string
   tipo_obra: string
   largura: Decimalish
   comprimento: Decimalish
+  largura_maior?: Decimalish
+  largura_menor?: Decimalish
+  comprimento_maior?: Decimalish
+  comprimento_menor?: Decimalish
   telha_escolhida: string
   valor_obra: Decimalish
   valor_mao_de_obra: Decimalish
@@ -196,17 +201,23 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           orcamento: { connect: { id: input.orcamentoId } },
           cliente: { connect: { id: orc.cliente_id } },
           ...(input.equipe_id ? { equipe: { connect: { id: input.equipe_id } } } : {}),
-          titulo: formatObraTitle(
-            orc.cliente.nome || "Cliente",
-            orc.cliente.bairro || "",
-            orc.cliente.cidades?.nome || ""
-          ),
+          titulo: input.titulo && input.titulo.trim() !== ""
+            ? input.titulo.trim()
+            : formatObraTitle(
+                orc.cliente.nome || "Cliente",
+                orc.cliente.bairro || "",
+                orc.cliente.cidades?.nome || ""
+              ),
 
           endereco_obra: input.endereco_obra,
           maps_url: input.maps_url,
           tipo_obra: input.tipo_obra,
           largura: d(input.largura),
           comprimento: d(input.comprimento),
+          largura_maior: input.largura_maior != null ? d(input.largura_maior) : null,
+          largura_menor: input.largura_menor != null ? d(input.largura_menor) : null,
+          comprimento_maior: input.comprimento_maior != null ? d(input.comprimento_maior) : null,
+          comprimento_menor: input.comprimento_menor != null ? d(input.comprimento_menor) : null,
           telha_escolhida: input.telha_escolhida,
           valor_obra: d(input.valor_obra),
           valor_mao_de_obra: d(input.valor_mao_de_obra),
@@ -332,7 +343,10 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       // const bairroName = orc.cliente.bairro || ""
       const locationSuffix = formatLocation(orc.cliente.bairro || "", orc.cliente.cidades?.nome || "")
 
-      const formatTitle = (cat: string) => `${cat} - ${clienteName} [${locationSuffix}]`
+      const finalObraTitle = input.titulo && input.titulo.trim() !== ""
+        ? input.titulo.trim()
+        : formatObraTitle(orc.cliente.nome || "Cliente", orc.cliente.bairro || "", orc.cliente.cidades?.nome || "");
+      const formatTitle = (cat: string) => `${cat} - ${finalObraTitle}`
 
       // Resolve supplier IDs with fallback from orcamento
       const madeiraFornecedorId = input.fornecedor_madeira_id ?? orc.id_fornecedor ?? null

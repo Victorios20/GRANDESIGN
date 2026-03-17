@@ -20,5 +20,6 @@ export type ObraDocumento = {
     titulo: string
     url: string | null
     link: string | null
+    ordem: number | null
     created_at: Date
 }

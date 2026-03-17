@@ -15,6 +15,14 @@ type PedidoItemInput = {
   total?: number | string
 }
 
+type ImagemInput = {
+  id?: number | string
+  url?: string
+  ordem?: number
+  legenda?: string
+  _delete?: boolean
+}
+
 export type UpdateObraPayload = {
   obra?: {
     titulo?: string
@@ -23,6 +31,10 @@ export type UpdateObraPayload = {
     tipo_obra?: string
     largura?: number | string
     comprimento?: number | string
+    largura_maior?: number | string | null
+    largura_menor?: number | string | null
+    comprimento_maior?: number | string | null
+    comprimento_menor?: number | string | null
     telha_escolhida?: string
     observacoes?: string | null
     status?: string
@@ -36,8 +48,14 @@ export type UpdateObraPayload = {
     valor_mao_de_obra?: number | string
     pagamento_entrada?: number | string
     forma_pagamento_entrada?: string | null
+    status_pagamento_entrada?: string | null
     pagamento_quitacao?: number | string
     forma_pagamento_quitacao?: string | null
+    status_pagamento_quitacao?: string | null
+  }
+  imagens?: {
+    replace?: boolean
+    list?: ImagemInput[]
   }
   pedidoCompra?: {
     categoria?: PedidoCategoria
@@ -76,6 +94,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         updatedBy: { connect: { id: Number(userId) } },
       }
 
+      let shouldClosePedidos = false
+
       if (payload.obra) {
         obraData.titulo = payload.obra.titulo
         obraData.endereco_obra = payload.obra.endereco_obra
@@ -83,6 +103,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.tipo_obra = payload.obra.tipo_obra
         obraData.largura = n(payload.obra.largura)
         obraData.comprimento = n(payload.obra.comprimento)
+        obraData.largura_maior = n(payload.obra.largura_maior)
+        obraData.largura_menor = n(payload.obra.largura_menor)
+        obraData.comprimento_maior = n(payload.obra.comprimento_maior)
+        obraData.comprimento_menor = n(payload.obra.comprimento_menor)
         obraData.telha_escolhida = payload.obra.telha_escolhida
         obraData.observacoes = payload.obra.observacoes ?? undefined
         if (payload.obra.status) {
@@ -126,6 +150,9 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         // Se NÃO mandou data, mas está mudando para FINALIZADO agora (e não estava antes), auto-set
         else if (newStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO) {
           obraData.data_conclusao = new Date();
+          obraData.status_pagamento_entrada = "EFETUADO";
+          obraData.status_pagamento_quitacao = "EFETUADO";
+          shouldClosePedidos = true;
         }
       }
 
@@ -136,6 +163,17 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.forma_pagamento_entrada = payload.financeiro.forma_pagamento_entrada
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
         obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao
+
+        // Map payment status strings to enum values
+        const statusMap: Record<string, string> = { Efetuado: "EFETUADO", Pendente: "PENDENTE" }
+        if (payload.financeiro.status_pagamento_entrada) {
+          const mapped = statusMap[payload.financeiro.status_pagamento_entrada]
+          if (mapped) obraData.status_pagamento_entrada = mapped
+        }
+        if (payload.financeiro.status_pagamento_quitacao) {
+          const mapped = statusMap[payload.financeiro.status_pagamento_quitacao]
+          if (mapped) obraData.status_pagamento_quitacao = mapped
+        }
       }
 
       console.log("ObraData final updateObraDB:", obraData)
@@ -144,6 +182,36 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         where: { id },
         data: obraData,
       })
+
+      if (shouldClosePedidos) {
+        await tx.pedido_compra.updateMany({
+          where: {
+            obra_id: id,
+            status: { not: "CANCELADO" },
+          },
+          data: { status: "ENTREGUE" },
+        })
+      }
+
+      /* ================= IMAGENS ================= */
+      if (payload.imagens && payload.imagens.replace && Array.isArray(payload.imagens.list)) {
+        // Delete all existing images for this obra
+        await tx.obra_imagens.deleteMany({ where: { obra_id: id } })
+
+        // Insert the new list (preserving order)
+        const imgList = payload.imagens.list
+          .filter((img) => String(img?.url ?? "").trim() !== "")
+          .map((img, i) => ({
+            obra_id: id,
+            url: String(img.url ?? "").trim(),
+            ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i + 1,
+            legenda: img.legenda && String(img.legenda).trim() !== "" ? String(img.legenda).trim() : null,
+          }))
+
+        if (imgList.length > 0) {
+          await tx.obra_imagens.createMany({ data: imgList })
+        }
+      }
 
       /* ================= PEDIDO COMPRA ================= */
       if (payload.pedidoCompra) {
@@ -202,7 +270,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     })
 
     return { ok: true, status: 200, data: result }
-  } catch (err) {
+  } catch (err: any) {
+    console.error("[updateObraDB] Erro ao salvar obra:", err?.message ?? err, err?.stack ?? "")
     return { ok: false as const, status: 500, code: "UPDATE_FAILED" }
   }
 }

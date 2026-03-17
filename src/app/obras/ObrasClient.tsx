@@ -543,7 +543,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
     onRowClick: (_rowData, rowMeta) => {
       const id = rows[rowMeta.dataIndex]?.id
-      if (id != null) router.push(`/obras/${id}`)
+      if (id != null) window.open(`/obras/${id}`, '_blank')
     },
     setRowProps: () => ({
       className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",

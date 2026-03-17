@@ -13,7 +13,7 @@ export type { TipoDocumento, ObraDocumento }
 export async function listarDocumentos(obraId: number): Promise<ObraDocumento[]> {
     const docs = await prisma.obra_documentos.findMany({
         where: { obra_id: obraId },
-        orderBy: { created_at: "desc" },
+        orderBy: [{ ordem: "asc" }, { created_at: "desc" }],
     })
 
     return docs.map((d) => ({
@@ -23,6 +23,7 @@ export async function listarDocumentos(obraId: number): Promise<ObraDocumento[]>
         titulo: d.titulo,
         url: d.url,
         link: d.link,
+        ordem: d.ordem,
         created_at: d.created_at,
     }))
 }
@@ -123,5 +124,74 @@ export async function excluirDocumento(
     } catch (error) {
         console.error("Erro ao excluir documento:", error)
         return { success: false, error: "Erro ao excluir documento" }
+    }
+}
+
+/**
+ * Edita um documento existente (título e tipo)
+ */
+export async function editarDocumento(data: {
+    id: number
+    tipo: TipoDocumento
+    titulo: string
+}): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!data.titulo?.trim()) {
+            return { success: false, error: "Título é obrigatório" }
+        }
+
+        const doc = await prisma.obra_documentos.update({
+            where: { id: data.id },
+            data: {
+                tipo: data.tipo,
+                titulo: data.titulo.trim(),
+            },
+        })
+
+        revalidatePath("/obras")
+        revalidatePath(`/obras/${doc.obra_id}`)
+
+        return { success: true }
+    } catch (error) {
+        console.error("Erro ao editar documento:", error)
+        return { success: false, error: "Erro ao editar documento" }
+    }
+}
+
+/**
+ * Atualiza a ordem de múltiplos documentos
+ */
+export async function reordenarDocumentos(
+    updates: { id: number; ordem: number }[]
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (!updates.length) return { success: true }
+
+        let anyObraId: number | null = null
+
+        await prisma.$transaction(
+            updates.map((u) =>
+                prisma.obra_documentos.update({
+                    where: { id: u.id },
+                    data: { ordem: u.ordem },
+                })
+            )
+        )
+
+        // Descobrir obra_id do primeiro doc para o revalidate (opcional, ou faz na page)
+        const first = await prisma.obra_documentos.findUnique({
+            where: { id: updates[0].id },
+            select: { obra_id: true }
+        })
+
+        if (first) {
+            revalidatePath("/obras")
+            revalidatePath(`/obras/${first.obra_id}`)
+        }
+
+        return { success: true }
+    } catch (error) {
+        console.error("Erro ao reordenar documentos:", error)
+        return { success: false, error: "Erro ao reordenar documentos" }
     }
 }

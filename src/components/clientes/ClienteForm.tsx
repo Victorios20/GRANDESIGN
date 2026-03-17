@@ -293,7 +293,7 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
                                                             {obra.valor_obra ? `R$ ${obra.valor_obra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "-"}
                                                         </td>
                                                         <td className="p-3 text-right">
-                                                            <Link href={`/obras/${obra.id}`}>
+                                                            <Link href={`/obras/${obra.id}`} target="_blank">
                                                                 <Button size="sm" variant="ghost">Ver Obra</Button>
                                                             </Link>
                                                         </td>

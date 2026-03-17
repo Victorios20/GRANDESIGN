@@ -164,6 +164,10 @@ export type ObraDetalheDTO = {
     tipoObra: string
     largura: number
     comprimento: number
+    larguraMaior: number | null
+    larguraMenor: number | null
+    comprimentoMaior: number | null
+    comprimentoMenor: number | null
     telhaEscolhida: string
     valorObra: number
     valorMaoDeObra: number
@@ -222,6 +226,10 @@ export type CreateObraPayload = {
   tipo_obra: string
   largura: number | string
   comprimento: number | string
+  largura_maior?: number | string | null
+  largura_menor?: number | string | null
+  comprimento_maior?: number | string | null
+  comprimento_menor?: number | string | null
   telha_escolhida: string
 
   valor_obra: number | string
@@ -292,6 +300,10 @@ export type ObraInfosVM = {
   tipoObra: string | null
   largura: number | null
   comprimento: number | null
+  larguraMaior?: number | null
+  larguraMenor?: number | null
+  comprimentoMaior?: number | null
+  comprimentoMenor?: number | null
   telhaEscolhida: string
   status: ObraStatus
   dataInicioObra?: string | null
@@ -347,6 +359,10 @@ export type UpdateObraPayload = {
     tipo_obra?: string
     largura?: number | string
     comprimento?: number | string
+    largura_maior?: number | string | null
+    largura_menor?: number | string | null
+    comprimento_maior?: number | string | null
+    comprimento_menor?: number | string | null
     telha_escolhida?: string
     status?: ObraStatus
     observacoes?: string

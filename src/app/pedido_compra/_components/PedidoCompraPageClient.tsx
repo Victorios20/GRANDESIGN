@@ -119,6 +119,29 @@ const categories: PurchaseOrderCategoryLabel[] = ["Madeira", "Telha", "Andaime",
 // statuses replaced by statusList from theme
 const statuses = statusList
 
+const getCategoryColor = (category: string) => {
+  switch (category?.toLowerCase()) {
+    case "telha":
+    case "telhas":
+      return "bg-red-100 text-red-800 border-red-200"
+    case "madeira":
+      return "bg-amber-100 text-amber-900 border-amber-200"
+    case "andaime":
+      return "bg-gray-200 text-gray-800 border-gray-300"
+    case "materiais":
+    case "material":
+      return "bg-blue-100 text-blue-800 border-blue-200"
+    default:
+      return "bg-secondary text-secondary-foreground border-border"
+  }
+}
+
+const formatSafeDate = (dateStr: string | null | undefined) => {
+  if (!dateStr) return "-"
+  const isoDate = dateStr.split("T")[0]
+  return new Date(isoDate + "T12:00:00").toLocaleDateString("pt-BR")
+}
+
 function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearchItem>): PurchaseOrder[] {
   const items = list?.items ?? []
   return items.map((x) => {
@@ -832,7 +855,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 value={selectedCategory}
                 onValueChange={(v) => setSelectedCategory(v as PurchaseOrderCategoryLabel | "todas")}
               >
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full md:w-40 lg:w-44 shrink-0">
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
@@ -847,7 +870,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
               <Popover open={obraOpen} onOpenChange={setObraOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="secondary" className="justify-between w-full md:w-48 shrink-0">
+                  <Button variant="secondary" className="justify-between w-full md:w-40 lg:w-48 shrink-0">
                     <span className="truncate">
                       {obraSelected
                         ? `Obra #${obraSelected.id}${obraSelected.titulo ? ` — ${obraSelected.titulo}` : ""}`
@@ -907,7 +930,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 value={selectedSupplierId === "all" ? "all" : String(selectedSupplierId)}
                 onValueChange={(v) => setSelectedSupplierId(v === "all" ? "all" : Number(v))}
               >
-                <SelectTrigger className="w-full md:w-48 shrink-0">
+                <SelectTrigger className="w-full md:w-40 lg:w-48 shrink-0">
                   <SelectValue placeholder="Fornecedor" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1089,7 +1112,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                               {order.deliveryDate ? (
                                 <div className="flex items-center gap-2 text-sm">
                                   <Calendar className="w-4 h-4 text-muted-foreground" />
-                                  {new Date(order.deliveryDate).toLocaleDateString("pt-BR")}
+                                  {formatSafeDate(order.deliveryDate)}
                                 </div>
                               ) : (
                                 <span className="text-sm text-muted-foreground">-</span>
@@ -1263,7 +1286,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
                                   <div className="flex items-center gap-2 flex-wrap">
                                     {kanbanGroupBy === "status" && (
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className={`text-xs ${getCategoryColor(order.category)}`}>
                                         {order.category}
                                       </Badge>
                                     )}
@@ -1302,7 +1325,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   {order.deliveryDate && (
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       <Calendar className="w-3 h-3" />
-                                      {new Date(order.deliveryDate).toLocaleDateString("pt-BR")}
+                                      {formatSafeDate(order.deliveryDate)}
                                     </div>
                                   )}
 

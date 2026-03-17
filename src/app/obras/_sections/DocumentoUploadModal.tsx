@@ -167,16 +167,39 @@ export default function DocumentoUploadModal({
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="grid gap-4 py-4">
-                    {/* Tipo de documento */}
+                <div className="grid gap-5 py-4">
+                    {/* Modo: Arquivo ou Link */}
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setInputMode("arquivo")}
+                            disabled={isLoading}
+                            className={`flex-1 h-8 text-sm font-medium transition-all ${inputMode === "arquivo" ? "bg-white shadow-sm text-black" : "text-gray-500 hover:text-gray-900"}`}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload de Arquivo
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setInputMode("link")}
+                            disabled={isLoading}
+                            className={`flex-1 h-8 text-sm font-medium transition-all ${inputMode === "link" ? "bg-white shadow-sm text-black" : "text-gray-500 hover:text-gray-900"}`}
+                        >
+                            <Link className="h-4 w-4 mr-2" />
+                            Inserir Link
+                        </Button>
+                    </div>
+
                     <div className="grid gap-2">
-                        <Label htmlFor="tipo">Tipo de documento</Label>
+                        <Label htmlFor="tipo" className="text-sm font-medium text-gray-700">Tipo de documento</Label>
                         <Select
                             value={tipo}
                             onValueChange={(v) => setTipo(v as TipoDocumento)}
                             disabled={isLoading}
                         >
-                            <SelectTrigger id="tipo">
+                            <SelectTrigger id="tipo" className="focus-visible:ring-green">
                                 <SelectValue placeholder="Selecione o tipo" />
                             </SelectTrigger>
                             <SelectContent>
@@ -189,51 +212,22 @@ export default function DocumentoUploadModal({
                         </Select>
                     </div>
 
-                    {/* Título */}
                     <div className="grid gap-2">
-                        <Label htmlFor="titulo">Título</Label>
+                        <Label htmlFor="titulo" className="text-sm font-medium text-gray-700">Título do documento <span className="text-red-500">*</span></Label>
                         <Input
                             id="titulo"
                             value={titulo}
                             onChange={(e) => setTitulo(e.target.value)}
                             placeholder="Ex: Contrato de Prestação de Serviço"
                             disabled={isLoading}
+                            className="focus-visible:ring-green"
                         />
-                    </div>
-
-                    {/* Modo: Arquivo ou Link */}
-                    <div className="grid gap-2">
-                        <Label>Origem</Label>
-                        <div className="flex gap-2">
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant={inputMode === "arquivo" ? "default" : "outline"}
-                                onClick={() => setInputMode("arquivo")}
-                                disabled={isLoading}
-                                className="flex-1"
-                            >
-                                <Upload className="h-4 w-4 mr-1" />
-                                Arquivo
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                variant={inputMode === "link" ? "default" : "outline"}
-                                onClick={() => setInputMode("link")}
-                                disabled={isLoading}
-                                className="flex-1"
-                            >
-                                <Link className="h-4 w-4 mr-1" />
-                                Link
-                            </Button>
-                        </div>
                     </div>
 
                     {/* Upload de arquivo */}
                     {inputMode === "arquivo" && (
                         <div className="grid gap-2">
-                            <Label>Arquivo (PDF até 20MB)</Label>
+                            <Label className="text-sm font-medium text-gray-700">Arquivo (PDF até 20MB) <span className="text-red-500">*</span></Label>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -241,23 +235,39 @@ export default function DocumentoUploadModal({
                                 onChange={handleFileChange}
                                 className="hidden"
                             />
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isLoading}
-                                className="w-full justify-start"
-                            >
-                                <Upload className="h-4 w-4 mr-2" />
-                                {selectedFile ? selectedFile.name : "Selecionar arquivo"}
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isLoading}
+                                    className="flex-1 justify-start py-6 bg-white border-2 border-dashed border-gray-300 text-gray-600 font-normal text-left truncate hover:bg-green/5 hover:text-green hover:border-green/50 hover:shadow-sm transition-all"
+                                >
+                                    <Upload className="h-4 w-4 mr-3 shrink-0 opacity-50" />
+                                    <span className="truncate">{selectedFile ? selectedFile.name : "Clique para selecionar o PDF..."}</span>
+                                </Button>
+                                {selectedFile && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                        onClick={() => {
+                                            setSelectedFile(null)
+                                            if (fileInputRef.current) fileInputRef.current.value = ""
+                                        }}
+                                        disabled={isLoading}
+                                    >
+                                        Remover
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     )}
 
                     {/* Input de link */}
                     {inputMode === "link" && (
                         <div className="grid gap-2">
-                            <Label htmlFor="link">Link do documento</Label>
+                            <Label htmlFor="link" className="text-sm font-medium text-gray-700">Link do documento <span className="text-red-500">*</span></Label>
                             <Input
                                 id="link"
                                 type="url"
@@ -265,18 +275,28 @@ export default function DocumentoUploadModal({
                                 onChange={(e) => setLink(e.target.value)}
                                 placeholder="https://..."
                                 disabled={isLoading}
+                                className="focus-visible:ring-green"
                             />
                         </div>
                     )}
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={handleClose} disabled={isLoading}>
+                <DialogFooter className="flex gap-3 sm:gap-3 sm:space-x-0 pt-2">
+                    <Button 
+                        variant="ghost" 
+                        onClick={handleClose} 
+                        disabled={isLoading}
+                        className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                    >
                         Cancelar
                     </Button>
-                    <Button onClick={handleSubmit} disabled={isLoading}>
+                    <Button 
+                        onClick={handleSubmit} 
+                        disabled={isLoading}
+                        className="bg-green text-white hover:bg-green/90 min-w-[100px]"
+                    >
                         {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        Salvar
+                        {isLoading ? "Salvando..." : "Salvar"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

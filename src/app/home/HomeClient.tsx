@@ -282,14 +282,14 @@ export default function HomeClient({ initial }: Props) {
                       {ultimasObras.map((obra) => (
                         <tr
                           key={obra.id}
-                          onClick={() => router.push(`/obras/${obra.id}`)}
+                          onClick={() => window.open(`/obras/${obra.id}`, '_blank')}
                           className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer"
                         >
                           <td className="px-4 py-3 text-sm font-medium text-foreground max-w-[200px] truncate" title={obra.titulo ?? ""}>
                             {obra.titulo ?? "-"}
                           </td>
                           <td className="px-4 py-3 text-sm text-muted-foreground">
-                            <Link href={`/obras/${obra.id}`} className="hover:underline">
+                            <Link href={`/obras/${obra.id}`} target="_blank" className="hover:underline">
                               {obra.cliente.nome}
                             </Link>
                           </td>

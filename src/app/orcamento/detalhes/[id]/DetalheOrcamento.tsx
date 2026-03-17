@@ -62,10 +62,10 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
 
   const BotaoObra = () => {
     if (!obraLancada) {
-      return <ShinyButton onClick={() => router.push(`/obras/new/${detalhe.id}`)}>Lançar obra</ShinyButton>
+      return <ShinyButton onClick={() => window.open(`/obras/new/${detalhe.id}`, '_blank')}>Lançar obra</ShinyButton>
     }
     if (canVisualizarObra) {
-      return <ShinyButton onClick={() => router.push(`/obras/${detalhe.obraId}`)}>Visualizar obra</ShinyButton>
+      return <ShinyButton onClick={() => window.open(`/obras/${detalhe.obraId}`, '_blank')}>Visualizar obra</ShinyButton>
     }
     return (
       <ShinyButton

@@ -268,7 +268,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
-            router.push(`/obras/${r.obraId}`)
+            window.open(`/obras/${r.obraId}`, '_blank')
           }}
         >
           <Hammer className="h-4 w-4" />

@@ -1186,121 +1186,115 @@ export default function PedidoCompraForm({
                       )}
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
+                      {/* Cabecalho da tabela em telas grandes */}
+                      <div className={`hidden md:grid gap-2 px-3 py-2 bg-muted/40 border border-border/60 rounded-md items-center ${isMadeira ? 'grid-cols-[2fr_1.5fr_80px_80px_100px_120px_40px]' : 'grid-cols-[3fr_80px_100px_120px_40px]'}`}>
+                        <div><Label className="text-xs font-semibold text-muted-foreground">Descrição</Label></div>
+                        {isMadeira && <div><Label className="text-xs font-semibold text-muted-foreground">Componente</Label></div>}
+                        <div className="text-center"><Label className="text-xs font-semibold text-muted-foreground">Qtd</Label></div>
+                        {isMadeira && <div className="text-center"><Label className="text-xs font-semibold text-muted-foreground">Tamanho</Label></div>}
+                        <div className="text-right"><Label className="text-xs font-semibold text-muted-foreground">Vlr. Unit</Label></div>
+                        <div className="text-right pr-2"><Label className="text-xs font-semibold text-muted-foreground">Total</Label></div>
+                        <div></div>
+                      </div>
+
                       {items.map((item, index) => (
-                        <div key={item.clientId} className="rounded-lg border border-border bg-muted/30 p-4">
-                          <div className="mb-3 flex items-center justify-between">
-                            <span className="text-sm font-medium text-muted-foreground">Item {index + 1}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeItem(item.clientId)}
-                              className="size-8"
-                            >
-                              <Trash2 className="size-4 text-destructive" />
+                        <div key={item.clientId} className={`grid gap-2 items-start md:items-center px-3 py-3 md:py-1 border border-border md:border-0 border-b-border md:border-b last:border-b-0 rounded-lg md:rounded-none bg-muted/30 md:bg-transparent ${isMadeira ? 'grid-cols-1 md:grid-cols-[2fr_1.5fr_80px_80px_100px_120px_40px]' : 'grid-cols-1 md:grid-cols-[3fr_80px_100px_120px_40px]'}`}>
+                          
+                          {/* Mobile header / delete */}
+                          <div className="flex md:hidden justify-between items-center mb-1">
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Item {index + 1}</span>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(item.clientId)} className="size-7 h-7">
+                              <Trash2 className="size-3.5 text-destructive" />
                             </Button>
                           </div>
+                      
+                          <div className="w-full">
+                            <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Descrição</Label>
+                            <ComboboxAdd
+                              key={`desc-${item.clientId}-${comboItemsMateriais.length}-${formData.categoria}-${formData.fornecedorId}`}
+                              buttonText={getComboLabelForDescricao(item.descricao)}
+                              placeholder="Buscar..."
+                              widthClass="w-full"
+                              disabled={itemSelectionDisabled}
+                              items={comboItemsMateriais}
+                              onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
+                              showEmptyOption={false}
+                              colorVariant="white-brown"
+                              buttonClassName="h-8 text-xs rounded-md border border-border justify-between"
+                            />
+                          </div>
 
-                          <div className="grid gap-4 md:grid-cols-12">
-                            <div className={isMadeira ? "md:col-span-3" : "md:col-span-5"}>
-                              <Label className="text-xs">Descrição</Label>
-
-                              <div className="mt-1">
-                                <ComboboxAdd
-                                  key={`desc-${item.clientId}-${comboItemsMateriais.length}-${formData.categoria}-${formData.fornecedorId}`}
-                                  buttonText={getComboLabelForDescricao(item.descricao)}
-                                  placeholder="Buscar material..."
-                                  widthClass="w-full"
-                                  disabled={itemSelectionDisabled}
-                                  items={comboItemsMateriais}
-                                  onSelect={(v) => onSelectMaterialForItem(item.clientId, v)}
-                                  showEmptyOption={false}
-                                  colorVariant="white-brown"
-                                  buttonClassName="h-10 text-sm rounded-md border border-border justify-between"
-                                />
-                              </div>
-
-                              {!formData.categoria && (
-                                <p className="mt-1 text-xs text-muted-foreground">Selecione a categoria para habilitar.</p>
-                              )}
-                              {formData.categoria === "MADEIRA" && !hasFornecedorSelected && (
-                                <p className="mt-1 text-xs text-amber-600">Selecione um fornecedor para ver a lista de preços.</p>
-                              )}
+                          {isMadeira && (
+                            <div className="w-full">
+                              <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Componente</Label>
+                              <Select value={item.componente || ""} onValueChange={(v) => updateItem(item.clientId, "componente", v)}>
+                                <SelectTrigger className="h-8 text-xs rounded-md border border-border">
+                                  <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(initialComponentes || []).map((c) => (
+                                    <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
+                          )}
 
-                            {isMadeira && (
-                              <div className="md:col-span-3">
-                                <Label className="text-xs">Componente</Label>
-                                <div className="mt-1">
-                                  <Select
-                                    value={item.componente || ""}
-                                    onValueChange={(v) => updateItem(item.clientId, "componente", v)}
-                                  >
-                                    <SelectTrigger className="h-10 text-sm rounded-md border border-border justify-between">
-                                      <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {(initialComponentes || []).map((c) => (
-                                        <SelectItem key={c.id} value={c.nome}>
-                                          {c.nome}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="md:col-span-2">
-                              <Label className="text-xs">Quantidade</Label>
+                          <div className="w-full">
+                            <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Qtde</Label>
+                            <Input
+                              type="number"
+                              value={item.quantidade}
+                              onChange={(e) => updateItem(item.clientId, "quantidade", Number(e.target.value) || 0)}
+                              placeholder="0"
+                              className="h-8 text-xs md:text-center px-2"
+                            />
+                          </div>
+                          
+                          {isMadeira && (
+                            <div className="w-full">
+                              <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Tamanho</Label>
                               <Input
                                 type="number"
-                                value={item.quantidade}
-                                onChange={(e) => updateItem(item.clientId, "quantidade", Number(e.target.value) || 0)}
+                                value={item.tamanho ?? ""}
+                                onChange={(e) => updateItem(item.clientId, "tamanho", e.target.value === "" ? null : Number(e.target.value))}
                                 placeholder="0"
-                                className="mt-1"
+                                className="h-8 text-xs md:text-center px-2"
                               />
                             </div>
+                          )}
 
-                            {isMadeira && (
-                              <div className="md:col-span-2">
-                                <Label className="text-xs">Tamanho</Label>
-                                <Input
-                                  type="number"
-                                  value={item.tamanho ?? ""}
-                                  onChange={(e) =>
-                                    updateItem(
-                                      item.clientId,
-                                      "tamanho",
-                                      e.target.value === "" ? null : Number(e.target.value)
-                                    )
-                                  }
-                                  placeholder="0"
-                                  className="mt-1"
-                                />
-                              </div>
-                            )}
+                          <div className="w-full">
+                            <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Vlr. Unit</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={item.precoUnitario}
+                              onChange={(e) => updateItem(item.clientId, "precoUnitario", Number(e.target.value) || 0)}
+                              placeholder="0,00"
+                              className="h-8 text-xs md:text-right px-2"
+                            />
+                          </div>
 
-                            <div className="md:col-span-2">
-                              <Label className="text-xs">Valor Unitário (R$)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                value={item.precoUnitario}
-                                onChange={(e) => updateItem(item.clientId, "precoUnitario", Number(e.target.value) || 0)}
-                                placeholder="0,00"
-                                className="mt-1"
-                              />
-                            </div>
-
-                            <div className="md:col-span-2">
-                              <Label className="text-xs">Preço Total</Label>
-                              <div className="mt-1 flex h-10 items-center rounded-md border border-border bg-background px-3 font-mono text-sm">
-                                R$ {formatMoneyCompact(item.total)}
-                              </div>
+                          <div className="w-full">
+                            <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Total (R$)</Label>
+                            <div className="flex h-8 w-full items-center md:justify-end rounded-md md:border border-transparent md:bg-transparent bg-muted/40 md:px-2 px-3 font-mono text-xs font-medium text-muted-foreground md:border-none">
+                              {formatMoneyCompact(item.total)}
                             </div>
                           </div>
+
+                          <div className="hidden md:flex justify-end pr-1">
+                            <button
+                              type="button"
+                              onClick={() => removeItem(item.clientId)}
+                              className="group flex size-7 items-center justify-center rounded-md hover:bg-destructive/10 transition-colors"
+                              title="Remover linha"
+                            >
+                              <Trash2 className="size-3.5 text-muted-foreground group-hover:text-destructive" />
+                            </button>
+                          </div>
+
                         </div>
                       ))}
                     </div>
