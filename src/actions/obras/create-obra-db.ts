@@ -235,6 +235,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             : {}),
           createdBy: { connect: { id: input.actorUserId } },
           updatedBy: { connect: { id: input.actorUserId } },
+          data_inicio_obra: new Date(), // Auto-fill Início with today's date
+
         },
         select: { id: true },
       })

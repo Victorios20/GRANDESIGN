@@ -675,7 +675,7 @@ export default function CalendarioPage() {
 
 
 
-  // Status color helper
+  // Status color helper (for calendar segment status)
   const getStatusColor = (status: string) => {
     switch (status) {
       case "EXECUCAO": return "bg-emerald-500"
@@ -713,6 +713,42 @@ export default function CalendarioPage() {
       case "COMPRAS": return "border-amber-500"
       case "PENDENCIA": return "border-rose-500"
       default: return "border-gray-400"
+    }
+  }
+
+  // Full obra status helpers (covers all ObraStatus enum values)
+  // Labels match exactly those in ObrasClient.tsx > statusLabel()
+  const getObraStatusLabel = (status: string) => {
+    switch (status) {
+      case "ASSINATURA_DE_CONTRATO":       return "Assinatura de contrato"
+      case "AGUARDANDO_VALIDACAO_TECNICA": return "Aguardando validação técnica"
+      case "COMPRAS":                      return "Compras"
+      case "A_INICIAR":                    return "À iniciar"
+      case "EXECUCAO":                     return "Execução"
+      case "AGUARDANDO_PAGAMENTO":         return "Aguardando pagamento"
+      case "PENDENCIA":                    return "Pendência"
+      case "FINALIZADO":                   return "Finalizado"
+      default:                             return status
+    }
+  }
+
+  const getObraStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "EXECUCAO":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200"
+      case "A_INICIAR":
+        return "bg-blue-50 text-blue-700 border-blue-200"
+      case "COMPRAS":
+      case "ASSINATURA_DE_CONTRATO":
+      case "AGUARDANDO_VALIDACAO_TECNICA":
+        return "bg-amber-50 text-amber-700 border-amber-200"
+      case "PENDENCIA":
+      case "AGUARDANDO_PAGAMENTO":
+        return "bg-rose-50 text-rose-700 border-rose-200"
+      case "FINALIZADO":
+        return "bg-green-50 text-green-700 border-green-200"
+      default:
+        return "bg-gray-50 text-gray-600 border-gray-200"
     }
   }
 
@@ -817,6 +853,11 @@ export default function CalendarioPage() {
                                 {obra.titulo || `Obra #${obra.id}`}
                               </Link>
                             </p>
+                            <span
+                              className={`inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none ${getObraStatusBadgeClass(obra.status)}`}
+                            >
+                              {getObraStatusLabel(obra.status)}
+                            </span>
                             <div className="flex items-center gap-1.5 mt-1">
                               <User className="w-3 h-3 text-muted-foreground" />
                               <p className="text-xs text-muted-foreground truncate">
