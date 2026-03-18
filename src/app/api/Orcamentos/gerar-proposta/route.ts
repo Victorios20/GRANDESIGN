@@ -254,7 +254,7 @@ export async function POST(req: Request) {
       return res
     }
 
-    const { payload } = buildThirdPartyPayload(body, orcamentoId)
+    const { payload } = buildThirdPartyPayload({ ...body, totais }, orcamentoId)
 
     let data: GerarPDFResponse
     try {
@@ -302,7 +302,7 @@ export async function POST(req: Request) {
       observacoes,
       parametros: body?.parametros ?? {},
       materiais: body?.materiais ?? { madeiras: [], materiaisGerais: [], telhas: [] },
-      totais: body?.totais ?? {},
+      totais,
       links: { slideUrl: links.slideUrl, pdfUrl: links.pdfUrl },
       telhaValores: normalizeTelhaValores(body),
       actorUserId,

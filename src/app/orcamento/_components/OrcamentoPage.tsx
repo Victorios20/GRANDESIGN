@@ -221,6 +221,17 @@ type ApiErrorShape = {
 type Pagto = { pix: number; x10: number; x18: number }
 type TotaisPayload = { madeiras: number; materiais: number; comissao: number; frete: number; empresaPS: number; empresaGD: number }
 
+function normalizeTotais(totais?: Partial<TotaisPayload> | null): TotaisPayload {
+    return {
+        madeiras: totais?.madeiras ?? 0,
+        materiais: totais?.materiais ?? 0,
+        comissao: totais?.comissao ?? 0,
+        frete: totais?.frete ?? 0,
+        empresaPS: totais?.empresaPS ?? 0,
+        empresaGD: totais?.empresaGD ?? 0,
+    }
+}
+
 type SalvarPayload = {
     clienteId?: number
 
@@ -1101,7 +1112,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }))
 
         setMateriais(initialData.materiais)
-        setTotEdit(initialData.totais)
+        setTotEdit(normalizeTotais(initialData.totais))
         setTelhaValores({ ...initialData.telhaValores })
         setLinks({ slide, pdf })
 
@@ -1188,7 +1199,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setTipoObra(null)
         setDim({ largura: 0, comprimento: 0, larguraMaior: 0, larguraMenor: 0, comprimentoMaior: 0, comprimentoMenor: 0 })
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
-        setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 })
+        setTotEdit(normalizeTotais())
         setTelhaValores({})
         setTitulo("")
         setTituloTemporario("")
@@ -1286,20 +1297,23 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             console.log("telhasNew:", telhasNew)
             console.groupEnd()
 
-            const { maoDeObra, empresaGD } = calcularTotais({
+            const { maoDeObra, empresaGD, comissao } = calcularTotais({
                 madeiras: madeirasNew,
                 materiais: materGNew,
                 telhas: telhasNew
             })
 
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
+            setTotEdit(prev =>
+                normalizeTotais({
+                    ...prev,
+                    madeiras: madeirasSubtotal,
+                    materiais: materiaisSubtotal,
+                    comissao,
+                    frete: 0,
+                    empresaPS: maoDeObra,
+                    empresaGD,
+                })
+            )
 
             toast.success("Cálculo concluído com sucesso!")
         } catch (err: unknown) {
@@ -1411,14 +1425,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const totMadeiras = subtotalMadeiras(materiais.madeiras)
     const totMateriais = subtotalGeral(materiais.materiaisGerais)
 
-    const [totEdit, setTotEdit] = useState(() => ({
-        madeiras: totMadeiras,
-        materiais: totMateriais,
-        comissao: 0,
-        frete: 0,
-        empresaPS: 0,
-        empresaGD: 0,
-    }))
+    const [totEdit, setTotEdit] = useState<TotaisPayload>(() =>
+        normalizeTotais({
+            madeiras: totMadeiras,
+            materiais: totMateriais,
+        })
+    )
 
     // totEdit: Record<categoria, number> já existe no seu código
 
@@ -1540,7 +1552,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 setTipoObra(d.tipoObra ?? null)
                 setDim(d.dim ?? dim)
                 setMateriais(d.materiais ?? materiais)
-                setTotEdit(d.totEdit ?? totEdit)
+                setTotEdit(normalizeTotais(d.totEdit))
                 setTelhaValores(d.telhaValores ?? telhaValores)
                 setTitulo(d.titulo ?? "")
                 setObservacoes(d.observacoes ?? "")
@@ -2458,7 +2470,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         <CardContent className="p-3">
                             <Table>
                                 <TableBody>
-                                    {(Object.entries(totEdit) as [TotKey, number][]).map(([k, v]) => (
+                                    {(Object.entries(totEdit) as [TotKey, number][]).map(([k]) => (
                                         <TableRow key={k}>
                                             <TableCell>{displayLabel[k]}</TableCell>
 

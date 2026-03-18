@@ -1,8 +1,11 @@
 import type { MaterialCalculado } from "../calcular-materiais/calcularMateriais"
 
+const DEFAULT_COMMISSION = 300
+
 export interface TotaisCalculados {
   maoDeObra: number
   empresaGD: number
+  comissao: number
 }
 
 type Item = {
@@ -73,7 +76,7 @@ export function calcularTotais({
     console.groupEnd()
   }
 
-  return { maoDeObra, empresaGD }
+  return { maoDeObra, empresaGD, comissao: DEFAULT_COMMISSION }
 }
 
 /* ────────────────────────────────────────────────────────────────
