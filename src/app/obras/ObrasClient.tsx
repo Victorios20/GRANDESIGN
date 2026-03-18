@@ -669,9 +669,9 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                 fontSize: "0.875rem",
                 letterSpacing: "0.01em",
                 textTransform: "none",
-                paddingTop: 0,
-                paddingBottom: 0,
-                lineHeight: 1,
+                paddingTop: 6,
+                paddingBottom: 6,
+                lineHeight: 1.1,
                 whiteSpace: "nowrap",
                 "&.MuiTableCell-head": {
                   color: "#f4f4f4",
@@ -684,11 +684,11 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
               },
               root: {
                 color: CINZA_TEXTO,
-                borderBottom: "1px solid rgba(0,0,0,0.06)",
-                paddingTop: 6,
-                paddingBottom: 6,
+                borderBottom: "1px solid rgba(0,0,0,0.04)", // Even softer border for cleaner look
+                paddingTop: 8,
+                paddingBottom: 8, // Added slightly more padding for breathing room
+                transition: "background-color 0.2s ease, box-shadow 0.2s ease",
               },
-
             },
           },
 
@@ -878,9 +878,10 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
           <CardContent className="pt-2 pb-4 px-4 sm:px-6">
             {loadingTabela ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-6 w-full" />
+              <div className="space-y-3">
+                <Skeleton className="h-[36px] w-full" /> {/* Header */}
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[48px] w-full" />
                 ))}
               </div>
             ) : (
@@ -889,56 +890,61 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                   styles={{
                     ".MUIDataTableToolbar-root": { display: "none !important" },
 
-                    // Cabeçalho da tabela com o verde suave (Premium)
+                    // Cabeçalho da tabela com o verde suave
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: VERDE_HEADER + " !important",
                       color: "#f4f4f4 !important",
-                      height: "36px !important",
-                      minHeight: "36px !important",
-                      paddingTop: "0px !important",
-                      paddingBottom: "0px !important",
-                      borderRadius: "8px 8px 0 0 !important",
-                    },
-
-                    // Diminui os botões internos do cabeçalho
-                    ".MUIDataTableHeadCell-contentWrapper, .MUIDataTableHeadCell-toolButton, .MuiButtonBase-root": {
-                       minHeight: "36px !important",
-                       height: "36px !important",
-                       padding: "0 !important",
-                       display: "flex !important",
-                       alignItems: "center !important",
+                      transition: "background-color 0.2s ease",
                     },
 
                     ".MUIDataTableHeadCell-root": {
-                      padding: "0 12px !important",
-                      height: "36px !important",
-                      fontSize: "0.875rem !important",
-                      fontWeight: "600 !important",
-                      letterSpacing: "0.01em !important",
+                       transition: "background-color 0.25s ease !important",
+                    },
+
+                    // Efeito Hover na célula inteira do cabeçalho
+                    ".MUIDataTableHeadCell-root:hover, .MuiTableCell-head:hover": {
+                       backgroundColor: "#386e3b !important", // Um verde levemente mais claro que o VERDE_HEADER (#2E5C31)
+                       cursor: "pointer",
                     },
 
                     ".MuiTableSortLabel-root": {
-                       height: "36px !important",
                        display: "flex !important",
                        alignItems: "center !important",
+                       transition: "opacity 0.2s ease",
+                    },
+                    
+                    // Configuração da setinha de ordenação (sempre levemente aparente)
+                    ".MuiTableSortLabel-icon": {
+                       opacity: "0.25 !important",
+                       color: "#f4f4f4 !important",
+                       transition: "opacity 0.2s ease, transform 0.2s ease, color 0.2s",
+                    },
+
+                    // Brilho máximo na setinha quando passa o mouse ou quando a coluna está ordenando
+                    ".MUIDataTableHeadCell-root:hover .MuiTableSortLabel-icon, .MuiTableSortLabel-root:hover .MuiTableSortLabel-icon, .MuiTableSortLabel-root.Mui-active .MuiTableSortLabel-icon": {
+                       opacity: "1 !important",
                     },
 
                     // Corrige a cor do texto quando a coluna está ordenada ativamente
-                    ".MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active, .MuiTableSortLabel-root.Mui-active .MuiTableSortLabel-icon": {
+                    ".MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active": {
                       color: "#f4f4f4 !important",
-                    },
-                    ".MuiTableSortLabel-icon": {
-                      color: "#f4f4f4 !important",
-                      opacity: "0.8 !important",
+                      opacity: "1 !important",
                     },
 
-                    /* Minimalist row hover: left accent bar + subtle bg */
+                    "& .MUIDataTableHeadCell-sortActive": {
+                      color: "#ffffff !important",
+                      opacity: 1,
+                    },
+
+                    /* Row hover: subtle background + left accent bar */
+                    ".obras-table-row": {
+                       transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important",
+                    },
                     ".obras-table-row:hover td": {
-                      backgroundColor: "#F4F8F4 !important",
-                      transition: "background-color 0.15s ease",
+                      backgroundColor: "#EEF3EF !important", // Slightly deeper but very clean green tint
                     },
                     ".obras-table-row:hover td:first-child": {
-                      boxShadow: "inset 3px 0 0 " + VERDE_HEADER,
+                      boxShadow: "inset 4px 0 0 " + VERDE_HEADER + " !important",
                     },
                     /* Remove default bottom border of last row */
                     ".MuiTableBody-root .MuiTableRow-root:last-child td": {
