@@ -20,7 +20,7 @@ export type FilterStateObras = {
   tipoObra?: string
   ini?: string
   fim?: string
-  status?: string | null
+  // status foi movido para o cabeçalho principal como multi-select
   pageSize?: 10 | 20 | 25 | 50 | 100
 }
 
@@ -36,7 +36,7 @@ export type FilterCardObrasProps = {
 
 type StatusOpt = { value: string; label: string }
 
-const STATUS_OPTIONS: StatusOpt[] = [
+export const STATUS_OPTIONS: StatusOpt[] = [
   { value: "ASSINATURA_DE_CONTRATO", label: "Assinatura de contrato" },
   { value: "AGUARDANDO_VALIDACAO_TECNICA", label: "Aguardando validação técnica" },
   { value: "COMPRAS", label: "Compras" },
@@ -100,7 +100,6 @@ export default function FilterCardObras({
       tipoObra: "",
       ini: undefined,
       fim: undefined,
-      status: null,
       pageSize: undefined,
     })
     onClear?.()
@@ -111,8 +110,8 @@ export default function FilterCardObras({
     <div className={cn("flex items-center gap-2", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="success" className="gap-2">
-            <Filter className="h-4 w-4" />
+          <Button variant="ghost" className="gap-2 bg-[#EBF0EC] text-[#376139] border-none hover:bg-[#376139]/20 font-medium h-10 px-4 rounded-lg">
+            <Filter className="h-4 w-4 shrink-0 opacity-80" />
             filtros
           </Button>
         </PopoverTrigger>
@@ -182,25 +181,7 @@ export default function FilterCardObras({
                 />
               </div>
 
-              <div className="space-y-1">
-                <Label className="text-sm">Status</Label>
-                <Select
-                  value={draft.status ? String(draft.status) : "0"}
-                  onValueChange={(v) => setDraft({ ...draft, status: v === "0" ? null : v })}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    <SelectItem value="0">Todos</SelectItem>
-                    {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
 
               <div className="space-y-1">
                 <Label className="text-sm">Linhas por página</Label>
@@ -241,12 +222,13 @@ export default function FilterCardObras({
         </PopoverContent>
       </Popover>
 
+      {/* Botão: LIMPAR FILTROS */}
       <Button
         type="button"
-        variant="outlined-bege"
+        variant="ghost"
         disabled={loading}
         onClick={clearAll}
-        className="gap-2 text-green border-green"
+        className="gap-2 bg-transparent border border-[#376139] text-[#376139] hover:bg-[#376139]/10 font-medium h-10 px-4 rounded-lg"
       >
         <MinusCircle className="h-4 w-4" />
         limpar filtros

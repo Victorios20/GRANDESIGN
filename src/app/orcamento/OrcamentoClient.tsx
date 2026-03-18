@@ -281,6 +281,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       name: "corStain",
       label: "Cor do Stain",
       options: {
+        display: "false",
         sort: false,
         searchable: true,
         customBodyRender: (_val, meta) => {
@@ -298,6 +299,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       name: "situacao",
       label: "Situação",
       options: {
+        display: "false",
         sort: false,
         searchable: false,
         customBodyRender: (_val, meta) => {

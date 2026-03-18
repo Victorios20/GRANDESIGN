@@ -88,6 +88,30 @@ After implementation:
   2. Lint
   3. Types
   4. Tests
+  5. Database validation (when schema/database changes are involved)
+
+### Prisma validation (MANDATORY when database changes occur)
+
+If the implementation changes Prisma schema, models, relations, migrations, seeds, or any database contract, you MUST also validate Prisma state before finishing.
+
+Required checks:
+
+- Confirm `schema.prisma` is consistent with the implementation
+- Verify migration was created when needed
+- Verify migration applied successfully
+- Verify Prisma Client is up to date
+- Check for drift between schema and database
+- Validate impacted queries/mutations after schema change
+
+Suggested validation order:
+
+1. `npx prisma validate`
+2. `npx prisma format`
+3. `npx prisma migrate dev` or confirm equivalent migration flow was executed
+4. `npx prisma generate`
+5. Run application/type checks after Prisma update
+
+Never finish a database-related task without confirming Prisma changes are reflected in the database and client.
 
 ---
 
