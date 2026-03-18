@@ -65,8 +65,8 @@ export function ObraStatusBadge({
       className={cn(
         "inline-flex max-w-full items-center gap-2 rounded-full border px-2.5 align-middle text-[11px] font-semibold tracking-[0.01em] shadow-[inset_0_1px_0_rgba(255,255,255,0.38)] sm:text-xs",
         isCompact
-          ? "max-w-[11.5rem] whitespace-nowrap py-1 leading-none"
-          : "max-w-[14rem] whitespace-normal py-1.5 leading-[1.2]",
+          ? "max-w-[11.5rem] whitespace-nowrap py-0.5 leading-none"
+          : "max-w-[14rem] whitespace-normal py-0.5 leading-[1.2]",
         palette.badge,
         className
       )}

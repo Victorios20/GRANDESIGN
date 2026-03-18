@@ -348,7 +348,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex]
           return (
-            <div className="flex min-h-10 items-center py-1">
+            <div className="flex items-center">
               <ObraStatusBadge status={r?.status ?? null} layout="multiline" />
             </div>
           )
@@ -628,7 +628,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
             },
           },
 
-          MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER } } },
+          MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER, borderRadius: "8px 8px 0 0" } } },
           MuiTableRow: { styleOverrides: { head: { backgroundColor: VERDE_HEADER, height: 36 } } },
 
           MUIDataTableHeadCell: {
@@ -665,16 +665,21 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
               head: {
                 backgroundColor: VERDE_HEADER,
                 color: "#f4f4f4",
-                fontWeight: 700,
-                paddingTop: 6,
-                paddingBottom: 6,
-                lineHeight: 1.1,
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                letterSpacing: "0.01em",
+                textTransform: "none",
+                paddingTop: 0,
+                paddingBottom: 0,
+                lineHeight: 1,
                 whiteSpace: "nowrap",
                 "&.MuiTableCell-head": {
                   color: "#f4f4f4",
+                  textTransform: "none",
                 },
                 "& .MUIDataTableHeadCell-sortActive": {
                   color: "#f4f4f4 !important",
+                  textTransform: "none",
                 },
               },
               root: {
@@ -747,7 +752,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           <CardHeader className="pb-0 pt-4 px-4 sm:px-6">
             {/* Título */}
             <div className="flex items-baseline gap-3 mb-4">
-              <CardTitle className="text-xl font-bold tracking-tight" style={{ color: VERDE_HEADER }}>Obras</CardTitle>
+              <CardTitle className="text-xl font-bold tracking-tight text-[#376139]">Obras</CardTitle>
               <span className="text-xs font-medium" style={{ color: CINZA_TEXTO }}>
                 {total} resultado{total !== 1 ? "s" : ""}
               </span>
@@ -884,21 +889,42 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                   styles={{
                     ".MUIDataTableToolbar-root": { display: "none !important" },
 
-                    // Cabeçalho da tabela com o verde suave
+                    // Cabeçalho da tabela com o verde suave (Premium)
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: VERDE_HEADER + " !important",
                       color: "#f4f4f4 !important",
+                      height: "36px !important",
+                      minHeight: "36px !important",
+                      paddingTop: "0px !important",
+                      paddingBottom: "0px !important",
+                      borderRadius: "8px 8px 0 0 !important",
                     },
 
-                    ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
-                      color: CINZA_TEXTO + " !important",
+                    // Diminui os botões internos do cabeçalho
+                    ".MUIDataTableHeadCell-contentWrapper, .MUIDataTableHeadCell-toolButton, .MuiButtonBase-root": {
+                       minHeight: "36px !important",
+                       height: "36px !important",
+                       padding: "0 !important",
+                       display: "flex !important",
+                       alignItems: "center !important",
                     },
-                    ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
-                      backgroundColor: "rgba(55,97,57,0.12) !important",
+
+                    ".MUIDataTableHeadCell-root": {
+                      padding: "0 12px !important",
+                      height: "36px !important",
+                      fontSize: "0.875rem !important",
+                      fontWeight: "600 !important",
+                      letterSpacing: "0.01em !important",
+                    },
+
+                    ".MuiTableSortLabel-root": {
+                       height: "36px !important",
+                       display: "flex !important",
+                       alignItems: "center !important",
                     },
 
                     // Corrige a cor do texto quando a coluna está ordenada ativamente
-                    ".MuiTableSortLabel-root, .MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active, .MuiTableSortLabel-root.Mui-active .MuiTableSortLabel-icon": {
+                    ".MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active, .MuiTableSortLabel-root.Mui-active .MuiTableSortLabel-icon": {
                       color: "#f4f4f4 !important",
                     },
                     ".MuiTableSortLabel-icon": {
