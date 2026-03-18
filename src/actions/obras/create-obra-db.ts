@@ -1,5 +1,6 @@
 // src/actions/obras/create-obra-db.ts
 
+
 import { prisma } from "@/lib/prisma"
 import { Prisma, ObraStatus, PagamentoStatus, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
 import { formatObraTitle, formatClientName, formatLocation } from "@/utils/name-formatter"
@@ -293,7 +294,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               preco_unitario: m.preco_unitario,
               tamanho: m.tamanho ?? undefined,
               total: total,
-              // @ts-ignore
               componente: m.componente,
             })
           }
@@ -423,7 +423,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
               tamanho: g.categoria === PedidoCategoria.MADEIRA && it.tamanho != null ? d(it.tamanho) : null,
               preco_unitario: d(it.preco_unitario),
               total: d(it.total),
-              // @ts-ignore
               componente: it.componente,
             },
           })

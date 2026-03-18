@@ -160,11 +160,8 @@ export default function Anexos({
   const [isLoading, setIsLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   
-  // Estados para edição
+  // Estado para edição
   const [editDoc, setEditDoc] = useState<ObraDocumento | null>(null)
-  const [editTitulo, setEditTitulo] = useState("")
-  const [editTipo, setEditTipo] = useState<TipoDocumento>("OUTROS")
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const [isPending, startTransition] = useTransition()
 
@@ -245,34 +242,7 @@ export default function Anexos({
   // Editar documento (abrir modal)
   function handleEditClick(doc: ObraDocumento) {
     setEditDoc(doc)
-    setEditTitulo(doc.titulo)
-    setEditTipo(doc.tipo)
-    setIsEditModalOpen(true)
-  }
-
-  // Salvar edição
-  function handleEditSave() {
-    if (!editDoc) return
-    startTransition(async () => {
-      const result = await editarDocumento({
-        id: editDoc.id,
-        titulo: editTitulo,
-        tipo: editTipo,
-      })
-      if (result.success) {
-        toast.success("Documento atualizado")
-        setDocumentos(prev =>
-          prev.map(d =>
-            d.id === editDoc.id
-              ? { ...d, titulo: editTitulo, tipo: editTipo }
-              : d
-          )
-        )
-        setIsEditModalOpen(false)
-      } else {
-        toast.error(result.error || "Erro ao atualizar documento")
-      }
-    })
+    setModalOpen(true)
   }
 
   // Reordenar documento
@@ -305,24 +275,23 @@ export default function Anexos({
     setFixedEditKey(key)
     setFixedEditLabel(label)
     setFixedEditUrl(currentUrl)
+    setEditDoc(null)
+    setModalOpen(true)
   }
 
-  function handleFixedEditSave() {
-    if (!fixedEditKey || !obraId) return
-    startTransition(async () => {
-      const result = await atualizarLinkObra(obraId, fixedEditKey, fixedEditUrl || null)
-      if (result.success) {
-        toast.success("Link atualizado com sucesso")
-        if (fixedEditKey === "orcamento") setLocalOrcamento(fixedEditUrl)
-        if (fixedEditKey === "contrato") setLocalContrato(fixedEditUrl)
-        if (fixedEditKey === "proposta") setLocalProposta(fixedEditUrl)
-        if (fixedEditKey === "ordemServico") setLocalOrdemServico(fixedEditUrl)
-        setFixedEditKey(null)
-        router.refresh()
-      } else {
-        toast.error(result.error || "Erro ao salvar link")
-      }
-    })
+  async function handleFixedEditSave(key: string, url: string): Promise<{ success: boolean; error?: string }> {
+    if (!obraId) return { success: false, error: "Obra ID não encontrado" }
+    
+    const result = await atualizarLinkObra(obraId, key as any, url || null)
+    if (result.success) {
+      if (key === "orcamento") setLocalOrcamento(url)
+      if (key === "contrato") setLocalContrato(url)
+      if (key === "proposta") setLocalProposta(url)
+      if (key === "ordemServico") setLocalOrdemServico(url)
+      setFixedEditKey(null)
+      router.refresh()
+    }
+    return result
   }
 
   // Contagem total de anexos
@@ -345,7 +314,10 @@ export default function Anexos({
               <Button
                 size="sm"
                 variant="ghost-green"
-                onClick={() => setModalOpen(true)}
+                onClick={() => {
+                  setEditDoc(null)
+                  setModalOpen(true)
+                }}
                 className="h-8"
               >
                 <Plus className="h-4 w-4 mr-1" />
@@ -417,96 +389,21 @@ export default function Anexos({
       {/* Modal de upload */}
       <DocumentoUploadModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={(open) => {
+          setModalOpen(open)
+          if (!open) {
+            setEditDoc(null)
+            setFixedEditKey(null)
+          }
+        }}
         obraId={obraId}
         onSuccess={loadDocumentos}
+        documento={editDoc}
+        fixedLinkKey={fixedEditKey}
+        fixedLinkLabel={fixedEditLabel}
+        fixedLinkUrl={fixedEditUrl}
+        onFixedLinkSave={handleFixedEditSave}
       />
-
-      {/* Modal de Edição de Link Fixo */}
-      <Dialog open={!!fixedEditKey} onOpenChange={(open) => !open && !isPending && setFixedEditKey(null)}>
-        <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Editar link do documento</DialogTitle>
-          </DialogHeader>
-          <div className="py-4 flex flex-col gap-3">
-            <div>
-               <Label htmlFor="fixed-url" className="text-sm font-medium text-gray-700">URL ({fixedEditLabel})</Label>
-               <Input
-                 id="fixed-url"
-                 className="mt-1.5 focus-visible:ring-green"
-                 placeholder="https://..."
-                 value={fixedEditUrl}
-                 onChange={(e) => setFixedEditUrl(e.target.value)}
-                 disabled={isPending}
-               />
-            </div>
-            <p className="text-sm text-gray-500">
-               Cole o link do Google Drive, Dropbox ou do sistema associado a este anexo fixo.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFixedEditKey(null)} disabled={isPending}>
-               Cancelar
-            </Button>
-            <Button
-              className="bg-green text-white hover:bg-green/90 min-w-[100px]"
-              onClick={handleFixedEditSave}
-              disabled={isPending}
-            >
-              {isPending ? "Salvando..." : "Salvar Link"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de Edição de Documento */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Editar Documento</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="titulo">Título (*)</Label>
-              <Input
-                id="titulo"
-                value={editTitulo}
-                onChange={(e) => setEditTitulo(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select
-                value={editTipo}
-                onValueChange={(val) => setEditTipo(val as TipoDocumento)}
-              >
-                <SelectTrigger id="tipo">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TIPO_DOCUMENTO_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-green text-white hover:bg-green/90"
-              onClick={handleEditSave}
-              disabled={isPending || !editTitulo.trim()}
-            >
-              Salvar 
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { ObraDetalheDTO, ObraStatus, PedidoCompraDTO } from "@/app/obras/lib/types"
 
 export class AppError extends Error {
   code: "INVALID_ID" | "OBRA_NOT_FOUND" | "UNEXPECTED_ERROR"
@@ -16,62 +17,6 @@ const n = (v: any) =>
 const ymd = (d?: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
 const iso = (d?: Date | null) => (d ? d.toISOString() : null)
 
-export type PedidoCompraDTO = {
-  id: number
-
-  obraId: number
-
-  categoria: string
-  status: string
-
-  fornecedorId: number | null
-  fornecedor: { id: number; nome: string } | null
-
-  valorOrcado: number | null
-  valorRealizado: number | null
-  frete: number | null
-
-  descricao: string | null
-  observacoes: string | null
-
-  dataEntrega: string | null
-  enderecoEntrega: string | null
-  nomeReceptor: string | null
-  telefoneReceptor: string | null
-  linkMaps: string | null
-
-  createdAt: string | null
-  updatedAt: string | null
-
-  valores: {
-    orcado: number | null
-    realizado: number | null
-    frete: number | null
-  }
-
-  entrega: {
-    data: string | null
-    endereco: string | null
-    receptor: string | null
-    telefone: string | null
-    maps: string | null
-  }
-
-  itens: Array<{
-    id: number
-    pedidoCompraId: number
-
-    descricao: string
-    quantidade: number
-    tamanho: number | null
-    precoUnitario: number
-    total: number
-
-    createdAt: string | null
-    updatedAt: string | null
-  }>
-}
-
 export type ObraAgendaSegmentoDTO = {
   id: number
   start: string
@@ -80,69 +25,6 @@ export type ObraAgendaSegmentoDTO = {
   status: string
   equipe: { id: number; nome: string; cor: string | null } | null
   observacoes: string | null
-}
-
-export type ObraDetalheDTO = {
-  id: number
-  titulo: string | null
-  status: string
-  dataInicioObra: string | null
-  dataFimObra: string | null
-  dataContrato: string | null
-  dataConclusao: string | null
-
-  orcamentoId: number | null
-  orcamento: {
-    id: number
-    linkSlide: string | null
-    linkPdf: string | null
-    titulo: string | null
-  } | null
-
-  anexos: {
-    propostaSlide: string | null
-    orcamentoPdf: string | null
-    contrato: string | null
-    linkContratoAssinado: string | null
-    ordemServico: string | null
-  }
-
-  cliente: {
-    id: number
-    nome: string
-    cpf: string | null
-    telefone: string | null
-    bairro: string | null
-    cidade: { id: number | null; nome: string | null }
-  }
-  obra: {
-    endereco: string
-    mapsUrl: string
-    tipo: string
-    largura: number
-    comprimento: number
-    telha: string
-    valorObra: number
-    valorMaoDeObra: number
-    observacoes: string | null
-  }
-  financeiro: {
-    entrada: { valor: number | null; forma: string | null; status: string }
-    quitacao: { valor: number | null; forma: string | null; status: string }
-  }
-
-  pedidosCompra: PedidoCompraDTO[]
-
-  ordemServico: {
-    id: number
-    equipe: { id: number; nome: string } | null
-    dataPrevInicio: string
-    dataPrevConclusao: string
-  } | null
-
-  imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null }>
-
-  agenda: ObraAgendaSegmentoDTO[]
 }
 
 function pickOrcamentoIdFromObraRow(obra: any): number | null {
@@ -214,23 +96,19 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     : null
 
   const anexos = {
+    orcamentoId: orcamentoId,
     propostaSlide: orcamentoOut?.linkSlide ?? null,
-    orcamentoPdf: orcamentoOut?.linkPdf ?? null,
+    propostaPdf: orcamentoOut?.linkPdf ?? null,
     contrato: obra.link_contrato ?? null,
-    linkContratoAssinado: obra.link_contrato_assinado ?? null,
     ordemServico: obra.link_ordem_servico ?? null,
   }
 
   return {
     id: obra.id,
     titulo: obra.titulo,
-    status: obra.status,
-    dataInicioObra: ymd(obra.data_inicio_obra as any),
-    dataFimObra: ymd(obra.data_fim_obra as any),
-    dataContrato: ymd(obra.data_contrato as any),
-    dataConclusao: ymd(obra.data_conclusao as any),
+    dataContrato: ymd(obra.data_contrato),
+    dataConclusao: iso(obra.data_conclusao),
 
-    orcamentoId,
     orcamento: orcamentoOut,
     anexos,
 
@@ -246,64 +124,66 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       },
     },
 
-    obra: {
+    dadosObra: {
       endereco: obra.endereco_obra,
       mapsUrl: obra.maps_url,
-      tipo: obra.tipo_obra,
+      tipoObra: obra.tipo_obra,
       largura: n(obra.largura)!,
       comprimento: n(obra.comprimento)!,
-      telha: obra.telha_escolhida,
+      larguraMaior: n(obra.largura_maior),
+      larguraMenor: n(obra.largura_menor),
+      comprimentoMaior: n(obra.comprimento_maior),
+      comprimentoMenor: n(obra.comprimento_menor),
+      telhaEscolhida: obra.telha_escolhida,
       valorObra: n(obra.valor_obra)!,
       valorMaoDeObra: n(obra.valor_mao_de_obra)!,
+      status: obra.status as ObraStatus,
       observacoes: obra.observacoes ?? null,
+      dataCriacao: iso(obra.data_criacao),
+      dataUltimaAlteracao: iso(obra.data_ultima_alteracao),
     },
 
     financeiro: {
       entrada: {
         valor: n(obra.pagamento_entrada),
         forma: obra.forma_pagamento_entrada,
-        status: obra.status_pagamento_entrada,
+        status: (obra.status_pagamento_entrada || "PENDENTE") as any,
       },
       quitacao: {
         valor: n(obra.pagamento_quitacao),
         forma: obra.forma_pagamento_quitacao,
-        status: obra.status_pagamento_quitacao,
+        status: (obra.status_pagamento_quitacao || "PENDENTE") as any,
       },
     },
 
-    pedidosCompra: obra.pedidos_compra.map((p: any) => ({
+    equipe: obra.ordem_servico?.equipe 
+      ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome } 
+      : null,
+
+    pedidosCompra: (obra.pedidos_compra || []).map((p: any) => ({
       id: p.id,
-
       obraId: p.obra_id,
-
       categoria: p.categoria,
       status: p.status,
-
       fornecedorId: p.fornecedor_id ?? null,
       fornecedor: p.fornecedor ? { id: p.fornecedor.id, nome: p.fornecedor.nome } : null,
-
       valorOrcado: n(p.valor_orcado),
       valorRealizado: n(p.valor_realizado),
       frete: n(p.frete),
-
       descricao: p.descricao ?? null,
       observacoes: p.observacoes ?? null,
-
       dataEntrega: ymd(p.data_entrega),
       enderecoEntrega: p.endereco_entrega ?? null,
       nomeReceptor: p.nome_receptor ?? null,
       telefoneReceptor: p.telefone_receptor ?? null,
       linkMaps: p.link_maps ?? null,
-
-      createdAt: iso(p.created_at),
-      updatedAt: iso(p.updated_at),
-
+      createdAt: iso(p.created_at || p.data_criacao),
+      updatedAt: iso(p.updated_at || p.data_ultima_alteracao),
       valores: {
         orcado: n(p.valor_orcado),
         realizado: n(p.valor_realizado),
         frete: n(p.frete),
       },
-
       entrega: {
         data: ymd(p.data_entrega),
         endereco: p.endereco_entrega ?? null,
@@ -311,25 +191,23 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         telefone: p.telefone_receptor ?? null,
         maps: p.link_maps ?? null,
       },
-
       itens: (p.itens || []).map((i: any) => ({
         id: i.id,
         pedidoCompraId: i.pedido_compra_id,
-
         descricao: i.descricao,
         quantidade: n(i.quantidade)!,
         tamanho: n(i.tamanho),
         precoUnitario: n(i.preco_unitario)!,
         total: n(i.total)!,
-
-        createdAt: iso(i.created_at),
-        updatedAt: iso(i.updated_at),
+        createdAt: iso(i.created_at || i.data_criacao),
+        updatedAt: iso(i.updated_at || i.data_ultima_alteracao),
       })),
     })),
 
     ordemServico: obra.ordem_servico
       ? {
         id: obra.ordem_servico.id,
+        equipeId: obra.ordem_servico.equipe_id,
         equipe: obra.ordem_servico.equipe
           ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome }
           : null,
@@ -338,23 +216,12 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       }
       : null,
 
-    imagens: obra.imagens.map((i: any) => ({
+    imagens: (obra.imagens || []).map((i: any) => ({
       id: i.id,
       url: i.url,
       ordem: i.ordem,
       legenda: i.legenda,
-    })),
-
-    agenda: obra.segmentos.map((s: any) => ({
-      id: s.id,
-      start: ymd(s.inicio)!,
-      end: ymd(s.fim)!,
-      tipo: s.tipo ?? "EXECUCAO",
-      status: s.status ?? "AGENDADO",
-      equipe: s.equipe
-        ? { id: s.equipe.id, nome: s.equipe.nome, cor: s.equipe.cor }
-        : null,
-      observacoes: s.observacoes,
+      createdAt: iso(i.created_at) || "",
     })),
   }
 }

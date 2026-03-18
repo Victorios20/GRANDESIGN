@@ -221,6 +221,7 @@ export type PedidoCompraCreatePayload = {
 
 export type CreateObraPayload = {
   orcamentoId: number
+  titulo?: string | null
   endereco_obra: string
   maps_url: string
   tipo_obra: string

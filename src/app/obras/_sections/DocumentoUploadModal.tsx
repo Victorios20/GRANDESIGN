@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useTransition } from "react"
+import { useState, useRef, useTransition, useEffect } from "react"
 import { Upload, Link, Loader2, FileText } from "lucide-react"
 import { toast } from "sonner"
 
@@ -21,14 +21,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { criarDocumento } from "@/actions/obras/documentos"
-import { TipoDocumento, TIPO_DOCUMENTO_LABELS } from "@/actions/obras/documentos-types"
+import { TipoDocumento, TIPO_DOCUMENTO_LABELS, ObraDocumento } from "@/actions/obras/documentos-types"
+import { criarDocumento, editarDocumento } from "@/actions/obras/documentos"
 
 type Props = {
     open: boolean
     onOpenChange: (open: boolean) => void
     obraId: number
     onSuccess?: () => void
+    documento?: ObraDocumento | null
+
+    fixedLinkKey?: "orcamento" | "contrato" | "proposta" | "ordemServico" | null
+    fixedLinkLabel?: string
+    fixedLinkUrl?: string
+    onFixedLinkSave?: (key: string, url: string) => Promise<{ success: boolean; error?: string }>
 }
 
 type InputMode = "arquivo" | "link"
@@ -38,7 +44,13 @@ export default function DocumentoUploadModal({
     onOpenChange,
     obraId,
     onSuccess,
+    documento,
+    fixedLinkKey,
+    fixedLinkLabel,
+    fixedLinkUrl,
+    onFixedLinkSave,
 }: Props) {
+    const isEdit = !!documento || !!fixedLinkKey
     const [inputMode, setInputMode] = useState<InputMode>("arquivo")
     const [tipo, setTipo] = useState<TipoDocumento>("CONTRATO_ASSINADO")
     const [titulo, setTitulo] = useState("")
@@ -50,6 +62,25 @@ export default function DocumentoUploadModal({
 
     const isLoading = isUploading || isPending
 
+    // Inicializar estado ao abrir para edição
+    useEffect(() => {
+        if (open) {
+            if (fixedLinkKey) {
+                setTitulo(fixedLinkLabel || "")
+                setLink(fixedLinkUrl || "")
+                setInputMode(fixedLinkUrl ? "link" : "arquivo")
+            } else if (documento) {
+                setTitulo(documento.titulo || "")
+                setTipo(documento.tipo)
+                const docLink = documento.link || ""
+                setLink(docLink)
+                setInputMode(documento.url ? "arquivo" : "link")
+            } else {
+                resetForm()
+            }
+        }
+    }, [open, documento, fixedLinkKey, fixedLinkLabel, fixedLinkUrl])
+
     function resetForm() {
         setInputMode("arquivo")
         setTipo("CONTRATO_ASSINADO")
@@ -60,7 +91,6 @@ export default function DocumentoUploadModal({
 
     function handleClose() {
         if (!isLoading) {
-            resetForm()
             onOpenChange(false)
         }
     }
@@ -82,8 +112,8 @@ export default function DocumentoUploadModal({
         }
 
         setSelectedFile(file)
-        // Auto-preencher título com nome do arquivo
-        if (!titulo) {
+        // Auto-preencher título com nome do arquivo (só se estiver criando)
+        if (!isEdit && !titulo) {
             const name = file.name.replace(/\.pdf$/i, "")
             setTitulo(name)
         }
@@ -101,7 +131,7 @@ export default function DocumentoUploadModal({
             return
         }
 
-        if (inputMode === "arquivo" && !selectedFile) {
+        if (!isEdit && inputMode === "arquivo" && !selectedFile) {
             toast.error("Selecione um arquivo")
             return
         }
@@ -111,7 +141,7 @@ export default function DocumentoUploadModal({
         try {
             let fileUrl: string | null = null
 
-            // Se modo arquivo, fazer upload primeiro
+            // Se modo arquivo e tiver novo arquivo, fazer upload
             if (inputMode === "arquivo" && selectedFile) {
                 const formData = new FormData()
                 formData.append("file", selectedFile)
@@ -130,19 +160,37 @@ export default function DocumentoUploadModal({
                 fileUrl = uploadData.url
             }
 
-            // Criar documento no banco
+            // Ação no banco (Criar ou Editar)
             startTransition(async () => {
-                const result = await criarDocumento({
-                    obraId,
-                    tipo,
-                    titulo: titulo.trim(),
-                    url: fileUrl,
-                    link: inputMode === "link" ? link.trim() : null,
-                })
+                let result;
+                if (fixedLinkKey && onFixedLinkSave) {
+                    const finalUrl = inputMode === "arquivo" ? fileUrl : link.trim();
+                    if (!finalUrl) {
+                        toast.error("É necessário selecionar um arquivo ou inserir um link")
+                        setIsUploading(false)
+                        return
+                    }
+                    result = await onFixedLinkSave(fixedLinkKey, finalUrl)
+                } else if (documento) {
+                    result = await editarDocumento({
+                        id: documento.id,
+                        tipo,
+                        titulo: titulo.trim(),
+                        link: inputMode === "link" ? link.trim() : null,
+                        url: inputMode === "arquivo" ? (fileUrl || documento.url) : null,
+                    })
+                } else {
+                    result = await criarDocumento({
+                        obraId,
+                        tipo,
+                        titulo: titulo.trim(),
+                        url: fileUrl,
+                        link: inputMode === "link" ? link.trim() : null,
+                    })
+                }
 
                 if (result.success) {
-                    toast.success("Documento adicionado com sucesso!")
-                    resetForm()
+                    toast.success(isEdit ? "Documento atualizado!" : "Documento adicionado com sucesso!")
                     onOpenChange(false)
                     onSuccess?.()
                 } else {
@@ -150,8 +198,8 @@ export default function DocumentoUploadModal({
                 }
             })
         } catch (error) {
-            console.error("Erro ao adicionar documento:", error)
-            toast.error("Erro ao adicionar documento")
+            console.error("Erro ao processar documento:", error)
+            toast.error("Erro ao processar documento")
         } finally {
             setIsUploading(false)
         }
@@ -163,7 +211,7 @@ export default function DocumentoUploadModal({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-green" />
-                        Adicionar Documento
+                        {isEdit ? "Editar Documento" : "Adicionar Documento"}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -192,25 +240,27 @@ export default function DocumentoUploadModal({
                         </Button>
                     </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="tipo" className="text-sm font-medium text-gray-700">Tipo de documento</Label>
-                        <Select
-                            value={tipo}
-                            onValueChange={(v) => setTipo(v as TipoDocumento)}
-                            disabled={isLoading}
-                        >
-                            <SelectTrigger id="tipo" className="focus-visible:ring-green">
-                                <SelectValue placeholder="Selecione o tipo" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {Object.entries(TIPO_DOCUMENTO_LABELS).map(([value, label]) => (
-                                    <SelectItem key={value} value={value}>
-                                        {label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    {!fixedLinkKey && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="tipo" className="text-sm font-medium text-gray-700">Tipo de documento</Label>
+                            <Select
+                                value={tipo}
+                                onValueChange={(v) => setTipo(v as TipoDocumento)}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger id="tipo" className="focus-visible:ring-green">
+                                    <SelectValue placeholder="Selecione o tipo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(TIPO_DOCUMENTO_LABELS).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>
+                                            {label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
 
                     <div className="grid gap-2">
                         <Label htmlFor="titulo" className="text-sm font-medium text-gray-700">Título do documento <span className="text-red-500">*</span></Label>
@@ -219,8 +269,8 @@ export default function DocumentoUploadModal({
                             value={titulo}
                             onChange={(e) => setTitulo(e.target.value)}
                             placeholder="Ex: Contrato de Prestação de Serviço"
-                            disabled={isLoading}
-                            className="focus-visible:ring-green"
+                            disabled={isLoading || !!fixedLinkKey}
+                            className="focus-visible:ring-green disabled:bg-gray-50"
                         />
                     </div>
 

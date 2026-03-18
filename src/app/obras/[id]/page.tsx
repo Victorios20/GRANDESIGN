@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
-import { headers as nextHeaders } from "next/headers"
 import { notFound } from "next/navigation"
+import { headers as nextHeaders } from "next/headers"
 import ObrasPage from "@/app/obras/ObrasPage"
 import type {
   ObraDetalheDTO,
@@ -14,6 +14,7 @@ import type { ImgItem } from "@/app/obras/_sections/ObsImagens"
 
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
+import { detalharObraDB, AppError } from "@/actions/obras/detalhar-obra"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -127,7 +128,7 @@ function normalizePedidosCompra(dto: any): PedidoCompraDTO[] {
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await params
   const obraId = Number(idStr)
-  if (!Number.isFinite(obraId)) notFound()
+  if (!Number.isFinite(obraId) || obraId <= 0) notFound()
 
   const h = await nextHeaders()
   const cookie = h.get("cookie") ?? ""
@@ -135,8 +136,18 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
   const base = `${proto}://${host}`
 
+  // Fetch obra directly from DB — avoids auth cookie roundtrip via fetch
+  let dto: ObraDetalheDTO
+  try {
+    dto = await detalharObraDB(obraId)
+  } catch (err: any) {
+    if (err instanceof AppError && (err.code === "OBRA_NOT_FOUND" || err.code === "INVALID_ID")) {
+      notFound()
+    }
+    throw err
+  }
+
   const [
-    resObra,
     resTipos,
     componentes,
     geraisDB,
@@ -147,11 +158,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     resEquipes,
     resCidades,
   ] = await Promise.all([
-    fetch(`${base}/api/obras/${obraId}/detalhado`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
     fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
       cache: "no-store",
       headers: { cookie },
@@ -186,13 +192,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       credentials: "include",
     }),
   ])
-
-  if (!resObra.ok) notFound()
-
-  const dtoJson = await resObra.json()
-  const dto = (dtoJson?.data ?? dtoJson) as any as ObraDetalheDTO
-
-  console.log("[/obras/[id]] DTO recebido:", JSON.stringify(dto, null, 2))
 
   const cidadesRaw = await resCidades.json().catch(() => [])
   const cidades = normalizeCidades(cidadesRaw)

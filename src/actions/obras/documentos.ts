@@ -88,6 +88,7 @@ export async function criarDocumento(data: {
                 titulo: doc.titulo,
                 url: doc.url,
                 link: doc.link,
+                ordem: doc.ordem,
                 created_at: doc.created_at,
             },
         }
@@ -134,6 +135,8 @@ export async function editarDocumento(data: {
     id: number
     tipo: TipoDocumento
     titulo: string
+    link?: string | null
+    url?: string | null
 }): Promise<{ success: boolean; error?: string }> {
     try {
         if (!data.titulo?.trim()) {
@@ -145,6 +148,8 @@ export async function editarDocumento(data: {
             data: {
                 tipo: data.tipo,
                 titulo: data.titulo.trim(),
+                link: data.link !== undefined ? data.link : undefined,
+                url: data.url !== undefined ? data.url : undefined,
             },
         })
 
