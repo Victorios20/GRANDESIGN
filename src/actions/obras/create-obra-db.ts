@@ -143,6 +143,7 @@ export type CriarObraInput = {
   valor_obra: Decimalish
   valor_mao_de_obra: Decimalish
   observacoes?: string | null
+  cor_stain?: string | null
   equipe_id?: number | null
   imagens?: ImagemInput[]
   actorUserId: number
@@ -220,6 +221,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           comprimento_maior: input.comprimento_maior != null ? d(input.comprimento_maior) : null,
           comprimento_menor: input.comprimento_menor != null ? d(input.comprimento_menor) : null,
           telha_escolhida: input.telha_escolhida,
+          // @ts-ignore - Aguardando prisma generate (arquivo bloqueado pelo dev server)
+          cor_stain: input.cor_stain ?? orc.cor_stain,
           valor_obra: d(input.valor_obra),
           valor_mao_de_obra: d(input.valor_mao_de_obra),
           ...(mapObraStatus(input.status) ? { status: mapObraStatus(input.status)! } : {}),

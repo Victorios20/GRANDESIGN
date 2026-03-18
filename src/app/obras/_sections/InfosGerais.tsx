@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ComboboxAdd } from "@/components/ui/comboboxAdd"
+import { calculateLShapeArea } from "@/lib/l-shape-area"
 
 import type { ObraInfosVM, ObraStatus } from "../lib/types"
 import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
@@ -66,6 +67,27 @@ const inputClass =
 const labelText = "text-neutral-700 text-sm font-medium"
 const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-tight"
 
+function parseDateValue(value: string | null | undefined): Date | null {
+  if (!value) return null
+
+  const normalized = String(value).trim()
+  const dateLike = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/)
+  if (dateLike) {
+    const [, year, month, day] = dateLike
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
+
+  const direct = new Date(normalized)
+  if (!Number.isNaN(direct.getTime())) return direct
+
+  return null
+}
+
+function formatDateInputValue(value: string | null | undefined): string {
+  const parsed = parseDateValue(value)
+  return parsed ? format(parsed, "yyyy-MM-dd") : ""
+}
+
 export default function InfosGerais({
   value,
   onChange,
@@ -83,8 +105,21 @@ export default function InfosGerais({
   )
 
   const isL = useMemo(() => {
-    return !!(value.larguraMaior || value.larguraMenor || value.comprimentoMaior || value.comprimentoMenor)
+    return [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor].some(
+      (dimension) => dimension !== null && dimension !== undefined
+    )
   }, [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor])
+
+  const lAreaTotal = useMemo(
+    () =>
+      calculateLShapeArea({
+        larguraMaior: value.larguraMaior,
+        larguraMenor: value.larguraMenor,
+        comprimentoMaior: value.comprimentoMaior,
+        comprimentoMenor: value.comprimentoMenor,
+      }),
+    [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor]
+  )
 
   const [isConclusionModalOpen, setIsConclusionModalOpen] = useState(false)
   const [conclusionDate, setConclusionDate] = useState<Date | undefined>(new Date())
@@ -269,7 +304,7 @@ export default function InfosGerais({
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                       <div className="flex-1">
                         <Label className="text-xs text-marromEscuro mb-1 block">Largura Maior</Label>
                         {isEditing ? (
@@ -326,6 +361,12 @@ export default function InfosGerais({
                           <div className="text-lg font-medium text-marromEscuro">{Number(value.comprimentoMenor || 0).toFixed(2)}</div>
                         )}
                       </div>
+                      <div className="col-span-2 lg:col-span-1 flex-1 lg:pl-4 lg:border-l border-marromClaro/20">
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área Total</Label>
+                        <div className="text-xl font-bold text-green">
+                          {lAreaTotal.toFixed(2)} m²
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -355,31 +396,31 @@ export default function InfosGerais({
                     <FileCheck className="w-4 h-4 text-marromEscuro" />
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Auditoria de Datas</Label>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Dates */}
                     {[
-                      { label: "Início", val: value.dataInicioObra, key: "dataInicioObra" },
+                      { label: "Criação da Obra", val: value.dataCriacao, key: "dataCriacao" },
                       { label: "Contrato", val: value.dataContrato, key: "dataContrato" },
-                      { label: "Data de Conclusão", val: value.dataFimObra, key: "dataFimObra" },
-                      { label: "Entrega Final", val: value.dataConclusao, key: "dataConclusao", hide: value.status !== "Finalizado" }
+                      { label: "Data de Conclusão", val: value.dataConclusao, key: "dataConclusao" }
                     ].map((item: any) => (
-                      !item.hide && (
-                        <div key={item.label} className="flex flex-col gap-1">
-                          <Label className="text-[10px] text-muted-foreground">{item.label}</Label>
-                          {isEditing ? (
-                            <Input
-                              type="date"
-                              className="h-8 text-xs bg-cinza border-0"
-                              value={item.val ?? ""}
-                              onChange={(e: any) => onChange({ [item.key]: e.target.value || null })}
-                            />
-                          ) : (
-                            <div className="text-sm font-medium text-marromEscuro">
-                              {item.val ? format(new Date(item.val + "T00:00:00"), "dd/MM/yyyy") : "-"}
-                            </div>
-                          )}
-                        </div>
-                      )
+                      <div key={item.label} className="flex flex-col gap-1">
+                        <Label className="text-[10px] text-muted-foreground">{item.label}</Label>
+                        {isEditing ? (
+                          <Input
+                            type="date"
+                            className="h-8 text-xs bg-cinza border-0"
+                            value={formatDateInputValue(item.val)}
+                            onChange={(e: any) => onChange({ [item.key]: e.target.value || null })}
+                          />
+                        ) : (
+                          <div className="text-sm font-medium text-marromEscuro">
+                            {(() => {
+                              const parsed = parseDateValue(item.val)
+                              return parsed ? format(parsed, "dd/MM/yyyy") : "-"
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -516,7 +557,7 @@ export default function InfosGerais({
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-gray-500 mb-4">
-              Ao marcar como finalizada, a obra terá seus pedidos de compra e faturas em aberto atualizados para concluídos.
+              Ao marcar como finalizada, os pagamentos pendentes serão marcados como efetuados e os pedidos de compra em aberto serão marcados como entregues.
             </p>
             <div className="flex flex-col gap-2">
               <Label htmlFor="data-conclusao">Data de Conclusão</Label>

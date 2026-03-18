@@ -32,6 +32,7 @@ export type GetOrcamentoResult = {
 
   /** NOVO: observações (opcional) */
   observacoes: string | null
+  corStain: string | null
 
   parametros: {
     tipoObra: string | null
@@ -80,6 +81,7 @@ export type UpdateOrcamentoInput = {
   fornecedorId?: number | null
   /** NOVO: atualizar observações opcionalmente */
   observacoes?: string | null
+  cor_stain?: string | null
   parametros: {
     tipoObraId?: number | null
     tipoObra: string | null
@@ -312,6 +314,7 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
 
       // NOVO: observações
       observacoes: (data.orc as any).observacoes ?? null,
+      corStain: (data.orc as any).cor_stain ?? null,
 
       parametros: {
         tipoObra: (data.orc as any).tipo_obra?.tipo_obra ?? null,
@@ -448,6 +451,7 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             /** NOVO: atualiza id_fornecedor e observações */
             id_fornecedor: resolvedFornecedorId,
             observacoes: cleanTextOrNull(input.observacoes),
+            cor_stain: cleanTextOrNull(input.cor_stain),
             totais_madeiras_preco: nonNeg(input.totais.madeiras),
             totais_materiais_preco: nonNeg(input.totais.materiais),
             totais_comissao_preco: nonNeg(input.totais.comissao),

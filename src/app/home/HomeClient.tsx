@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { ObraStatusBadge } from "@/components/obras/ObraStatusBadge"
 import { PageLayout } from "@/components/ui/pageLayout"
 import {
   FileText,
@@ -71,24 +71,6 @@ function formatPct(v: number | null) {
   if (v == null || !Number.isFinite(v)) return null
   const sign = v > 0 ? "+" : ""
   return `${sign}${v.toFixed(0)}%`
-}
-
-function getStatusColor(status: string) {
-  const s = String(status || "").toLowerCase()
-
-  if (s.includes("exec") || s.includes("andamento")) {
-    return "bg-primary/20 text-primary-foreground border-primary/30"
-  }
-  if (s.includes("aguard")) {
-    return "bg-warning/20 text-warning-foreground border-warning/30"
-  }
-  if (s.includes("final") || s.includes("concl")) {
-    return "bg-success/20 text-success border-success/30"
-  }
-  if (s.includes("pend")) {
-    return "bg-secondary/20 text-secondary border-secondary/30"
-  }
-  return "bg-muted text-muted-foreground"
 }
 
 export default function HomeClient({ initial }: Props) {
@@ -297,10 +279,8 @@ export default function HomeClient({ initial }: Props) {
                           <td className="px-4 py-3 text-sm text-muted-foreground">{obra.cliente.cidade ?? "-"}</td>
                           <td className="px-4 py-3 text-sm text-muted-foreground">{obra.tipo_obra}</td>
                           <td className="px-4 py-3 text-sm text-muted-foreground">{obra.equipe ?? "-"}</td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline" className={`text-xs ${getStatusColor(obra.status)}`}>
-                              {obra.status}
-                            </Badge>
+                          <td className="px-4 py-3 align-middle">
+                            <ObraStatusBadge status={obra.status} layout="compact" />
                           </td>
                         </tr>
                       ))}

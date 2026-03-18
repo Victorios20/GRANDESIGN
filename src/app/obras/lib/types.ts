@@ -63,6 +63,9 @@ export type GetOrcamentoResult = {
   dataUltimaAlteracao: string | null
   createdBy: { id: number; name: string; email: string } | null
   updatedBy: { id: number; name: string; email: string } | null
+  lancadoObra: boolean
+  lancadoObraEm: string | null
+  obraId: number | null
 }
 
 export type PedidoCategoria = "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES"
@@ -134,6 +137,10 @@ export type PedidoCompraDTO = {
 export type ObraDetalheDTO = {
   id: number
   titulo: string | null
+  status?: ObraStatus | string
+  dataInicioObra?: string | null
+  dataFimObra?: string | null
+  orcamentoId?: number | null
   orcamento: { id: number } | null
 
   dataContrato: string | null
@@ -143,7 +150,9 @@ export type ObraDetalheDTO = {
     orcamentoId: number | null
     propostaSlide: string | null
     propostaPdf: string | null
+    orcamentoPdf?: string | null
     contrato: string | null
+    linkContratoAssinado?: string | null
     ordemServico: string | null
   }
 
@@ -157,6 +166,18 @@ export type ObraDetalheDTO = {
   }
 
   equipe: { id: number; nome: string } | null
+
+  obra?: {
+    endereco: string
+    mapsUrl: string
+    tipo: string
+    largura: number
+    comprimento: number
+    telha: string
+    valorObra: number
+    valorMaoDeObra: number
+    observacoes: string | null
+  }
 
   dadosObra: {
     endereco: string
@@ -193,6 +214,15 @@ export type ObraDetalheDTO = {
   } | null
 
   imagens: Array<{ id: number; url: string; ordem: number | null; legenda: string | null; createdAt: string }>
+  agenda?: Array<{
+    id: number
+    start: string
+    end: string
+    tipo: string
+    status: string
+    equipe: { id: number; nome: string; cor: string | null } | null
+    observacoes: string | null
+  }>
 }
 export type PedidoItemCreatePayload = {
   descricao: string
@@ -307,6 +337,7 @@ export type ObraInfosVM = {
   comprimentoMenor?: number | null
   telhaEscolhida: string
   status: ObraStatus
+  dataCriacao?: string | null
   dataInicioObra?: string | null
   dataFimObra?: string | null
   dataContrato?: string | null
@@ -367,6 +398,7 @@ export type UpdateObraPayload = {
     telha_escolhida?: string
     status?: ObraStatus
     observacoes?: string
+    data_criacao?: string | Date | null
     data_inicio_obra?: string | Date | null
     data_fim_obra?: string | Date | null
     data_contrato?: string | Date | null

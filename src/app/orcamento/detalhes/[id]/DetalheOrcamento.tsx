@@ -49,7 +49,13 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
   const slideUrl = detalhe.links.slideUrl ?? ""
   const pdfUrl = detalhe.links.pdfUrl ?? ""
 
-  const isRetangular =
+  const normalizeRoofType = (s: string | null | undefined) =>
+    (s ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+
+  const normalizedTipo = normalizeRoofType(detalhe.tipoObra)
+  const isL = normalizedTipo.startsWith("coberta em l") || normalizedTipo.includes("em l")
+
+  const isRetangular = !isL &&
     detalhe?.dimensoes?.largura != null && detalhe?.dimensoes?.comprimento != null
 
   const createdEmail = (detalhe as any)?.createdBy?.email ?? "-"
@@ -103,15 +109,18 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
                 <CardTitle className="text-3xl">
-                  Orçamento de {safeCell(detalhe.cliente.nome)} – {safeCell(detalhe.cliente.bairro)}
+                  {safeCell(detalhe.titulo)}
                 </CardTitle>
+                <div className="flex items-center gap-1 mx-2">
+                  <span className="bg-secondary text-secondary-foreground inline-flex items-center rounded-md border px-2.5 py-0.5 text-sm font-normal transition-colors">
+                    ID: {detalhe.id}
+                  </span>
+                </div>
                 <CopyLinkButton value={detailUrl} label="Copiar link da página" />
               </div>
             </div>
 
-            <CardDescription className="mt-1">
-              <span className="font-medium">Título:</span> {safeCell(detalhe.titulo)}
-            </CardDescription>
+
           </CardHeader>
         </Card>
 
@@ -140,19 +149,32 @@ export default function DetalheOrcamento({ detalhe, detailUrl }: { detalhe: Deta
                 <b>Fornecedor:</b>{" "}
                 {safeCell(detalhe.fornecedorNome ?? (detalhe.fornecedorId != null ? `#${detalhe.fornecedorId}` : ""))}
               </p>
-              {isRetangular ? (
-                <>
-                  <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
-                  <p><b>Comprimento:</b> {fmtDim(detalhe.dimensoes.comprimento)}</p>
-                </>
-              ) : (
-                <>
-                  <p><b>Largura (maior):</b> {fmtDim(detalhe.dimensoes.larguraMaior ?? (detalhe as any).dimensoes.largura_maior)}</p>
-                  <p><b>Largura (menor):</b> {fmtDim(detalhe.dimensoes.larguraMenor ?? (detalhe as any).dimensoes.largura_menor)}</p>
-                  <p><b>Comprimento (maior):</b> {fmtDim(detalhe.dimensoes.comprimentoMaior ?? (detalhe as any).dimensoes.comprimento_maior)}</p>
-                  <p><b>Comprimento (menor):</b> {fmtDim(detalhe.dimensoes.comprimentoMenor ?? (detalhe as any).dimensoes.comprimento_menor)}</p>
-                </>
-              )}
+                {isL ? (
+                  // Coberta em L: mostra as 4 dimensões
+                  (() => {
+                    const d = detalhe.dimensoes
+                    return (
+                      <>
+                        <p><b>Largura (maior):</b> {fmtDim(d.larguraMaior)}</p>
+                        <p><b>Largura (menor):</b> {fmtDim(d.larguraMenor)}</p>
+                        <p><b>Comprimento (maior):</b> {fmtDim(d.comprimentoMaior)}</p>
+                        <p><b>Comprimento (menor):</b> {fmtDim(d.comprimentoMenor)}</p>
+                      </>
+                    )
+                  })()
+                ) : isRetangular ? (
+                  // Retangular padrão
+                  <>
+                    <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>
+                    <p><b>Comprimento:</b> {fmtDim(detalhe.dimensoes.comprimento)}</p>
+                  </>
+                ) : (
+                  // Fallback para outros tipos ou dados incompletos
+                  <>
+                    {detalhe.dimensoes.largura != null && <p><b>Largura:</b> {fmtDim(detalhe.dimensoes.largura)}</p>}
+                    {detalhe.dimensoes.comprimento != null && <p><b>Comprimento:</b> {fmtDim(detalhe.dimensoes.comprimento)}</p>}
+                  </>
+                )}
             </CardContent>
           </Card>
         </div>

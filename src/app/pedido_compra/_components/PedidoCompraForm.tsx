@@ -48,6 +48,7 @@ import {
   normalizeCategoria as normalizeCategoriaUtil,
   formatPedidoId
 } from "@/lib/pedido-compra-utils"
+import { formatDateOnlyLongPtBr, fromDateOnlyDb } from "@/lib/date-only"
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { statusConfig, statusList } from "@/lib/pedido-compra-theme"
 import type {
@@ -211,7 +212,7 @@ export default function PedidoCompraForm({
         descricao: initialData.descricao ?? "",
         valorOrcado: initialData.valor_orcado == null ? "" : String(initialData.valor_orcado),
         valorRealizado: initialData.valor_realizado == null ? "" : String(initialData.valor_realizado),
-        dataEntrega: initialData.data_entrega ? String(initialData.data_entrega).slice(0, 10) : "",
+        dataEntrega: fromDateOnlyDb(initialData.data_entrega) ?? "",
         status: statusNorm,
         frete: initialData.frete == null ? "0" : String(initialData.frete),
         observacoes: initialData.observacoes ?? "",
@@ -1047,7 +1048,7 @@ export default function PedidoCompraForm({
                   {isView ? (
                     <ReadOnlyField label="Data de Entrega" value={
                       formData.dataEntrega
-                        ? new Date(formData.dataEntrega + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+                        ? formatDateOnlyLongPtBr(formData.dataEntrega)
                         : undefined
                     } />
                   ) : (

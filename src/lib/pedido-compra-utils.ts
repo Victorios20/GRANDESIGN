@@ -12,6 +12,7 @@ import type {
     PurchaseOrderCategoryLabel
 } from "@/types/pedido-compra"
 import type { StatusSlug } from "./pedido-compra-theme"
+import { formatDateOnlyLongPtBr, formatDateOnlyPtBr } from "./date-only"
 
 // ═══════════════════════════════════════════════════════════
 // MONEY FORMATTING
@@ -35,18 +36,20 @@ export function formatMoneyCompact(value: number | string | null | undefined): s
 
 export function formatDateBR(input: string | Date | null | undefined): string {
     if (!input) return "-"
-    const d = typeof input === "string" || typeof input === "number"
-        ? new Date(input)
-        : input
+    if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}(?:$|T|\s)/.test(input.trim())) {
+        return formatDateOnlyPtBr(input)
+    }
+    const d = typeof input === "string" || typeof input === "number" ? new Date(input) : input
     if (Number.isNaN(d?.getTime?.())) return "-"
     return d.toLocaleDateString("pt-BR")
 }
 
 export function formatDateLongBR(input: string | Date | null | undefined): string {
     if (!input) return "-"
-    const d = typeof input === "string" || typeof input === "number"
-        ? new Date(input)
-        : input
+    if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}(?:$|T|\s)/.test(input.trim())) {
+        return formatDateOnlyLongPtBr(input)
+    }
+    const d = typeof input === "string" || typeof input === "number" ? new Date(input) : input
     if (Number.isNaN(d?.getTime?.())) return "-"
     return d.toLocaleDateString("pt-BR", {
         day: "2-digit",

@@ -7,6 +7,7 @@ import {
   getReceitasFixas,
   type MaterialRow,
 } from "./calcularMateriais-db"
+import { calculateLShapeArea } from "@/lib/l-shape-area"
 
 /* ================= Tipos ================= */
 
@@ -75,10 +76,15 @@ export async function calcularMateriais(
   tipoObra: string,
   largura?: number,
   comprimento?: number,
-  opts?: ({ fornecedorId: number } & Partial<CobertaLOpts>),
+  opts?: {
+    fornecedorId: number
+    corStain?: string | null
+  } & Partial<CobertaLOpts>,
 ): Promise<Resultado> {
   const tipoNorm = (tipoObra ?? "").replace(/\u00A0/g, " ").trim()
   const fornecedorId = opts?.fornecedorId
+  const corStain = opts?.corStain
+
   if (typeof fornecedorId !== "number") {
     throw new Error("fornecedorId obrigatório")
   }
@@ -118,6 +124,7 @@ export async function calcularMateriais(
       comLinhaNaParede,
       ...L,
       fornecedorId,
+      corStain,
     })
 
     return calcularMateriaisCobertaL(
@@ -127,7 +134,7 @@ export async function calcularMateriais(
       L.LMenor,
       L.CMenor,
       fornecedorId,
-      { comLinhaNaParede },
+      { comLinhaNaParede, corStain },
     )
   }
 
@@ -135,7 +142,7 @@ export async function calcularMateriais(
   if (!tipoObra || !largura || !comprimento) {
     throw new Error("Parâmetros obrigatórios: tipoObra, largura, comprimento")
   }
-  return calcularMateriaisNormal(tipoNorm, largura, comprimento, fornecedorId)
+  return calcularMateriaisNormal(tipoNorm, largura, comprimento, fornecedorId, corStain)
 }
 
 /* ============================================================
@@ -146,6 +153,7 @@ async function calcularMateriaisNormal(
   largura: number,
   comprimento: number,
   fornecedorId: number,
+  corStain?: string | null,
 ): Promise<Resultado> {
   const madeiraRaw: MadeiraRow[] = []
   const materiaisRaw: BaseRow[] = []
@@ -375,20 +383,32 @@ async function calcularMateriaisNormal(
     })
   }
 
-  /* ------------------ Receitas fixas ------------------ */
+  /* ------------------ Receitas fixas + Stain Variável ------------------ */
   try {
     const receitasFixas = await getReceitasFixas(tipoNorm)
+    const idStainLegado = 9 // Hardcoded: Stain Proteção UV
+    
     const ids = receitasFixas.map(r => r.material_id)
     const materiaisFixos = await getMateriaisByIds(ids, fornecedorId)
+
     receitasFixas.forEach(({ material_id, quantidade }) => {
+      // Ignora o stain fixo antigo se estivermos usando o variável por cor
+      if (material_id === idStainLegado) return 
+      
       const material = materiaisFixos.find(m => m.id === material_id)
       if (material) {
         const jaExiste = materiaisRaw.some(m => m.descricao === material.descricao)
         if (!jaExiste) {
-          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade })
+          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade: Number(quantidade) })
         }
       }
     })
+
+    // Adiciona o Stain Variável
+    if (corStain) {
+      const qtdStain = tipoNorm.includes("Mão Francesa") ? 0.3 : 0.5
+      addMaterial(`Stain ${corStain}`, qtdStain)
+    }
   } catch (err) {
     console.error("Erro ao carregar receitas fixas:", err)
   }
@@ -476,7 +496,10 @@ export async function calcularMateriaisCobertaL(
   LMenor: number,
   CMenor: number,
   fornecedorId: number,
-  opts?: { comLinhaNaParede?: boolean },
+  opts?: {
+    comLinhaNaParede?: boolean
+    corStain?: string | null
+  },
 ): Promise<Resultado> {
   if (!tipoBase || !LMaior || !CMaior || !LMenor || !CMenor) {
     throw new Error("Parâmetros obrigatórios da Coberta em L não informados.")
@@ -553,9 +576,13 @@ export async function calcularMateriaisCobertaL(
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
   /* ---------- 8) Telhas (POR COR / descrições do banco) ---------- */
-  const area1 = CMenor * LMaior
-  const area2 = (CMaior - CMenor) * LMenor
-  const areaComPerda = (area1 + area2) * 1.08
+  const areaBaseL = calculateLShapeArea({
+    larguraMaior: LMaior,
+    larguraMenor: LMenor,
+    comprimentoMaior: CMaior,
+    comprimentoMenor: CMenor,
+  })
+  const areaComPerda = areaBaseL * 1.08
 
   const formulas = {
     Romana: { factor: 17, offset: 10 },
@@ -573,6 +600,11 @@ export async function calcularMateriaisCobertaL(
       telhasRaw.push({ descricao, componente: "", quantidade: qtd })
     })
   })
+
+  /* ---------- 8.1) Stain Variável (L) ---------- */
+  if (opts?.corStain) {
+    addMaterial(`Stain ${opts.corStain}`, 0.5)
+  }
 
   /* ---------- Agrupar / ordenar / preços / retorno ---------- */
   const agrupar = <T extends BaseRow>(rows: T[]): T[] => {

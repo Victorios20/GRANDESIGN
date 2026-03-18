@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react"
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
@@ -19,11 +18,16 @@ import { EllipsisVertical, Eye, Copy, ShoppingCart } from "lucide-react"
 import { toast } from "sonner"
 
 import FilterCardObras from "@/components/obras/FilterCardObras"
+import { ObraStatusBadge } from "@/components/obras/ObraStatusBadge"
 import type { FilterStateObras } from "@/components/obras/FilterCardObras"
 
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
 import { GlobalStyles } from "@mui/material"
+
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { deleteObraDB } from "@/actions/obras/delete-obra-db"
+import { Trash2 } from "lucide-react"
 
 type ClienteDTO = {
   id: number
@@ -72,6 +76,7 @@ type ObraRow = {
   largura?: number | string | null
   comprimento?: number | string | null
   telha_escolhida?: string | null
+  cor_stain?: string | null
 
   valor_obra?: number | string | null
   valor_mao_de_obra?: number | string | null
@@ -108,7 +113,6 @@ const MARROM = "#8B5E3C"
 const VERDE_HEADER = "#376139"
 const CINZA_TEXTO = "#737373"
 
-
 export type ObraStatusFilter =
   | ""
   | "ASSINATURA_DE_CONTRATO"
@@ -120,14 +124,7 @@ export type ObraStatusFilter =
   | "PENDENCIA"
   | "FINALIZADO"
 
-
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { deleteObraDB } from "@/actions/obras/delete-obra-db"
-import { Trash2 } from "lucide-react"
-
 export default function ObrasClient({ initial }: { initial: InitialData }) {
-  const router = useRouter()
-
   const [nome, setNome] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [bairro, setBairro] = useState<string>("")
@@ -180,11 +177,20 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nome, bairro, telefone, tipoObra, dataIni, dataFim, page, perPage, status])
 
+  function formatLocalDate(date?: Date | null) {
+    if (!date || Number.isNaN(date.getTime())) return undefined
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
+
   async function consultar() {
     setLoadingTabela(true)
 
-    const dIniISO = dataIni?.toISOString().slice(0, 10)
-    const dFimISO = dataFim?.toISOString().slice(0, 10)
+    const dIniISO = formatLocalDate(dataIni)
+    const dFimISO = formatLocalDate(dataFim)
 
     const qs = new URLSearchParams()
     qs.set("page", String(page + 1))
@@ -230,7 +236,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       } else {
         toast.error(`Erro: ${res.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Erro inesperado ao excluir obra")
     } finally {
       setIsDeleting(false)
@@ -273,22 +279,6 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       .replace(",", "")
   }
 
-  const statusLabel = (raw?: string | null) => {
-    const s = String(raw ?? "").trim()
-    if (!s) return "-"
-    const map: Record<string, string> = {
-      ASSINATURA_DE_CONTRATO: "Assinatura de contrato",
-      AGUARDANDO_VALIDACAO_TECNICA: "Aguardando validação técnica",
-      COMPRAS: "Compras",
-      A_INICIAR: "À iniciar",
-      EXECUCAO: "Execução",
-      AGUARDANDO_PAGAMENTO: "Aguardando pagamento",
-      PENDENCIA: "Pendência",
-      FINALIZADO: "Finalizado",
-    }
-    return map[s] ?? s
-  }
-
   const rows: ObraRow[] = useMemo(
     () =>
       (obras ?? []).map((o, i) =>
@@ -329,11 +319,10 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex]
           return (
-            <span className="font-medium" style={{ color: CINZA_TEXTO }}>
-              {statusLabel(r?.status ?? null)}
-            </span>
+            <div className="flex min-h-10 items-center py-1">
+              <ObraStatusBadge status={r?.status ?? null} layout="multiline" />
+            </div>
           )
-
         },
       },
     },
@@ -372,6 +361,23 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         sort: false,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell((rows[meta.rowIndex] as any)?.tipo_obra ?? null),
+      },
+    },
+    {
+      name: "cor_stain",
+      label: "Cor do Stain",
+      options: {
+        sort: false,
+        searchable: true,
+        customBodyRender: (_val, meta) => {
+          const cor = (rows[meta.rowIndex] as any)?.cor_stain
+          if (!cor) return <span className="text-marromClaro">—</span>
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-semibold border border-[#376139]/30 text-[#376139] bg-[#f4f4f4] whitespace-nowrap">
+              {cor}
+            </span>
+          )
+        },
       },
     },
     {
@@ -642,8 +648,8 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     telefone,
     bairro,
     tipoObra,
-    ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-    fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+    ini: formatLocalDate(dataIni),
+    fim: formatLocalDate(dataFim),
     pageSize: perPage as any,
     status: status || null,
   }

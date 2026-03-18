@@ -1,15 +1,7 @@
 import { notFound } from "next/navigation"
 import PedidoCompraForm from "@/app/pedido_compra/_components/PedidoCompraForm"
+import { fromDateOnlyDb } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
-
-/** Format a Date as YYYY-MM-DD without UTC shift (avoids toISOString timezone bug) */
-function fmtDateOnly(d: Date | null | undefined): string | null {
-  if (!d || !Number.isFinite(d.getTime())) return null
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -47,7 +39,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     descricao: pedido.descricao ?? null,
     observacoes: pedido.observacoes ?? null,
     fornecedor_id: pedido.fornecedor_id ?? null,
-    data_entrega: fmtDateOnly(pedido.data_entrega),
+    data_entrega: fromDateOnlyDb(pedido.data_entrega),
     endereco_entrega: pedido.endereco_entrega ?? null,
     nome_receptor: pedido.nome_receptor ?? null,
     telefone_receptor: pedido.telefone_receptor ?? null,

@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 
+function toNumberOrNull(value: unknown) {
+    const num = Number(value)
+    return Number.isFinite(num) ? num : null
+}
+
 export async function gerarOrdemServicoWebhook(obraId: number) {
     try {
         const session = await getServerSession(authOptions)
@@ -73,6 +78,10 @@ export async function gerarOrdemServicoWebhook(obraId: number) {
             telha: obra.telha_escolhida,
             quantidadeTelhas,
             dimensoes: `${obra.largura ?? 0} x ${obra.comprimento ?? 0}`,
+            larguraMaior: toNumberOrNull(obra.largura_maior),
+            larguraMenor: toNumberOrNull(obra.largura_menor),
+            comprimentoMaior: toNumberOrNull(obra.comprimento_maior),
+            comprimentoMenor: toNumberOrNull(obra.comprimento_menor),
             tipoObra: obra.tipo_obra,
             orcamentoOrigemId: obra.orcamento_id,
             cliente: {

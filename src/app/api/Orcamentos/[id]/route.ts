@@ -75,6 +75,9 @@ export async function PUT(
   const observacoesRaw = typeof body?.observacoes === "string" ? body.observacoes.trim() : ""
   const observacoes = observacoesRaw.length ? observacoesRaw : null
 
+  const corStainRaw = typeof body?.cor_stain === "string" ? body.cor_stain.trim() : ""
+  const cor_stain = corStainRaw.length ? corStainRaw : null
+
   const actorUserId = Number((session.user as any).id)
 
   try {
@@ -86,6 +89,7 @@ export async function PUT(
       fornecedorId,
       id_fornecedor: fornecedorId, // segue enviando snake/camel para máxima compat
       observacoes,                 // <<< campo opcional já tratado
+      cor_stain,
       actorUserId,
     })
     return NextResponse.json({ id }, { status: 200 })

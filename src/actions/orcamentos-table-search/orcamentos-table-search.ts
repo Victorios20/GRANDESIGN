@@ -73,6 +73,12 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
   // ORDER BY seguro (indices ajustados: $11 e $12)
   const orderSql = `
     ORDER BY
+      /* Prioridade para busca por ID */
+      (CASE 
+        WHEN $2 <> '' AND o.id::text = $2 THEN 0 
+        WHEN $2 <> '' AND o.id::text LIKE $2 || '%' THEN 1 
+        ELSE 2 
+      END) ASC,
       CASE WHEN $11::text = 'titulo'  AND $12::boolean = true  THEN o.titulo END ASC,
       CASE WHEN $11::text = 'titulo'  AND $12::boolean = false THEN o.titulo END DESC,
       CASE WHEN $11::text = 'cliente' AND $12::boolean = true  THEN c.nome END ASC,
@@ -99,6 +105,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
     LEFT JOIN obras ob ON ob.orcamento_id = o.id
     WHERE
       ($1::text IS NULL OR (
+        o.id::text                LIKE $1 ESCAPE '\\' OR
         unaccent(lower(c.nome))   LIKE unaccent(lower($1)) ESCAPE '\\' OR
         unaccent(lower(o.titulo)) LIKE unaccent(lower($1)) ESCAPE '\\' OR
         unaccent(lower(c.bairro)) LIKE unaccent(lower($1)) ESCAPE '\\' OR
@@ -151,6 +158,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       ci.nome AS cidade_nome,
       c.telefone AS cliente_telefone,
       to2.tipo_obra AS tipo_obra,
+      o.cor_stain,
       to_char(o.data_ultima_alteracao, 'YYYY-MM-DD"T"HH24:MI:SS') AS data_ultima_alteracao,
       to_char(o.data_criacao,          'YYYY-MM-DD"T"HH24:MI:SS') AS data_criacao,
       o.totais_madeiras_preco,
@@ -170,6 +178,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
     LEFT JOIN obras ob ON ob.orcamento_id = o.id
     WHERE
       ($1::text IS NULL OR (
+        o.id::text                LIKE $1 ESCAPE '\\' OR
         unaccent(lower(c.nome))   LIKE unaccent(lower($1)) ESCAPE '\\' OR
         unaccent(lower(o.titulo)) LIKE unaccent(lower($1)) ESCAPE '\\' OR
         unaccent(lower(c.bairro)) LIKE unaccent(lower($1)) ESCAPE '\\' OR
@@ -221,6 +230,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
     cidade_nome: string | null
     cliente_telefone: string | null
     tipo_obra: string | null
+    cor_stain: string | null
     data_ultima_alteracao: string | null
     data_criacao: string | null
     totais_madeiras_preco: number | null
@@ -248,6 +258,7 @@ export async function listarOrcamentosTableSearch(params: TableParams) {
       tipoObra: r.tipo_obra ?? null,
       cidade: r.cidade_nome ?? null,
       clienteTelefone: r.cliente_telefone ?? null,
+      corStain: r.cor_stain ?? null,
       lancado_obra: Boolean(r.lancado_obra),
       lancado_obra_em: r.lancado_obra_em ?? null,
       obraId: r.obra_id ?? null,

@@ -1,56 +1,48 @@
 "use client"
 
-import { useState, useEffect, useMemo, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import type { ElementType } from "react"
 import {
-  Paperclip,
+  ArrowDown,
+  ArrowUp,
   ExternalLink,
-  FileText,
+  File,
   FileSignature,
   FileSpreadsheet,
+  FileText,
+  Paperclip,
+  Pencil,
   Plus,
-  Trash2,
   Receipt,
   ScrollText,
-  File,
-  Pencil,
-  ArrowUp,
-  ArrowDown,
+  Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import DocumentoUploadModal from "./DocumentoUploadModal"
-import {
-  listarDocumentos,
   excluirDocumento,
-  editarDocumento,
+  listarDocumentos,
   reordenarDocumentos,
 } from "@/actions/obras/documentos"
-import { atualizarLinkObra, type LinkKey } from "@/actions/obras/atualizar-links-obra"
-import { useRouter } from "next/navigation"
 import {
+  obterTitulosLinksObra,
+  atualizarLinkObra,
+} from "@/actions/obras/atualizar-links-obra"
+import {
+  DEFAULT_FIXED_LINK_LABELS,
+  normalizeFixedLinkTitle,
+  type LinkKey,
+} from "@/actions/obras/links-fixos"
+import {
+  ObraDocumento,
   TipoDocumento,
   TIPO_DOCUMENTO_LABELS,
-  ObraDocumento,
 } from "@/actions/obras/documentos-types"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import DocumentoUploadModal from "./DocumentoUploadModal"
 
 type Mode = "new" | "view" | "edit"
 
@@ -77,7 +69,8 @@ type LinkFieldProps = {
   showEditDelete?: boolean
 }
 
-// Ícone por tipo de documento
+type FixedLinkLabels = Record<LinkKey, string>
+
 const TIPO_ICONS: Record<TipoDocumento, ElementType> = {
   CONTRATO_ASSINADO: FileSignature,
   RECIBO: Receipt,
@@ -85,7 +78,16 @@ const TIPO_ICONS: Record<TipoDocumento, ElementType> = {
   OUTROS: File,
 }
 
-function LinkField({ label, value, icon: Icon, onDelete, onEdit, onMoveUp, onMoveDown, showEditDelete }: LinkFieldProps) {
+function LinkField({
+  label,
+  value,
+  icon: Icon,
+  onDelete,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  showEditDelete,
+}: LinkFieldProps) {
   const href = (value ?? "").trim()
   const hasValue = href.length > 0
 
@@ -96,9 +98,7 @@ function LinkField({ label, value, icon: Icon, onDelete, onEdit, onMoveUp, onMov
       </div>
 
       <div className="flex-1 min-w-0">
-        <Label className="font-medium text-black text-sm">
-          {label}
-        </Label>
+        <Label className="font-medium text-black text-sm">{label}</Label>
       </div>
 
       {hasValue ? (
@@ -112,28 +112,48 @@ function LinkField({ label, value, icon: Icon, onDelete, onEdit, onMoveUp, onMov
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       ) : (
-        <span className="text-black/40 text-sm shrink-0">Não vinculado</span>
+        <span className="text-black/40 text-sm shrink-0">NÃ£o vinculado</span>
       )}
 
       {showEditDelete && (
         <div className="flex items-center gap-0.5 ml-1">
           {onMoveUp && (
-            <button type="button" onClick={onMoveUp} className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors" title="Mover para cima">
+            <button
+              type="button"
+              onClick={onMoveUp}
+              className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors"
+              title="Mover para cima"
+            >
               <ArrowUp className="w-4 h-4" />
             </button>
           )}
           {onMoveDown && (
-            <button type="button" onClick={onMoveDown} className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors" title="Mover para baixo">
+            <button
+              type="button"
+              onClick={onMoveDown}
+              className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors"
+              title="Mover para baixo"
+            >
               <ArrowDown className="w-4 h-4" />
             </button>
           )}
           {onEdit && (
-            <button type="button" onClick={onEdit} className="p-1.5 text-black/40 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Editar">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1.5 text-black/40 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Editar"
+            >
               <Pencil className="w-4 h-4" />
             </button>
           )}
           {onDelete && (
-            <button type="button" onClick={onDelete} className="p-1.5 text-red-400 hover:text-red-700 hover:bg-red-50 rounded transition-colors" title="Excluir">
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1.5 text-red-400 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+              title="Excluir"
+            >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -150,123 +170,138 @@ export default function Anexos({
   orcamentoId,
   propostaLink,
   contratoLink,
-
   ordemServicoId,
   ordemServicoLink,
   className,
 }: Props) {
   const router = useRouter()
   const [documentos, setDocumentos] = useState<ObraDocumento[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  
-  // Estado para edição
   const [editDoc, setEditDoc] = useState<ObraDocumento | null>(null)
-
-  const [isPending, startTransition] = useTransition()
-
-  // Estado para edição de links fixos
+  const [, startTransition] = useTransition()
   const [fixedEditKey, setFixedEditKey] = useState<LinkKey | null>(null)
   const [fixedEditUrl, setFixedEditUrl] = useState("")
   const [fixedEditLabel, setFixedEditLabel] = useState("")
+  const [fixedTitles, setFixedTitles] = useState<FixedLinkLabels>(
+    DEFAULT_FIXED_LINK_LABELS
+  )
 
   const baseOrcamentoUrl = useMemo(() => {
     if (orcamentoLink && orcamentoLink.trim()) return orcamentoLink.trim()
     if (!orcamentoId) return ""
     return `/orcamento/detalhes/${orcamentoId}`
-  }, [orcamentoLink, orcamentoId])
+  }, [orcamentoId, orcamentoLink])
 
-  // Links locais editáveis (para atualização imediata sem refresh)
   const [localOrcamento, setLocalOrcamento] = useState(baseOrcamentoUrl)
   const [localContrato, setLocalContrato] = useState(contratoLink ?? "")
   const [localProposta, setLocalProposta] = useState(propostaLink ?? "")
   const [localOrdemServico, setLocalOrdemServico] = useState(ordemServicoLink ?? "")
 
-  // Sync when props change (após router.refresh)
-  useEffect(() => { setLocalOrcamento(baseOrcamentoUrl) }, [baseOrcamentoUrl])
-  useEffect(() => { setLocalContrato(contratoLink ?? "") }, [contratoLink])
-  useEffect(() => { setLocalProposta(propostaLink ?? "") }, [propostaLink])
-  useEffect(() => { setLocalOrdemServico(ordemServicoLink ?? "") }, [ordemServicoLink])
+  useEffect(() => {
+    setLocalOrcamento(baseOrcamentoUrl)
+  }, [baseOrcamentoUrl])
+
+  useEffect(() => {
+    setLocalContrato(contratoLink ?? "")
+  }, [contratoLink])
+
+  useEffect(() => {
+    setLocalProposta(propostaLink ?? "")
+  }, [propostaLink])
+
+  useEffect(() => {
+    setLocalOrdemServico(ordemServicoLink ?? "")
+  }, [ordemServicoLink])
 
   const orcamentoUrl = useMemo(() => {
     const base = localOrcamento.trim()
     if (base) return base
     return baseOrcamentoUrl
-  }, [localOrcamento, baseOrcamentoUrl])
+  }, [baseOrcamentoUrl, localOrcamento])
 
   const ordemServicoUrl = useMemo(() => {
     const base = localOrdemServico.trim()
     if (base) return base
     if (!ordemServicoId) return ""
     return `/ordemServico/${ordemServicoId}`
-  }, [localOrdemServico, ordemServicoId, ordemServicoLink])
+  }, [localOrdemServico, ordemServicoId])
 
   const showExtra = mode !== "new"
   const isEditable = mode !== "new"
 
-  // Carregar documentos dinâmicos
-  async function loadDocumentos() {
+  const loadDocumentos = useCallback(async () => {
     if (!obraId || mode === "new") return
-    setIsLoading(true)
+
     try {
-      const docs = await listarDocumentos(obraId)
-      // Garantir ordenação por ordem ascendente
-      docs.sort((a, b) => (a.ordem ?? Number.MAX_SAFE_INTEGER) - (b.ordem ?? Number.MAX_SAFE_INTEGER))
+      const [docs, titles] = await Promise.all([
+        listarDocumentos(obraId),
+        obterTitulosLinksObra(obraId),
+      ])
+
+      docs.sort(
+        (a, b) =>
+          (a.ordem ?? Number.MAX_SAFE_INTEGER) -
+          (b.ordem ?? Number.MAX_SAFE_INTEGER)
+      )
+
       setDocumentos(docs)
-      // Se foi upload de contrato, precisamos atualizar a data mostrada na tela principal
+      setFixedTitles({
+        contrato: titles.contrato ?? DEFAULT_FIXED_LINK_LABELS.contrato,
+        proposta: titles.proposta ?? DEFAULT_FIXED_LINK_LABELS.proposta,
+        ordemServico:
+          titles.ordemServico ?? DEFAULT_FIXED_LINK_LABELS.ordemServico,
+        orcamento: titles.orcamento ?? DEFAULT_FIXED_LINK_LABELS.orcamento,
+      })
       router.refresh()
     } catch (error) {
       console.error("Erro ao carregar documentos:", error)
-    } finally {
-      setIsLoading(false)
     }
-  }
+  }, [mode, obraId, router])
 
   useEffect(() => {
     loadDocumentos()
-  }, [obraId, mode])
+  }, [loadDocumentos])
 
-  // Excluir documento
   function handleDelete(docId: number) {
     startTransition(async () => {
       const result = await excluirDocumento(docId)
       if (result.success) {
-        toast.success("Documento excluído")
-        setDocumentos(prev => prev.filter(d => d.id !== docId))
+        toast.success("Documento excluÃ­do")
+        setDocumentos((prev) => prev.filter((doc) => doc.id !== docId))
       } else {
         toast.error(result.error || "Erro ao excluir")
       }
     })
   }
 
-  // Editar documento (abrir modal)
   function handleEditClick(doc: ObraDocumento) {
     setEditDoc(doc)
     setModalOpen(true)
   }
 
-  // Reordenar documento
   function handleMove(index: number, direction: "up" | "down") {
     if (direction === "up" && index === 0) return
     if (direction === "down" && index === documentos.length - 1) return
 
     const newDocs = [...documentos]
     const swapIndex = direction === "up" ? index - 1 : index + 1
-    
     const temp = newDocs[index]
+
     newDocs[index] = newDocs[swapIndex]
     newDocs[swapIndex] = temp
 
-    // Set local state for immediate feedback
     setDocumentos(newDocs)
 
-    // Save to DB
     startTransition(async () => {
-      const updates = newDocs.map((d, i) => ({ id: d.id, ordem: i }))
+      const updates = newDocs.map((doc, position) => ({
+        id: doc.id,
+        ordem: position,
+      }))
       const result = await reordenarDocumentos(updates)
+
       if (!result.success) {
         toast.error("Erro ao reordenar")
-        loadDocumentos() // revert local state
+        loadDocumentos()
       }
     })
   }
@@ -279,23 +314,40 @@ export default function Anexos({
     setModalOpen(true)
   }
 
-  async function handleFixedEditSave(key: string, url: string): Promise<{ success: boolean; error?: string }> {
-    if (!obraId) return { success: false, error: "Obra ID não encontrado" }
-    
-    const result = await atualizarLinkObra(obraId, key as any, url || null)
+  async function handleFixedEditSave(
+    key: LinkKey,
+    url: string,
+    titulo: string | null
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!obraId) {
+      return { success: false, error: "Obra ID nÃ£o encontrado" }
+    }
+
+    const result = await atualizarLinkObra(obraId, key, url || null, titulo)
+
     if (result.success) {
+      const nextTitle =
+        normalizeFixedLinkTitle(key, titulo) ?? DEFAULT_FIXED_LINK_LABELS[key]
+
       if (key === "orcamento") setLocalOrcamento(url)
       if (key === "contrato") setLocalContrato(url)
       if (key === "proposta") setLocalProposta(url)
       if (key === "ordemServico") setLocalOrdemServico(url)
+
+      setFixedTitles((prev) => ({ ...prev, [key]: nextTitle }))
       setFixedEditKey(null)
       router.refresh()
     }
+
     return result
   }
 
-  // Contagem total de anexos
-  const fixedCount = [orcamentoUrl, contratoLink, propostaLink, ordemServicoUrl].filter(v => v?.trim()).length
+  const fixedCount = [
+    orcamentoUrl,
+    localContrato,
+    localProposta,
+    ordemServicoUrl,
+  ].filter((value) => value?.trim()).length
   const totalCount = fixedCount + documentos.length
 
   return (
@@ -329,40 +381,50 @@ export default function Anexos({
 
         <CardContent className="px-6 pb-6 pt-3">
           <div className="w-full flex flex-col gap-2">
-            {/* Links fixos do sistema */}
             <LinkField
-              label="Orçamento"
+              label={fixedTitles.orcamento}
               value={orcamentoUrl}
               icon={FileText}
               showEditDelete={showExtra}
-              onEdit={() => openFixedEdit("orcamento", "Orçamento", orcamentoUrl)}
+              onEdit={() =>
+                openFixedEdit("orcamento", fixedTitles.orcamento, orcamentoUrl)
+              }
             />
 
             <LinkField
-              label="Contrato (Gerado)"
+              label={fixedTitles.contrato}
               value={showExtra ? localContrato : ""}
               icon={FileSignature}
               showEditDelete={showExtra}
-              onEdit={() => openFixedEdit("contrato", "Contrato (Gerado)", localContrato)}
+              onEdit={() =>
+                openFixedEdit("contrato", fixedTitles.contrato, localContrato)
+              }
             />
 
             <LinkField
-              label="Proposta"
+              label={fixedTitles.proposta}
               value={localProposta}
               icon={FileSpreadsheet}
               showEditDelete={showExtra}
-              onEdit={() => openFixedEdit("proposta", "Proposta", localProposta)}
+              onEdit={() =>
+                openFixedEdit("proposta", fixedTitles.proposta, localProposta)
+              }
             />
 
             <LinkField
-              label="Ordem de Serviço"
+              label={fixedTitles.ordemServico}
               value={showExtra ? ordemServicoUrl : ""}
               icon={FileText}
               showEditDelete={showExtra}
-              onEdit={() => openFixedEdit("ordemServico", "Ordem de Serviço", localOrdemServico)}
+              onEdit={() =>
+                openFixedEdit(
+                  "ordemServico",
+                  fixedTitles.ordemServico,
+                  localOrdemServico
+                )
+              }
             />
 
-            {/* Documentos dinâmicos */}
             {documentos.map((doc, index) => {
               const Icon = TIPO_ICONS[doc.tipo] || File
               const docUrl = doc.url || doc.link || ""
@@ -378,7 +440,11 @@ export default function Anexos({
                   onDelete={() => handleDelete(doc.id)}
                   onEdit={() => handleEditClick(doc)}
                   onMoveUp={index > 0 ? () => handleMove(index, "up") : undefined}
-                  onMoveDown={index < documentos.length - 1 ? () => handleMove(index, "down") : undefined}
+                  onMoveDown={
+                    index < documentos.length - 1
+                      ? () => handleMove(index, "down")
+                      : undefined
+                  }
                 />
               )
             })}
@@ -386,7 +452,6 @@ export default function Anexos({
         </CardContent>
       </Card>
 
-      {/* Modal de upload */}
       <DocumentoUploadModal
         open={modalOpen}
         onOpenChange={(open) => {

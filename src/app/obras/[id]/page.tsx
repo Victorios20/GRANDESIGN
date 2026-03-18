@@ -23,6 +23,24 @@ export const metadata: Metadata = { title: "Obras · Detalhe" }
 
 type Option = { value: string; label: string }
 
+type CanonicalObraDetails = {
+  endereco: string
+  mapsUrl: string
+  tipoObra: string
+  largura: number
+  comprimento: number
+  larguraMaior: number | null
+  larguraMenor: number | null
+  comprimentoMaior: number | null
+  comprimentoMenor: number | null
+  telhaEscolhida: string
+  valorObra: number
+  valorMaoDeObra: number
+  status: unknown
+  observacoes: string | null
+  dataCriacao: string | null
+}
+
 function mapObraStatus(raw: unknown): ObraStatus {
   const s = String(raw ?? "").toUpperCase()
   switch (s) {
@@ -48,19 +66,24 @@ function mapObraStatus(raw: unknown): ObraStatus {
 }
 
 function mapFormaPagamento(raw: unknown): FormaPagamento | null {
-  const s = String(raw ?? "").trim().toLowerCase()
-  if (!s) return null
-  if (s === "pix") return "Pix"
-  if (s === "6x") return "6x"
-  if (s === "10x") return "10x"
-  if (s === "12x") return "12x"
-  if (s === "16x") return "16x"
-  return null
+  const value = String(raw ?? "").trim()
+  if (!value) return null
+
+  if (/^pix$/i.test(value)) return "Pix"
+
+  const installments = value.match(/^(\d{1,2})x$/i)
+  if (installments) {
+    return `${Number(installments[1])}x`
+  }
+
+  return value
 }
 
 function mapStatusPagamento(raw: unknown): PagamentoStatus {
   const s = String(raw ?? "").trim().toUpperCase()
-  return s === "EFETUADO" ? "Efetuado" : "Pendente"
+  if (s === "EFETUADO") return "Efetuado"
+  if (s === "PENDENTE") return "Pendente"
+  return "Pendente"
 }
 
 type CidadeRow = { id: number; nome: string }
@@ -123,6 +146,58 @@ function normalizePedidosCompra(dto: any): PedidoCompraDTO[] {
   const arr = (dto as any)?.pedidosCompra ?? (dto as any)?.pedidos_compra ?? []
   if (!Array.isArray(arr)) return []
   return arr as PedidoCompraDTO[]
+}
+
+function toNum(value: unknown, fallback = 0): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function toNullableNum(value: unknown): number | null {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+function getCanonicalObraDetails(dto: ObraDetalheDTO): CanonicalObraDetails {
+  const current = (dto as any)?.dadosObra
+  if (current && typeof current === "object") {
+    return {
+      endereco: String(current.endereco ?? ""),
+      mapsUrl: String(current.mapsUrl ?? ""),
+      tipoObra: String(current.tipoObra ?? ""),
+      largura: toNum(current.largura),
+      comprimento: toNum(current.comprimento),
+      larguraMaior: toNullableNum(current.larguraMaior),
+      larguraMenor: toNullableNum(current.larguraMenor),
+      comprimentoMaior: toNullableNum(current.comprimentoMaior),
+      comprimentoMenor: toNullableNum(current.comprimentoMenor),
+      telhaEscolhida: String(current.telhaEscolhida ?? ""),
+      valorObra: toNum(current.valorObra),
+      valorMaoDeObra: toNum(current.valorMaoDeObra),
+      status: current.status,
+      observacoes: current.observacoes ?? null,
+      dataCriacao: current.dataCriacao ?? null,
+    }
+  }
+
+  const legacy = (dto as any)?.obra ?? {}
+  return {
+    endereco: String(legacy.endereco ?? ""),
+    mapsUrl: String(legacy.mapsUrl ?? ""),
+    tipoObra: String(legacy.tipo ?? ""),
+    largura: toNum(legacy.largura),
+    comprimento: toNum(legacy.comprimento),
+    larguraMaior: null,
+    larguraMenor: null,
+    comprimentoMaior: null,
+    comprimentoMenor: null,
+    telhaEscolhida: String(legacy.telha ?? ""),
+    valorObra: toNum(legacy.valorObra),
+    valorMaoDeObra: toNum(legacy.valorMaoDeObra),
+    status: (dto as any)?.status,
+    observacoes: legacy.observacoes ?? null,
+    dataCriacao: (dto as any)?.dadosObra?.dataCriacao ?? null,
+  }
 }
 
 export default async function ObraViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -220,15 +295,19 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   const imagensInit = normalizeImagens(dto)
 
-  const obraDTO = (dto as any)?.obra ?? null
+  const obraDTO = getCanonicalObraDetails(dto)
 
   const initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] } = {
     titulo: (dto as any)?.titulo ?? "",
-    tipoObra: String(obraDTO?.tipo ?? ""),
-    largura: Number(obraDTO?.largura ?? 0),
-    comprimento: Number(obraDTO?.comprimento ?? 0),
-    telhaEscolhida: String(obraDTO?.telha ?? ""),
-    status: mapObraStatus((dto as any)?.status),
+    tipoObra: obraDTO.tipoObra,
+    largura: obraDTO.largura,
+    comprimento: obraDTO.comprimento,
+    larguraMaior: obraDTO.larguraMaior,
+    larguraMenor: obraDTO.larguraMenor,
+    comprimentoMaior: obraDTO.comprimentoMaior,
+    comprimentoMenor: obraDTO.comprimentoMenor,
+    telhaEscolhida: obraDTO.telhaEscolhida,
+    status: mapObraStatus(obraDTO.status ?? (dto as any)?.status),
     cliente: {
       id: (dto as any)?.cliente?.id ?? undefined,
       nome: (dto as any)?.cliente?.nome ?? "",
@@ -239,12 +318,13 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
       cidade: cidadeNomeFinal || "",
     },
     endereco: {
-      logradouro: String(obraDTO?.endereco ?? ""),
+      logradouro: obraDTO.endereco,
       bairro: (dto as any)?.cliente?.bairro ?? "",
       cidade: cidadeNomeFinal || "",
-      mapsUrl: String(obraDTO?.mapsUrl ?? ""),
+      mapsUrl: obraDTO.mapsUrl,
     },
-    observacoes: obraDTO?.observacoes ?? null,
+    observacoes: obraDTO.observacoes ?? null,
+    dataCriacao: obraDTO.dataCriacao ?? null,
     dataInicioObra: (dto as any)?.dataInicioObra ?? null,
     dataFimObra: (dto as any)?.dataFimObra ?? null,
     dataContrato: (dto as any)?.dataContrato ?? null,
@@ -307,16 +387,16 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
 
   const finDTO = (dto as any)?.financeiro ?? {}
   const financeiroInit = {
-    valorObra: Number(obraDTO?.valorObra ?? 0),
-    maoDeObra: Number(obraDTO?.valorMaoDeObra ?? 0),
+    valorObra: obraDTO.valorObra,
+    maoDeObra: obraDTO.valorMaoDeObra,
     pagamento: {
       entrada: {
-        valor: Number(finDTO?.entrada?.valor ?? 0),
+        valor: toNum(finDTO?.entrada?.valor),
         forma: mapFormaPagamento(finDTO?.entrada?.forma),
         status: mapStatusPagamento(finDTO?.entrada?.status),
       },
       quitacao: {
-        valor: Number(finDTO?.quitacao?.valor ?? 0),
+        valor: toNum(finDTO?.quitacao?.valor),
         forma: mapFormaPagamento(finDTO?.quitacao?.forma),
         status: mapStatusPagamento(finDTO?.quitacao?.status),
       },

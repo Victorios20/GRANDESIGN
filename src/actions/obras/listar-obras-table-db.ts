@@ -73,6 +73,7 @@ export type ObraTableRowDTO = {
   largura: number
   comprimento: number
   telha_escolhida: string
+  cor_stain: string | null
   valor_obra: number
   valor_mao_de_obra: number
   status: string
@@ -244,6 +245,7 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
       largura: n(o.largura)!,
       comprimento: n(o.comprimento)!,
       telha_escolhida: o.telha_escolhida,
+      cor_stain: o.cor_stain ?? null,
       valor_obra: n(o.valor_obra)!,
       valor_mao_de_obra: n(o.valor_mao_de_obra)!,
       status: o.status,

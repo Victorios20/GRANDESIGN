@@ -173,6 +173,7 @@ export type InitialData = {
     fornecedorId?: number | null
     fornecedorNome?: string | null
     observacoes?: string | null
+    corStain?: string | null
 }
 
 
@@ -264,6 +265,7 @@ type SalvarPayload = {
     titulo: string
     observacoes?: string | null
     fornecedorId?: number | null // NEW
+    cor_stain?: string | null
 }
 
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
@@ -689,6 +691,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const [cityResetKey, setCityResetKey] = useState(0)
     const [obraResetKey, setObraResetKey] = useState(0)
     const [observacoes, setObservacoes] = useState<string>("")
+    const [corStain, setCorStain] = useState<string>("")
 
 
     const [hydrated, setHydrated] = useState(false)
@@ -1027,13 +1030,10 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const selectedTipoId =
         tiposObra.find((x) => x.tipo_obra === (tipoObra ?? ""))?.id ?? null
 
-    const isCobertaL =
-        ((tipoObra ?? "")
-            .replace(/\u00A0/g, " ")
-            .replace(/\s+/g, " ")
-            .trim()
-            .toLowerCase()
-            .startsWith("coberta em l"))
+    const normalizeRoofType = (s: string | null | undefined) =>
+        (s ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+
+    const isCobertaL = normalizeRoofType(tipoObra).startsWith("coberta em l")
 
 
     const [dim, setDim] = useState<Dim>({
@@ -1128,6 +1128,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         )
 
         setObservacoes((initialData?.observacoes ?? "") || "")
+        setCorStain((initialData?.corStain ?? "") || "")
 
         setHydrated(true)
     }, [isEdit, initialData])
@@ -1208,6 +1209,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setAutoTituloSnap("")
         setLinks({})
         setObservacoes("")
+        setCorStain("")
         if (!isEdit) localStorage.removeItem(STORAGE_KEY)
     }
 
@@ -1217,6 +1219,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setCityResetKey(k => k + 1)
         setClienteId(null)
         setObservacoes("")
+        setCorStain("")
         setClienteSnap({ nome: "", telefone: "", cidade: "", bairro: "" })
         setQNome(""); setResNome([])
         setQTel(""); setResTel([])
@@ -1258,13 +1261,14 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     larguraMenor: dim.larguraMenor,
                     comprimentoMenor: dim.comprimentoMenor,
                     fornecedorId: Number(fornecedorSel),
+                    corStain: corStain,
                 })
             } else {
                 resultado = await calcularMateriais(
                     tipoObra,
                     dim.largura,
                     dim.comprimento,
-                    { fornecedorId: Number(fornecedorSel) }
+                    { fornecedorId: Number(fornecedorSel), corStain: corStain }
                 )
             }
 
@@ -1639,7 +1643,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     const payloadCreate = {
                         clienteId: Number(clienteId),
                         cliente: form,
-                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        parametros: (buildDbPayload().parametros as any),
                         materiais,
                         totais: totEdit,
                         telhaValores: telhaValoresAtual,
@@ -1767,11 +1771,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     // payload comum para DB
     const buildDbPayload = (): UpdateOrcamentoInput => {
-        // segurança extra: essa função só faz sentido em modo edição
-        if (!isEdit) {
-            throw new Error("buildDbPayload só deve ser chamado em modo edição.")
-        }
-
         // garante que SEMPRE existe um cliente associado antes de salvar
         if (clienteId == null) {
             throw new Error("Cliente não associado. Cadastre ou associe um cliente antes de salvar o orçamento.")
@@ -1781,29 +1780,21 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         const parametros: any = { tipoObra: tipoObra ?? "", tipoObraId: selectedTipoId }
 
         if (isCobertaL) {
-            // Para Coberta em L, enviamos as 4 dimensões
+            // Para Coberta em L, enviamos as 4 dimensões e limpamos as 2 padrões
             parametros.larguraMaior = toPos(dim.larguraMaior)
             parametros.larguraMenor = toPos(dim.larguraMenor)
             parametros.comprimentoMaior = toPos(dim.comprimentoMaior)
             parametros.comprimentoMenor = toPos(dim.comprimentoMenor)
-
-            // No EDIT, limpe largura/comprimento se não fizerem parte desse tipo
-            if (isEdit) {
-                parametros.largura = null
-                parametros.comprimento = null
-            }
+            parametros.largura = null
+            parametros.comprimento = null
         } else {
-            // Obra “normal”: usa largura/comprimento
+            // Obra “normal”: usa largura/comprimento e limpa as 4 de L
             parametros.largura = toPos(dim.largura)
             parametros.comprimento = toPos(dim.comprimento)
-
-            // No EDIT, limpe as dimensões da Coberta em L caso tenham ficado no BD
-            if (isEdit) {
-                parametros.larguraMaior = null
-                parametros.larguraMenor = null
-                parametros.comprimentoMaior = null
-                parametros.comprimentoMenor = null
-            }
+            parametros.larguraMaior = null
+            parametros.larguraMenor = null
+            parametros.comprimentoMaior = null
+            parametros.comprimentoMenor = null
         }
 
         const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
@@ -1851,6 +1842,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             actorUserId: currentUserId,
             fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
             observacoes: (observacoes || "").trim() || null,
+            cor_stain: (corStain || "").trim() || null,
         }
     }
 
@@ -2138,7 +2130,23 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 onSelect={(v) => setFornecedorSel(Number(v))}
                                 showEmptyOption={false}
                             />
+                        </div>
 
+                        <div className="flex flex-col gap-1">
+                            <Label>Cor do Stain</Label>
+                            <Select value={corStain} onValueChange={setCorStain}>
+                                <SelectTrigger className="w-56 bg-white shrink-0 shadow-none border-gray-300">
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Transparente">Transparente</SelectItem>
+                                    <SelectItem value="Castanho">Castanho</SelectItem>
+                                    <SelectItem value="Imbuia">Imbuia</SelectItem>
+                                    <SelectItem value="Ipê">Ipê</SelectItem>
+                                    <SelectItem value="Mogno">Mogno</SelectItem>
+                                    <SelectItem value="Nogueira">Nogueira</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
 
@@ -2761,7 +2769,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                             const payloadRascunho = {
                                                 clienteId: Number(clienteId),
                                                 cliente: form,
-                                                parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                parametros: (buildDbPayload().parametros as any),
                                                 materiais,
                                                 totais: totEdit,
                                                 telhaValores: telhaValoresAtual,
@@ -2834,7 +2842,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 const payloadCopia = {
                                                     clienteId: Number(clienteId),
                                                     cliente: form,
-                                                    parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                    parametros: (buildDbPayload().parametros as any),
                                                     materiais,
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,
@@ -2860,7 +2868,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 const payloadCopiaRascunho = {
                                                     clienteId: Number(clienteId),
                                                     cliente: form,
-                                                    parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                    parametros: (buildDbPayload().parametros as any),
                                                     materiais,
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,

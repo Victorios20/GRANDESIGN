@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label"
 
 // Shared utilities (centralized - no more duplication)
 import { statusConfig, statusList, type StatusSlug } from "@/lib/pedido-compra-theme"
+import { formatDateOnlyPtBr, fromDateOnlyDb } from "@/lib/date-only"
 import {
   formatMoney,
   asNumber,
@@ -138,8 +139,7 @@ const getCategoryColor = (category: string) => {
 
 const formatSafeDate = (dateStr: string | null | undefined) => {
   if (!dateStr) return "-"
-  const isoDate = dateStr.split("T")[0]
-  return new Date(isoDate + "T12:00:00").toLocaleDateString("pt-BR")
+  return formatDateOnlyPtBr(dateStr)
 }
 
 function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearchItem>): PurchaseOrder[] {
@@ -167,7 +167,7 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
       obraCidade: (x as any).obra_cidade ?? null,
       expectedValue: expected,
       actualValue: actual,
-      deliveryDate: x.data_entrega ? String(x.data_entrega).slice(0, 10) : null,
+      deliveryDate: fromDateOnlyDb(x.data_entrega),
       status: toSlugStatus(x.status),
       integrated: false,
       viewed: true,
@@ -438,9 +438,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       } else if (sortBy === "value") {
         comparison = a.expectedValue - b.expectedValue
       } else if (sortBy === "delivery") {
-        const ad = new Date(a.deliveryDate || "9999-12-31").getTime()
-        const bd = new Date(b.deliveryDate || "9999-12-31").getTime()
-        comparison = ad - bd
+        const ad = a.deliveryDate ?? "9999-12-31"
+        const bd = b.deliveryDate ?? "9999-12-31"
+        comparison = ad.localeCompare(bd)
       } else {
         const statusOrder: PurchaseOrderStatusSlug[] = [
           "todos",

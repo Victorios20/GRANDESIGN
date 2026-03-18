@@ -14,7 +14,23 @@ export class AppError extends Error {
 const n = (v: any) =>
   v == null ? null : typeof v?.toNumber === "function" ? v.toNumber() : Number(v)
 
-const ymd = (d?: Date | null) => (d ? d.toISOString().slice(0, 10) : null)
+function ymd(d?: Date | null) {
+  if (!d) return null
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d)
+
+  const year = parts.find((part) => part.type === "year")?.value
+  const month = parts.find((part) => part.type === "month")?.value
+  const day = parts.find((part) => part.type === "day")?.value
+
+  if (!year || !month || !day) return null
+  return `${year}-${month}-${day}`
+}
 const iso = (d?: Date | null) => (d ? d.toISOString() : null)
 
 export type ObraAgendaSegmentoDTO = {
@@ -99,15 +115,21 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     orcamentoId: orcamentoId,
     propostaSlide: orcamentoOut?.linkSlide ?? null,
     propostaPdf: orcamentoOut?.linkPdf ?? null,
+    orcamentoPdf: orcamentoOut?.linkPdf ?? null,
     contrato: obra.link_contrato ?? null,
+    linkContratoAssinado: obra.link_contrato_assinado ?? null,
     ordemServico: obra.link_ordem_servico ?? null,
   }
 
   return {
     id: obra.id,
     titulo: obra.titulo,
+    status: obra.status,
+    dataInicioObra: ymd(obra.data_inicio_obra),
+    dataFimObra: ymd(obra.data_fim_obra),
+    orcamentoId,
     dataContrato: ymd(obra.data_contrato),
-    dataConclusao: iso(obra.data_conclusao),
+    dataConclusao: ymd(obra.data_conclusao),
 
     orcamento: orcamentoOut,
     anexos,
@@ -139,7 +161,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       valorMaoDeObra: n(obra.valor_mao_de_obra)!,
       status: obra.status as ObraStatus,
       observacoes: obra.observacoes ?? null,
-      dataCriacao: iso(obra.data_criacao),
+      dataCriacao: ymd(obra.data_criacao),
       dataUltimaAlteracao: iso(obra.data_ultima_alteracao),
     },
 
@@ -159,6 +181,18 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     equipe: obra.ordem_servico?.equipe 
       ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome } 
       : null,
+
+    obra: {
+      endereco: obra.endereco_obra,
+      mapsUrl: obra.maps_url,
+      tipo: obra.tipo_obra,
+      largura: n(obra.largura)!,
+      comprimento: n(obra.comprimento)!,
+      telha: obra.telha_escolhida,
+      valorObra: n(obra.valor_obra)!,
+      valorMaoDeObra: n(obra.valor_mao_de_obra)!,
+      observacoes: obra.observacoes ?? null,
+    },
 
     pedidosCompra: (obra.pedidos_compra || []).map((p: any) => ({
       id: p.id,
@@ -222,6 +256,18 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       ordem: i.ordem,
       legenda: i.legenda,
       createdAt: iso(i.created_at) || "",
+    })),
+
+    agenda: (obra.segmentos || []).map((s: any) => ({
+      id: s.id,
+      start: ymd(s.inicio)!,
+      end: ymd(s.fim)!,
+      tipo: s.tipo ?? "EXECUCAO",
+      status: s.status ?? "AGENDADO",
+      equipe: s.equipe
+        ? { id: s.equipe.id, nome: s.equipe.nome, cor: s.equipe.cor }
+        : null,
+      observacoes: s.observacoes,
     })),
   }
 }

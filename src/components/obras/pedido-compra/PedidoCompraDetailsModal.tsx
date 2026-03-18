@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { getPedidoDetailsAction } from "@/actions/pedido_compra/get-pedido-details"
 import { toast } from "sonner"
+import { formatDateOnlyLongPtBr } from "@/lib/date-only"
 
 import type { PedidoCompraVM } from "./types"
 import { formatPedidoId } from "@/lib/pedido-compra-utils"
@@ -28,6 +29,9 @@ function moneyBRL(v: unknown) {
 
 function onlyDateBR(input: unknown) {
   if (!input) return "-"
+  if (typeof input === "string" && /^\d{4}-\d{2}-\d{2}(?:$|T|\s)/.test(input.trim())) {
+    return formatDateOnlyLongPtBr(input)
+  }
   const d = typeof input === "string" || typeof input === "number" ? new Date(input) : (input as Date)
   if (Number.isNaN(d?.getTime?.())) return "-"
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })

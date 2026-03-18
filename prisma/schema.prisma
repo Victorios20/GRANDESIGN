@@ -139,6 +139,7 @@ model orcamento {
   fornecedor              fornecedores? @relation("FornecedorOrcamentos", fields: [id_fornecedor], references: [id], onDelete: SetNull)
 
   largura_menor     Decimal?  @db.Decimal(10, 2)
+  cor_stain         String?   @db.VarChar(50)
   largura_maior     Decimal?  @db.Decimal(10, 2)
   comprimento_menor Decimal?  @db.Decimal(10, 2)
   comprimento_maior Decimal?  @db.Decimal(10, 2)
@@ -431,6 +432,7 @@ model obras {
   largura_maior     Decimal?  @db.Decimal(10, 2)
   comprimento_menor Decimal?  @db.Decimal(10, 2)
   comprimento_maior Decimal?  @db.Decimal(10, 2)
+  cor_stain         String?   @db.VarChar(50)
 
   status      ObraStatus @default(ASSINATURA_DE_CONTRATO)
   observacoes String?    @db.Text
@@ -455,10 +457,14 @@ model obras {
   // ANEXOS
   link_slide_orcamento String? @db.VarChar(255)
   link_pdf_orcamento   String? @db.VarChar(255)
+  titulo_link_slide_orcamento String? @db.VarChar(150)
+  titulo_link_pdf_orcamento   String? @db.VarChar(150)
   link_contrato        String? @db.VarChar(255)
+  titulo_link_contrato String? @db.VarChar(150)
   link_contrato_assinado String? @db.VarChar(255) // Validated/Signed PDF upload
   data_contrato        DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
   link_ordem_servico   String? @db.VarChar(255)
+  titulo_link_ordem_servico String? @db.VarChar(150)
 
   // Auditoria
   created_by Int?

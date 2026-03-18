@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { Prisma, PedidoCategoria, ObraStatus } from "@prisma/client"
+import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus } from "@prisma/client"
 
 type Id = number | string
 
@@ -38,6 +38,7 @@ export type UpdateObraPayload = {
     telha_escolhida?: string
     observacoes?: string | null
     status?: string
+    data_criacao?: string | Date | null
     data_inicio_obra?: string | Date | null
     data_fim_obra?: string | Date | null
     data_contrato?: string | Date | null
@@ -63,16 +64,38 @@ export type UpdateObraPayload = {
   }
 }
 
+type UpdateObraResult =
+  | { ok: true; status: 200; data: { id: number } }
+  | { ok: false; status: number; code: string; message: string }
+
 const n = (v: any) => {
   if (v === undefined || v === null || v === "") return undefined
   const num = Number(String(v).replace(",", "."))
   return Number.isFinite(num) ? num : undefined
 }
 
-export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id) {
+function normalizeStr(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+}
+
+function mapPagamentoStatus(raw?: string | null): PagamentoStatus | undefined {
+  if (!raw) return undefined
+  if (Object.values(PagamentoStatus).includes(raw as PagamentoStatus)) return raw as PagamentoStatus
+
+  const normalized = normalizeStr(raw)
+  if (normalized === "efetuado") return PagamentoStatus.EFETUADO
+  if (normalized === "pendente") return PagamentoStatus.PENDENTE
+  return undefined
+}
+
+export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id): Promise<UpdateObraResult> {
   const id = Number(obraId)
   if (!id || Number.isNaN(id)) {
-    return { ok: false as const, status: 400, code: "OBRA_ID_INVALIDO" }
+    return { ok: false as const, status: 400, code: "OBRA_ID_INVALIDO", message: "ID da obra inválido." }
   }
 
   const obra = await prisma.obras.findUnique({
@@ -82,7 +105,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   })
 
   if (!obra) {
-    return { ok: false as const, status: 404, code: "OBRA_NAO_ENCONTRADA" }
+    return { ok: false as const, status: 404, code: "OBRA_NAO_ENCONTRADA", message: "Obra não encontrada." }
   }
 
   try {
@@ -95,6 +118,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       }
 
       let shouldClosePedidos = false
+      let shouldForceFinalizationStatuses = false
 
       if (payload.obra) {
         obraData.titulo = payload.obra.titulo
@@ -124,6 +148,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           const valid = mapa[s]
           if (valid) obraData.status = valid
         }
+        if (payload.obra.data_criacao !== undefined) {
+          const dCriacao = payload.obra.data_criacao
+          obraData.data_criacao = dCriacao ? new Date(dCriacao) : null
+        }
         // Datas de prazo contratual
         if (payload.obra.data_inicio_obra !== undefined) {
           const dIni = payload.obra.data_inicio_obra;
@@ -139,20 +167,21 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
 
         // Lógica de conclusão
-        const newStatus = obraData.status; // status alterado neste payload (se houver)
-        const oldStatus = obra.status;
+        const oldStatus = obra.status
+        const nextStatus = obraData.status ?? oldStatus
+        const isFinalizingNow = nextStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO
 
         // Se mandou data explicita, usa
-        if (payload.obra.data_conclusao !== undefined) {
-          const dConclusao = payload.obra.data_conclusao;
-          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null;
+        if (isFinalizingNow) {
+          const explicitConclusionDate = payload.obra.data_conclusao
+          obraData.data_conclusao = explicitConclusionDate ? new Date(explicitConclusionDate) : new Date()
+          shouldForceFinalizationStatuses = true
+          shouldClosePedidos = true
         }
         // Se NÃO mandou data, mas está mudando para FINALIZADO agora (e não estava antes), auto-set
-        else if (newStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO) {
-          obraData.data_conclusao = new Date();
-          obraData.status_pagamento_entrada = "EFETUADO";
-          obraData.status_pagamento_quitacao = "EFETUADO";
-          shouldClosePedidos = true;
+        else if (payload.obra.data_conclusao !== undefined) {
+          const dConclusao = payload.obra.data_conclusao
+          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null
         }
       }
 
@@ -164,16 +193,16 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
         obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao
 
-        // Map payment status strings to enum values
-        const statusMap: Record<string, string> = { Efetuado: "EFETUADO", Pendente: "PENDENTE" }
-        if (payload.financeiro.status_pagamento_entrada) {
-          const mapped = statusMap[payload.financeiro.status_pagamento_entrada]
-          if (mapped) obraData.status_pagamento_entrada = mapped
-        }
-        if (payload.financeiro.status_pagamento_quitacao) {
-          const mapped = statusMap[payload.financeiro.status_pagamento_quitacao]
-          if (mapped) obraData.status_pagamento_quitacao = mapped
-        }
+        const entradaStatus = mapPagamentoStatus(payload.financeiro.status_pagamento_entrada)
+        if (entradaStatus) obraData.status_pagamento_entrada = entradaStatus
+
+        const quitacaoStatus = mapPagamentoStatus(payload.financeiro.status_pagamento_quitacao)
+        if (quitacaoStatus) obraData.status_pagamento_quitacao = quitacaoStatus
+      }
+
+      if (shouldForceFinalizationStatuses) {
+        obraData.status_pagamento_entrada = PagamentoStatus.EFETUADO
+        obraData.status_pagamento_quitacao = PagamentoStatus.EFETUADO
       }
 
       console.log("ObraData final updateObraDB:", obraData)
@@ -182,16 +211,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         where: { id },
         data: obraData,
       })
-
-      if (shouldClosePedidos) {
-        await tx.pedido_compra.updateMany({
-          where: {
-            obra_id: id,
-            status: { not: "CANCELADO" },
-          },
-          data: { status: "ENTREGUE" },
-        })
-      }
 
       /* ================= IMAGENS ================= */
       if (payload.imagens && payload.imagens.replace && Array.isArray(payload.imagens.list)) {
@@ -256,6 +275,16 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
       }
 
+      if (shouldClosePedidos) {
+        await tx.pedido_compra.updateMany({
+          where: {
+            obra_id: id,
+            status: { not: PedidoCompraStatus.CANCELADO },
+          },
+          data: { status: PedidoCompraStatus.ENTREGUE },
+        })
+      }
+
       await tx.auditLog.create({
         data: {
           user_id: Number(userId),
@@ -271,7 +300,14 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
     return { ok: true, status: 200, data: result }
   } catch (err: any) {
+    const message = err instanceof Error && err.message ? err.message : "Erro ao salvar obra."
+
     console.error("[updateObraDB] Erro ao salvar obra:", err?.message ?? err, err?.stack ?? "")
-    return { ok: false as const, status: 500, code: "UPDATE_FAILED" }
+    return {
+      ok: false as const,
+      status: 500,
+      code: "UPDATE_FAILED",
+      message,
+    }
   }
 }

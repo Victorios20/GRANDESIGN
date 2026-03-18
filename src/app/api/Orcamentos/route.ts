@@ -198,6 +198,9 @@ export async function POST(req: Request) {
     const observacoesRaw = typeof body?.observacoes === "string" ? body.observacoes.trim() : ""
     const observacoes = observacoesRaw.length ? observacoesRaw : null
 
+    const corStainRaw = typeof body?.cor_stain === "string" ? body.cor_stain.trim() : ""
+    const cor_stain = corStainRaw.length ? corStainRaw : null
+
     const materiais = body?.materiais ?? {}
     const totais = body?.totais ?? {}
     const telhaValores = body?.telhaValores ?? {}
@@ -215,7 +218,8 @@ export async function POST(req: Request) {
       clienteId,
       actorUserId,
       fornecedorId,
-      observacoes, 
+      observacoes,
+      cor_stain,
     } as any)
 
     const res = NextResponse.json({ id, requestId }, { status: 201 })

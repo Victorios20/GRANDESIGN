@@ -1,3 +1,5 @@
+import { formatDateOnlyLongPtBr, formatDateOnlyPtBr } from "@/lib/date-only"
+
 export type PedidoCategoria = "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES"
 
 export type PedidoCompraStatus =
@@ -58,15 +60,11 @@ export function formatCurrency(value: number) {
 }
 
 export function formatDateLong(dateString: string) {
-  const d = new Date(dateString)
-  if (Number.isNaN(d.getTime())) return "-"
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(d)
+  return formatDateOnlyLongPtBr(dateString)
 }
 
 export function formatDateShort(dateString: string) {
-  const d = new Date(dateString)
-  if (Number.isNaN(d.getTime())) return "-"
-  return d.toLocaleDateString("pt-BR")
+  return formatDateOnlyPtBr(dateString)
 }
 
 export function sumItensTotal(itens: { total: number }[]) {
