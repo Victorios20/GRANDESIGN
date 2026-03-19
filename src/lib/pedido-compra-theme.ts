@@ -121,6 +121,17 @@ export const statusList: StatusSlug[] = [
     "entregue",
 ]
 
+export const editableStatusList: StatusSlug[] = [
+    "rascunho",
+    "pendente",
+    "aprovado",
+    "em-compra",
+    "aguardando-pagamento",
+    "aguardando-entrega",
+    "entregue",
+    "cancelado",
+]
+
 // ═══════════════════════════════════════════════════════════
 // CATEGORY CONFIGURATION
 // ═══════════════════════════════════════════════════════════

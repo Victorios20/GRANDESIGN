@@ -110,6 +110,20 @@ export interface PurchaseOrder {
     createdAt: string
 }
 
+export interface PedidoCompraSummaryInitialData {
+    id: number
+    obraId?: number | null
+    obraTitulo?: string | null
+    descricao?: string | null
+    categoria?: PedidoCategoria | string | null
+    status?: PedidoStatus | string | null
+    fornecedorNome?: string | null
+    valorOrcado?: number | string | null
+    valorRealizado?: number | string | null
+    dataEntrega?: string | null
+    integrado?: boolean
+}
+
 // ═══════════════════════════════════════════════════════════
 // FORM DATA
 // ═══════════════════════════════════════════════════════════

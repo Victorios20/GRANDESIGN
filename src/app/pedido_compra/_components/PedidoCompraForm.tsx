@@ -1124,12 +1124,12 @@ export default function PedidoCompraForm({
                   </div>
                 ) : (
                   <div className="overflow-hidden rounded-lg border border-border">
-                    <table className="w-full text-sm">
+                    <table className={`w-full text-sm ${isMadeira ? "[&>tbody>tr>*:nth-child(4)]:hidden" : ""}`}>
                       <thead>
                         <tr className="bg-[#FAF3E0] border-b border-[#f5d193]/40">
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-12">#</th>
+                          {isMadeira && <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32 whitespace-nowrap">Componente</th>}
                           <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide">Descrição</th>
-                          {isMadeira && <th className="text-left px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Componente</th>}
                           <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-20">Qtd</th>
                           {isMadeira && <th className="text-center px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-24">Tamanho</th>}
                           <th className="text-right px-4 py-2.5 text-xs font-semibold text-[#2c201b] tracking-wide w-32">Vlr. Unit.</th>
@@ -1140,6 +1140,11 @@ export default function PedidoCompraForm({
                         {items.map((item, index) => (
                           <tr key={item.clientId} className={`border-b border-border/30 last:border-b-0 ${index % 2 === 1 ? "bg-[#FAF3E0]/30" : "bg-background"}`}>
                             <td className="px-4 py-2.5 text-sm text-muted-foreground">{index + 1}</td>
+                            {isMadeira && (
+                              <td className="px-4 py-2.5">
+                                <div className="text-sm leading-tight text-muted-foreground whitespace-nowrap">{item.componente || "â€”"}</div>
+                              </td>
+                            )}
                             <td className="px-4 py-2.5">
                               <div className="text-sm leading-tight">{item.descricao || "—"}</div>
                             </td>
@@ -1189,9 +1194,10 @@ export default function PedidoCompraForm({
                   ) : (
                     <div className="space-y-2">
                       {/* Cabecalho da tabela em telas grandes */}
-                      <div className={`hidden md:grid gap-2 px-3 py-2 bg-muted/40 border border-border/60 rounded-md items-center ${isMadeira ? 'grid-cols-[2fr_1.5fr_80px_80px_100px_120px_40px]' : 'grid-cols-[3fr_80px_100px_120px_40px]'}`}>
+                      <div className={`hidden md:grid gap-2 px-3 py-2 bg-muted/40 border border-border/60 rounded-md items-center ${isMadeira ? 'grid-cols-[1.5fr_2fr_80px_80px_100px_120px_40px]' : 'grid-cols-[3fr_80px_100px_120px_40px]'}`}>
+                        {isMadeira && <div><Label className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Componente</Label></div>}
                         <div><Label className="text-xs font-semibold text-muted-foreground">Descrição</Label></div>
-                        {isMadeira && <div><Label className="text-xs font-semibold text-muted-foreground">Componente</Label></div>}
+                        {isMadeira && <div className="hidden"><Label className="text-xs font-semibold text-muted-foreground">Componente</Label></div>}
                         <div className="text-center"><Label className="text-xs font-semibold text-muted-foreground">Qtd</Label></div>
                         {isMadeira && <div className="text-center"><Label className="text-xs font-semibold text-muted-foreground">Tamanho</Label></div>}
                         <div className="text-right"><Label className="text-xs font-semibold text-muted-foreground">Vlr. Unit</Label></div>
@@ -1200,7 +1206,7 @@ export default function PedidoCompraForm({
                       </div>
 
                       {items.map((item, index) => (
-                        <div key={item.clientId} className={`grid gap-2 items-start md:items-center px-3 py-3 md:py-1 border border-border md:border-0 border-b-border md:border-b last:border-b-0 rounded-lg md:rounded-none bg-muted/30 md:bg-transparent ${isMadeira ? 'grid-cols-1 md:grid-cols-[2fr_1.5fr_80px_80px_100px_120px_40px]' : 'grid-cols-1 md:grid-cols-[3fr_80px_100px_120px_40px]'}`}>
+                        <div key={item.clientId} className={`grid gap-2 items-start md:items-center px-3 py-3 md:py-1 border border-border md:border-0 border-b-border md:border-b last:border-b-0 rounded-lg md:rounded-none bg-muted/30 md:bg-transparent ${isMadeira ? 'grid-cols-1 md:grid-cols-[1.5fr_2fr_80px_80px_100px_120px_40px]' : 'grid-cols-1 md:grid-cols-[3fr_80px_100px_120px_40px]'}`}>
                           
                           {/* Mobile header / delete */}
                           <div className="flex md:hidden justify-between items-center mb-1">
@@ -1209,6 +1215,22 @@ export default function PedidoCompraForm({
                               <Trash2 className="size-3.5 text-destructive" />
                             </Button>
                           </div>
+
+                          {isMadeira && (
+                            <div className="w-full">
+                              <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Componente</Label>
+                              <Select value={item.componente || ""} onValueChange={(v) => updateItem(item.clientId, "componente", v)}>
+                                <SelectTrigger className="h-8 text-xs rounded-md border border-border">
+                                  <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(initialComponentes || []).map((c) => (
+                                    <SelectItem key={c.id} value={c.nome}>{c.nome}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
                       
                           <div className="w-full">
                             <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Descrição</Label>
@@ -1227,7 +1249,7 @@ export default function PedidoCompraForm({
                           </div>
 
                           {isMadeira && (
-                            <div className="w-full">
+                            <div className="hidden w-full">
                               <Label className="md:hidden text-xs text-muted-foreground mb-1 block">Componente</Label>
                               <Select value={item.componente || ""} onValueChange={(v) => updateItem(item.clientId, "componente", v)}>
                                 <SelectTrigger className="h-8 text-xs rounded-md border border-border">

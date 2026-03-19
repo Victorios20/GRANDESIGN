@@ -24,6 +24,7 @@ export type PedidoCompraItemDTO = {
   descricao: string
   quantidade: any
   tamanho: any | null
+  componente: string | null
   preco_unitario: any
   total: any
   created_at: Date
@@ -79,6 +80,7 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
             descricao: true,
             quantidade: true,
             tamanho: true,
+            componente: true,
             preco_unitario: true,
             total: true,
             created_at: true,

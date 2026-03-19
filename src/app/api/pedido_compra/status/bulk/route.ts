@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+
 import { authOptions } from "@/lib/auth"
 import {
-  atualizarStatusPedidoCompra,
+  atualizarStatusPedidosCompra,
   PedidoCompraStatusError,
 } from "@/actions/pedido_compra/update-pedido-compra-status-db"
 
@@ -16,40 +17,33 @@ type SessionLike =
   | undefined
 
 function getActorId(session: SessionLike): number | null {
-  const raw = (session as any)?.user?.id ?? (session as any)?.userId
+  const raw = session?.user?.id ?? session?.userId
   const n = Number(raw)
   return Number.isFinite(n) ? n : null
 }
 
-function json(resBody: any, status = 200, requestId?: string) {
+function json(resBody: unknown, status = 200, requestId?: string) {
   const headers = new Headers({ "Content-Type": "application/json" })
   if (requestId) headers.set("X-Request-Id", requestId)
   return new NextResponse(JSON.stringify(resBody), { status, headers })
 }
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+
   try {
-    const session = (await getServerSession(authOptions as any)) as SessionLike
+    const session = (await getServerSession(authOptions)) as SessionLike
     const actorId = getActorId(session)
     if (!actorId) return json({ error: "unauthorized", requestId }, 401, requestId)
-
-    const { id: idParam } = await params
-    const id = Number(idParam)
-    if (!Number.isFinite(id) || id <= 0) {
-      return json({ error: "INVALID_ID", requestId }, 400, requestId)
-    }
 
     const body = await req.json().catch(() => null)
     if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
 
-    const updated = await atualizarStatusPedidoCompra(id, body?.status)
+    const ids = Array.isArray(body?.ids) ? body.ids.map((id: unknown) => Number(id)) : []
+    const result = await atualizarStatusPedidosCompra(ids, body?.status)
 
-    return json({ data: updated, requestId }, 200, requestId)
-  } catch (error: any) {
+    return json({ data: result, requestId }, 200, requestId)
+  } catch (error: unknown) {
     if (error instanceof PedidoCompraStatusError) {
       const statusMap: Record<string, number> = {
         PAYLOAD_INVALIDO: 400,
@@ -66,8 +60,7 @@ export async function PATCH(
       )
     }
 
-    console.error("[PATCH /api/pedido_compra/status/[id]] unexpected", error)
-    const requestId2 = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
-    return json({ error: "UNEXPECTED_ERROR", requestId: requestId2 }, 500, requestId2)
+    console.error("[PATCH /api/pedido_compra/status/bulk] unexpected", error)
+    return json({ error: "UNEXPECTED_ERROR", requestId }, 500, requestId)
   }
 }

@@ -18,11 +18,26 @@ import {
   ChevronRight,
   Building2,
   MapPin,
+  FileDown,
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { PedidoCompraSummaryModal } from "@/components/pedido-compra/PedidoCompraSummaryModal"
+import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { PageLayout } from "@/components/ui/pageLayout"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -34,7 +49,14 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 
 // Shared utilities (centralized - no more duplication)
-import { statusConfig, statusList, type StatusSlug } from "@/lib/pedido-compra-theme"
+import { editableStatusList, statusConfig, statusList, type StatusSlug } from "@/lib/pedido-compra-theme"
+import {
+  deletePedidoCompraBulkRequest,
+  deletePedidoCompraRequest,
+  fetchPedidoCompraList,
+  updatePedidoCompraStatusBulkRequest,
+  updatePedidoCompraStatusRequest,
+} from "@/lib/pedido-compra-client"
 import { formatDateOnlyPtBr, fromDateOnlyDb } from "@/lib/date-only"
 import {
   formatMoney,
@@ -46,14 +68,13 @@ import {
   formatPedidoId
 } from "@/lib/pedido-compra-utils"
 import type {
-  PedidoCategoria,
   PedidoStatus,
   PurchaseOrderStatusSlug,
   PurchaseOrderCategoryLabel,
   FornecedorOption,
   ObraSearchItem,
-  PedidoCompraListItem,
   ListarResult,
+  PedidoCompraSummaryInitialData,
   PurchaseOrder,
 } from "@/types/pedido-compra"
 
@@ -168,7 +189,7 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
       expectedValue: expected,
       actualValue: actual,
       deliveryDate: fromDateOnlyDb(x.data_entrega),
-      status: toSlugStatus(x.status),
+      status: toSlugStatus(x.status) as PurchaseOrderStatusSlug,
       integrated: false,
       viewed: true,
       createdAt,
@@ -176,40 +197,20 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
   })
 }
 
-async function fetchList(params: { q?: string; status?: PurchaseOrderStatusSlug; obraId?: number | null }) {
-  const sp = new URLSearchParams()
-  sp.set("page", "1")
-  sp.set("pageSize", "100")
-  if (params.q) sp.set("q", params.q)
-  if (params.status && params.status !== "todos") sp.set("status", params.status)
-  if (params.obraId && params.obraId > 0) sp.set("obraId", String(params.obraId))
-
-  const res = await fetch(`/api/pedido_compra/listar?${sp.toString()}`, { cache: "no-store" })
-  const body = await res.json().catch(() => null)
-
-  console.log("[PedidoCompra/Client] listar response JSON:\n", JSON.stringify(body, null, 2))
-
-  if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao listar pedidos")
-  const data = body?.data
-  return (data ?? { items: [], page: 1, pageSize: 100, total: 0, totalPages: 1 }) as ListarResult
-}
-
-async function patchStatus(pedidoId: string, next: PedidoStatus) {
-  const res = await fetch(`/api/pedido_compra/status/${pedidoId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: next }),
-  })
-  const body = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao atualizar status")
-  return body?.data
-}
-
-async function deletePedido(pedidoId: string) {
-  const res = await fetch(`/api/pedido_compra/excluir/${pedidoId}`, { method: "DELETE" })
-  const body = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao excluir pedido")
-  return body?.data
+function mapOrderToSummaryInitialData(order: PurchaseOrder): PedidoCompraSummaryInitialData {
+  return {
+    id: Number(order.id),
+    obraId: order.obraId,
+    obraTitulo: order.obraTitulo,
+    descricao: order.description,
+    categoria: order.category,
+    status: fromSlugStatus(order.status as StatusSlug),
+    fornecedorNome: order.supplier,
+    valorOrcado: order.expectedValue,
+    valorRealizado: order.actualValue ?? null,
+    dataEntrega: order.deliveryDate,
+    integrado: order.integrated,
+  }
 }
 
 export default function PedidoCompraPageClient({ initialList, initialFornecedores, initialObrasById }: Props) {
@@ -228,7 +229,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   )
 
   const [currentPage, setCurrentPage] = React.useState(1)
-  const [itemsPerPage, setItemsPerPage] = React.useState(15)
+  const itemsPerPage = 15
 
   const [viewMode, setViewMode] = React.useState<"list" | "kanban">(persisted?.viewMode ?? "list")
   const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "status")
@@ -243,6 +244,14 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
   const [orders, setOrders] = React.useState<PurchaseOrder[]>(() => mapApiToOrders(initialList, initialObrasById))
   const [draggedItem, setDraggedItem] = React.useState<PurchaseOrder | null>(null)
+  const [selectedOrderId, setSelectedOrderId] = React.useState<string | null>(null)
+  const [selectedOrderInitialData, setSelectedOrderInitialData] = React.useState<PedidoCompraSummaryInitialData | null>(null)
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+  const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = React.useState(false)
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = React.useState(false)
+  const [bulkStatusDraft, setBulkStatusDraft] = React.useState<PedidoStatus>("RASCUNHO")
+  const [bulkStatusSaving, setBulkStatusSaving] = React.useState(false)
+  const [bulkDeleteSaving, setBulkDeleteSaving] = React.useState(false)
 
   const [obraOpen, setObraOpen] = React.useState(false)
   const [obraQuery, setObraQuery] = React.useState("")
@@ -462,10 +471,28 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const totalPages = Math.max(1, Math.ceil(sortedOrders.length / itemsPerPage))
   const startIndex = (currentPage - 1) * itemsPerPage
   const paginatedOrders = sortedOrders.slice(startIndex, startIndex + itemsPerPage)
+  const paginatedOrderIds = React.useMemo(() => paginatedOrders.map((order) => order.id), [paginatedOrders])
+  const selectedCount = selectedIds.length
+  const allVisibleSelected =
+    paginatedOrderIds.length > 0 && paginatedOrderIds.every((orderId) => selectedIds.includes(orderId))
+  const selectedOrder = React.useMemo(
+    () => orders.find((order) => order.id === selectedOrderId) ?? null,
+    [orders, selectedOrderId]
+  )
 
   React.useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, itemsPerPage])
+  }, [searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, selectedCategory, itemsPerPage])
+
+  React.useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  React.useEffect(() => {
+    setSelectedIds([])
+  }, [viewMode, currentPage, searchTerm, selectedProjectId, selectedSupplierId, selectedStatus, selectedCategory, sortBy, sortOrder, itemsPerPage])
 
   const ordersByCategory = React.useMemo(() => {
     return categories.reduce((acc, category) => {
@@ -517,7 +544,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
   const handleRecarregar = React.useCallback(async () => {
     try {
-      const list = await fetchList({
+      const list = await fetchPedidoCompraList({
         q: searchTerm.trim() || undefined,
         status: selectedStatus === "todos" ? undefined : selectedStatus,
         obraId: selectedProjectId,
@@ -586,31 +613,91 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     setDraggedItem(null)
 
     try {
-      await patchStatus(draggedItem.id, fromSlugStatus(nextSlug))
+      await updatePedidoCompraStatusRequest(draggedItem.id, fromSlugStatus(nextSlug))
       toast.success("Status atualizado")
+      await handleRecarregar()
     } catch (err: any) {
       setOrders(prevOrders)
       toast.error(err?.message || "Falha ao atualizar status")
     }
   }
 
+  const toggleOrderSelection = (orderId: string, checked: boolean) => {
+    setSelectedIds((current) => {
+      if (checked) {
+        if (current.includes(orderId)) return current
+        return [...current, orderId]
+      }
+
+      return current.filter((id) => id !== orderId)
+    })
+  }
+
+  const toggleVisibleSelection = (checked: boolean) => {
+    setSelectedIds(checked ? paginatedOrderIds : [])
+  }
+
   const handleOrderClick = (order: PurchaseOrder) => {
     setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, viewed: true } : o)))
-    router.push(`/pedido_compra/ver/${order.id}`)
+    setSelectedOrderId(order.id)
+    setSelectedOrderInitialData(mapOrderToSummaryInitialData(order))
   }
 
   const handleExcluir = async (order: PurchaseOrder) => {
     const ok = window.confirm(`Excluir o pedido ${order.number}? Esta acao nao pode ser desfeita.`)
     if (!ok) return
-    const prevOrders = orders
-    setOrders((p) => p.filter((o) => o.id !== order.id))
+
     try {
-      await deletePedido(order.id)
+      await deletePedidoCompraRequest(order.id)
       toast.success("Pedido excluido")
+      if (selectedOrderId === order.id) {
+        setSelectedOrderId(null)
+        setSelectedOrderInitialData(null)
+      }
+      await handleRecarregar()
     } catch (err: any) {
-      setOrders(prevOrders)
       toast.error(err?.message || "Falha ao excluir pedido")
     }
+  }
+
+  const handleBulkStatusApply = async () => {
+    if (selectedIds.length === 0) return
+
+    setBulkStatusSaving(true)
+    try {
+      await updatePedidoCompraStatusBulkRequest(selectedIds, bulkStatusDraft)
+      toast.success("Status dos pedidos atualizado")
+      setBulkStatusDialogOpen(false)
+      setSelectedIds([])
+      await handleRecarregar()
+    } catch (error: any) {
+      toast.error(error?.message || "Falha ao atualizar os pedidos")
+    } finally {
+      setBulkStatusSaving(false)
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+
+    setBulkDeleteSaving(true)
+    try {
+      await deletePedidoCompraBulkRequest(selectedIds)
+      toast.success("Pedidos excluídos")
+      setBulkDeleteDialogOpen(false)
+      setSelectedIds([])
+      await handleRecarregar()
+    } catch (error: any) {
+      toast.error(error?.message || "Falha ao excluir os pedidos")
+    } finally {
+      setBulkDeleteSaving(false)
+    }
+  }
+
+  const handleBulkExport = () => {
+    if (selectedIds.length === 0) return
+    const query = new URLSearchParams({ ids: selectedIds.join(",") })
+    window.open(`/pedido_compra/exportar?${query.toString()}`, "_blank", "noopener,noreferrer")
   }
 
   const selectObraFilter = (o: ObraSearchItem) => {
@@ -1021,6 +1108,25 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
             </div>
           )}
 
+          {viewMode === "list" && selectedCount > 0 && (
+            <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 px-4 py-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm font-medium">{selectedCount} pedido(s) selecionado(s)</div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={() => setBulkStatusDialogOpen(true)}>
+                  Alterar status
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleBulkExport}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Exportar PDF
+                </Button>
+                <Button type="button" variant="destructive" size="sm" onClick={() => setBulkDeleteDialogOpen(true)}>
+                  Excluir
+                </Button>
+              </div>
+            </div>
+          )}
+
           {paginatedOrders.length > 0 ? (
             <>
               {viewMode === "list" ? (
@@ -1028,6 +1134,13 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                   <table className="w-full">
                     <thead className="bg-muted/50 border-b">
                       <tr>
+                        <th className="w-12 p-4">
+                          <Checkbox
+                            checked={allVisibleSelected}
+                            onCheckedChange={(checked) => toggleVisibleSelection(Boolean(checked))}
+                            aria-label="Selecionar pedidos visíveis"
+                          />
+                        </th>
                         <th className="text-left p-4 font-medium text-sm">Número</th>
                         <th className="text-left p-4 font-medium text-sm">Descrição</th>
                         <th className="text-left p-4 font-medium text-sm">Categoria</th>
@@ -1053,6 +1166,13 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                             className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
                             onClick={() => handleOrderClick(order)}
                           >
+                            <td className="p-4" onClick={(event) => event.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedIds.includes(order.id)}
+                                onCheckedChange={(checked) => toggleOrderSelection(order.id, Boolean(checked))}
+                                aria-label={`Selecionar pedido ${order.number}`}
+                              />
+                            </td>
                             <td className="p-4">
                               <div className="flex items-center gap-2">
                                 {!order.viewed && (
@@ -1077,12 +1197,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                             </td>
 
                             <td className="p-4">
-                              <Badge
-                                variant="outline"
-                                className={statusConfig[order.status as StatusSlug]?.badgeClass}
-                              >
-                                {statusConfig[order.status as StatusSlug]?.label}
-                              </Badge>
+                              <StatusBadge status={fromSlugStatus(order.status as StatusSlug)} />
                             </td>
 
                             <td className="p-4">
@@ -1395,6 +1510,79 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
               </div>
             </div>
           )}
+
+          <PedidoCompraSummaryModal
+            open={Boolean(selectedOrderId)}
+            pedidoId={selectedOrderId ? Number(selectedOrderId) : null}
+            obraId={selectedOrder?.obraId ?? selectedOrderInitialData?.obraId ?? null}
+            initialData={selectedOrder ? mapOrderToSummaryInitialData(selectedOrder) : selectedOrderInitialData}
+            onOpenChange={(nextOpen) => {
+              if (!nextOpen) {
+                setSelectedOrderId(null)
+                setSelectedOrderInitialData(null)
+              }
+            }}
+            onEdit={(pedidoId) => router.push(`/pedido_compra/edit/${pedidoId}`)}
+            onMutationComplete={handleRecarregar}
+          />
+
+          <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Alterar status</DialogTitle>
+                <DialogDescription>{selectedCount} pedido(s) serão atualizados.</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-2">
+                <Label htmlFor="bulk-status-select">Novo status</Label>
+                <Select value={bulkStatusDraft} onValueChange={(value) => setBulkStatusDraft(value as PedidoStatus)}>
+                  <SelectTrigger id="bulk-status-select">
+                    <SelectValue placeholder="Selecione o status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editableStatusList.map((status) => (
+                      <SelectItem key={status} value={normalizeStatusUtil(status)}>
+                        {statusConfig[status].label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setBulkStatusDialogOpen(false)} disabled={bulkStatusSaving}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleBulkStatusApply} disabled={bulkStatusSaving || selectedCount === 0}>
+                  {bulkStatusSaving ? "Aplicando..." : "Aplicar"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir pedidos</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação vai excluir {selectedCount} pedido(s) de compra e não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={bulkDeleteSaving}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(event) => {
+                    event.preventDefault()
+                    void handleBulkDelete()
+                  }}
+                  disabled={bulkDeleteSaving || selectedCount === 0}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {bulkDeleteSaving ? "Excluindo..." : "Confirmar exclusão"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </PageLayout>
