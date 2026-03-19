@@ -41,86 +41,86 @@ function renderItemSummary(item: PedidoItemPrint) {
   return summary || "Item sem descricao"
 }
 
-function InfoRow({ label, value }: { label: string; value: string | null }) {
-  if (!hasValue(value)) {
-    return null
-  }
-
-  return (
-    <div className="space-y-1">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-sm leading-5 text-foreground">{value}</div>
-    </div>
-  )
-}
-
 export function PedidoCompraPrintDocument({ pedido }: { pedido: PedidoPrint }) {
   const mapsUrl = hasValue(pedido.mapsUrl) ? String(pedido.mapsUrl) : null
   const isMadeira = pedido.categoria.toUpperCase().includes("MADEIRA")
 
   return (
-    <article className="space-y-4 rounded-xl border border-slate-200 p-5 print:break-inside-avoid print:shadow-none">
-      <header className="flex items-start justify-between gap-4 border-b pb-3">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Solicitação de Materiais
-          </h2>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
+    <article className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/40 print:break-inside-avoid print:shadow-none">
+      <header className="flex items-start justify-between gap-4 border-b border-slate-200 pb-3">
+        <div className="space-y-2">
+          <div className="inline-flex rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            {pedido.categoria}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <span className="font-mono">{formatPedidoId(pedido.id, pedido.obraId)}</span>
-            <span>•</span>
-            <span>{hasValue(pedido.titulo) ? pedido.titulo : "Sem descrição"}</span>
+            <span className="text-slate-300">/</span>
+            <span className="font-medium text-slate-900">
+              {hasValue(pedido.titulo) ? pedido.titulo : "Sem descricao"}
+            </span>
           </div>
         </div>
-        <div className="text-right text-xs font-medium text-slate-500">
-          <div className="uppercase tracking-wider">#{pedido.obraId}</div>
-          <div>{pedido.categoria}</div>
+
+        <div className="text-right text-xs">
+          <div className="uppercase tracking-[0.18em] text-slate-500">Obra</div>
+          <div className="mt-1 font-mono font-medium text-slate-900">#{pedido.obraId}</div>
         </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 text-sm">
-          <div className="font-semibold uppercase text-xs text-slate-500 tracking-tight">Dados de Entrega / Cliente</div>
-          <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
-            <div><span className="font-medium text-slate-500">Cliente:</span> {pedido.clienteNome || "—"}</div>
-            <div><span className="font-medium text-slate-500">Telefone:</span> {pedido.clienteTelefone || "—"}</div>
-            <div><span className="font-medium text-slate-500">Bairro:</span> {pedido.bairro || "—"}</div>
-            <div><span className="font-medium text-slate-500">Cidade:</span> {pedido.cidade || "—"}</div>
+        <div className="space-y-2.5 rounded-lg border border-slate-200/80 bg-slate-50/60 p-4 text-sm">
+          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+            Dados de Entrega / Cliente
           </div>
-          <div><span className="font-medium text-slate-500">Obra:</span> {pedido.obraId ? `#${pedido.obraId} • ` : ""}{pedido.obraTitulo || "—"}</div>
-          <div><span className="font-medium text-slate-500">Endereço/Rua:</span> {pedido.rua || "—"}</div>
-          
-          {mapsUrl && (
+
+          <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+            <div><span className="font-medium text-slate-600">Cliente:</span> {pedido.clienteNome || "-"}</div>
+            <div><span className="font-medium text-slate-600">Telefone:</span> {pedido.clienteTelefone || "-"}</div>
+            <div><span className="font-medium text-slate-600">Bairro:</span> {pedido.bairro || "-"}</div>
+            <div><span className="font-medium text-slate-600">Cidade:</span> {pedido.cidade || "-"}</div>
+          </div>
+
+          <div>
+            <span className="font-medium text-slate-600">Obra:</span>{" "}
+            {pedido.obraId ? `#${pedido.obraId} - ` : ""}
+            {pedido.obraTitulo || "-"}
+          </div>
+
+          <div><span className="font-medium text-slate-600">Endereco/Rua:</span> {pedido.rua || "-"}</div>
+
+          {mapsUrl ? (
             <div className="mt-1">
-              <span className="font-medium text-slate-500">Maps: </span>
+              <span className="font-medium text-slate-600">Maps: </span>
               <Link
                 href={mapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-blue-600 underline"
+                className="break-all text-xs text-slate-700 underline decoration-slate-400 underline-offset-2"
               >
                 {mapsUrl}
               </Link>
             </div>
-          )}
+          ) : null}
         </div>
 
-        {hasValue(pedido.observacoes) && (
-          <div className="rounded-lg border bg-slate-50 p-3 text-sm">
-            <div className="font-medium text-slate-900 mb-1 uppercase text-xs tracking-wider">Observações</div>
-            <div className="text-slate-600 leading-relaxed whitespace-pre-wrap">{pedido.observacoes}</div>
+        {hasValue(pedido.observacoes) ? (
+          <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">
+              Observacoes
+            </div>
+            <div className="whitespace-pre-wrap leading-relaxed text-slate-600">{pedido.observacoes}</div>
           </div>
-        )}
+        ) : null}
       </section>
 
       <section className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Itens</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-600">Itens</h3>
 
         <div className="overflow-hidden rounded-lg border border-slate-200">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-700">
-              <tr className="border-b">
+              <tr className="border-b border-slate-200">
                 {isMadeira ? (
                   <>
                     <th className="px-3 py-2 text-left font-semibold">Componente</th>
@@ -136,10 +136,11 @@ export function PedidoCompraPrintDocument({ pedido }: { pedido: PedidoPrint }) {
                 )}
               </tr>
             </thead>
+
             <tbody className="divide-y divide-slate-100">
               {pedido.itens.length === 0 ? (
                 <tr>
-                  <td colSpan={isMadeira ? 4 : 2} className="px-3 py-4 text-center text-slate-400 italic">
+                  <td colSpan={isMadeira ? 4 : 2} className="px-3 py-4 text-center italic text-slate-400">
                     Nenhum item listado.
                   </td>
                 </tr>
@@ -148,14 +149,14 @@ export function PedidoCompraPrintDocument({ pedido }: { pedido: PedidoPrint }) {
                   <tr key={item.id} className="align-top">
                     {isMadeira ? (
                       <>
-                        <td className="px-3 py-2 text-slate-700">{item.componente || "—"}</td>
-                        <td className="px-3 py-2 text-slate-800 font-medium">{item.descricao || "—"}</td>
-                        <td className="px-3 py-2 text-slate-700 font-medium">{item.quantidade || "—"}</td>
-                        <td className="px-3 py-2 text-slate-700">{item.tamanho ? `${item.tamanho}m` : "—"}</td>
+                        <td className="px-3 py-2 text-slate-700">{item.componente || "-"}</td>
+                        <td className="px-3 py-2 font-medium text-slate-800">{item.descricao || "-"}</td>
+                        <td className="px-3 py-2 font-medium text-slate-700">{item.quantidade || "-"}</td>
+                        <td className="px-3 py-2 text-slate-700">{item.tamanho ? `${item.tamanho}m` : "-"}</td>
                       </>
                     ) : (
                       <>
-                        <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">
+                        <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-700">
                           {hasValue(item.quantidade) ? item.quantidade : "-"}
                         </td>
                         <td className="px-3 py-2 text-slate-800">{renderItemSummary(item)}</td>

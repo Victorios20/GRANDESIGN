@@ -61,10 +61,10 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
     <main className="mx-auto max-w-5xl space-y-6 px-6 py-8">
       <PedidoCompraExportActions />
 
-      <header className="space-y-2 border-b pb-4 print:pb-2">
-        <h1 className="text-2xl font-semibold">Exportacao operacional de pedidos</h1>
-        <p className="text-sm text-muted-foreground">
-          {pedidos.length} pedido(s) preparado(s) para impressao ou salvamento em PDF.
+      <header className="space-y-2 border-b border-slate-200 pb-4 print:pb-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">Pedidos de Compra</h1>
+        <p className="text-sm text-slate-600">
+          {pedidos.length} {pedidos.length === 1 ? "pedido neste documento" : "pedidos neste documento"}
         </p>
       </header>
 
