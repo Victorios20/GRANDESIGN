@@ -1178,8 +1178,11 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     const gerarTituloAutomatico = () => {
         const sanitize = (text: string) => text.trim().replace(/\s+/g, " ").replace(/,/g, "")
-        if (!form.nome && !form.bairro && !tipoObra) return ""
-        return `${sanitize(form.nome)} ${sanitize(form.bairro)} ${sanitize(tipoObra ?? "")}`.trim()
+        const nome = sanitize(form.nome)
+        const obra = sanitize(tipoObra ?? "")
+        if (!nome && !obra) return ""
+        if (nome && obra) return `${nome} - ${obra}`
+        return nome || obra
     }
 
 
@@ -2123,6 +2126,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 }
                                 placeholder="Buscar fornecedor..."
                                 widthClass="w-56"
+                                buttonClassName={`h-9 rounded-md border border-gray-300 bg-white shrink-0 shadow-none font-normal hover:translate-y-0 hover:shadow-none transition-none active:scale-100 active:shadow-none focus-visible:translate-y-0 ${!fornecedorSel ? "text-muted-foreground hover:text-muted-foreground" : "text-foreground"}`}
                                 disabled={!fornecedores.length}
                                 items={fornecedores
                                     .filter(f => f.tipo && f.tipo.toLowerCase().includes("madeira"))
