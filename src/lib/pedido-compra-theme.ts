@@ -10,10 +10,10 @@
 // ═══════════════════════════════════════════════════════════
 
 export const palette = {
-    primary: "#2c201b",      // Marrom escuro - primary actions
-    secondary: "#393316",    // Verde oliva - secondary actions
-    accent: "#f5d193",       // Dourado/Areia - highlights
-    background: "#FAF3E0",   // Creme - backgrounds
+    primary: "#2c201b",      // Texto forte / headings
+    secondary: "#393316",    // Primária operacional
+    accent: "#f5d193",       // Destaque suave
+    background: "#FAF3E0",   // Fundo suave / contextual
 } as const
 
 // ═══════════════════════════════════════════════════════════
@@ -32,6 +32,7 @@ export type StatusSlug =
 
 export type StatusConfig = {
     label: string
+    shortLabel?: string
     bg: string
     text: string
     border: string
@@ -44,11 +45,12 @@ export type StatusConfig = {
 export const statusConfig: Record<StatusSlug, StatusConfig> = {
     rascunho: {
         label: "Rascunho",
-        bg: "bg-gray-100",
-        text: "text-gray-800",
-        border: "border-gray-300",
-        badgeClass: "bg-gray-100 text-gray-800 border-gray-300",
-        chipClass: "bg-gray-500",
+        shortLabel: "Rascunho",
+        bg: "bg-stone-100",
+        text: "text-stone-700",
+        border: "border-stone-300",
+        badgeClass: "border-stone-300 bg-stone-100 text-stone-700",
+        chipClass: "bg-stone-500",
     },
     pendente: {
         label: "Pendente",
@@ -60,43 +62,48 @@ export const statusConfig: Record<StatusSlug, StatusConfig> = {
     },
     aprovado: {
         label: "Aprovado",
-        bg: "bg-blue-100",
-        text: "text-blue-800",
-        border: "border-blue-300",
-        badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
-        chipClass: "bg-blue-500",
+        shortLabel: "Aprovado",
+        bg: "bg-sky-50",
+        text: "text-sky-700",
+        border: "border-sky-200",
+        badgeClass: "border-sky-200 bg-sky-50 text-sky-700",
+        chipClass: "bg-sky-500",
     },
     "em-compra": {
         label: "Em Compra",
-        bg: "bg-amber-100",
-        text: "text-amber-800",
-        border: "border-amber-300",
-        badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
+        shortLabel: "Em compra",
+        bg: "bg-amber-50",
+        text: "text-amber-700",
+        border: "border-amber-200",
+        badgeClass: "border-amber-200 bg-amber-50 text-amber-700",
         chipClass: "bg-amber-500",
     },
     "aguardando-pagamento": {
         label: "Aguardando Pagamento",
-        bg: "bg-orange-100",
-        text: "text-orange-800",
-        border: "border-orange-300",
-        badgeClass: "bg-orange-100 text-orange-800 border-orange-300",
+        shortLabel: "Pagto pend.",
+        bg: "bg-orange-50",
+        text: "text-orange-700",
+        border: "border-orange-200",
+        badgeClass: "border-orange-200 bg-orange-50 text-orange-700",
         chipClass: "bg-orange-500",
     },
     "aguardando-entrega": {
         label: "Aguardando Entrega",
-        bg: "bg-cyan-100",
-        text: "text-cyan-800",
-        border: "border-cyan-300",
-        badgeClass: "bg-cyan-100 text-cyan-800 border-cyan-300",
-        chipClass: "bg-cyan-500",
+        shortLabel: "Entrega pend.",
+        bg: "bg-yellow-50",
+        text: "text-yellow-700",
+        border: "border-yellow-200",
+        badgeClass: "border-yellow-200 bg-yellow-50 text-yellow-700",
+        chipClass: "bg-yellow-500",
     },
     entregue: {
         label: "Entregue",
-        bg: "bg-green-100",
-        text: "text-green-800",
-        border: "border-green-300",
-        badgeClass: "bg-green-100 text-green-800 border-green-300",
-        chipClass: "bg-green-500",
+        shortLabel: "Entregue",
+        bg: "bg-emerald-50",
+        text: "text-emerald-700",
+        border: "border-emerald-200",
+        badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-700",
+        chipClass: "bg-emerald-500",
     },
     cancelado: {
         label: "Cancelado",
