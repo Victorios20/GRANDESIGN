@@ -186,6 +186,7 @@ async function calcularMateriaisNormal(
   const isCaibroRipa = /^Caibro e Ripa/i.test(tipoNorm) || isCorredorQuedaLateral
   const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaQuintal
   const isMaoFrancesa = /^Mão Francesa/i.test(tipoNorm)
+  const isEucalipto = /^Caramanhão de Eucalipto/i.test(tipoNorm)
 
   /* ------------------ Lógica principal ------------------ */
   switch (true) {
@@ -229,6 +230,13 @@ async function calcularMateriaisNormal(
       add(madeiraVar, "Travessa", 2, largArred)
       add(madeiraVar, "Pérgola", ROUND_INT(largura / 0.35), compArred)
       add("Caibro", "Caibros", 2, largArred)
+      break
+    }
+
+    case /^Caramanhão de Eucalipto/i.test(tipoNorm): {
+      add("Eucalipto 12-14cm", "Coluna", 4, 3.5)
+      add("Eucalipto 10-12cm", "Travessa", 2, largArred)
+      add("Eucalipto 8-10cm", "Pérgola", ROUND_INT(largura / 0.35) + 1, compArred)
       break
     }
 
@@ -293,7 +301,11 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Madeira comum ------------------ */
-  if (!/^(Pergolado|Caramanchão|Mão Francesa|Corredor Queda Quintal)/i.test(tipoNorm)) {
+  if (
+    !/^(Pergolado|Caramanchão|Mão Francesa|Corredor Queda Quintal|Caramanhão de Eucalipto)/i.test(
+      tipoNorm,
+    )
+  ) {
     const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
     const isCaibroRipa = isCaibroRipaBase || isCorredorQuedaLateral
     const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
@@ -353,7 +365,7 @@ async function calcularMateriaisNormal(
     .filter(m => componentesColuna.includes(m.componente))
     .reduce((s, x) => s + x.quantidade, 0)
 
-  const qtdColunasLinhas = totalLinhasColuna / 2
+  const qtdColunasLinhas = isEucalipto ? totalLinhasColuna : totalLinhasColuna / 2
 
   if (qtdColunasLinhas > 0) {
     addMaterial("Parafusos Franceses", qtdColunasLinhas * 3 + 3)
@@ -381,7 +393,7 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Telhas (descrições reais do banco) ------------------ */
-  if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
+  if (!/^(Pergolado|Caramanchão|Caramanhão de Eucalipto)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
       SuperRomana: { factor: 12, offset: 10 },
