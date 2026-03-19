@@ -72,7 +72,7 @@ export function ComboboxAdd({
           disabled={disabled}
           className={cn(
             widthClass,
-            "h-8 text-xs justify-between rounded-xl border-0 px-3",
+            "h-8 text-sm justify-between rounded-xl px-3",
             "focus-visible:ring-2 focus-visible:ring-marromEscuro focus-visible:outline-none",
             variantToClasses[colorVariant],
             buttonClassName

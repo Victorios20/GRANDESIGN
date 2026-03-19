@@ -162,7 +162,11 @@ async function calcularMateriaisNormal(
   // Flag para evitar duplicar sextavado quando já for calculado em casos específicos
   let adicionouSextavado = false
 
-  const area = largura * ROUND_HALF(comprimento + 0.5)
+  let area = largura * ROUND_HALF(comprimento + 0.5)
+  const isCorredorQuedaQuintal = /^Corredor Queda Quintal/i.test(tipoNorm)
+  if (isCorredorQuedaQuintal) {
+    area = largura * (ROUND_INT(comprimento) + 0.5)
+  }
   const largArred = ROUND_HALF(largura)
   const compArred = ROUND_HALF(comprimento)
   const espessura = tipoNorm.includes("11,5") ? "11,5cm" : "15cm"
@@ -178,8 +182,9 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Tipos auxiliares (NOVOS) ------------------ */
   const isCorredorQuedaLateral = /^Corredor Queda Lateral/i.test(tipoNorm)
-  const isCorredorQuedaFrontal = /^Corredor Queda Frontal/i.test(tipoNorm)
-  const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaFrontal
+  const isCorredorQuedaQuintal_flag = isCorredorQuedaQuintal 
+  const isCaibroRipa = /^Caibro e Ripa/i.test(tipoNorm) || isCorredorQuedaLateral
+  const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaQuintal
   const isMaoFrancesa = /^Mão Francesa/i.test(tipoNorm)
 
   /* ------------------ Lógica principal ------------------ */
@@ -239,17 +244,16 @@ async function calcularMateriaisNormal(
       break
     }
 
-    case /^Corredor Queda Frontal/i.test(tipoNorm): {
-      // 1) Terças adicionais (a cada 1m no comprimento): Linha 11,5cm de 1,0m
-      const qtdTercas = Math.max(0, ROUND_INT(comprimento))
-      add("Linha 11,5cm", "Terça", qtdTercas, 1.0)
+    case /^Corredor Queda Quintal/i.test(tipoNorm): {
+      // 1) Linhas nas paredes: 2 linhas de 11,5cm com comprimento + 0,5m
+      add("Linha 11,5cm", "Linha na Parede", 2, ROUND_HALF(comprimento + 0.5))
 
-      // 2) Parafuso sextavado para essas terças: 2 por peça + 2 de sobra
-      const qtdSext = qtdTercas * 2 + 2
-      if (qtdSext > 0) {
-        addMaterial("Parafuso Sextavado", qtdSext)
-        adicionouSextavado = true
-      }
+      // 2) Barrotes: a cada 32cm com comprimento igual à largura
+      const qtdBarrotes = ROUND_INT(comprimento / 0.32) + 1
+      add("Barrote", "Barrotes", qtdBarrotes, largArred)
+
+      // 3) Beirais: 2 de 15cm com comprimento igual à largura
+      add("Beiral Trab. 15cm", "Beiral", 2, largArred)
       break
     }
 
@@ -257,17 +261,29 @@ async function calcularMateriaisNormal(
     case /^Mão Francesa/i.test(tipoNorm): {
       const qtdMF = ROUND_INT(largura / 2)
 
-      add("Linha 15cm", "Mão francesa", qtdMF, 2)
-      add("Linha 15cm", "Mão francesa", qtdMF, 2)
-      add("Linha 15cm", "Mão francesa", qtdMF, 1.5)
+      const tamanhoVertical = Math.max(1, ROUND_HALF(0.90 * comprimento))
+      const tamanhoHorizontal = Math.max(1, ROUND_HALF(0.67 * comprimento))
+      const tamanhoDiagonal = Math.max(1, ROUND_HALF(0.89 * comprimento))
 
-      add("Barrote", "barrote", 2, largArred)
+      const tamanhoBarroteEstrutural = Math.max(1, ROUND_HALF(largura))
+      const tamanhoBarroteInclinado = Math.max(1, ROUND_HALF(comprimento * 1.3))
+      const tamanhoBarroteTelha = Math.max(1, ROUND_HALF(largura))
 
-      add("Barrote", "barrote", qtdMF, ROUND_HALF(comprimento * 1.3))
+      // 3 peças por mão francesa
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoVertical)
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoHorizontal)
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoDiagonal)
 
+      // 2 barrotes fixos do telhado inteiro
+      add("Barrote", "barrote", 2, tamanhoBarroteEstrutural)
+
+      // 1 barrote inclinado por mão francesa
+      add("Barrote", "barrote", qtdMF, tamanhoBarroteInclinado)
+
+      // Barrotes que seguram telha
       const compLinear = ROUND_INT(comprimento)
       const qtdBarrotesTelha = ROUND_INT(compLinear / 0.32) + 1
-      add("Barrote", "barrote", qtdBarrotesTelha, largArred)
+      add("Barrote", "barrote", qtdBarrotesTelha, tamanhoBarroteTelha)
 
       break
     }
@@ -277,9 +293,9 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Madeira comum ------------------ */
-  if (!/^(Pergolado|Caramanchão|Mão Francesa)/i.test(tipoNorm)) {
+  if (!/^(Pergolado|Caramanchão|Mão Francesa|Corredor Queda Quintal)/i.test(tipoNorm)) {
     const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
-    const isCaibroRipa = isCaibroRipaBase || isCorredorQueda
+    const isCaibroRipa = isCaibroRipaBase || isCorredorQuedaLateral
     const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
     const isLinhaParedeComCol = /^Linha na Parede \+ Coluna/i.test(tipoNorm)
 
@@ -326,7 +342,9 @@ async function calcularMateriaisNormal(
     }
 
     // ===== BEIRAL =====
-    add("Beiral Trab. 15cm", "Beiral", 1, largArred)
+    if (!isCorredorQuedaQuintal) {
+      add("Beiral Trab. 15cm", "Beiral", 1, largArred)
+    }
   }
 
   /* ------------------ Cálculo automático de colunas ------------------ */
@@ -426,6 +444,7 @@ async function calcularMateriaisNormal(
   }
 
   const ordemMadeira = [
+    "mão francesa",
     "Linha na Parede",
     "Colunas Traseiras",
     "Colunas Frontais",
@@ -436,6 +455,7 @@ async function calcularMateriaisNormal(
     "Pérgola",
     "Terças",
     "Terça",
+    "barrote",
     "Caibros",
     "Ripas",
     "Beiral",
@@ -604,6 +624,30 @@ export async function calcularMateriaisCobertaL(
   /* ---------- 8.1) Stain Variável (L) ---------- */
   if (opts?.corStain) {
     addMaterial(`Stain ${opts.corStain}`, 0.5)
+  }
+
+  /* ---------- 8.2) Receitas fixas (L) ---------- */
+  try {
+    const receitasFixas = await getReceitasFixas(tipoBase)
+    const idStainLegado = 9 // Hardcoded: Stain Proteção UV
+    
+    const ids = receitasFixas.map(r => r.material_id)
+    const materiaisFixos = await getMateriaisByIds(ids, fornecedorId)
+
+    for (const { material_id, quantidade } of receitasFixas) {
+      // Ignora o stain fixo antigo se estivermos usando o variável por cor
+      if (material_id === idStainLegado) continue 
+      
+      const material = materiaisFixos.find(m => m.id === material_id)
+      if (material) {
+        const jaExiste = materiaisRaw.some(m => m.descricao === material.descricao)
+        if (!jaExiste) {
+          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade: Number(quantidade) })
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[calcularMateriaisCobertaL] Erro ao carregar receitas fixas:", err)
   }
 
   /* ---------- Agrupar / ordenar / preços / retorno ---------- */
