@@ -33,17 +33,9 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
     where: { id: { in: ids } },
     include: {
       obra: {
-        select: {
-          titulo: true,
-          endereco_obra: true,
-          maps_url: true,
+        include: {
           cliente: {
-            select: {
-              nome: true,
-              telefone: true,
-              bairro: true,
-              cidades: { select: { nome: true } },
-            },
+            include: { cidades: true },
           },
         },
       },

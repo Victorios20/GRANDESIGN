@@ -60,102 +60,82 @@ export function PedidoCompraPrintDocument({ pedido }: { pedido: PedidoPrint }) {
   const mapsUrl = hasValue(pedido.mapsUrl) ? String(pedido.mapsUrl) : null
 
   return (
-    <article className="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm print:break-inside-avoid print:rounded-none print:border-slate-300 print:p-5 print:shadow-none">
-      <header className="space-y-4 border-b border-slate-200 pb-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Pedido de compra
-            </div>
-            <h2 className="font-mono text-lg font-semibold text-slate-900">
-              {formatPedidoId(pedido.id, pedido.obraId)}
-            </h2>
-            <div className="text-base font-medium text-slate-900">
-              {hasValue(pedido.titulo) ? pedido.titulo : "Pedido sem titulo"}
-            </div>
-          </div>
-
-          <div className="min-w-44 space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <InfoRow label="Obra" value={pedido.obraTitulo} />
-            <InfoRow label="Categoria" value={pedido.categoria} />
-          </div>
+    <article className="space-y-4 rounded-xl border border-slate-200 p-5 print:break-inside-avoid print:shadow-none">
+      <header className="flex items-start justify-between gap-4 border-b pb-3">
+        <div>
+          <h2 className="font-mono text-lg font-semibold text-slate-900">
+            {formatPedidoId(pedido.id, pedido.obraId)}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {hasValue(pedido.titulo) ? pedido.titulo : "Pedido sem descrição"}
+          </p>
+        </div>
+        <div className="text-right text-xs font-medium text-slate-500">
+          <div className="uppercase tracking-wider">#{pedido.obraId}</div>
+          <div>{pedido.categoria}</div>
         </div>
       </header>
 
-      <section className="grid gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Dados operacionais
+      <section className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2 text-sm">
+          <div className="font-semibold uppercase text-xs text-slate-500 tracking-tight">Dados de Entrega / Cliente</div>
+          <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+            <div><span className="font-medium">Cliente:</span> {pedido.clienteNome || "—"}</div>
+            <div><span className="font-medium">Telefone:</span> {pedido.clienteTelefone || "—"}</div>
+            <div><span className="font-medium">Bairro:</span> {pedido.bairro || "—"}</div>
+            <div><span className="font-medium">Cidade:</span> {pedido.cidade || "—"}</div>
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InfoRow label="Cliente" value={pedido.clienteNome} />
-            <InfoRow label="Telefone" value={pedido.clienteTelefone} />
-            <InfoRow label="Bairro" value={pedido.bairro} />
-            <InfoRow label="Cidade" value={pedido.cidade} />
-          </div>
-
-          <InfoRow label="Rua" value={pedido.rua} />
-
-          {mapsUrl ? (
-            <div className="space-y-1">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Google Maps
-              </div>
+          <div><span className="font-medium">Obra:</span> {pedido.obraTitulo || "—"}</div>
+          <div><span className="font-medium">Endereço/Rua:</span> {pedido.rua || "—"}</div>
+          
+          {mapsUrl && (
+            <div className="mt-1">
+              <span className="font-medium text-slate-500">Maps: </span>
               <Link
                 href={mapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="break-all text-sm text-slate-700 underline underline-offset-2"
+                className="text-xs text-blue-600 underline"
               >
                 {mapsUrl}
               </Link>
             </div>
-          ) : null}
+          )}
         </div>
 
-        {hasValue(pedido.observacoes) ? (
-          <div className="rounded-xl border border-slate-200 p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Observacoes
-            </div>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-              {pedido.observacoes}
-            </p>
+        {hasValue(pedido.observacoes) && (
+          <div className="rounded-lg border bg-slate-50 p-3 text-sm">
+            <div className="font-medium text-slate-900 mb-1">Observações</div>
+            <div className="text-slate-600 leading-relaxed whitespace-pre-wrap">{pedido.observacoes}</div>
           </div>
-        ) : null}
+        )}
       </section>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Itens
-          </div>
-          <div className="text-xs text-slate-500">{pedido.itens.length} item(ns)</div>
-        </div>
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Itens</h3>
 
-        <div className="overflow-hidden rounded-xl border border-slate-200">
+        <div className="overflow-hidden rounded-lg border border-slate-200">
           <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
-              <tr>
+            <thead className="bg-slate-50 text-slate-700">
+              <tr className="border-b">
                 <th className="w-20 px-3 py-2 text-left font-semibold">Qtd</th>
                 <th className="px-3 py-2 text-left font-semibold">Resumo</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {pedido.itens.length === 0 ? (
                 <tr>
-                  <td colSpan={2} className="px-3 py-4 text-center text-slate-500">
+                  <td colSpan={2} className="px-3 py-4 text-center text-slate-400 italic">
                     Nenhum item listado.
                   </td>
                 </tr>
               ) : (
                 pedido.itens.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-200 align-top">
-                    <td className="px-3 py-3 text-slate-700">
+                  <tr key={item.id} className="align-top">
+                    <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {hasValue(item.quantidade) ? item.quantidade : "-"}
                     </td>
-                    <td className="px-3 py-3 text-slate-800">{renderItemSummary(item)}</td>
+                    <td className="px-3 py-2 text-slate-800">{renderItemSummary(item)}</td>
                   </tr>
                 ))
               )}
