@@ -13,6 +13,7 @@ function isExactPublicApiGet(req: NextRequest) {
   const lower = req.nextUrl.pathname.toLowerCase()
   if (lower === "/api/bairros") return true
   if (lower === "/api/orcamentos") return true
+  if (lower === "/api/test-roles") return true
   return lower.startsWith("/api/orcamentos/")
 }
 
