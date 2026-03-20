@@ -94,10 +94,11 @@ export async function getHomeIndicadoresDB(): Promise<HomeIndicadoresResult> {
           AND data_criacao >= date_trunc('month', (now() AT TIME ZONE 'America/Sao_Paulo'))
           AND data_criacao <  (date_trunc('month', (now() AT TIME ZONE 'America/Sao_Paulo')) + interval '1 month')
       `),
+      // Pending purchase orders follow the enum flow before "Aguardando entrega".
       prisma.$queryRaw<{ n: number }[]>(Prisma.sql`
         SELECT COUNT(*)::int AS n
         FROM pedido_compra
-        WHERE status = 'Pendente'
+        WHERE status < 'Aguardando entrega'::"PedidoCompraStatus"
       `),
       prisma.$queryRaw<{ total: Decimalish | null }[]>(Prisma.sql`
         SELECT COALESCE(
