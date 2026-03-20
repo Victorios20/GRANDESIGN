@@ -183,6 +183,7 @@ export type ObraDetalheDTO = {
     endereco: string
     mapsUrl: string
     tipoObra: string
+    isLShape: boolean
     largura: number
     comprimento: number
     larguraMaior: number | null
@@ -261,6 +262,7 @@ export type CreateObraPayload = {
   largura_menor?: number | string | null
   comprimento_maior?: number | string | null
   comprimento_menor?: number | string | null
+  is_l_shape?: boolean
   telha_escolhida: string
 
   valor_obra: number | string
@@ -329,6 +331,7 @@ export type CriarObraResult = {
 export type ObraInfosVM = {
   titulo?: string
   tipoObra: string | null
+  isLShape: boolean
   largura: number | null
   comprimento: number | null
   larguraMaior?: number | null
@@ -395,6 +398,7 @@ export type UpdateObraPayload = {
     largura_menor?: number | string | null
     comprimento_maior?: number | string | null
     comprimento_menor?: number | string | null
+    is_l_shape?: boolean
     telha_escolhida?: string
     status?: ObraStatus
     observacoes?: string

@@ -139,6 +139,7 @@ export type CriarObraInput = {
   largura_menor?: Decimalish
   comprimento_maior?: Decimalish
   comprimento_menor?: Decimalish
+  is_l_shape?: boolean
   telha_escolhida: string
   valor_obra: Decimalish
   valor_mao_de_obra: Decimalish
@@ -220,6 +221,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           largura_menor: input.largura_menor != null ? d(input.largura_menor) : null,
           comprimento_maior: input.comprimento_maior != null ? d(input.comprimento_maior) : null,
           comprimento_menor: input.comprimento_menor != null ? d(input.comprimento_menor) : null,
+          is_l_shape: !!input.is_l_shape,
           telha_escolhida: input.telha_escolhida,
           // @ts-ignore - Aguardando prisma generate (arquivo bloqueado pelo dev server)
           cor_stain: input.cor_stain ?? orc.cor_stain,

@@ -39,6 +39,7 @@ type CanonicalObraDetails = {
   status: unknown
   observacoes: string | null
   dataCriacao: string | null
+  isLShape: boolean
 }
 
 function mapObraStatus(raw: unknown): ObraStatus {
@@ -154,6 +155,7 @@ function toNum(value: unknown, fallback = 0): number {
 }
 
 function toNullableNum(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null
   const n = Number(value)
   return Number.isFinite(n) ? n : null
 }
@@ -177,6 +179,7 @@ function getCanonicalObraDetails(dto: ObraDetalheDTO): CanonicalObraDetails {
       status: current.status,
       observacoes: current.observacoes ?? null,
       dataCriacao: current.dataCriacao ?? null,
+      isLShape: !!current.isLShape,
     }
   }
 
@@ -197,6 +200,7 @@ function getCanonicalObraDetails(dto: ObraDetalheDTO): CanonicalObraDetails {
     status: (dto as any)?.status,
     observacoes: legacy.observacoes ?? null,
     dataCriacao: (dto as any)?.dadosObra?.dataCriacao ?? null,
+    isLShape: false,
   }
 }
 
@@ -300,6 +304,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] } = {
     titulo: (dto as any)?.titulo ?? "",
     tipoObra: obraDTO.tipoObra,
+    isLShape: obraDTO.isLShape,
     largura: obraDTO.largura,
     comprimento: obraDTO.comprimento,
     larguraMaior: obraDTO.larguraMaior,

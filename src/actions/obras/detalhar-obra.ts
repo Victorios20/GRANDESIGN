@@ -150,6 +150,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       endereco: obra.endereco_obra,
       mapsUrl: obra.maps_url,
       tipoObra: obra.tipo_obra,
+      isLShape: !!obra.is_l_shape,
       largura: n(obra.largura)!,
       comprimento: n(obra.comprimento)!,
       larguraMaior: n(obra.largura_maior),

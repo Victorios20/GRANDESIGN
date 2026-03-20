@@ -264,10 +264,14 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const clienteBairro = orc.cliente?.bairro || ""
   const clienteCidade = orc.cliente?.cidade || ""
   const fallbackTitulo = `${orc.cliente?.nome || "Sem Nome"} ${clienteBairro || clienteCidade ? `[${[clienteBairro, clienteCidade].filter(Boolean).join(" - ")}]` : ""}`.trim()
+  
+  const tipoObra = orc.parametros?.tipoObra ?? ""
+  const isLShapeByTipo = / em L$/i.test(tipoObra) || / L$/i.test(tipoObra)
 
   const initial: Partial<ObraInfosVM> = {
     titulo: orc.titulo || fallbackTitulo,
-    tipoObra: orc.parametros?.tipoObra ?? "",
+    tipoObra,
+    isLShape: isLShapeByTipo,
     largura: orc.parametros?.largura ?? null,
     comprimento: orc.parametros?.comprimento ?? null,
     larguraMaior: orc.parametros?.larguraMaior ?? null,

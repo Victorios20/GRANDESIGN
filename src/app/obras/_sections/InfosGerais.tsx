@@ -104,11 +104,7 @@ export default function InfosGerais({
     [value.largura, value.comprimento]
   )
 
-  const isL = useMemo(() => {
-    return [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor].some(
-      (dimension) => dimension !== null && dimension !== undefined
-    )
-  }, [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor])
+  const isL = !!value.isLShape
 
   const lAreaTotal = useMemo(
     () =>
@@ -246,10 +242,9 @@ export default function InfosGerais({
                           checked={isL} 
                           onCheckedChange={(checked) => {
                             if (!checked) {
-                              onChange({ larguraMaior: null, larguraMenor: null, comprimentoMaior: null, comprimentoMenor: null })
+                              onChange({ isLShape: false, larguraMaior: null, larguraMenor: null, comprimentoMaior: null, comprimentoMenor: null })
                             } else {
-                              // Initialize with some values or zeroes to trigger the UI
-                              onChange({ larguraMaior: 0, larguraMenor: 0, comprimentoMaior: 0, comprimentoMenor: 0 })
+                              onChange({ isLShape: true })
                             }
                           }}
                         />

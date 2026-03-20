@@ -122,28 +122,18 @@ const toNum = (v: any) => {
   return Number.isFinite(n) ? n : 0
 }
 
-function hasLShapeDimensions(
-  dims: Pick<ObraInfosVM, "larguraMaior" | "larguraMenor" | "comprimentoMaior" | "comprimentoMenor">
-) {
-  return [dims.larguraMaior, dims.larguraMenor, dims.comprimentoMaior, dims.comprimentoMenor].some(
-    (value) => value !== null && value !== undefined
-  )
-}
-
 function normalizeNullableDimension(value: unknown) {
   if (value === null || value === undefined || value === "") return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function normalizeObraDimensionsForSave(
-  dims: Pick<ObraInfosVM, "largura" | "comprimento" | "larguraMaior" | "larguraMenor" | "comprimentoMaior" | "comprimentoMenor">
-) {
-  if (!hasLShapeDimensions(dims)) {
+function normalizeObraDimensionsForSave(vm: VM) {
+  if (!vm.isLShape) {
     return {
       isLShape: false,
-      largura: toNum(dims.largura ?? 0),
-      comprimento: toNum(dims.comprimento ?? 0),
+      largura: toNum(vm.largura ?? 0),
+      comprimento: toNum(vm.comprimento ?? 0),
       largura_maior: null,
       largura_menor: null,
       comprimento_maior: null,
@@ -151,10 +141,10 @@ function normalizeObraDimensionsForSave(
     }
   }
 
-  const larguraMaior = normalizeNullableDimension(dims.larguraMaior)
-  const larguraMenor = normalizeNullableDimension(dims.larguraMenor)
-  const comprimentoMaior = normalizeNullableDimension(dims.comprimentoMaior)
-  const comprimentoMenor = normalizeNullableDimension(dims.comprimentoMenor)
+  const larguraMaior = normalizeNullableDimension(vm.larguraMaior)
+  const larguraMenor = normalizeNullableDimension(vm.larguraMenor)
+  const comprimentoMaior = normalizeNullableDimension(vm.comprimentoMaior)
+  const comprimentoMenor = normalizeNullableDimension(vm.comprimentoMenor)
 
   return {
     isLShape: true,
@@ -171,6 +161,7 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
   return {
     titulo: initial.titulo ?? undefined,
     tipoObra: initial.tipoObra ?? "",
+    isLShape: !!initial.isLShape,
     largura: initial.largura ?? 0,
     comprimento: initial.comprimento ?? 0,
     larguraMaior: initial.larguraMaior ?? null,
