@@ -734,14 +734,12 @@ export default function ObrasPage({
   }
 
   function validateAndFocus(): boolean {
-    const isLShape = hasLShapeDimensions(vm)
-
     if (isEmpty(vm.tipoObra)) {
       toast.error("Tipo de obra é obrigatório.")
       focusById("infos.tipoObra")
       return false
     }
-    if (isLShape) {
+    if (vm.isLShape) {
       if (!(Number(vm.larguraMaior) > 0)) {
         toast.error("Largura maior é obrigatória para coberta em L.")
         focusById("infos.larguraMaior")
@@ -958,6 +956,7 @@ export default function ObrasPage({
           largura_menor: normalizedDims.largura_menor,
           comprimento_maior: normalizedDims.comprimento_maior,
           comprimento_menor: normalizedDims.comprimento_menor,
+          is_l_shape: vm.isLShape,
           telha_escolhida: vm.telhaEscolhida.trim(),
 
           valor_obra: Number(fin.valorObra),
@@ -1042,6 +1041,7 @@ export default function ObrasPage({
             largura_menor: normalizedDims.largura_menor,
             comprimento_maior: normalizedDims.comprimento_maior,
             comprimento_menor: normalizedDims.comprimento_menor,
+            is_l_shape: vm.isLShape,
             telha_escolhida: vm.telhaEscolhida || "",
             status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,

@@ -35,6 +35,7 @@ export type UpdateObraPayload = {
     largura_menor?: number | string | null
     comprimento_maior?: number | string | null
     comprimento_menor?: number | string | null
+    is_l_shape?: boolean
     telha_escolhida?: string
     observacoes?: string | null
     status?: string
@@ -131,6 +132,9 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.largura_menor = n(payload.obra.largura_menor)
         obraData.comprimento_maior = n(payload.obra.comprimento_maior)
         obraData.comprimento_menor = n(payload.obra.comprimento_menor)
+        if (payload.obra.is_l_shape !== undefined) {
+          obraData.is_l_shape = payload.obra.is_l_shape
+        }
         obraData.telha_escolhida = payload.obra.telha_escolhida
         obraData.observacoes = payload.obra.observacoes ?? undefined
         if (payload.obra.status) {

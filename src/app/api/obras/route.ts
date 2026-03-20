@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       largura_menor: body.largura_menor != null ? Number(body.largura_menor) : undefined,
       comprimento_maior: body.comprimento_maior != null ? Number(body.comprimento_maior) : undefined,
       comprimento_menor: body.comprimento_menor != null ? Number(body.comprimento_menor) : undefined,
+      is_l_shape: body.is_l_shape === undefined ? undefined : Boolean(body.is_l_shape),
       telha_escolhida: String(body.telha_escolhida),
       observacoes: body.observacoes ?? null,
       status: body.status ?? null,
