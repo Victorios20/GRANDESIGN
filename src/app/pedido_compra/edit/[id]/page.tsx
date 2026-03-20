@@ -21,7 +21,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       },
     }),
     prisma.fornecedores.findMany({
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, tipo: true },
       orderBy: { nome: "asc" },
     }),
     prisma.materiais.findMany({
@@ -88,6 +88,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   }
 
   const initialFornecedores = fornecedores.map((f) => ({ id: f.id, nome: f.nome }))
+  const initialFornecedoresRaw = fornecedores.map((f) => ({ id: f.id, nome: f.nome, tipo: f.tipo ?? null }))
 
   const initialMateriaisByTipo = {
     madeira: madeiras.map((m) => ({
@@ -130,6 +131,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       pedidoCompraId={pedidoCompraId}
       initialData={initialData}
       initialFornecedores={initialFornecedores}
+      initialFornecedoresRaw={initialFornecedoresRaw}
       initialMateriaisByTipo={initialMateriaisByTipo}
       initialComponentes={componentes}
     />
