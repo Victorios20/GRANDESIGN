@@ -41,7 +41,7 @@ export function formatDateBR(input: string | Date | null | undefined): string {
     }
     const d = typeof input === "string" || typeof input === "number" ? new Date(input) : input
     if (Number.isNaN(d?.getTime?.())) return "-"
-    return d.toLocaleDateString("pt-BR")
+    return d.toLocaleDateString("pt-BR", { timeZone: "UTC" })
 }
 
 export function formatDateLongBR(input: string | Date | null | undefined): string {
@@ -54,7 +54,8 @@ export function formatDateLongBR(input: string | Date | null | undefined): strin
     return d.toLocaleDateString("pt-BR", {
         day: "2-digit",
         month: "long",
-        year: "numeric"
+        year: "numeric",
+        timeZone: "UTC",
     })
 }
 
