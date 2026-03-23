@@ -692,6 +692,7 @@ export default function PedidoCompraForm({
           preco_unitario: Number(item.precoUnitario ?? 0),
           total: Number(item.total ?? 0),
           tamanho: formData.categoria === "MADEIRA" ? (item.tamanho == null ? null : Number(item.tamanho)) : null,
+          componente: item.componente ?? null,
         })),
       }
 

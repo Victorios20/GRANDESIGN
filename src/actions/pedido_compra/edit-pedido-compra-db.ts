@@ -71,6 +71,7 @@ export type PedidoItemInput = {
   tamanho?: Decimalish | null
   preco_unitario: Decimalish
   total: Decimalish
+  componente?: string | null
 }
 
 export type EditarPedidoCompraInput = {
@@ -232,6 +233,7 @@ export async function editarPedidoCompraComItens(
                 tamanho: it.tamanho != null && it.tamanho !== "" ? d(it.tamanho as any) : null,
                 preco_unitario: d(it.preco_unitario),
                 total: d(it.total),
+                componente: it.componente ?? null,
               },
               select: { id: true },
             })
