@@ -3,27 +3,36 @@
 
 import { useSession } from "next-auth/react"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 
-import { EllipsisVertical, Eye, Copy, ShoppingCart } from "lucide-react"
+import { EllipsisVertical, Eye, Copy, ShoppingCart, FileText, User, CalendarDays, Search } from "lucide-react"
 import { toast } from "sonner"
 
-import FilterCardObras from "@/components/obras/FilterCardObras"
+import FilterCardObras, { STATUS_OPTIONS } from "@/components/obras/FilterCardObras"
+import { ObraStatusBadge } from "@/components/obras/ObraStatusBadge"
 import type { FilterStateObras } from "@/components/obras/FilterCardObras"
 
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
 import { GlobalStyles } from "@mui/material"
+
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { deleteObraDB } from "@/actions/obras/delete-obra-db"
+import { Trash2, Check, ChevronDown, Filter, X } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 type ClienteDTO = {
   id: number
@@ -72,6 +81,7 @@ type ObraRow = {
   largura?: number | string | null
   comprimento?: number | string | null
   telha_escolhida?: string | null
+  cor_stain?: string | null
 
   valor_obra?: number | string | null
   valor_mao_de_obra?: number | string | null
@@ -106,8 +116,8 @@ type InitialData = {
 const BEGE = "#E8C99A"
 const MARROM = "#8B5E3C"
 const VERDE_HEADER = "#376139"
+const VERDE_CLARO = "#EBF0EC"
 const CINZA_TEXTO = "#737373"
-
 
 export type ObraStatusFilter =
   | ""
@@ -120,14 +130,7 @@ export type ObraStatusFilter =
   | "PENDENCIA"
   | "FINALIZADO"
 
-
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { deleteObraDB } from "@/actions/obras/delete-obra-db"
-import { Trash2 } from "lucide-react"
-
 export default function ObrasClient({ initial }: { initial: InitialData }) {
-  const router = useRouter()
-
   const [nome, setNome] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [bairro, setBairro] = useState<string>("")
@@ -135,7 +138,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   const [dataFim, setDataFim] = useState<Date | undefined>()
   const [telefone, setTelefone] = useState("")
   const [tipoObra, setTipoObra] = useState("")
-  const [status, setStatus] = useState<ObraStatusFilter>("")
+  const [status, setStatus] = useState<ObraStatusFilter[]>([])
 
   const [obras, setObras] = useState<ObraRow[]>(
     (initial.dados ?? []).map((o, i) => ({
@@ -154,9 +157,14 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   const [page, setPage] = useState(0)
   const [perPage, setPerPage] = useState(20)
 
+  const [orderBy, setOrderBy] = useState<string>("data_criacao")
+  const [ordem, setOrdem] = useState<"asc" | "desc">("desc")
+
   // State for delete dialog
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const cacheConsultar = useRef<Map<string, { dados: ObraRow[]; total: number }>>(new Map())
+
 
   useEffect(() => {
     if (nome.trim() && page !== 0) setPage(0)
@@ -178,13 +186,22 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   useEffect(() => {
     consultar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, bairro, telefone, tipoObra, dataIni, dataFim, page, perPage, status])
+  }, [nome, bairro, telefone, tipoObra, dataIni, dataFim, page, perPage, status, orderBy, ordem])
+
+  function formatLocalDate(date?: Date | null) {
+    if (!date || Number.isNaN(date.getTime())) return undefined
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    return `${year}-${month}-${day}`
+  }
 
   async function consultar() {
     setLoadingTabela(true)
 
-    const dIniISO = dataIni?.toISOString().slice(0, 10)
-    const dFimISO = dataFim?.toISOString().slice(0, 10)
+    const dIniISO = formatLocalDate(dataIni)
+    const dFimISO = formatLocalDate(dataFim)
 
     const qs = new URLSearchParams()
     qs.set("page", String(page + 1))
@@ -195,7 +212,20 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     if (tipoObra) qs.set("tipoObra", tipoObra)
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
-    if (status) qs.set("status", status)
+    if (status && status.length > 0) {
+      status.forEach(s => qs.append("status", String(s)))
+    }
+    qs.set("orderBy", orderBy)
+    qs.set("ordem", ordem)
+
+    const key = qs.toString()
+    if (cacheConsultar.current.has(key)) {
+      const cached = cacheConsultar.current.get(key)!
+      setObras(cached.dados)
+      setTotal(cached.total)
+      setLoadingTabela(false)
+      return
+    }
 
     const res = await fetch(`/api/obras/table-search?${qs.toString()}`, { cache: "no-store" })
     if (!res.ok) {
@@ -212,9 +242,11 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       ...o,
     }))
 
+    cacheConsultar.current.set(key, { dados: mapped, total: Number(json.total ?? 0) })
     setObras(mapped)
     setTotal(Number(json.total ?? 0))
     setLoadingTabela(false)
+
   }
 
   async function handleDelete() {
@@ -225,12 +257,15 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       if (res.success) {
         toast.success("Obra excluída com sucesso!")
         setDeleteId(null)
+        // Clear cache on mutation
+        cacheConsultar.current.clear()
         // Refresh table
         consultar()
+
       } else {
         toast.error(`Erro: ${res.error}`)
       }
-    } catch (error) {
+    } catch {
       toast.error("Erro inesperado ao excluir obra")
     } finally {
       setIsDeleting(false)
@@ -245,7 +280,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     setTipoObra("")
     setDataIni(undefined)
     setDataFim(undefined)
-    setStatus("")
+    setStatus([])
     setPage(0)
   }
 
@@ -271,22 +306,6 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         hour12: false,
       })
       .replace(",", "")
-  }
-
-  const statusLabel = (raw?: string | null) => {
-    const s = String(raw ?? "").trim()
-    if (!s) return "-"
-    const map: Record<string, string> = {
-      ASSINATURA_DE_CONTRATO: "Assinatura de contrato",
-      AGUARDANDO_VALIDACAO_TECNICA: "Aguardando validação técnica",
-      COMPRAS: "Compras",
-      A_INICIAR: "À iniciar",
-      EXECUCAO: "Execução",
-      AGUARDANDO_PAGAMENTO: "Aguardando pagamento",
-      PENDENCIA: "Pendência",
-      FINALIZADO: "Finalizado",
-    }
-    return map[s] ?? s
   }
 
   const rows: ObraRow[] = useMemo(
@@ -315,7 +334,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       name: "titulo",
       label: "Título",
       options: {
-        sort: false,
+        sort: true,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.titulo ?? null),
       },
@@ -324,16 +343,15 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       name: "status",
       label: "Status",
       options: {
-        sort: false,
+        sort: true,
         searchable: false,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex]
           return (
-            <span className="font-medium" style={{ color: CINZA_TEXTO }}>
-              {statusLabel(r?.status ?? null)}
-            </span>
+            <div className="flex items-center">
+              <ObraStatusBadge status={r?.status ?? null} layout="multiline" />
+            </div>
           )
-
         },
       },
     },
@@ -341,7 +359,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       name: "cliente",
       label: "Cliente",
       options: {
-        sort: false,
+        sort: true,
         searchable: true,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex] as any
@@ -355,7 +373,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       name: "bairro",
       label: "Bairro",
       options: {
-        sort: false,
+        sort: true,
         searchable: true,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex] as any
@@ -369,16 +387,34 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       name: "tipo_obra",
       label: "Tipo de obra",
       options: {
-        sort: false,
+        sort: true,
         searchable: true,
         customBodyRender: (_val, meta) => safeCell((rows[meta.rowIndex] as any)?.tipo_obra ?? null),
+      },
+    },
+    {
+      name: "cor_stain",
+      label: "Cor do Stain",
+      options: {
+        display: "false",
+        sort: true,
+        searchable: true,
+        customBodyRender: (_val, meta) => {
+          const cor = (rows[meta.rowIndex] as any)?.cor_stain
+          if (!cor) return <span className="text-marromClaro">—</span>
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-semibold border border-[#376139]/30 text-[#376139] bg-[#f4f4f4] whitespace-nowrap">
+              {cor}
+            </span>
+          )
+        },
       },
     },
     {
       name: "equipe",
       label: "Equipe",
       options: {
-        sort: false,
+        sort: true,
         searchable: true,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex] as any
@@ -389,10 +425,19 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       },
     },
     {
+      name: "data_criacao",
+      label: "Data de Criação",
+      options: {
+        sort: true,
+        searchable: false,
+        customBodyRender: (_val, meta) => strDate((rows[meta.rowIndex] as any)?.data_criacao ?? null),
+      },
+    },
+    {
       name: "data_ultima_alteracao",
       label: "Data da Atualização",
       options: {
-        sort: false,
+        sort: true,
         searchable: false,
         customBodyRender: (_val, meta) => strDate((rows[meta.rowIndex] as any)?.data_ultima_alteracao ?? null),
       },
@@ -515,11 +560,11 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   ]
 
   const options: MUIDataTableOptions = {
-    search: true,
+    search: false,
     filter: false,
     print: false,
-    download: true,
-    viewColumns: true,
+    download: false,
+    viewColumns: false,
     responsive: "standard",
     selectableRows: "none",
     serverSide: true,
@@ -537,16 +582,30 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         const q = tableState.searchText || ""
         setSearchInput(q)
       }
+      if (action === "sort") {
+        const activeSort = tableState.sortOrder
+        if (activeSort) {
+          setOrderBy(activeSort.name)
+          setOrdem(activeSort.direction as "asc" | "desc")
+        } else {
+          setOrderBy("data_criacao")
+          setOrdem("desc")
+        }
+      }
     },
-    sort: false,
+    sortOrder: {
+      name: orderBy,
+      direction: ordem,
+    },
+    sort: true,
     elevation: 0,
-    setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
+    setTableProps: () => ({ style: { borderRadius: 0, overflow: "hidden" } }),
     onRowClick: (_rowData, rowMeta) => {
       const id = rows[rowMeta.dataIndex]?.id
-      if (id != null) router.push(`/obras/${id}`)
+      if (id != null) window.open(`/obras/${id}`, '_blank')
     },
     setRowProps: () => ({
-      className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
+      className: "obras-table-row cursor-pointer",
     }),
   }
 
@@ -554,8 +613,8 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     () =>
       createTheme({
         palette: {
-          primary: { main: MARROM },
-          text: { primary: MARROM },
+          primary: { main: VERDE_HEADER },
+          text: { primary: CINZA_TEXTO },
         },
         components: {
           MuiToolbar: {
@@ -569,28 +628,67 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
             },
           },
 
-          // ✅ só o cabeçalho da tabela com o verde do sistema
-          MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER } } },
+          MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER, borderRadius: "8px 8px 0 0" } } },
           MuiTableRow: { styleOverrides: { head: { backgroundColor: VERDE_HEADER, height: 36 } } },
+
+          MUIDataTableHeadCell: {
+            styleOverrides: {
+              sortActive: {
+                color: "#f4f4f4 !important",
+              },
+              sortAction: {
+                "& .MuiTableSortLabel-root, & .MuiTableSortLabel-icon": {
+                  color: "#f4f4f4 !important",
+                  opacity: "1 !important",
+                },
+              },
+            },
+          },
+
+          MuiTableSortLabel: {
+            styleOverrides: {
+              root: {
+                color: "#f4f4f4 !important",
+                opacity: 1,
+                "&:hover": { color: "#ffffff !important" },
+                "&.Mui-active": { color: "#ffffff !important" },
+                "&.Mui-active .MuiTableSortLabel-icon": { color: "#ffffff !important" },
+              },
+              icon: {
+                color: "#ffffff !important",
+              },
+            },
+          },
 
           MuiTableCell: {
             styleOverrides: {
               head: {
                 backgroundColor: VERDE_HEADER,
                 color: "#f4f4f4",
-                fontWeight: 700,
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                letterSpacing: "0.01em",
+                textTransform: "none",
                 paddingTop: 6,
                 paddingBottom: 6,
                 lineHeight: 1.1,
                 whiteSpace: "nowrap",
+                "&.MuiTableCell-head": {
+                  color: "#f4f4f4",
+                  textTransform: "none",
+                },
+                "& .MUIDataTableHeadCell-sortActive": {
+                  color: "#f4f4f4 !important",
+                  textTransform: "none",
+                },
               },
               root: {
                 color: CINZA_TEXTO,
-                borderBottom: "1px solid rgba(0,0,0,0.06)",
-                paddingTop: 6,
-                paddingBottom: 6,
+                borderBottom: "1px solid rgba(0,0,0,0.04)", // Even softer border for cleaner look
+                paddingTop: 8,
+                paddingBottom: 8, // Added slightly more padding for breathing room
+                transition: "background-color 0.2s ease, box-shadow 0.2s ease",
               },
-
             },
           },
 
@@ -607,16 +705,16 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           MuiSvgIcon: { styleOverrides: { root: { color: "inherit" } } },
           MuiCheckbox: {
             styleOverrides: {
-              root: { color: MARROM, "&.Mui-checked": { color: BEGE } },
+              root: { color: VERDE_HEADER, "&.Mui-checked": { color: VERDE_HEADER } },
             },
           },
-          MuiFormControlLabel: { styleOverrides: { label: { color: MARROM } } },
+          MuiFormControlLabel: { styleOverrides: { label: { color: CINZA_TEXTO } } },
           MuiMenuItem: {
             styleOverrides: {
               root: {
-                color: MARROM,
+                color: CINZA_TEXTO,
                 "&.Mui-selected, &.Mui-selected:hover": {
-                  backgroundColor: "rgba(232,201,154,0.35)",
+                  backgroundColor: "rgba(55,97,57,0.12)",
                 },
               },
             },
@@ -642,27 +740,115 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     telefone,
     bairro,
     tipoObra,
-    ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-    fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+    ini: formatLocalDate(dataIni),
+    fim: formatLocalDate(dataFim),
     pageSize: perPage as any,
-    status: status || null,
   }
 
   return (
     <PageLayout headerActions={headerActions} isTitulo>
       <TooltipProvider>
         <Card ultraCompact>
-          <CardHeader className="py-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5">
-                <CardTitle className="text-2xl leading-tight text-green">Obras</CardTitle>
-                <CardDescription className="text-[13px] leading-tight" style={{ color: CINZA_TEXTO }}>
-                  Tabela com as obras cadastradas.
-                </CardDescription>
-
+          <CardHeader className="pb-0 pt-4 px-4 sm:px-6">
+            {/* Título */}
+            <div className="flex items-baseline gap-3 mb-4">
+              <CardTitle className="text-xl font-bold tracking-tight text-[#376139]">Obras</CardTitle>
+              <span className="text-xs font-medium" style={{ color: CINZA_TEXTO }}>
+                {total} resultado{total !== 1 ? "s" : ""}
+              </span>
+            </div>
+ 
+            {/* Barra de busca + filtros */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-[#376139]/50" />
+                <Input
+                  placeholder="Pesquisar por Título, cliente, bairro ou telefone..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setNome(searchInput)
+                      setPage(0)
+                    }
+                  }}
+                  className="pl-9 pr-10 h-10 rounded-sm border-[#737373]/30 focus:border-[#376139] focus:ring-1 focus:ring-[#376139]/20 transition-all font-medium text-[#376139] placeholder:text-[#737373]/60 w-full"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchInput(""); setNome(""); setPage(0) }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors text-[#737373] hover:text-[#376139]"
+                    aria-label="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-
-              <div className="flex items-center gap-2">
+ 
+              {/* Filtro de Status Multi-select */}
+              <div className="shrink-0 min-w-[180px]">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      role="combobox"
+                      className="w-full h-10 px-4 justify-between rounded-lg border-none bg-[#EBF0EC] text-[#376139] font-medium hover:bg-[#376139]/20 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 overflow-hidden truncate">
+                        <Filter className="h-4 w-4 shrink-0 opacity-80" />
+                        {status.length === 0 ? "Todos os Status" : (
+                          <div className="flex gap-1 overflow-hidden">
+                            {status.map((s) => (
+                              <Badge
+                                key={s}
+                                variant="secondary"
+                                className="h-5 px-1 font-normal text-[10px] bg-green/10 text-green border-green/20 whitespace-nowrap"
+                              >
+                                {STATUS_OPTIONS.find(o => o.value === s)?.label || s}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[260px] p-0" align="end">
+                    <Command>
+                      <CommandInput placeholder="Filtrar status..." h-9 />
+                      <CommandList>
+                        <CommandEmpty>Nenhum status encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {STATUS_OPTIONS.map((opt) => (
+                            <CommandItem
+                              key={opt.value}
+                              onSelect={() => {
+                                const next = status.includes(opt.value as any)
+                                  ? status.filter(s => s !== opt.value)
+                                  : [...status, opt.value as any]
+                                setStatus(next)
+                                setPage(0)
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <div className={cn(
+                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
+                                status.includes(opt.value as any) ? "bg-primary text-primary-foreground" : "opacity-50"
+                              )}>
+                                {status.includes(opt.value as any) && <Check className="h-3 w-3" />}
+                              </div>
+                              <span>{opt.label}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+ 
+              <div className="flex items-center gap-2 shrink-0">
                 <FilterCardObras
                   value={filterValue}
                   onChange={(next) => {
@@ -675,7 +861,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                     if (v.pageSize) setPerPage(Number(v.pageSize))
                     setDataIni(v.ini ? new Date(v.ini) : undefined)
                     setDataFim(v.fim ? new Date(v.fim) : undefined)
-                    setStatus((v.status as any) ?? "")
+                    // Status agora é mantido fora do FilterCard, mas mantemos o onChange se necessário
                     setPage(0)
                   }}
                   onApply={() => consultar()}
@@ -692,28 +878,77 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
           <CardContent className="pt-2 pb-4 px-4 sm:px-6">
             {loadingTabela ? (
-              <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} className="h-6 w-full" />
+              <div className="space-y-3">
+                <Skeleton className="h-[36px] w-full" /> {/* Header */}
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[48px] w-full" />
                 ))}
               </div>
             ) : (
               <ThemeProvider theme={theme}>
                 <GlobalStyles
                   styles={{
-                    ".MUIDataTableToolbar-root": { minHeight: "36px", padding: "0 8px" },
+                    ".MUIDataTableToolbar-root": { display: "none !important" },
 
-                    // ✅ só o cabeçalho da tabela com o verde do sistema
+                    // Cabeçalho da tabela com o verde suave
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: VERDE_HEADER + " !important",
                       color: "#f4f4f4 !important",
+                      transition: "background-color 0.2s ease",
                     },
 
-                    ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
-                      color: CINZA_TEXTO + " !important",
+                    ".MUIDataTableHeadCell-root": {
+                       transition: "background-color 0.25s ease !important",
                     },
-                    ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
-                      backgroundColor: "rgba(55,97,57,0.12) !important",
+
+                    // Efeito Hover na célula inteira do cabeçalho
+                    ".MUIDataTableHeadCell-root:hover, .MuiTableCell-head:hover": {
+                       backgroundColor: "#386e3b !important", // Um verde levemente mais claro que o VERDE_HEADER (#2E5C31)
+                       cursor: "pointer",
+                    },
+
+                    ".MuiTableSortLabel-root": {
+                       display: "flex !important",
+                       alignItems: "center !important",
+                       transition: "opacity 0.2s ease",
+                    },
+                    
+                    // Configuração da setinha de ordenação (sempre levemente aparente)
+                    ".MuiTableSortLabel-icon": {
+                       opacity: "0.25 !important",
+                       color: "#f4f4f4 !important",
+                       transition: "opacity 0.2s ease, transform 0.2s ease, color 0.2s",
+                    },
+
+                    // Brilho máximo na setinha quando passa o mouse ou quando a coluna está ordenando
+                    ".MUIDataTableHeadCell-root:hover .MuiTableSortLabel-icon, .MuiTableSortLabel-root:hover .MuiTableSortLabel-icon, .MuiTableSortLabel-root.Mui-active .MuiTableSortLabel-icon": {
+                       opacity: "1 !important",
+                    },
+
+                    // Corrige a cor do texto quando a coluna está ordenada ativamente
+                    ".MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active": {
+                      color: "#f4f4f4 !important",
+                      opacity: "1 !important",
+                    },
+
+                    "& .MUIDataTableHeadCell-sortActive": {
+                      color: "#ffffff !important",
+                      opacity: 1,
+                    },
+
+                    /* Row hover: subtle background + left accent bar */
+                    ".obras-table-row": {
+                       transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important",
+                    },
+                    ".obras-table-row:hover td": {
+                      backgroundColor: "#EEF3EF !important", // Slightly deeper but very clean green tint
+                    },
+                    ".obras-table-row:hover td:first-child": {
+                      boxShadow: "inset 4px 0 0 " + VERDE_HEADER + " !important",
+                    },
+                    /* Remove default bottom border of last row */
+                    ".MuiTableBody-root .MuiTableRow-root:last-child td": {
+                      borderBottom: "none",
                     },
 
                   }}

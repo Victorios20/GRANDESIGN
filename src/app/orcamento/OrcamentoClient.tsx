@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
-import { EllipsisVertical, Eye, Pencil, Copy, Hammer, Trash2, CheckCircle2 } from "lucide-react"
+import { EllipsisVertical, Eye, Pencil, Copy, Hammer, Trash2, CheckCircle2, Search } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -37,6 +38,7 @@ type OrcRow = OrcamentoTabela & {
   lancadoObraEmISO?: string | null
   obraId?: number | null
   excluido?: boolean
+  corStain?: string | null
 }
 
 type InitialData = {
@@ -124,13 +126,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setNome(searchInput)
-      setPage(0)
-    }, 450)
-    return () => clearTimeout(t)
-  }, [searchInput])
+  // Removido debounce automático. A pesquisa agora é via Enter no Input customizado.
 
   useEffect(() => {
     consultar()
@@ -233,50 +229,16 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   const columns: MUIDataTableColumnDef[] = [
     {
       name: "id",
-      label: "id",
+      label: "ID",
       options: {
         sort: false,
         filter: false,
         searchable: false,
-        display: "excluded",
         viewColumns: false,
         download: false,
         print: false,
       },
     },
-    {
-  name: "obra",
-  label: "",
-  options: {
-    sort: false,
-    searchable: false,
-    filter: false,
-    setCellHeaderProps: () => ({ style: { width: 44, paddingLeft: 8, paddingRight: 8 } }),
-    setCellProps: () => ({ style: { textAlign: "center" } }),
-    customBodyRender: (_val, meta) => {
-      const r = rows[meta.rowIndex]
-      if (!r?.lancadoObra || r?.obraId == null) return null
-
-      return (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-marromEscuro hover:bg-marromClaro/20"
-          aria-label="Ir para a obra"
-          title="Ir para a obra"
-          data-no-row-nav
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            router.push(`/obras/${r.obraId}`)
-          }}
-        >
-          <Hammer className="h-4 w-4" />
-        </Button>
-      )
-    },
-  },
-},
 
     { name: "titulo", label: "Título", options: { sort: false, searchable: true } },
     { name: "cliente", label: "Cliente", options: { sort: false, searchable: true } },
@@ -304,21 +266,62 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
       options: {
         sort: false,
         searchable: true,
-        customBodyRender: (_val, meta) => safeCell(rows[meta.rowIndex]?.tipoObra),
+        customBodyRender: (_val, meta) => {
+          const tipo = rows[meta.rowIndex]?.tipoObra
+          if (!tipo) return <span className="text-marromClaro">—</span>
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-semibold border border-marromClaro/40 text-marromEscuro bg-[#FDF5EB] whitespace-nowrap">
+              {tipo}
+            </span>
+          )
+        },
+      },
+    },
+    {
+      name: "corStain",
+      label: "Cor do Stain",
+      options: {
+        display: "false",
+        sort: false,
+        searchable: true,
+        customBodyRender: (_val, meta) => {
+          const cor = rows[meta.rowIndex]?.corStain
+          if (!cor) return <span className="text-marromClaro">—</span>
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-xs font-semibold border border-marromClaro/40 text-marromEscuro bg-[#FDF5EB] whitespace-nowrap">
+              {cor}
+            </span>
+          )
+        },
       },
     },
     {
       name: "situacao",
       label: "Situação",
       options: {
+        display: "false",
         sort: false,
         searchable: false,
         customBodyRender: (_val, meta) => {
           const r = rows[meta.rowIndex]
           const isExcluido = !!r?.excluido
+          const isLancado = !!r?.lancadoObra
+          if (isExcluido)
+            return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                Excluído
+              </span>
+            )
+          if (isLancado)
+            return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold bg-[#FDF5EB] text-marromEscuro border border-marromClaro/40">
+                <Hammer className="h-3 w-3" />
+                Em Obra
+              </span>
+            )
           return (
-            <span className={isExcluido ? "text-red-700 font-medium" : "text-emerald-700 font-medium"}>
-              {isExcluido ? "Excluído" : "Ativo"}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Ativo
             </span>
           )
         },
@@ -492,11 +495,11 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
   ]
 
   const options: MUIDataTableOptions = {
-    search: true,
+    search: false,
     filter: false,
     print: false,
-    download: true,
-    viewColumns: true,
+    download: false,
+    viewColumns: false,
     responsive: "standard",
     selectableRows: "none",
     serverSide: true,
@@ -510,20 +513,16 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
         setPerPage(tableState.rowsPerPage)
         setPage(0)
       }
-      if (action === "search") {
-        const q = tableState.searchText || ""
-        setSearchInput(q)
-      }
     },
     sort: false,
     elevation: 0,
-    setTableProps: () => ({ style: { borderRadius: 12, overflow: "hidden" } }),
+    setTableProps: () => ({ style: { borderRadius: 0, overflow: "hidden" } }),
     onRowClick: (_rowData, rowMeta) => {
       const id = rows[rowMeta.dataIndex]?.id
       if (id != null) router.push(`/orcamento/detalhes/${id}`)
     },
     setRowProps: () => ({
-      className: "cursor-pointer hover:bg-[rgba(232,201,154,0.15)]",
+      className: "orc-table-row cursor-pointer",
     }),
   }
 
@@ -612,29 +611,56 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
     <PageLayout headerActions={headerActions} isTitulo>
       <TooltipProvider>
         <Card ultraCompact>
-          <CardHeader className="py-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="space-y-0.5">
-                <CardTitle className="text-2xl leading-tight text-marromEscuro">Orçamentos</CardTitle>
-                <CardDescription className="text-[13px] leading-tight text-marromClaro">
-                  Tabela com os orçamentos dos clientes.
-                </CardDescription>
+          <CardHeader className="pb-0 pt-4 px-4 sm:px-6">
+            {/* Título */}
+            <div className="flex items-baseline gap-3 mb-4">
+              <CardTitle className="text-xl font-bold text-marromEscuro tracking-tight">Orçamentos</CardTitle>
+              <span className="text-xs text-marromClaro font-medium">
+                {total} resultado{total !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* Barra de busca + filtros */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-marromClaro pointer-events-none" />
+                <Input
+                  placeholder="Pesquisar por ID, cliente, obra ou telefone..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setNome(searchInput)
+                      setPage(0)
+                    }
+                  }}
+                  className="pl-9 pr-10 h-10 rounded-sm border-marromClaro/40 focus:border-marromEscuro focus:ring-1 focus:ring-marromEscuro/20 transition-all font-medium text-marromEscuro placeholder:text-marromClaro/60 w-full"
+                />
+                {searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchInput(""); setNome(""); setPage(0) }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-marromClaro hover:text-marromEscuro transition-colors"
+                    aria-label="Limpar busca"
+                  >
+                    ✕
+                  </button>
+                )}
+
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <FilterCard
-                  value={
-                    {
-                      q: nome,
-                      telefone,
-                      bairro,
-                      tipoObraId,
-                      ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
-                      fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
-                      pageSize: perPage as any,
-                      statusExcluido,
-                    } as any
-                  }
+                  value={{
+                    q: nome,
+                    telefone,
+                    bairro,
+                    tipoObraId,
+                    ini: dataIni ? dataIni.toISOString().slice(0, 10) : undefined,
+                    fim: dataFim ? dataFim.toISOString().slice(0, 10) : undefined,
+                    pageSize: perPage as any,
+                    statusExcluido,
+                  } as any}
                   onChange={(next) => {
                     const v = next as any
                     setNome(v.q ?? "")
@@ -653,10 +679,7 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
                     setPage(0)
                   }}
                   onApply={() => consultar()}
-                  onClear={() => {
-                    limparFiltros()
-                    consultar()
-                  }}
+                  onClear={() => { limparFiltros(); consultar() }}
                   tipoObraOptions={tiposOpts}
                   pageSizeOptions={[10, 20, 25, 50, 100]}
                   loading={loadingTabela}
@@ -676,16 +699,24 @@ export default function HomeClient({ initial }: { initial: InitialData }) {
               <ThemeProvider theme={theme}>
                 <GlobalStyles
                   styles={{
-                    ".MUIDataTableToolbar-root": { minHeight: "36px", padding: "0 8px" },
+                    /* Hide the native MUI toolbar completely */
+                    ".MUIDataTableToolbar-root": { display: "none !important" },
+                    /* Table header */
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
                       backgroundColor: BEGE + " !important",
                       color: MARROM + " !important",
                     },
-                    ".MUIDataTableToolbar-icon, .MUIDataTableToolbar-iconActive": {
-                      color: MARROM + " !important",
+                    /* Row hover: left accent bar + subtle bg */
+                    ".orc-table-row:hover td": {
+                      backgroundColor: "#FDF5EB !important",
+                      transition: "background-color 0.15s ease",
                     },
-                    ".MUIDataTableToolbar-icon:hover, .MUIDataTableToolbar-iconActive": {
-                      backgroundColor: "rgba(232,201,154,0.35) !important",
+                    ".orc-table-row:hover td:first-child": {
+                      boxShadow: "inset 3px 0 0 " + MARROM,
+                    },
+                    /* Remove default bottom border of last row */
+                    ".MuiTableBody-root .MuiTableRow-root:last-child td": {
+                      borderBottom: "none",
                     },
                   }}
                 />

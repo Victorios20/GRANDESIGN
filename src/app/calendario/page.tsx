@@ -1,5 +1,5 @@
-// src/app/calendario/page.tsx
 "use client"
+import { useSession } from "next-auth/react"
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import Link from "next/link"
@@ -120,7 +120,8 @@ async function fetchWithCache(url: string, bustCache = false): Promise<any> {
     return cached.data
   }
 
-  const res = await fetch(url)
+  const fetchUrl = bustCache ? (url.includes("?") ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`) : url
+  const res = await fetch(fetchUrl)
   if (!res.ok) throw new Error(`Failed to fetch ${url}`)
 
   const data = await res.json()
@@ -209,8 +210,21 @@ export default function CalendarioPage() {
   // Sidebar collapsed state
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
-  // User permissions
-  const [canEdit] = useState(true)
+  // Permissions logic
+  const { data: session } = useSession()
+  const canEdit = useMemo(() => {
+    if (!session?.user) return false
+    const userRoles = (session.user as any)?.roles || []
+    return userRoles.some((r: string) => ["ADMIN", "GERENTE"].includes(r.toUpperCase()))
+  }, [session])
+
+  useEffect(() => {
+    if (session) {
+      console.log("CURRENT SESSION:", session)
+      console.log("ROLES IN SESSION:", (session.user as any)?.roles)
+      console.log("CAN EDIT?", canEdit)
+    }
+  }, [session, canEdit])
 
   // Initialize external draggable - stable initialization
   useEffect(() => {
@@ -614,7 +628,7 @@ export default function CalendarioPage() {
     try {
       setIsFetchingAgenda(true)
 
-      const res = await fetch(`/api/obras/${idOfObra}/detalhado`)
+      const res = await fetch(`/api/obras/${idOfObra}/detalhado?_t=${Date.now()}`)
       if (!res.ok) {
         throw new Error(`API error: ${res.status}`)
       }
@@ -670,7 +684,7 @@ export default function CalendarioPage() {
 
 
 
-  // Status color helper
+  // Status color helper (for calendar segment status)
   const getStatusColor = (status: string) => {
     switch (status) {
       case "EXECUCAO": return "bg-emerald-500"
@@ -708,6 +722,42 @@ export default function CalendarioPage() {
       case "COMPRAS": return "border-amber-500"
       case "PENDENCIA": return "border-rose-500"
       default: return "border-gray-400"
+    }
+  }
+
+  // Full obra status helpers (covers all ObraStatus enum values)
+  // Labels match exactly those in ObrasClient.tsx > statusLabel()
+  const getObraStatusLabel = (status: string) => {
+    switch (status) {
+      case "ASSINATURA_DE_CONTRATO":       return "Assinatura de contrato"
+      case "AGUARDANDO_VALIDACAO_TECNICA": return "Aguardando validação técnica"
+      case "COMPRAS":                      return "Compras"
+      case "A_INICIAR":                    return "À iniciar"
+      case "EXECUCAO":                     return "Execução"
+      case "AGUARDANDO_PAGAMENTO":         return "Aguardando pagamento"
+      case "PENDENCIA":                    return "Pendência"
+      case "FINALIZADO":                   return "Finalizado"
+      default:                             return status
+    }
+  }
+
+  const getObraStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case "EXECUCAO":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200"
+      case "A_INICIAR":
+        return "bg-blue-50 text-blue-700 border-blue-200"
+      case "COMPRAS":
+      case "ASSINATURA_DE_CONTRATO":
+      case "AGUARDANDO_VALIDACAO_TECNICA":
+        return "bg-amber-50 text-amber-700 border-amber-200"
+      case "PENDENCIA":
+      case "AGUARDANDO_PAGAMENTO":
+        return "bg-rose-50 text-rose-700 border-rose-200"
+      case "FINALIZADO":
+        return "bg-green-50 text-green-700 border-green-200"
+      default:
+        return "bg-gray-50 text-gray-600 border-gray-200"
     }
   }
 
@@ -804,8 +854,19 @@ export default function CalendarioPage() {
                           <GripVertical className="w-4 h-4 text-muted-foreground/50 mt-0.5 group-hover:text-muted-foreground transition-colors flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-sm truncate leading-tight">
-                              {obra.titulo || `Obra #${obra.id}`}
+                              <Link 
+                                href={`/obras/${obra.id}`} 
+                                target="_blank" 
+                                className="hover:underline"
+                              >
+                                {obra.titulo || `Obra #${obra.id}`}
+                              </Link>
                             </p>
+                            <span
+                              className={`inline-block mt-1 px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none ${getObraStatusBadgeClass(obra.status)}`}
+                            >
+                              {getObraStatusLabel(obra.status)}
+                            </span>
                             <div className="flex items-center gap-1.5 mt-1">
                               <User className="w-3 h-3 text-muted-foreground" />
                               <p className="text-xs text-muted-foreground truncate">

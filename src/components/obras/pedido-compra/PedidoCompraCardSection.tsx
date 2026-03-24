@@ -11,7 +11,6 @@ import {
   ShoppingCart,
   ExternalLink,
   Trash2,
-  XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -87,7 +86,6 @@ export function PedidoCompraCardSection({
   onCreate,
   // onCancelar, // We will implement internal cancel handler
   onExcluir,
-  onIntegrar,
 }: Props) {
   const router = useRouter()
   const pathname = usePathname()
@@ -409,18 +407,6 @@ export function PedidoCompraCardSection({
                               </DropdownMenuItem>
                             )}
 
-                            {!integrado && id > 0 && !isCancelled && (
-                              <DropdownMenuItem
-                                onSelect={(e) => {
-                                  e.stopPropagation()
-                                  setMenuOpenKey(null)
-                                  onIntegrar?.(id)
-                                }}
-                              >
-                                Integrar ao Financeiro
-                              </DropdownMenuItem>
-                            )}
-
                             <DropdownMenuSeparator />
 
 
@@ -460,7 +446,7 @@ export function PedidoCompraCardSection({
           obraId={obraId ?? null}
           onClose={() => setSelected(null)}
           onEdit={(id) => handleEdit(id)}
-          onIntegrar={(id) => onIntegrar?.(id)}
+          onMutationComplete={() => router.refresh()}
         />
       )}
     </>

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { PedidoCompraStatus } from "@prisma/client"
+import {
+  atualizarStatusPedidoCompra,
+  PedidoCompraStatusError,
+} from "@/actions/pedido_compra/update-pedido-compra-status-db"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -25,32 +27,6 @@ function json(resBody: any, status = 200, requestId?: string) {
   return new NextResponse(JSON.stringify(resBody), { status, headers })
 }
 
-function normalizeStr(s: string) {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
-}
-
-function mapStatus(raw: any): PedidoCompraStatus | null {
-  const s = String(raw ?? "").trim()
-  if (!s) return null
-
-  if (Object.values(PedidoCompraStatus).includes(s as PedidoCompraStatus)) {
-    return s as PedidoCompraStatus
-  }
-
-  const n = normalizeStr(s)
-
-  if (n === "rascunho") return PedidoCompraStatus.RASCUNHO
-  if (n === "pendente") return PedidoCompraStatus.PENDENTE
-  if (n === "aprovado") return PedidoCompraStatus.APROVADO
-  if (n === "em compra" || n === "emcompra") return PedidoCompraStatus.EM_COMPRA
-  if (n === "aguardando pagamento" || n === "aguardandopagamento") return PedidoCompraStatus.AGUARDANDO_PAGAMENTO
-  if (n === "aguardando entrega" || n === "aguardandoentrega") return PedidoCompraStatus.AGUARDANDO_ENTREGA
-  if (n === "entregue") return PedidoCompraStatus.ENTREGUE
-  if (n === "cancelado") return PedidoCompraStatus.CANCELADO
-
-  return null
-}
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -70,24 +46,27 @@ export async function PATCH(
     const body = await req.json().catch(() => null)
     if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
 
-    const nextStatus = mapStatus(body?.status)
-    if (!nextStatus) return json({ error: "INVALID_STATUS", requestId }, 400, requestId)
-
-    const exists = await prisma.pedido_compra.findUnique({
-      where: { id },
-      select: { id: true },
-    })
-    if (!exists) return json({ error: "NOT_FOUND", requestId }, 404, requestId)
-
-    const updated = await prisma.pedido_compra.update({
-      where: { id },
-      data: { status: nextStatus },
-      select: { id: true, status: true, updated_at: true },
-    })
+    const updated = await atualizarStatusPedidoCompra(id, body?.status)
 
     return json({ data: updated, requestId }, 200, requestId)
-  } catch (err: any) {
-    console.error("[PATCH /api/pedido_compra/status/[id]] unexpected", err)
+  } catch (error: any) {
+    if (error instanceof PedidoCompraStatusError) {
+      const statusMap: Record<string, number> = {
+        PAYLOAD_INVALIDO: 400,
+        STATUS_INVALIDO: 400,
+        PEDIDO_NAO_ENCONTRADO: 404,
+        PEDIDOS_NAO_ENCONTRADOS: 404,
+        STATUS_UPDATE_FAILED: 500,
+      }
+
+      return json(
+        { error: error.message, code: error.code, step: error.step, details: error.details, requestId },
+        statusMap[error.code] ?? 500,
+        requestId
+      )
+    }
+
+    console.error("[PATCH /api/pedido_compra/status/[id]] unexpected", error)
     const requestId2 = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
     return json({ error: "UNEXPECTED_ERROR", requestId: requestId2 }, 500, requestId2)
   }

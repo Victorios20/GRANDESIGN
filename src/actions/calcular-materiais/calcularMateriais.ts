@@ -7,6 +7,7 @@ import {
   getReceitasFixas,
   type MaterialRow,
 } from "./calcularMateriais-db"
+import { calculateLShapeArea } from "@/lib/l-shape-area"
 
 /* ================= Tipos ================= */
 
@@ -75,10 +76,15 @@ export async function calcularMateriais(
   tipoObra: string,
   largura?: number,
   comprimento?: number,
-  opts?: ({ fornecedorId: number } & Partial<CobertaLOpts>),
+  opts?: {
+    fornecedorId: number
+    corStain?: string | null
+  } & Partial<CobertaLOpts>,
 ): Promise<Resultado> {
   const tipoNorm = (tipoObra ?? "").replace(/\u00A0/g, " ").trim()
   const fornecedorId = opts?.fornecedorId
+  const corStain = opts?.corStain
+
   if (typeof fornecedorId !== "number") {
     throw new Error("fornecedorId obrigatório")
   }
@@ -118,6 +124,7 @@ export async function calcularMateriais(
       comLinhaNaParede,
       ...L,
       fornecedorId,
+      corStain,
     })
 
     return calcularMateriaisCobertaL(
@@ -127,7 +134,7 @@ export async function calcularMateriais(
       L.LMenor,
       L.CMenor,
       fornecedorId,
-      { comLinhaNaParede },
+      { comLinhaNaParede, corStain },
     )
   }
 
@@ -135,7 +142,7 @@ export async function calcularMateriais(
   if (!tipoObra || !largura || !comprimento) {
     throw new Error("Parâmetros obrigatórios: tipoObra, largura, comprimento")
   }
-  return calcularMateriaisNormal(tipoNorm, largura, comprimento, fornecedorId)
+  return calcularMateriaisNormal(tipoNorm, largura, comprimento, fornecedorId, corStain)
 }
 
 /* ============================================================
@@ -146,6 +153,7 @@ async function calcularMateriaisNormal(
   largura: number,
   comprimento: number,
   fornecedorId: number,
+  corStain?: string | null,
 ): Promise<Resultado> {
   const madeiraRaw: MadeiraRow[] = []
   const materiaisRaw: BaseRow[] = []
@@ -154,7 +162,11 @@ async function calcularMateriaisNormal(
   // Flag para evitar duplicar sextavado quando já for calculado em casos específicos
   let adicionouSextavado = false
 
-  const area = largura * ROUND_HALF(comprimento + 0.5)
+  let area = largura * ROUND_HALF(comprimento + 0.5)
+  const isCorredorQuedaQuintal = /^Corredor Queda Quintal/i.test(tipoNorm)
+  if (isCorredorQuedaQuintal) {
+    area = largura * (ROUND_INT(comprimento) + 0.5)
+  }
   const largArred = ROUND_HALF(largura)
   const compArred = ROUND_HALF(comprimento)
   const espessura = tipoNorm.includes("11,5") ? "11,5cm" : "15cm"
@@ -170,9 +182,11 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Tipos auxiliares (NOVOS) ------------------ */
   const isCorredorQuedaLateral = /^Corredor Queda Lateral/i.test(tipoNorm)
-  const isCorredorQuedaFrontal = /^Corredor Queda Frontal/i.test(tipoNorm)
-  const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaFrontal
+  const isCorredorQuedaQuintal_flag = isCorredorQuedaQuintal 
+  const isCaibroRipa = /^Caibro e Ripa/i.test(tipoNorm) || isCorredorQuedaLateral
+  const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaQuintal
   const isMaoFrancesa = /^Mão Francesa/i.test(tipoNorm)
+  const isEucalipto = /^Caramanhão de Eucalipto/i.test(tipoNorm)
 
   /* ------------------ Lógica principal ------------------ */
   switch (true) {
@@ -219,6 +233,13 @@ async function calcularMateriaisNormal(
       break
     }
 
+    case /^Caramanhão de Eucalipto/i.test(tipoNorm): {
+      add("Eucalipto 12-14cm", "Coluna", 4, 3.5)
+      add("Eucalipto 10-12cm", "Travessa", 2, largArred)
+      add("Eucalipto 8-10cm", "Pérgola", ROUND_INT(largura / 0.35) + 1, compArred)
+      break
+    }
+
     // Base existente: Caibro e Ripa (agora também será reaproveitada pelos corredores)
     case /^Caibro e Ripa/i.test(tipoNorm): {
       break
@@ -231,17 +252,16 @@ async function calcularMateriaisNormal(
       break
     }
 
-    case /^Corredor Queda Frontal/i.test(tipoNorm): {
-      // 1) Terças adicionais (a cada 1m no comprimento): Linha 11,5cm de 1,0m
-      const qtdTercas = Math.max(0, ROUND_INT(comprimento))
-      add("Linha 11,5cm", "Terça", qtdTercas, 1.0)
+    case /^Corredor Queda Quintal/i.test(tipoNorm): {
+      // 1) Linhas nas paredes: 2 linhas de 11,5cm com comprimento + 0,5m
+      add("Linha 11,5cm", "Linha na Parede", 2, ROUND_HALF(comprimento + 0.5))
 
-      // 2) Parafuso sextavado para essas terças: 2 por peça + 2 de sobra
-      const qtdSext = qtdTercas * 2 + 2
-      if (qtdSext > 0) {
-        addMaterial("Parafuso Sextavado", qtdSext)
-        adicionouSextavado = true
-      }
+      // 2) Barrotes: a cada 32cm com comprimento igual à largura
+      const qtdBarrotes = ROUND_INT(comprimento / 0.32) + 1
+      add("Barrote", "Barrotes", qtdBarrotes, largArred)
+
+      // 3) Beirais: 2 de 15cm com comprimento igual à largura
+      add("Beiral Trab. 15cm", "Beiral", 2, largArred)
       break
     }
 
@@ -249,17 +269,29 @@ async function calcularMateriaisNormal(
     case /^Mão Francesa/i.test(tipoNorm): {
       const qtdMF = ROUND_INT(largura / 2)
 
-      add("Linha 15cm", "Mão francesa", qtdMF, 2)
-      add("Linha 15cm", "Mão francesa", qtdMF, 2)
-      add("Linha 15cm", "Mão francesa", qtdMF, 1.5)
+      const tamanhoVertical = Math.max(1, ROUND_HALF(0.90 * comprimento))
+      const tamanhoHorizontal = Math.max(1, ROUND_HALF(0.67 * comprimento))
+      const tamanhoDiagonal = Math.max(1, ROUND_HALF(0.89 * comprimento))
 
-      add("Barrote", "barrote", 2, largArred)
+      const tamanhoBarroteEstrutural = Math.max(1, ROUND_HALF(largura))
+      const tamanhoBarroteInclinado = Math.max(1, ROUND_HALF(comprimento * 1.3))
+      const tamanhoBarroteTelha = Math.max(1, ROUND_HALF(largura))
 
-      add("Barrote", "barrote", qtdMF, ROUND_HALF(comprimento * 1.3))
+      // 3 peças por mão francesa
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoVertical)
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoHorizontal)
+      add("Linha 15cm", "mão francesa", qtdMF, tamanhoDiagonal)
 
+      // 2 barrotes fixos do telhado inteiro
+      add("Barrote", "barrote", 2, tamanhoBarroteEstrutural)
+
+      // 1 barrote inclinado por mão francesa
+      add("Barrote", "barrote", qtdMF, tamanhoBarroteInclinado)
+
+      // Barrotes que seguram telha
       const compLinear = ROUND_INT(comprimento)
       const qtdBarrotesTelha = ROUND_INT(compLinear / 0.32) + 1
-      add("Barrote", "barrote", qtdBarrotesTelha, largArred)
+      add("Barrote", "barrote", qtdBarrotesTelha, tamanhoBarroteTelha)
 
       break
     }
@@ -269,9 +301,13 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Madeira comum ------------------ */
-  if (!/^(Pergolado|Caramanchão|Mão Francesa)/i.test(tipoNorm)) {
+  if (
+    !/^(Pergolado|Caramanchão|Mão Francesa|Corredor Queda Quintal|Caramanhão de Eucalipto)/i.test(
+      tipoNorm,
+    )
+  ) {
     const isCaibroRipaBase = /^Caibro e Ripa/i.test(tipoNorm)
-    const isCaibroRipa = isCaibroRipaBase || isCorredorQueda
+    const isCaibroRipa = isCaibroRipaBase || isCorredorQuedaLateral
     const isLinhaParede = /^Linha na Parede(?! \+ Coluna)/i.test(tipoNorm)
     const isLinhaParedeComCol = /^Linha na Parede \+ Coluna/i.test(tipoNorm)
 
@@ -318,7 +354,9 @@ async function calcularMateriaisNormal(
     }
 
     // ===== BEIRAL =====
-    add("Beiral Trab. 15cm", "Beiral", 1, largArred)
+    if (!isCorredorQuedaQuintal) {
+      add("Beiral Trab. 15cm", "Beiral", 1, largArred)
+    }
   }
 
   /* ------------------ Cálculo automático de colunas ------------------ */
@@ -327,7 +365,7 @@ async function calcularMateriaisNormal(
     .filter(m => componentesColuna.includes(m.componente))
     .reduce((s, x) => s + x.quantidade, 0)
 
-  const qtdColunasLinhas = totalLinhasColuna / 2
+  const qtdColunasLinhas = isEucalipto ? totalLinhasColuna : totalLinhasColuna / 2
 
   if (qtdColunasLinhas > 0) {
     addMaterial("Parafusos Franceses", qtdColunasLinhas * 3 + 3)
@@ -355,7 +393,7 @@ async function calcularMateriaisNormal(
   }
 
   /* ------------------ Telhas (descrições reais do banco) ------------------ */
-  if (!/^(Pergolado|Caramanchão)/i.test(tipoNorm)) {
+  if (!/^(Pergolado|Caramanchão|Caramanhão de Eucalipto)/i.test(tipoNorm)) {
     const formulas = {
       Romana: { factor: 17, offset: 10 },
       SuperRomana: { factor: 12, offset: 10 },
@@ -375,20 +413,32 @@ async function calcularMateriaisNormal(
     })
   }
 
-  /* ------------------ Receitas fixas ------------------ */
+  /* ------------------ Receitas fixas + Stain Variável ------------------ */
   try {
     const receitasFixas = await getReceitasFixas(tipoNorm)
+    const idStainLegado = 9 // Hardcoded: Stain Proteção UV
+    
     const ids = receitasFixas.map(r => r.material_id)
     const materiaisFixos = await getMateriaisByIds(ids, fornecedorId)
+
     receitasFixas.forEach(({ material_id, quantidade }) => {
+      // Ignora o stain fixo antigo se estivermos usando o variável por cor
+      if (material_id === idStainLegado) return 
+      
       const material = materiaisFixos.find(m => m.id === material_id)
       if (material) {
         const jaExiste = materiaisRaw.some(m => m.descricao === material.descricao)
         if (!jaExiste) {
-          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade })
+          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade: Number(quantidade) })
         }
       }
     })
+
+    // Adiciona o Stain Variável
+    if (corStain) {
+      const qtdStain = tipoNorm.includes("Mão Francesa") ? 0.3 : 0.5
+      addMaterial(`Stain ${corStain}`, qtdStain)
+    }
   } catch (err) {
     console.error("Erro ao carregar receitas fixas:", err)
   }
@@ -406,6 +456,7 @@ async function calcularMateriaisNormal(
   }
 
   const ordemMadeira = [
+    "mão francesa",
     "Linha na Parede",
     "Colunas Traseiras",
     "Colunas Frontais",
@@ -416,6 +467,7 @@ async function calcularMateriaisNormal(
     "Pérgola",
     "Terças",
     "Terça",
+    "barrote",
     "Caibros",
     "Ripas",
     "Beiral",
@@ -476,7 +528,10 @@ export async function calcularMateriaisCobertaL(
   LMenor: number,
   CMenor: number,
   fornecedorId: number,
-  opts?: { comLinhaNaParede?: boolean },
+  opts?: {
+    comLinhaNaParede?: boolean
+    corStain?: string | null
+  },
 ): Promise<Resultado> {
   if (!tipoBase || !LMaior || !CMaior || !LMenor || !CMenor) {
     throw new Error("Parâmetros obrigatórios da Coberta em L não informados.")
@@ -553,9 +608,13 @@ export async function calcularMateriaisCobertaL(
   addMaterial("Parafuso Sextavado", qtdSextavado)
 
   /* ---------- 8) Telhas (POR COR / descrições do banco) ---------- */
-  const area1 = CMenor * LMaior
-  const area2 = (CMaior - CMenor) * LMenor
-  const areaComPerda = (area1 + area2) * 1.08
+  const areaBaseL = calculateLShapeArea({
+    larguraMaior: LMaior,
+    larguraMenor: LMenor,
+    comprimentoMaior: CMaior,
+    comprimentoMenor: CMenor,
+  })
+  const areaComPerda = areaBaseL * 1.08
 
   const formulas = {
     Romana: { factor: 17, offset: 10 },
@@ -573,6 +632,35 @@ export async function calcularMateriaisCobertaL(
       telhasRaw.push({ descricao, componente: "", quantidade: qtd })
     })
   })
+
+  /* ---------- 8.1) Stain Variável (L) ---------- */
+  if (opts?.corStain) {
+    addMaterial(`Stain ${opts.corStain}`, 0.5)
+  }
+
+  /* ---------- 8.2) Receitas fixas (L) ---------- */
+  try {
+    const receitasFixas = await getReceitasFixas(tipoBase)
+    const idStainLegado = 9 // Hardcoded: Stain Proteção UV
+    
+    const ids = receitasFixas.map(r => r.material_id)
+    const materiaisFixos = await getMateriaisByIds(ids, fornecedorId)
+
+    for (const { material_id, quantidade } of receitasFixas) {
+      // Ignora o stain fixo antigo se estivermos usando o variável por cor
+      if (material_id === idStainLegado) continue 
+      
+      const material = materiaisFixos.find(m => m.id === material_id)
+      if (material) {
+        const jaExiste = materiaisRaw.some(m => m.descricao === material.descricao)
+        if (!jaExiste) {
+          materiaisRaw.push({ descricao: material.descricao, componente: "", quantidade: Number(quantidade) })
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[calcularMateriaisCobertaL] Erro ao carregar receitas fixas:", err)
+  }
 
   /* ---------- Agrupar / ordenar / preços / retorno ---------- */
   const agrupar = <T extends BaseRow>(rows: T[]): T[] => {

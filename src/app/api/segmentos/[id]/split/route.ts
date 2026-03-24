@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Params }) {
             return NextResponse.json({ error: "Data de divisão é obrigatória" }, { status: 400 })
         }
 
-        const splitDateObj = new Date(splitDate)
+        const splitDateObj = new Date(`${splitDate}T12:00:00`)
 
         // Find existing segment
         const existing = await prisma.obraAgendaSegmento.findUnique({

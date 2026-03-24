@@ -76,11 +76,17 @@ export async function POST(req: NextRequest) {
 
     const result = await criarObraComHeadPedidoCompra({
       orcamentoId: Number(body.orcamentoId),
+      titulo: body.titulo ? String(body.titulo) : null,
       endereco_obra: String(body.endereco_obra),
       maps_url: String(body.maps_url),
       tipo_obra: String(body.tipo_obra),
       largura: Number(body.largura),
       comprimento: Number(body.comprimento),
+      largura_maior: body.largura_maior != null ? Number(body.largura_maior) : undefined,
+      largura_menor: body.largura_menor != null ? Number(body.largura_menor) : undefined,
+      comprimento_maior: body.comprimento_maior != null ? Number(body.comprimento_maior) : undefined,
+      comprimento_menor: body.comprimento_menor != null ? Number(body.comprimento_menor) : undefined,
+      is_l_shape: body.is_l_shape === undefined ? undefined : Boolean(body.is_l_shape),
       telha_escolhida: String(body.telha_escolhida),
       observacoes: body.observacoes ?? null,
       status: body.status ?? null,

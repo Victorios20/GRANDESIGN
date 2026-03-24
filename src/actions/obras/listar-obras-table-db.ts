@@ -54,8 +54,9 @@ export type ListarObrasTableParams = {
   tipoObra?: string | null
   dIni?: string | null
   dFim?: string | null
-  status?: string | null
+  status?: string | string[] | null
   ordem?: "asc" | "desc" | string | null
+  orderBy?: string | null
   semAgenda?: boolean | string | null
 }
 
@@ -73,6 +74,7 @@ export type ObraTableRowDTO = {
   largura: number
   comprimento: number
   telha_escolhida: string
+  cor_stain: string | null
   valor_obra: number
   valor_mao_de_obra: number
   status: string
@@ -140,8 +142,30 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
 
   const ordemIn = String(params?.ordem ?? "desc").toLowerCase()
   const ordem: "asc" | "desc" = ordemIn === "asc" ? "asc" : "desc"
+  const orderByRaw = params?.orderBy ?? "data_criacao"
 
-  const statusMapped = mapObraStatus(params?.status ?? null)
+  let prismaOrderBy: any = [{ data_criacao: "desc" }, { id: "desc" }]
+  const allowedSortFields = ["titulo", "endereco_obra", "tipo_obra", "telha_escolhida", "cor_stain", "data_criacao", "data_ultima_alteracao", "status"]
+  if (allowedSortFields.includes(orderByRaw)) {
+    prismaOrderBy = [{ [orderByRaw]: ordem }, { id: "desc" }]
+  } else if (orderByRaw === "cliente") {
+    prismaOrderBy = [{ cliente: { nome: ordem } }, { id: "desc" }]
+  } else if (orderByRaw === "bairro") {
+    prismaOrderBy = [{ cliente: { bairro: ordem } }, { id: "desc" }]
+  } else if (orderByRaw === "equipe") {
+    prismaOrderBy = [{ equipe: { nome: ordem } }, { id: "desc" }]
+  }
+
+  const rawStatus = params?.status
+  const statusArray: ObraStatus[] = []
+
+  if (rawStatus) {
+    const arr = Array.isArray(rawStatus) ? rawStatus : String(rawStatus).split(",")
+    for (const s of arr) {
+      const mapped = mapObraStatus(s)
+      if (mapped) statusArray.push(mapped)
+    }
+  }
 
   const qDigits = onlyDigits(q)
   const telDigits = onlyDigits(telefone)
@@ -180,8 +204,8 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     and.push({ OR: ors })
   }
 
-  if (statusMapped) {
-    and.push({ status: statusMapped })
+  if (statusArray.length > 0) {
+    and.push({ status: { in: statusArray } })
   }
 
   if (dIni || dFimExclusive) {
@@ -202,8 +226,9 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     prisma.obras.count({ where }),
     prisma.obras.findMany({
       where,
-      orderBy: [{ data_ultima_alteracao: ordem }, { id: "desc" }],
+      orderBy: prismaOrderBy,
       skip: (page - 1) * perPage,
+
       take: perPage,
       include: {
         cliente: { include: { cidades: true } },
@@ -244,6 +269,7 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
       largura: n(o.largura)!,
       comprimento: n(o.comprimento)!,
       telha_escolhida: o.telha_escolhida,
+      cor_stain: o.cor_stain ?? null,
       valor_obra: n(o.valor_obra)!,
       valor_mao_de_obra: n(o.valor_mao_de_obra)!,
       status: o.status,

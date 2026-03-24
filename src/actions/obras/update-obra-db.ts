@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { Prisma, PedidoCategoria, ObraStatus } from "@prisma/client"
+import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus } from "@prisma/client"
 
 type Id = number | string
 
@@ -15,6 +15,14 @@ type PedidoItemInput = {
   total?: number | string
 }
 
+type ImagemInput = {
+  id?: number | string
+  url?: string
+  ordem?: number
+  legenda?: string
+  _delete?: boolean
+}
+
 export type UpdateObraPayload = {
   obra?: {
     titulo?: string
@@ -23,9 +31,15 @@ export type UpdateObraPayload = {
     tipo_obra?: string
     largura?: number | string
     comprimento?: number | string
+    largura_maior?: number | string | null
+    largura_menor?: number | string | null
+    comprimento_maior?: number | string | null
+    comprimento_menor?: number | string | null
+    is_l_shape?: boolean
     telha_escolhida?: string
     observacoes?: string | null
     status?: string
+    data_criacao?: string | Date | null
     data_inicio_obra?: string | Date | null
     data_fim_obra?: string | Date | null
     data_contrato?: string | Date | null
@@ -36,8 +50,14 @@ export type UpdateObraPayload = {
     valor_mao_de_obra?: number | string
     pagamento_entrada?: number | string
     forma_pagamento_entrada?: string | null
+    status_pagamento_entrada?: string | null
     pagamento_quitacao?: number | string
     forma_pagamento_quitacao?: string | null
+    status_pagamento_quitacao?: string | null
+  }
+  imagens?: {
+    replace?: boolean
+    list?: ImagemInput[]
   }
   pedidoCompra?: {
     categoria?: PedidoCategoria
@@ -45,16 +65,38 @@ export type UpdateObraPayload = {
   }
 }
 
+type UpdateObraResult =
+  | { ok: true; status: 200; data: { id: number } }
+  | { ok: false; status: number; code: string; message: string }
+
 const n = (v: any) => {
   if (v === undefined || v === null || v === "") return undefined
   const num = Number(String(v).replace(",", "."))
   return Number.isFinite(num) ? num : undefined
 }
 
-export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id) {
+function normalizeStr(value: unknown): string {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+}
+
+function mapPagamentoStatus(raw?: string | null): PagamentoStatus | undefined {
+  if (!raw) return undefined
+  if (Object.values(PagamentoStatus).includes(raw as PagamentoStatus)) return raw as PagamentoStatus
+
+  const normalized = normalizeStr(raw)
+  if (normalized === "efetuado") return PagamentoStatus.EFETUADO
+  if (normalized === "pendente") return PagamentoStatus.PENDENTE
+  return undefined
+}
+
+export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id): Promise<UpdateObraResult> {
   const id = Number(obraId)
   if (!id || Number.isNaN(id)) {
-    return { ok: false as const, status: 400, code: "OBRA_ID_INVALIDO" }
+    return { ok: false as const, status: 400, code: "OBRA_ID_INVALIDO", message: "ID da obra inválido." }
   }
 
   const obra = await prisma.obras.findUnique({
@@ -64,7 +106,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   })
 
   if (!obra) {
-    return { ok: false as const, status: 404, code: "OBRA_NAO_ENCONTRADA" }
+    return { ok: false as const, status: 404, code: "OBRA_NAO_ENCONTRADA", message: "Obra não encontrada." }
   }
 
   try {
@@ -76,6 +118,9 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         updatedBy: { connect: { id: Number(userId) } },
       }
 
+      let shouldClosePedidos = false
+      let shouldForceFinalizationStatuses = false
+
       if (payload.obra) {
         obraData.titulo = payload.obra.titulo
         obraData.endereco_obra = payload.obra.endereco_obra
@@ -83,6 +128,13 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.tipo_obra = payload.obra.tipo_obra
         obraData.largura = n(payload.obra.largura)
         obraData.comprimento = n(payload.obra.comprimento)
+        obraData.largura_maior = n(payload.obra.largura_maior)
+        obraData.largura_menor = n(payload.obra.largura_menor)
+        obraData.comprimento_maior = n(payload.obra.comprimento_maior)
+        obraData.comprimento_menor = n(payload.obra.comprimento_menor)
+        if (payload.obra.is_l_shape !== undefined) {
+          obraData.is_l_shape = payload.obra.is_l_shape
+        }
         obraData.telha_escolhida = payload.obra.telha_escolhida
         obraData.observacoes = payload.obra.observacoes ?? undefined
         if (payload.obra.status) {
@@ -100,6 +152,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           const valid = mapa[s]
           if (valid) obraData.status = valid
         }
+        if (payload.obra.data_criacao !== undefined) {
+          const dCriacao = payload.obra.data_criacao
+          obraData.data_criacao = dCriacao ? new Date(dCriacao) : null
+        }
         // Datas de prazo contratual
         if (payload.obra.data_inicio_obra !== undefined) {
           const dIni = payload.obra.data_inicio_obra;
@@ -115,17 +171,21 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
 
         // Lógica de conclusão
-        const newStatus = obraData.status; // status alterado neste payload (se houver)
-        const oldStatus = obra.status;
+        const oldStatus = obra.status
+        const nextStatus = obraData.status ?? oldStatus
+        const isFinalizingNow = nextStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO
 
         // Se mandou data explicita, usa
-        if (payload.obra.data_conclusao !== undefined) {
-          const dConclusao = payload.obra.data_conclusao;
-          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null;
+        if (isFinalizingNow) {
+          const explicitConclusionDate = payload.obra.data_conclusao
+          obraData.data_conclusao = explicitConclusionDate ? new Date(explicitConclusionDate) : new Date()
+          shouldForceFinalizationStatuses = true
+          shouldClosePedidos = true
         }
         // Se NÃO mandou data, mas está mudando para FINALIZADO agora (e não estava antes), auto-set
-        else if (newStatus === ObraStatus.FINALIZADO && oldStatus !== ObraStatus.FINALIZADO) {
-          obraData.data_conclusao = new Date();
+        else if (payload.obra.data_conclusao !== undefined) {
+          const dConclusao = payload.obra.data_conclusao
+          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null
         }
       }
 
@@ -136,6 +196,17 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         obraData.forma_pagamento_entrada = payload.financeiro.forma_pagamento_entrada
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
         obraData.forma_pagamento_quitacao = payload.financeiro.forma_pagamento_quitacao
+
+        const entradaStatus = mapPagamentoStatus(payload.financeiro.status_pagamento_entrada)
+        if (entradaStatus) obraData.status_pagamento_entrada = entradaStatus
+
+        const quitacaoStatus = mapPagamentoStatus(payload.financeiro.status_pagamento_quitacao)
+        if (quitacaoStatus) obraData.status_pagamento_quitacao = quitacaoStatus
+      }
+
+      if (shouldForceFinalizationStatuses) {
+        obraData.status_pagamento_entrada = PagamentoStatus.EFETUADO
+        obraData.status_pagamento_quitacao = PagamentoStatus.EFETUADO
       }
 
       console.log("ObraData final updateObraDB:", obraData)
@@ -144,6 +215,26 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         where: { id },
         data: obraData,
       })
+
+      /* ================= IMAGENS ================= */
+      if (payload.imagens && payload.imagens.replace && Array.isArray(payload.imagens.list)) {
+        // Delete all existing images for this obra
+        await tx.obra_imagens.deleteMany({ where: { obra_id: id } })
+
+        // Insert the new list (preserving order)
+        const imgList = payload.imagens.list
+          .filter((img) => String(img?.url ?? "").trim() !== "")
+          .map((img, i) => ({
+            obra_id: id,
+            url: String(img.url ?? "").trim(),
+            ordem: Number.isFinite(Number(img.ordem)) ? Number(img.ordem) : i + 1,
+            legenda: img.legenda && String(img.legenda).trim() !== "" ? String(img.legenda).trim() : null,
+          }))
+
+        if (imgList.length > 0) {
+          await tx.obra_imagens.createMany({ data: imgList })
+        }
+      }
 
       /* ================= PEDIDO COMPRA ================= */
       if (payload.pedidoCompra) {
@@ -188,6 +279,16 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
       }
 
+      if (shouldClosePedidos) {
+        await tx.pedido_compra.updateMany({
+          where: {
+            obra_id: id,
+            status: { not: PedidoCompraStatus.CANCELADO },
+          },
+          data: { status: PedidoCompraStatus.ENTREGUE },
+        })
+      }
+
       await tx.auditLog.create({
         data: {
           user_id: Number(userId),
@@ -202,7 +303,15 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     })
 
     return { ok: true, status: 200, data: result }
-  } catch (err) {
-    return { ok: false as const, status: 500, code: "UPDATE_FAILED" }
+  } catch (err: any) {
+    const message = err instanceof Error && err.message ? err.message : "Erro ao salvar obra."
+
+    console.error("[updateObraDB] Erro ao salvar obra:", err?.message ?? err, err?.stack ?? "")
+    return {
+      ok: false as const,
+      status: 500,
+      code: "UPDATE_FAILED",
+      message,
+    }
   }
 }

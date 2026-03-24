@@ -1,5 +1,6 @@
 // src/actions/pedido_compra/listar-pedido-compra-db.ts
 import { prisma } from "@/lib/prisma"
+import { fromDateOnlyDb } from "@/lib/date-only"
 import { Prisma, PedidoCompraStatus, PedidoCategoria } from "@prisma/client"
 
 export type PedidoCompraOrderBy =
@@ -35,7 +36,7 @@ export type PedidoCompraListItem = {
   status: PedidoCompraStatus
   valor_orcado: Prisma.Decimal | null
   valor_realizado: Prisma.Decimal | null
-  data_entrega: Date | null
+  data_entrega: string | null
   fornecedor: { id: number; nome: string } | null
   obra_id: number
   obra_status: string | null
@@ -261,7 +262,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     status: r.status as PedidoCompraStatus,
     valor_orcado: r.valor_orcado as any,
     valor_realizado: r.valor_realizado as any,
-    data_entrega: r.data_entrega == null ? null : new Date(r.data_entrega),
+    data_entrega: fromDateOnlyDb(r.data_entrega),
     obra_id: Number(r.obra_id),
     obra_status: r.obra_status == null ? null : String(r.obra_status),
     obra_titulo: r.obra_titulo == null ? null : String(r.obra_titulo),

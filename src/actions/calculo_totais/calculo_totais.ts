@@ -1,8 +1,11 @@
 import type { MaterialCalculado } from "../calcular-materiais/calcularMateriais"
 
+const DEFAULT_COMMISSION = 300
+
 export interface TotaisCalculados {
   maoDeObra: number
   empresaGD: number
+  comissao: number
 }
 
 type Item = {
@@ -73,7 +76,7 @@ export function calcularTotais({
     console.groupEnd()
   }
 
-  return { maoDeObra, empresaGD }
+  return { maoDeObra, empresaGD, comissao: DEFAULT_COMMISSION }
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -96,6 +99,7 @@ function calcularMaoDeObra(madeiras: Item[] = []): number {
   if (qtdColunas >= 6) return 2400
   if (qtdColunas >= 4) return 2100
   if (qtdColunas >= 2) return 1800
+  if (qtdColunas >= 1) return 1650
 
   if (qtdPontaletes >= 6) return 1800
   if (qtdPontaletes >= 4) return 1500

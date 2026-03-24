@@ -21,7 +21,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ComboboxAdd } from "@/components/ui/comboboxAdd"
+import { calculateLShapeArea } from "@/lib/l-shape-area"
 
 import type { ObraInfosVM, ObraStatus } from "../lib/types"
 import { StatusSelect, type StatusOption } from "@/components/ui/StatusSelect"
@@ -65,6 +67,27 @@ const inputClass =
 const labelText = "text-neutral-700 text-sm font-medium"
 const valueText = "text-neutral-800 text-sm font-normal tabular-nums tracking-tight"
 
+function parseDateValue(value: string | null | undefined): Date | null {
+  if (!value) return null
+
+  const normalized = String(value).trim()
+  const dateLike = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/)
+  if (dateLike) {
+    const [, year, month, day] = dateLike
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
+
+  const direct = new Date(normalized)
+  if (!Number.isNaN(direct.getTime())) return direct
+
+  return null
+}
+
+function formatDateInputValue(value: string | null | undefined): string {
+  const parsed = parseDateValue(value)
+  return parsed ? format(parsed, "yyyy-MM-dd") : ""
+}
+
 export default function InfosGerais({
   value,
   onChange,
@@ -79,6 +102,19 @@ export default function InfosGerais({
       C: Number(value.comprimento || 0).toFixed(2),
     }),
     [value.largura, value.comprimento]
+  )
+
+  const isL = !!value.isLShape
+
+  const lAreaTotal = useMemo(
+    () =>
+      calculateLShapeArea({
+        larguraMaior: value.larguraMaior,
+        larguraMenor: value.larguraMenor,
+        comprimentoMaior: value.comprimentoMaior,
+        comprimentoMenor: value.comprimentoMenor,
+      }),
+    [value.larguraMaior, value.larguraMenor, value.comprimentoMaior, value.comprimentoMenor]
   )
 
   const [isConclusionModalOpen, setIsConclusionModalOpen] = useState(false)
@@ -196,44 +232,138 @@ export default function InfosGerais({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
                 {/* Dimensions Group */}
                 <div className="col-span-full bg-cinza/50 rounded-xl p-4 border border-marromClaro/10">
-                  <Label className="text-xs font-medium text-muted-foreground mb-3 block">Dimensões (m)</Label>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <Label className="text-xs text-marromEscuro mb-1 block">Largura</Label>
-                      {isEditing ? (
-                        <Input
-                          type="number"
-                          step={0.01}
-                          className="bg-white border-marromClaro/30"
-                          value={value.largura ?? 0}
-                          onChange={(e) => onChange({ largura: Number(e.target.value || 0) })}
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-xs font-medium text-muted-foreground block">Dimensões (m)</Label>
+                    
+                    {isEditing && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="is-l-shape" 
+                          checked={isL} 
+                          onCheckedChange={(checked) => {
+                            if (!checked) {
+                              onChange({ isLShape: false, larguraMaior: null, larguraMenor: null, comprimentoMaior: null, comprimentoMenor: null })
+                            } else {
+                              onChange({ isLShape: true })
+                            }
+                          }}
                         />
-                      ) : (
-                        <div className="text-xl font-medium text-marromEscuro">{dims.L}</div>
-                      )}
-                    </div>
-                    <span className="text-muted-foreground pt-4">x</span>
-                    <div className="flex-1">
-                      <Label className="text-xs text-marromEscuro mb-1 block">Comprimento</Label>
-                      {isEditing ? (
-                        <Input
-                          type="number"
-                          step={0.01}
-                          className="bg-white border-marromClaro/30"
-                          value={value.comprimento ?? 0}
-                          onChange={(e) => onChange({ comprimento: Number(e.target.value || 0) })}
-                        />
-                      ) : (
-                        <div className="text-xl font-medium text-marromEscuro">{dims.C}</div>
-                      )}
-                    </div>
-                    <div className="flex-1 pl-4 border-l border-marromClaro/20">
-                      <Label className="text-xs text-muted-foreground mb-1 block">Área Total</Label>
-                      <div className="text-xl font-bold text-green">
-                        {(Number(value.largura || 0) * Number(value.comprimento || 0)).toFixed(2)} m²
+                        <Label htmlFor="is-l-shape" className="text-xs font-medium text-marromEscuro cursor-pointer">
+                          Coberta em L
+                        </Label>
+                      </div>
+                    )}
+                    {!isEditing && isL && (
+                      <span className="text-[10px] bg-green/10 text-green px-2 py-0.5 rounded-full font-medium">
+                        Formato L
+                      </span>
+                    )}
+                  </div>
+
+                  {!isL ? (
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Largura</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.largura ?? 0}
+                            onChange={(e) => onChange({ largura: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-xl font-medium text-marromEscuro">{dims.L}</div>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground pt-4">x</span>
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Comprimento</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.comprimento ?? 0}
+                            onChange={(e) => onChange({ comprimento: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-xl font-medium text-marromEscuro">{dims.C}</div>
+                        )}
+                      </div>
+                      <div className="flex-1 pl-4 border-l border-marromClaro/20">
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área Total</Label>
+                        <div className="text-xl font-bold text-green">
+                          {(Number(value.largura || 0) * Number(value.comprimento || 0)).toFixed(2)} m²
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Largura Maior</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.larguraMaior ?? 0}
+                            onChange={(e) => onChange({ larguraMaior: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-lg font-medium text-marromEscuro">{Number(value.larguraMaior || 0).toFixed(2)}</div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Largura Menor</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.larguraMenor ?? 0}
+                            onChange={(e) => onChange({ larguraMenor: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-lg font-medium text-marromEscuro">{Number(value.larguraMenor || 0).toFixed(2)}</div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Compr. Maior</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.comprimentoMaior ?? 0}
+                            onChange={(e) => onChange({ comprimentoMaior: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-lg font-medium text-marromEscuro">{Number(value.comprimentoMaior || 0).toFixed(2)}</div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <Label className="text-xs text-marromEscuro mb-1 block">Compr. Menor</Label>
+                        {isEditing ? (
+                          <Input
+                            type="number"
+                            step={0.01}
+                            className="bg-white border-marromClaro/30"
+                            value={value.comprimentoMenor ?? 0}
+                            onChange={(e) => onChange({ comprimentoMenor: Number(e.target.value || 0) })}
+                          />
+                        ) : (
+                          <div className="text-lg font-medium text-marromEscuro">{Number(value.comprimentoMenor || 0).toFixed(2)}</div>
+                        )}
+                      </div>
+                      <div className="col-span-2 lg:col-span-1 flex-1 lg:pl-4 lg:border-l border-marromClaro/20">
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área Total</Label>
+                        <div className="text-xl font-bold text-green">
+                          {lAreaTotal.toFixed(2)} m²
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col gap-1.5">
@@ -261,31 +391,31 @@ export default function InfosGerais({
                     <FileCheck className="w-4 h-4 text-marromEscuro" />
                     <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Auditoria de Datas</Label>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {/* Dates */}
                     {[
-                      { label: "Início", val: value.dataInicioObra, key: "dataInicioObra" },
+                      { label: "Criação da Obra", val: value.dataCriacao, key: "dataCriacao" },
                       { label: "Contrato", val: value.dataContrato, key: "dataContrato" },
-                      { label: "Data de Conclusão", val: value.dataFimObra, key: "dataFimObra" },
-                      { label: "Entrega Final", val: value.dataConclusao, key: "dataConclusao", hide: value.status !== "Finalizado" }
+                      { label: "Data de Conclusão", val: value.dataConclusao, key: "dataConclusao" }
                     ].map((item: any) => (
-                      !item.hide && (
-                        <div key={item.label} className="flex flex-col gap-1">
-                          <Label className="text-[10px] text-muted-foreground">{item.label}</Label>
-                          {isEditing ? (
-                            <Input
-                              type="date"
-                              className="h-8 text-xs bg-cinza border-0"
-                              value={item.val ?? ""}
-                              onChange={(e: any) => onChange({ [item.key]: e.target.value || null })}
-                            />
-                          ) : (
-                            <div className="text-sm font-medium text-marromEscuro">
-                              {item.val ? format(new Date(item.val + "T00:00:00"), "dd/MM/yyyy") : "-"}
-                            </div>
-                          )}
-                        </div>
-                      )
+                      <div key={item.label} className="flex flex-col gap-1">
+                        <Label className="text-[10px] text-muted-foreground">{item.label}</Label>
+                        {isEditing ? (
+                          <Input
+                            type="date"
+                            className="h-8 text-xs bg-cinza border-0"
+                            value={formatDateInputValue(item.val)}
+                            onChange={(e: any) => onChange({ [item.key]: e.target.value || null })}
+                          />
+                        ) : (
+                          <div className="text-sm font-medium text-marromEscuro">
+                            {(() => {
+                              const parsed = parseDateValue(item.val)
+                              return parsed ? format(parsed, "dd/MM/yyyy") : "-"
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -410,6 +540,57 @@ export default function InfosGerais({
           </Card>
         </div>
       </div>
+
+      {/* Modal de Conclusão de Obra */}
+      <Dialog open={isConclusionModalOpen} onOpenChange={setIsConclusionModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green">
+              <CheckCircle2 className="w-5 h-5" />
+              Finalizar Obra
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-500 mb-4">
+              Ao marcar como finalizada, os pagamentos pendentes serão marcados como efetuados e os pedidos de compra em aberto serão marcados como entregues.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="data-conclusao">Data de Conclusão</Label>
+              <Input
+                id="data-conclusao"
+                type="date"
+                className={inputClass}
+                value={conclusionDate ? format(conclusionDate, "yyyy-MM-dd") : ""}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    // Cuidado com fuso horário, usando as construtor para evitar bug de dia anterior
+                    const [year, month, day] = e.target.value.split('-').map(Number);
+                    setConclusionDate(new Date(year, month - 1, day));
+                  } else {
+                    setConclusionDate(undefined);
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex sm:justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsConclusionModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-green hover:bg-green/90 text-white"
+              onClick={confirmConclusion}
+            >
+              Confirmar Finalização
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

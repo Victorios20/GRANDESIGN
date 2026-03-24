@@ -1,6 +1,8 @@
 // next.config.ts
 import type { NextConfig } from "next"
 
+process.env.TZ = process.env.TZ || "America/Sao_Paulo"
+
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
 

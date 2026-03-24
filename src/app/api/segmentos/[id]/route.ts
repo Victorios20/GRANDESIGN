@@ -97,8 +97,8 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
 
         const data: any = {}
 
-        if (inicio !== undefined) data.inicio = new Date(inicio)
-        if (fim !== undefined) data.fim = new Date(fim)
+        if (inicio !== undefined) data.inicio = new Date(`${inicio}T12:00:00`)
+        if (fim !== undefined) data.fim = new Date(`${fim}T12:00:00`)
         if (equipe_id !== undefined) data.equipe_id = equipe_id ? Number(equipe_id) : null
         if (observacoes !== undefined) data.observacoes = observacoes
 

@@ -110,6 +110,20 @@ export interface PurchaseOrder {
     createdAt: string
 }
 
+export interface PedidoCompraSummaryInitialData {
+    id: number
+    obraId?: number | null
+    obraTitulo?: string | null
+    descricao?: string | null
+    categoria?: PedidoCategoria | string | null
+    status?: PedidoStatus | string | null
+    fornecedorNome?: string | null
+    valorOrcado?: number | string | null
+    valorRealizado?: number | string | null
+    dataEntrega?: string | null
+    integrado?: boolean
+}
+
 // ═══════════════════════════════════════════════════════════
 // FORM DATA
 // ═══════════════════════════════════════════════════════════
@@ -122,6 +136,7 @@ export interface OrderItem {
     precoUnitario: number
     total: number
     tamanho?: number | null
+    componente?: string | null
 }
 
 export interface DeliveryAddress {
@@ -207,5 +222,6 @@ export interface PedidoCompraDetalhadoSnake {
         tamanho: string | null
         preco_unitario: number | string
         total: number | string
+        componente: string | null
     }>
 }

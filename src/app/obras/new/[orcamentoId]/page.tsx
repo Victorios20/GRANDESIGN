@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { headers as nextHeaders } from "next/headers"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import ObrasPage from "@/app/obras/ObrasPage"
 import type { GetOrcamentoResult, ObraInfosVM } from "@/app/obras/lib/types"
 import type { FinanceiroVM } from "@/app/obras/_sections/Financeiro"
@@ -233,6 +233,10 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   if (!resOrc.ok) notFound()
   const orc = (await resOrc.json()) as GetOrcamentoResult
 
+  if (orc.lancadoObra && Number.isFinite(Number(orc.obraId)) && Number(orc.obraId) > 0) {
+    redirect(`/obras/${Number(orc.obraId)}`)
+  }
+
   console.log("[ObraCreatePage] DTO /api/Orcamentos:", JSON.stringify(orc, null, 2))
 
   const tiposRaw = await resTipos.json().catch(() => null)
@@ -257,11 +261,23 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const clienteId =
     Number((orc as any)?.cliente?.id ?? (orc as any)?.cliente_id ?? (orc as any)?.clienteId ?? 0) || undefined
 
+  const clienteBairro = orc.cliente?.bairro || ""
+  const clienteCidade = orc.cliente?.cidade || ""
+  const fallbackTitulo = `${orc.cliente?.nome || "Sem Nome"} ${clienteBairro || clienteCidade ? `[${[clienteBairro, clienteCidade].filter(Boolean).join(" - ")}]` : ""}`.trim()
+  
+  const tipoObra = orc.parametros?.tipoObra ?? ""
+  const isLShapeByTipo = / em L$/i.test(tipoObra) || / L$/i.test(tipoObra)
+
   const initial: Partial<ObraInfosVM> = {
-    titulo: orc.titulo ?? undefined,
-    tipoObra: orc.parametros?.tipoObra ?? "",
+    titulo: orc.titulo || fallbackTitulo,
+    tipoObra,
+    isLShape: isLShapeByTipo,
     largura: orc.parametros?.largura ?? null,
     comprimento: orc.parametros?.comprimento ?? null,
+    larguraMaior: orc.parametros?.larguraMaior ?? null,
+    larguraMenor: orc.parametros?.larguraMenor ?? null,
+    comprimentoMaior: orc.parametros?.comprimentoMaior ?? null,
+    comprimentoMenor: orc.parametros?.comprimentoMenor ?? null,
     telhaEscolhida: telhaOptions[0]?.value || "",
     status: "Assinatura de contrato" as any,
     cliente: {

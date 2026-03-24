@@ -173,6 +173,7 @@ export type InitialData = {
     fornecedorId?: number | null
     fornecedorNome?: string | null
     observacoes?: string | null
+    corStain?: string | null
 }
 
 
@@ -221,6 +222,17 @@ type ApiErrorShape = {
 type Pagto = { pix: number; x10: number; x18: number }
 type TotaisPayload = { madeiras: number; materiais: number; comissao: number; frete: number; empresaPS: number; empresaGD: number }
 
+function normalizeTotais(totais?: Partial<TotaisPayload> | null): TotaisPayload {
+    return {
+        madeiras: totais?.madeiras ?? 0,
+        materiais: totais?.materiais ?? 0,
+        comissao: totais?.comissao ?? 0,
+        frete: totais?.frete ?? 0,
+        empresaPS: totais?.empresaPS ?? 0,
+        empresaGD: totais?.empresaGD ?? 0,
+    }
+}
+
 type SalvarPayload = {
     clienteId?: number
 
@@ -252,6 +264,8 @@ type SalvarPayload = {
     links?: { slideUrl: string | null; pdfUrl: string | null }
     titulo: string
     observacoes?: string | null
+    fornecedorId?: number | null // NEW
+    cor_stain?: string | null
 }
 
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
@@ -677,6 +691,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const [cityResetKey, setCityResetKey] = useState(0)
     const [obraResetKey, setObraResetKey] = useState(0)
     const [observacoes, setObservacoes] = useState<string>("")
+    const [corStain, setCorStain] = useState<string>("")
 
 
     const [hydrated, setHydrated] = useState(false)
@@ -1015,13 +1030,10 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const selectedTipoId =
         tiposObra.find((x) => x.tipo_obra === (tipoObra ?? ""))?.id ?? null
 
-    const isCobertaL =
-        ((tipoObra ?? "")
-            .replace(/\u00A0/g, " ")
-            .replace(/\s+/g, " ")
-            .trim()
-            .toLowerCase()
-            .startsWith("coberta em l"))
+    const normalizeRoofType = (s: string | null | undefined) =>
+        (s ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+
+    const isCobertaL = normalizeRoofType(tipoObra).startsWith("coberta em l")
 
 
     const [dim, setDim] = useState<Dim>({
@@ -1100,7 +1112,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         }))
 
         setMateriais(initialData.materiais)
-        setTotEdit(initialData.totais)
+        setTotEdit(normalizeTotais(initialData.totais))
         setTelhaValores({ ...initialData.telhaValores })
         setLinks({ slide, pdf })
 
@@ -1116,6 +1128,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         )
 
         setObservacoes((initialData?.observacoes ?? "") || "")
+        setCorStain((initialData?.corStain ?? "") || "")
 
         setHydrated(true)
     }, [isEdit, initialData])
@@ -1165,8 +1178,11 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     const gerarTituloAutomatico = () => {
         const sanitize = (text: string) => text.trim().replace(/\s+/g, " ").replace(/,/g, "")
-        if (!form.nome && !form.bairro && !tipoObra) return ""
-        return `${sanitize(form.nome)} ${sanitize(form.bairro)} ${sanitize(tipoObra ?? "")}`.trim()
+        const nome = sanitize(form.nome)
+        const obra = sanitize(tipoObra ?? "")
+        if (!nome && !obra) return ""
+        if (nome && obra) return `${nome} - ${obra}`
+        return nome || obra
     }
 
 
@@ -1187,7 +1203,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setTipoObra(null)
         setDim({ largura: 0, comprimento: 0, larguraMaior: 0, larguraMenor: 0, comprimentoMaior: 0, comprimentoMenor: 0 })
         setMateriais({ madeiras: [], materiaisGerais: [], telhas: [] })
-        setTotEdit({ madeiras: 0, materiais: 0, frete: 0, comissao: 0, empresaPS: 0, empresaGD: 0 })
+        setTotEdit(normalizeTotais())
         setTelhaValores({})
         setTitulo("")
         setTituloTemporario("")
@@ -1196,6 +1212,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setAutoTituloSnap("")
         setLinks({})
         setObservacoes("")
+        setCorStain("")
         if (!isEdit) localStorage.removeItem(STORAGE_KEY)
     }
 
@@ -1205,6 +1222,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         setCityResetKey(k => k + 1)
         setClienteId(null)
         setObservacoes("")
+        setCorStain("")
         setClienteSnap({ nome: "", telefone: "", cidade: "", bairro: "" })
         setQNome(""); setResNome([])
         setQTel(""); setResTel([])
@@ -1246,13 +1264,14 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     larguraMenor: dim.larguraMenor,
                     comprimentoMenor: dim.comprimentoMenor,
                     fornecedorId: Number(fornecedorSel),
+                    corStain: corStain,
                 })
             } else {
                 resultado = await calcularMateriais(
                     tipoObra,
                     dim.largura,
                     dim.comprimento,
-                    { fornecedorId: Number(fornecedorSel) }
+                    { fornecedorId: Number(fornecedorSel), corStain: corStain }
                 )
             }
 
@@ -1285,20 +1304,23 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             console.log("telhasNew:", telhasNew)
             console.groupEnd()
 
-            const { maoDeObra, empresaGD } = calcularTotais({
+            const { maoDeObra, empresaGD, comissao } = calcularTotais({
                 madeiras: madeirasNew,
                 materiais: materGNew,
                 telhas: telhasNew
             })
 
-            setTotEdit({
-                madeiras: madeirasSubtotal,
-                materiais: materiaisSubtotal,
-                comissao: 0,
-                frete: 0,
-                empresaPS: maoDeObra,
-                empresaGD: empresaGD,
-            })
+            setTotEdit(prev =>
+                normalizeTotais({
+                    ...prev,
+                    madeiras: madeirasSubtotal,
+                    materiais: materiaisSubtotal,
+                    comissao,
+                    frete: 0,
+                    empresaPS: maoDeObra,
+                    empresaGD,
+                })
+            )
 
             toast.success("Cálculo concluído com sucesso!")
         } catch (err: unknown) {
@@ -1410,14 +1432,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
     const totMadeiras = subtotalMadeiras(materiais.madeiras)
     const totMateriais = subtotalGeral(materiais.materiaisGerais)
 
-    const [totEdit, setTotEdit] = useState(() => ({
-        madeiras: totMadeiras,
-        materiais: totMateriais,
-        comissao: 0,
-        frete: 0,
-        empresaPS: 0,
-        empresaGD: 0,
-    }))
+    const [totEdit, setTotEdit] = useState<TotaisPayload>(() =>
+        normalizeTotais({
+            madeiras: totMadeiras,
+            materiais: totMateriais,
+        })
+    )
 
     // totEdit: Record<categoria, number> já existe no seu código
 
@@ -1539,7 +1559,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 setTipoObra(d.tipoObra ?? null)
                 setDim(d.dim ?? dim)
                 setMateriais(d.materiais ?? materiais)
-                setTotEdit(d.totEdit ?? totEdit)
+                setTotEdit(normalizeTotais(d.totEdit))
                 setTelhaValores(d.telhaValores ?? telhaValores)
                 setTitulo(d.titulo ?? "")
                 setObservacoes(d.observacoes ?? "")
@@ -1626,7 +1646,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     const payloadCreate = {
                         clienteId: Number(clienteId),
                         cliente: form,
-                        parametros: { tipoObra: tipoObra ?? "", ...dim },
+                        parametros: (buildDbPayload().parametros as any),
                         materiais,
                         totais: totEdit,
                         telhaValores: telhaValoresAtual,
@@ -1754,11 +1774,6 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
 
     // payload comum para DB
     const buildDbPayload = (): UpdateOrcamentoInput => {
-        // segurança extra: essa função só faz sentido em modo edição
-        if (!isEdit) {
-            throw new Error("buildDbPayload só deve ser chamado em modo edição.")
-        }
-
         // garante que SEMPRE existe um cliente associado antes de salvar
         if (clienteId == null) {
             throw new Error("Cliente não associado. Cadastre ou associe um cliente antes de salvar o orçamento.")
@@ -1768,29 +1783,21 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
         const parametros: any = { tipoObra: tipoObra ?? "", tipoObraId: selectedTipoId }
 
         if (isCobertaL) {
-            // Para Coberta em L, enviamos as 4 dimensões
+            // Para Coberta em L, enviamos as 4 dimensões e limpamos as 2 padrões
             parametros.larguraMaior = toPos(dim.larguraMaior)
             parametros.larguraMenor = toPos(dim.larguraMenor)
             parametros.comprimentoMaior = toPos(dim.comprimentoMaior)
             parametros.comprimentoMenor = toPos(dim.comprimentoMenor)
-
-            // No EDIT, limpe largura/comprimento se não fizerem parte desse tipo
-            if (isEdit) {
-                parametros.largura = null
-                parametros.comprimento = null
-            }
+            parametros.largura = null
+            parametros.comprimento = null
         } else {
-            // Obra “normal”: usa largura/comprimento
+            // Obra “normal”: usa largura/comprimento e limpa as 4 de L
             parametros.largura = toPos(dim.largura)
             parametros.comprimento = toPos(dim.comprimento)
-
-            // No EDIT, limpe as dimensões da Coberta em L caso tenham ficado no BD
-            if (isEdit) {
-                parametros.larguraMaior = null
-                parametros.larguraMenor = null
-                parametros.comprimentoMaior = null
-                parametros.comprimentoMenor = null
-            }
+            parametros.larguraMaior = null
+            parametros.larguraMenor = null
+            parametros.comprimentoMaior = null
+            parametros.comprimentoMenor = null
         }
 
         const telhaValoresAtual = calcTelhaValores(materiais.telhas, somaTotal)
@@ -1838,6 +1845,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             actorUserId: currentUserId,
             fornecedorId: fornecedorSel ? Number(fornecedorSel) : null,
             observacoes: (observacoes || "").trim() || null,
+            cor_stain: (corStain || "").trim() || null,
         }
     }
 
@@ -1969,10 +1977,12 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     onPickCliente={onPickCliente}
                     clearEtapa1={clearEtapa1}
                     clienteId={clienteId}
-                    isSavingClient={isSavingClient}
                     openClienteModalCreate={openClienteModalCreate}
                     openClienteModalEdit={openClienteModalEdit}
+                    isSavingClient={false}
                 />
+
+
 
 
 
@@ -2116,6 +2126,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 }
                                 placeholder="Buscar fornecedor..."
                                 widthClass="w-56"
+                                buttonClassName={`h-9 rounded-md border border-gray-300 bg-white shrink-0 shadow-none font-normal hover:translate-y-0 hover:shadow-none transition-none active:scale-100 active:shadow-none focus-visible:translate-y-0 ${!fornecedorSel ? "text-muted-foreground hover:text-muted-foreground" : "text-foreground"}`}
                                 disabled={!fornecedores.length}
                                 items={fornecedores
                                     .filter(f => f.tipo && f.tipo.toLowerCase().includes("madeira"))
@@ -2123,7 +2134,23 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                 onSelect={(v) => setFornecedorSel(Number(v))}
                                 showEmptyOption={false}
                             />
+                        </div>
 
+                        <div className="flex flex-col gap-1">
+                            <Label>Cor do Stain</Label>
+                            <Select value={corStain} onValueChange={setCorStain}>
+                                <SelectTrigger className="w-56 bg-white shrink-0 shadow-none border-gray-300">
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Transparente">Transparente</SelectItem>
+                                    <SelectItem value="Castanho">Castanho</SelectItem>
+                                    <SelectItem value="Imbuia">Imbuia</SelectItem>
+                                    <SelectItem value="Ipê">Ipê</SelectItem>
+                                    <SelectItem value="Mogno">Mogno</SelectItem>
+                                    <SelectItem value="Nogueira">Nogueira</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
 
@@ -2455,7 +2482,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                         <CardContent className="p-3">
                             <Table>
                                 <TableBody>
-                                    {(Object.entries(totEdit) as [TotKey, number][]).map(([k, v]) => (
+                                    {(Object.entries(totEdit) as [TotKey, number][]).map(([k]) => (
                                         <TableRow key={k}>
                                             <TableCell>{displayLabel[k]}</TableCell>
 
@@ -2746,7 +2773,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                             const payloadRascunho = {
                                                 clienteId: Number(clienteId),
                                                 cliente: form,
-                                                parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                parametros: (buildDbPayload().parametros as any),
                                                 materiais,
                                                 totais: totEdit,
                                                 telhaValores: telhaValoresAtual,
@@ -2819,7 +2846,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 const payloadCopia = {
                                                     clienteId: Number(clienteId),
                                                     cliente: form,
-                                                    parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                    parametros: (buildDbPayload().parametros as any),
                                                     materiais,
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,
@@ -2845,7 +2872,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                                                 const payloadCopiaRascunho = {
                                                     clienteId: Number(clienteId),
                                                     cliente: form,
-                                                    parametros: { tipoObra: tipoObra ?? "", ...dim },
+                                                    parametros: (buildDbPayload().parametros as any),
                                                     materiais,
                                                     totais: totEdit,
                                                     telhaValores: telhaValoresAtual,

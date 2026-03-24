@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { fromDateOnlyDb } from "@/lib/date-only"
 
 export type PedidoCompraDetalhadoErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -23,6 +24,7 @@ export type PedidoCompraItemDTO = {
   descricao: string
   quantidade: any
   tamanho: any | null
+  componente: string | null
   preco_unitario: any
   total: any
   created_at: Date
@@ -47,7 +49,7 @@ export type PedidoCompraDetalhadoDTO = {
   fornecedor_id: number | null
   fornecedor: { id: number; nome: string; tipo: string | null } | null
 
-  data_entrega: Date | null
+  data_entrega: string | null
   endereco_entrega: string | null
   nome_receptor: string | null
   telefone_receptor: string | null
@@ -78,6 +80,7 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
             descricao: true,
             quantidade: true,
             tamanho: true,
+            componente: true,
             preco_unitario: true,
             total: true,
             created_at: true,
@@ -93,7 +96,10 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
       })
     }
 
-    return pedido as any
+    return {
+      ...(pedido as any),
+      data_entrega: fromDateOnlyDb(pedido.data_entrega),
+    } as PedidoCompraDetalhadoDTO
   } catch (err: any) {
     if (err instanceof PedidoCompraDetalhadoError) throw err
     throw new PedidoCompraDetalhadoError("LOAD_FAILED", "Erro ao carregar pedido detalhado.", "db", {

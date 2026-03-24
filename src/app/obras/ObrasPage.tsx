@@ -35,6 +35,7 @@ import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/u
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
 import { gerarContratoN8nESalvar } from "./lib/useGerarContrato"
+import { gerarOrdemServicoWebhook } from "@/actions/obras/gerar-ordem-servico"
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { deleteObraDB } from "@/actions/obras/delete-obra-db"
@@ -76,6 +77,7 @@ type PedidoCompraDTO = {
     tamanho: number | null
     precoUnitario: number
     total: number
+    componente?: string | null
   }>
   descricao?: string | null
   observacoes?: string | null
@@ -120,12 +122,52 @@ const toNum = (v: any) => {
   return Number.isFinite(n) ? n : 0
 }
 
+function normalizeNullableDimension(value: unknown) {
+  if (value === null || value === undefined || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeObraDimensionsForSave(vm: VM) {
+  if (!vm.isLShape) {
+    return {
+      isLShape: false,
+      largura: toNum(vm.largura ?? 0),
+      comprimento: toNum(vm.comprimento ?? 0),
+      largura_maior: null,
+      largura_menor: null,
+      comprimento_maior: null,
+      comprimento_menor: null,
+    }
+  }
+
+  const larguraMaior = normalizeNullableDimension(vm.larguraMaior)
+  const larguraMenor = normalizeNullableDimension(vm.larguraMenor)
+  const comprimentoMaior = normalizeNullableDimension(vm.comprimentoMaior)
+  const comprimentoMenor = normalizeNullableDimension(vm.comprimentoMenor)
+
+  return {
+    isLShape: true,
+    largura: Math.max(larguraMaior ?? 0, larguraMenor ?? 0),
+    comprimento: Math.max(comprimentoMaior ?? 0, comprimentoMenor ?? 0),
+    largura_maior: larguraMaior,
+    largura_menor: larguraMenor,
+    comprimento_maior: comprimentoMaior,
+    comprimento_menor: comprimentoMenor,
+  }
+}
+
 function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): VM {
   return {
     titulo: initial.titulo ?? undefined,
     tipoObra: initial.tipoObra ?? "",
+    isLShape: !!initial.isLShape,
     largura: initial.largura ?? 0,
     comprimento: initial.comprimento ?? 0,
+    larguraMaior: initial.larguraMaior ?? null,
+    larguraMenor: initial.larguraMenor ?? null,
+    comprimentoMaior: initial.comprimentoMaior ?? null,
+    comprimentoMenor: initial.comprimentoMenor ?? null,
     telhaEscolhida: initial.telhaEscolhida ?? "",
     status: (initial.status as any) ?? "Assinatura de contrato",
     cliente: {
@@ -143,6 +185,7 @@ function hydrateInfos(initial: Partial<ObraInfosVM> & { imagens?: ImgItem[] }): 
     },
     observacoes: initial.observacoes ?? null,
     imagens: initial.imagens ?? [],
+    dataCriacao: initial.dataCriacao ?? null,
     dataContrato: initial.dataContrato ?? null,
     dataConclusao: initial.dataConclusao ?? null,
     dataInicioObra: initial.dataInicioObra ?? null,
@@ -202,7 +245,7 @@ function hydrateFinanceiro(fin?: Partial<FinanceiroVM>): FinanceiroVM {
 
 
 function showApiError(err: any) {
-  const title = err?.title || err?.error || "Falha ao salvar"
+  const title = err?.title || err?.message || err?.error || "Falha ao salvar"
   const code = err?.code || "UNKNOWN"
   const desc = err?.description || err?.message
   toast.error(`${title} (${code})`)
@@ -279,6 +322,7 @@ function dtoToPedidoVM(p: PedidoCompraDTO): PedidoCompraVM {
       tamanho: i.tamanho ?? null,
       precoUnitario: Number(i.precoUnitario ?? 0),
       total: Number(i.total ?? 0),
+      componente: i.componente ?? null,
     })),
   }
 }
@@ -661,7 +705,23 @@ export default function ObrasPage({
   }
 
   async function onGerarOrdemServico() {
-    toast.message("Gerar ordem de serviço (ação pendente).")
+    if (!obraId) return
+    const toastId = toast.loading("Gerando ordem de serviço...")
+    try {
+      const res = await gerarOrdemServicoWebhook(obraId)
+      if (res.success) {
+        toast.success("Ordem de serviço gerada com sucesso!", { id: toastId })
+        if (res.url) {
+          window.open(res.url, "_blank", "noopener,noreferrer")
+          router.refresh()
+        }
+      } else {
+        toast.error(`Erro: ${res.error}`, { id: toastId })
+      }
+    } catch (error: any) {
+      toast.error("Falha ao gerar ordem de serviço.", { id: toastId })
+      console.error(error)
+    }
   }
 
   function validateAndFocus(): boolean {
@@ -670,15 +730,38 @@ export default function ObrasPage({
       focusById("infos.tipoObra")
       return false
     }
-    if (!(Number(vm.largura) > 0)) {
-      toast.error("Largura é obrigatória.")
-      focusById("infos.largura")
-      return false
-    }
-    if (!(Number(vm.comprimento) > 0)) {
-      toast.error("Comprimento é obrigatória.")
-      focusById("infos.comprimento")
-      return false
+    if (vm.isLShape) {
+      if (!(Number(vm.larguraMaior) > 0)) {
+        toast.error("Largura maior é obrigatória para coberta em L.")
+        focusById("infos.larguraMaior")
+        return false
+      }
+      if (!(Number(vm.larguraMenor) > 0)) {
+        toast.error("Largura menor é obrigatória para coberta em L.")
+        focusById("infos.larguraMenor")
+        return false
+      }
+      if (!(Number(vm.comprimentoMaior) > 0)) {
+        toast.error("Comprimento maior é obrigatório para coberta em L.")
+        focusById("infos.comprimentoMaior")
+        return false
+      }
+      if (!(Number(vm.comprimentoMenor) > 0)) {
+        toast.error("Comprimento menor é obrigatório para coberta em L.")
+        focusById("infos.comprimentoMenor")
+        return false
+      }
+    } else {
+      if (!(Number(vm.largura) > 0)) {
+        toast.error("Largura é obrigatória.")
+        focusById("infos.largura")
+        return false
+      }
+      if (!(Number(vm.comprimento) > 0)) {
+        toast.error("Comprimento é obrigatória.")
+        focusById("infos.comprimento")
+        return false
+      }
     }
     if (isEmpty(vm.telhaEscolhida)) {
       toast.error("Selecione a telha.")
@@ -802,6 +885,7 @@ export default function ObrasPage({
         quantidade,
         preco_unitario: precoUnitario,
         total,
+        componente: it?.componente?.trim() || null,
       }
 
       const cat = normCategoria(String(categoria ?? ""))
@@ -849,14 +933,21 @@ export default function ObrasPage({
           return
         }
 
+        const normalizedDims = normalizeObraDimensionsForSave(vm)
+
         const payload: CreateObraPayload = {
           orcamentoId: Number(orcamentoId),
-
+          titulo: vm.titulo?.trim() || undefined,
           endereco_obra: vm.endereco.logradouro.trim(),
           maps_url: vm.endereco.mapsUrl.trim(),
           tipo_obra: String(vm.tipoObra || "").trim(),
-          largura: Number(vm.largura),
-          comprimento: Number(vm.comprimento),
+          largura: normalizedDims.largura,
+          comprimento: normalizedDims.comprimento,
+          largura_maior: normalizedDims.largura_maior,
+          largura_menor: normalizedDims.largura_menor,
+          comprimento_maior: normalizedDims.comprimento_maior,
+          comprimento_menor: normalizedDims.comprimento_menor,
+          is_l_shape: vm.isLShape,
           telha_escolhida: vm.telhaEscolhida.trim(),
 
           valor_obra: Number(fin.valorObra),
@@ -891,8 +982,12 @@ export default function ObrasPage({
         }
 
         const r = await createObra(payload)
+        if (!Number.isFinite(Number(r?.obraId)) || Number(r.obraId) <= 0) {
+          throw new Error("Obra criada, mas o ID retornado é inválido.")
+        }
+
         toast.success("Obra criada.")
-        router.push(`/obras/${r.obraId}`)
+        router.push(`/obras/${Number(r.obraId)}`)
         return
       }
 
@@ -923,17 +1018,25 @@ export default function ObrasPage({
             })),
         }
 
+        const normalizedDims = normalizeObraDimensionsForSave(vm)
+
         const upd: UpdateObraPayload = {
           obra: {
             titulo: vm.titulo || "",
             endereco_obra: vm.endereco.logradouro,
             maps_url: vm.endereco.mapsUrl,
             tipo_obra: vm.tipoObra || "",
-            largura: vm.largura ?? 0,
-            comprimento: vm.comprimento ?? 0,
+            largura: normalizedDims.largura,
+            comprimento: normalizedDims.comprimento,
+            largura_maior: normalizedDims.largura_maior,
+            largura_menor: normalizedDims.largura_menor,
+            comprimento_maior: normalizedDims.comprimento_maior,
+            comprimento_menor: normalizedDims.comprimento_menor,
+            is_l_shape: vm.isLShape,
             telha_escolhida: vm.telhaEscolhida || "",
             status: vm.status as any,
             observacoes: vm.observacoes ?? undefined,
+            data_criacao: vm.dataCriacao || null,
             data_inicio_obra: vm.dataInicioObra || null,
             data_fim_obra: vm.dataFimObra || null,
             data_contrato: vm.dataContrato || null,
@@ -1236,6 +1339,7 @@ export default function ObrasPage({
           propostaLink={propostaLinkFinal}
           contratoLink={contratoLinkFinal}
           ordemServicoId={ordemServicoId ?? null}
+          ordemServicoLink={anexosInit?.ordemServico}
         />
       </div>
 

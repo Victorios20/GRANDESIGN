@@ -31,7 +31,7 @@ type HomeIndicadoresDTO = {
   orcamentosVsMesAnteriorPercent: number | null
 
   obrasAtivas: number
-  obrasIniciadasHoje: number
+  obrasIniciadasMes: number
   comprasPendentes: number
 
   valorObrasMes: number

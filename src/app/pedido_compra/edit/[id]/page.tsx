@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation"
 import PedidoCompraForm from "@/app/pedido_compra/_components/PedidoCompraForm"
+import { fromDateOnlyDb } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 
 export const dynamic = "force-dynamic"
@@ -11,7 +12,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   if (!Number.isFinite(pedidoCompraId) || pedidoCompraId <= 0) notFound()
 
-  const [pedido, fornecedores, madeiras, telhas, gerais, andaimes] = await Promise.all([
+  const [pedido, fornecedores, madeiras, telhas, gerais, andaimes, componentes] = await Promise.all([
     prisma.pedido_compra.findUnique({
       where: { id: pedidoCompraId },
       include: {
@@ -20,7 +21,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       },
     }),
     prisma.fornecedores.findMany({
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, tipo: true },
       orderBy: { nome: "asc" },
     }),
     prisma.materiais.findMany({
@@ -43,6 +44,10 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       orderBy: { descricao: "asc" },
       select: { id: true, descricao: true, tipo: true, preco_unitario: true, unidade_de_medida: true, fornecedorId: true },
     }),
+    prisma.componentes.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
   ])
 
   if (!pedido) notFound()
@@ -58,7 +63,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     descricao: pedido.descricao ?? null,
     observacoes: pedido.observacoes ?? null,
     fornecedor_id: pedido.fornecedor_id ?? null,
-    data_entrega: pedido.data_entrega ? pedido.data_entrega.toISOString() : null,
+    data_entrega: fromDateOnlyDb(pedido.data_entrega),
     endereco_entrega: pedido.endereco_entrega ?? null,
     nome_receptor: pedido.nome_receptor ?? null,
     telefone_receptor: pedido.telefone_receptor ?? null,
@@ -76,12 +81,14 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       tamanho: i.tamanho == null ? null : i.tamanho?.toString?.(),
       preco_unitario: i.preco_unitario?.toString?.() ?? "0",
       total: i.total?.toString?.() ?? "0",
+      componente: i.componente ?? null,
       created_at: i.created_at ? i.created_at.toISOString() : null,
       updated_at: i.updated_at ? i.updated_at.toISOString() : null,
     })),
   }
 
   const initialFornecedores = fornecedores.map((f) => ({ id: f.id, nome: f.nome }))
+  const initialFornecedoresRaw = fornecedores.map((f) => ({ id: f.id, nome: f.nome, tipo: f.tipo ?? null }))
 
   const initialMateriaisByTipo = {
     madeira: madeiras.map((m) => ({
@@ -124,7 +131,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       pedidoCompraId={pedidoCompraId}
       initialData={initialData}
       initialFornecedores={initialFornecedores}
+      initialFornecedoresRaw={initialFornecedoresRaw}
       initialMateriaisByTipo={initialMateriaisByTipo}
+      initialComponentes={componentes}
     />
   )
 }

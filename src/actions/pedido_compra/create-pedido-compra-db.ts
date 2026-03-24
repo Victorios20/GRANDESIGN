@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { parseDateOnlyInput } from "@/lib/date-only"
 import { Prisma, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
 
 export type PedidoCompraCreateErrorCode =
@@ -26,13 +27,6 @@ const d = (v: Decimalish): Prisma.Decimal => {
   if (v instanceof Prisma.Decimal) return v
   const s = typeof v === "string" ? v.replace(",", ".") : String(v)
   return new Prisma.Decimal(s || "0")
-}
-
-function parseDateLoose(v?: string | Date | null): Date | null {
-  if (!v) return null
-  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v : null
-  const d2 = new Date(v)
-  return Number.isFinite(d2.getTime()) ? d2 : null
 }
 
 function normalizeStr(s: string) {
@@ -175,7 +169,7 @@ export async function criarPedidoCompraComItens(input: CriarPedidoCompraInput): 
 
             ...(input.fornecedor_id != null ? { fornecedor: { connect: { id: Number(input.fornecedor_id) } } } : {}),
 
-            data_entrega: parseDateLoose(input.data_entrega ?? null),
+            data_entrega: parseDateOnlyInput(input.data_entrega ?? null),
             endereco_entrega: (input.endereco_entrega ?? "") || null,
             nome_receptor: (input.nome_receptor ?? "") || null,
             telefone_receptor: (input.telefone_receptor ?? "") || null,

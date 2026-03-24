@@ -105,6 +105,8 @@ export type SalvarOrcamentoParams = {
   fornecedorId?: number | null
   /** NOVO — opcional (campo na tabela orcamento) */
   observacoes?: string | null
+  /** NOVO — cor do stain */
+  cor_stain?: string | null
 }
 
 export type SalvarRascunhoParams = {
@@ -124,6 +126,8 @@ export type SalvarRascunhoParams = {
   fornecedorId?: number | null
   /** NOVO — opcional (campo na tabela orcamento) */
   observacoes?: string | null
+  /** NOVO — cor do stain */
+  cor_stain?: string | null
 }
 
 /* ================================================================
@@ -223,6 +227,8 @@ async function insertOrcamento(
     id_fornecedor: number | null
     /** NOVO — opcional */
     observacoes: string | null
+    /** NOVO — cor do stain */
+    cor_stain: string | null
     totais_madeiras_preco: number
     totais_materiais_preco: number
     totais_comissao_preco: number
@@ -244,13 +250,13 @@ async function insertOrcamento(
 ): Promise<number> {
   const rows = (await tx.$queryRaw`
     INSERT INTO orcamento (
-      cliente_id, tipo_obra_id, id_fornecedor, observacoes,
+      cliente_id, tipo_obra_id, id_fornecedor, observacoes, cor_stain,
       totais_madeiras_preco, totais_materiais_preco, totais_comissao_preco,
       totais_empresa_ps_preco, totais_empresa_gd_preco, totais_frete_preco,
       largura, comprimento, largura_maior, largura_menor, comprimento_maior, comprimento_menor,
       link_slide, link_pdf, titulo, created_by, updated_by
     ) VALUES (
-      ${data.cliente_id}, ${data.tipo_obra_id}, ${data.id_fornecedor}, ${data.observacoes},
+      ${data.cliente_id}, ${data.tipo_obra_id}, ${data.id_fornecedor}, ${data.observacoes}, ${data.cor_stain},
       ${data.totais_madeiras_preco}, ${data.totais_materiais_preco}, ${data.totais_comissao_preco},
       ${data.totais_empresa_ps_preco}, ${data.totais_empresa_gd_preco}, ${data.totais_frete_preco},
       ${data.largura}, ${data.comprimento}, ${data.largura_maior}, ${data.largura_menor}, ${data.comprimento_maior}, ${data.comprimento_menor},
@@ -370,6 +376,7 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
           tipo_obra_id: tipoObraId,
           id_fornecedor,
           observacoes: observacoesNorm,
+          cor_stain: cleanTextOrNull(params.cor_stain),
           totais_madeiras_preco: num(params.totais.madeiras),
           totais_materiais_preco: num(params.totais.materiais),
           totais_comissao_preco: num(params.totais.comissao),
@@ -593,6 +600,7 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
           tipo_obra_id: tipoObraId ?? null,
           id_fornecedor,
           observacoes: observacoesNorm,
+          cor_stain: cleanTextOrNull(params.cor_stain),
           totais_madeiras_preco: num(params.totais.madeiras),
           totais_materiais_preco: num(params.totais.materiais),
           totais_comissao_preco: num(params.totais.comissao),
