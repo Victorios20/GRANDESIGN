@@ -14,7 +14,6 @@ export const createPayableSchema = z.object({
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().optional().nullable(),
     observacoes: z.string().optional(),
-    orcamento_id: z.number().int().positive().optional().nullable(),
     recorrente: z.boolean().optional(),
     frequencia: z.nativeEnum(FrequenciaRecorrencia).optional().nullable(),
 })
@@ -29,7 +28,6 @@ export const createPayableInstallmentSchema = z.object({
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().optional().nullable(),
     observacoes: z.string().optional(),
-    orcamento_id: z.number().int().positive().optional().nullable(),
 })
 
 export type CreatePayableInput = z.infer<typeof createPayableSchema>
@@ -57,7 +55,6 @@ export async function createPayable(input: CreatePayableInput, userId?: number) 
             categoria_id: input.categoria_id,
             centro_custo_id: input.centro_custo_id,
             observacoes: input.observacoes,
-            orcamento_id: input.orcamento_id,
             recorrente: input.recorrente,
             frequencia: input.frequencia,
             valor_pago: 0,
@@ -92,7 +89,6 @@ export async function createPayableInstallments(input: CreatePayableInstallmentI
                     categoria_id: input.categoria_id,
                     centro_custo_id: input.centro_custo_id,
                     observacoes: input.observacoes,
-                    orcamento_id: input.orcamento_id,
                     parcela_atual: inst.parcela,
                     total_parcelas: input.total_parcelas,
                     created_by: userId

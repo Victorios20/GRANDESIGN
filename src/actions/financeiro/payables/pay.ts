@@ -44,7 +44,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
         if (!bank || !bank.ativo) throw new Error("Conta bancária inválida ou inativa")
 
         // 3. Validate Status
-        const allowedStatus = [StatusFinanceiro.PENDENTE, StatusFinanceiro.PARCIAL, StatusFinanceiro.ATRASADO]
+        const allowedStatus: StatusFinanceiro[] = [StatusFinanceiro.PENDENTE, StatusFinanceiro.PARCIAL, StatusFinanceiro.ATRASADO]
         if (!allowedStatus.includes(bill.status)) {
             throw new Error(`Status inválido para pagamento: ${bill.status}`)
         }
@@ -136,7 +136,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
                 where: { key: input.idempotencyKey },
                 data: {
                     status: 'FAILED',
-                    error: (error as Error).message
+                    result: (error as Error).message
                 }
             })
         }

@@ -15,20 +15,19 @@ export const receiveBillSchema = z.object({
 export type ReceiveBillInput = z.infer<typeof receiveBillSchema>
 
 export async function receiveBill(input: ReceiveBillInput, userId?: number) {
-    // 1. Idempotency Check
     if (input.idempotencyKey) {
         const existing = await prisma.idempotencyLog.findUnique({ where: { key: input.idempotencyKey } })
         if (existing) {
-            if (existing.status === 'COMPLETED') return JSON.parse(existing.result!)
-            if (existing.status === 'PENDING') throw new Error("Operação em andamento (Idempotency Lock)")
+            if (existing.status === "COMPLETED") return JSON.parse(existing.result!)
+            if (existing.status === "PENDING") throw new Error("Operação em andamento (Idempotency Lock)")
         }
+
         await prisma.idempotencyLog.create({
-            data: { key: input.idempotencyKey, status: 'PENDING' }
+            data: { key: input.idempotencyKey, status: "PENDING" }
         })
     }
 
     try {
-        // 2. Fetch Data
         const bill = await prisma.contaReceber.findUnique({
             where: { id: input.conta_receber_id },
             include: { categoria: true }
@@ -42,13 +41,15 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
 
         if (!bank || !bank.ativo) throw new Error("Conta bancária inválida ou inativa")
 
-        // 3. Validate Status
-        const allowedStatus = [StatusFinanceiro.PENDENTE, StatusFinanceiro.PARCIAL, StatusFinanceiro.ATRASADO]
+        const allowedStatus: StatusFinanceiro[] = [
+            StatusFinanceiro.PENDENTE,
+            StatusFinanceiro.PARCIAL,
+            StatusFinanceiro.ATRASADO,
+        ]
         if (!allowedStatus.includes(bill.status)) {
             throw new Error(`Status inválido para recebimento: ${bill.status}`)
         }
 
-        // 4. Validate Amount
         const total = Number(bill.valor_total)
         const received = Number(bill.valor_recebido)
         const remaining = total - received
@@ -58,13 +59,11 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
             throw new Error(`Valor excedente. Restante: ${remaining.toFixed(2)}`)
         }
 
-        // 5. Atomic Transaction with OCC
         const result = await prisma.$transaction(async (tx) => {
-            // A. OCC Update
             const updateCheck = await tx.contaReceber.updateMany({
                 where: {
                     id: bill.id,
-                    valor_recebido: bill.valor_recebido // OCC Version Check
+                    valor_recebido: bill.valor_recebido,
                 },
                 data: {
                     valor_recebido: { increment: amountToReceive }
@@ -75,7 +74,6 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                 throw new Error("Conflito de concorrência: O registro foi alterado por outra transação.")
             }
 
-            // Status Update
             const newReceived = received + amountToReceive
             const isPaid = Math.abs(total - newReceived) < 0.01
             const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
@@ -88,7 +86,6 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                 }
             })
 
-            // B. Create Transaction (Entrada)
             await tx.lancamento.create({
                 data: {
                     descricao: `Recebimento: ${bill.descricao}`,
@@ -106,7 +103,6 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                 }
             })
 
-            // C. Update Bank
             await tx.contasBancaria.update({
                 where: { id: input.conta_bancaria_id },
                 data: { saldo_atual: { increment: amountToReceive } }
@@ -115,23 +111,25 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
             return updatedBill
         })
 
-        // 6. Finalize Idempotency
         if (input.idempotencyKey) {
             await prisma.idempotencyLog.update({
                 where: { key: input.idempotencyKey },
-                data: { status: 'COMPLETED', result: JSON.stringify(result) }
+                data: { status: "COMPLETED", result: JSON.stringify(result) }
             })
         }
 
         return result
-
     } catch (error) {
         if (input.idempotencyKey) {
             await prisma.idempotencyLog.update({
                 where: { key: input.idempotencyKey },
-                data: { status: 'FAILED', error: (error as Error).message }
+                data: {
+                    status: "FAILED",
+                    result: (error as Error).message
+                }
             })
         }
+
         throw error
     }
 }
