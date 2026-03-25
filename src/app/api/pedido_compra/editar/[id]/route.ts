@@ -110,6 +110,7 @@ export async function PUT(
       const map: Record<string, number> = {
         PAYLOAD_INVALIDO: 400,
         PEDIDO_NAO_ENCONTRADO: 404,
+        PEDIDO_INTEGRADO_FINANCEIRO: 409,
         OBRA_NAO_ENCONTRADA: 404,
         FORNECEDOR_NAO_ENCONTRADO: 404,
         PEDIDO_UPDATE_FAILED: 500,

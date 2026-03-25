@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma"
 import { parseDateOnlyInput } from "@/lib/date-only"
-import { Prisma, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, Prisma, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
 
 export type PedidoCompraEditErrorCode =
   | "PAYLOAD_INVALIDO"
   | "PEDIDO_NAO_ENCONTRADO"
+  | "PEDIDO_INTEGRADO_FINANCEIRO"
   | "OBRA_NAO_ENCONTRADA"
   | "FORNECEDOR_NAO_ENCONTRADO"
   | "PEDIDO_UPDATE_FAILED"
@@ -163,12 +164,21 @@ export async function editarPedidoCompraComItens(
     async (tx) => {
       const existing = await tx.pedido_compra.findUnique({
         where: { id: Number(input.pedidoCompraId) },
-        select: { id: true },
+        select: { id: true, financeiro_integracao_status: true },
       })
       if (!existing) {
         throw new PedidoCompraEditError("PEDIDO_NAO_ENCONTRADO", "Pedido de compra não encontrado.", "load-pedido", {
           pedidoCompraId: input.pedidoCompraId,
         })
+      }
+
+      if (existing.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
+        throw new PedidoCompraEditError(
+          "PEDIDO_INTEGRADO_FINANCEIRO",
+          "Estorne a integração financeira antes de editar o pedido.",
+          "validate-financial-lock",
+          { pedidoCompraId: input.pedidoCompraId }
+        )
       }
 
       const obra = await tx.obras.findUnique({

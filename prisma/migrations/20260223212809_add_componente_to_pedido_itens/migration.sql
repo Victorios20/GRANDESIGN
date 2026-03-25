@@ -1,0 +1,2 @@
+ALTER TABLE "pedido_itens"
+ADD COLUMN IF NOT EXISTS "componente" VARCHAR(100);

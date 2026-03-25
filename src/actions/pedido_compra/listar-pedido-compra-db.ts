@@ -1,7 +1,7 @@
 // src/actions/pedido_compra/listar-pedido-compra-db.ts
 import { prisma } from "@/lib/prisma"
 import { fromDateOnlyDb } from "@/lib/date-only"
-import { Prisma, PedidoCompraStatus, PedidoCategoria } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, Prisma, PedidoCompraStatus, PedidoCategoria, StatusFinanceiro } from "@prisma/client"
 
 export type PedidoCompraOrderBy =
   | "created_at"
@@ -43,6 +43,11 @@ export type PedidoCompraListItem = {
   obra_titulo: string | null
   obra_cidade: string | null
   created_at: Date
+  financeiro_integracao_status: IntegracaoFinanceiraStatus
+  financeiro_conta_pagar_id: number | null
+  financeiro_conta_pagar_status: StatusFinanceiro | null
+  financeiro_conta_pagar_valor_total: Prisma.Decimal | null
+  financeiro_conta_pagar_valor_pago: Prisma.Decimal | null
 }
 
 export type ListarPedidoCompraCounts = {
@@ -164,6 +169,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
       pc.status,
       pc.valor_orcado,
       pc.valor_realizado,
+      pc.financeiro_integracao_status,
       pc.data_entrega,
       pc.obra_id,
       pc.created_at,
@@ -171,12 +177,23 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
       f.nome as fornecedor_nome,
       o.status as obra_status,
       o.titulo as obra_titulo,
-      ci.nome as obra_cidade
+      ci.nome as obra_cidade,
+      cp.id as financeiro_conta_pagar_id,
+      cp.status as financeiro_conta_pagar_status,
+      cp.valor_total as financeiro_conta_pagar_valor_total,
+      cp.valor_pago as financeiro_conta_pagar_valor_pago
     FROM pedido_compra pc
     LEFT JOIN fornecedores f ON f.id = pc.fornecedor_id
     LEFT JOIN obras o ON o.id = pc.obra_id
     LEFT JOIN cliente cl ON cl.id = o.cliente_id
     LEFT JOIN cidades ci ON ci.id = cl.cidade_id
+    LEFT JOIN LATERAL (
+      SELECT id, status, valor_total, valor_pago
+      FROM contas_pagar cp
+      WHERE cp.pedido_compra_id = pc.id
+      ORDER BY cp.created_at DESC, cp.id DESC
+      LIMIT 1
+    ) cp ON true
   `
 
   const whereParts: Prisma.Sql[] = []
@@ -268,6 +285,11 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     obra_titulo: r.obra_titulo == null ? null : String(r.obra_titulo),
     obra_cidade: r.obra_cidade == null ? null : String(r.obra_cidade),
     created_at: new Date(r.created_at),
+    financeiro_integracao_status: r.financeiro_integracao_status as IntegracaoFinanceiraStatus,
+    financeiro_conta_pagar_id: r.financeiro_conta_pagar_id == null ? null : Number(r.financeiro_conta_pagar_id),
+    financeiro_conta_pagar_status: r.financeiro_conta_pagar_status as StatusFinanceiro | null,
+    financeiro_conta_pagar_valor_total: r.financeiro_conta_pagar_valor_total as any,
+    financeiro_conta_pagar_valor_pago: r.financeiro_conta_pagar_valor_pago as any,
     fornecedor:
       r.fornecedor_id == null
         ? null

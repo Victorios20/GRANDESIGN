@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
 import {
-  excluirPedidosCompra,
-  PedidoCompraDeleteError,
-} from "@/actions/pedido_compra/delete-pedido-compra-db"
+  estornarIntegracaoFinanceiraPedidos,
+  PedidoCompraFinanceiroError,
+} from "@/actions/pedido_compra/manage-finance-integration"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -22,13 +22,23 @@ function getActorId(session: SessionLike): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function json(resBody: unknown, status = 200, requestId?: string) {
+function json(body: unknown, status = 200, requestId?: string) {
   const headers = new Headers({ "Content-Type": "application/json" })
   if (requestId) headers.set("X-Request-Id", requestId)
-  return new NextResponse(JSON.stringify(resBody), { status, headers })
+  return new NextResponse(JSON.stringify(body), { status, headers })
 }
 
-export async function DELETE(req: NextRequest) {
+function mapErrorStatus(code: string) {
+  const map: Record<string, number> = {
+    PAYLOAD_INVALIDO: 400,
+    PEDIDO_NAO_ENCONTRADO: 404,
+    PEDIDOS_NAO_ENCONTRADOS: 404,
+  }
+
+  return map[code] ?? 500
+}
+
+export async function POST(req: NextRequest) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 
   try {
@@ -37,31 +47,20 @@ export async function DELETE(req: NextRequest) {
     if (!actorId) return json({ error: "unauthorized", requestId }, 401, requestId)
 
     const body = await req.json().catch(() => null)
-    if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
-
     const ids = Array.isArray(body?.ids) ? body.ids.map((id: unknown) => Number(id)) : []
-    const result = await excluirPedidosCompra(ids, actorId)
+    const data = await estornarIntegracaoFinanceiraPedidos(ids, actorId)
 
-    return json({ data: result, requestId }, 200, requestId)
-  } catch (error: unknown) {
-    if (error instanceof PedidoCompraDeleteError) {
-      const statusMap: Record<string, number> = {
-        PAYLOAD_INVALIDO: 400,
-        PEDIDO_NAO_ENCONTRADO: 404,
-        PEDIDO_INTEGRADO_FINANCEIRO: 409,
-        ITENS_DELETE_FAILED: 500,
-        PEDIDO_DELETE_FAILED: 500,
-        AUDIT_FAILED: 500,
-      }
-
+    return json({ data, requestId }, 200, requestId)
+  } catch (error) {
+    if (error instanceof PedidoCompraFinanceiroError) {
       return json(
         { error: error.message, code: error.code, step: error.step, details: error.details, requestId },
-        statusMap[error.code] ?? 500,
+        mapErrorStatus(error.code),
         requestId
       )
     }
 
-    console.error("[DELETE /api/pedido_compra/excluir/bulk] unexpected", error)
+    console.error("[POST /api/pedido_compra/estornar/bulk] unexpected", error)
     return json({ error: "UNEXPECTED_ERROR", requestId }, 500, requestId)
   }
 }

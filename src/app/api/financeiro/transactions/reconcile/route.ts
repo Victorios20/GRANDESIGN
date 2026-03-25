@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { StatusConferencia } from "@prisma/client"
 
 export async function PATCH(req: Request) {
     const session = await getServerSession(authOptions)
@@ -17,7 +18,13 @@ export async function PATCH(req: Request) {
 
         const result = await prisma.lancamento.updateMany({
             where: { id: { in: ids } },
-            data: { conciliado: true },
+            data: {
+                status_conferencia: StatusConferencia.CONFERIDO,
+                conferido_em: new Date(),
+                conferido_por: Number(session.user.id),
+                pendencia_motivo: null,
+                version: { increment: 1 },
+            },
         })
 
         return NextResponse.json({ updated: result.count })

@@ -96,7 +96,6 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                     conta_bancaria_id: input.conta_bancaria_id,
                     categoria_id: bill.categoria_id,
                     centro_custo_id: bill.centro_custo_id,
-                    conciliado: true,
                     observacoes: `Ref: Conta Receber #${bill.id}`,
                     created_by: userId,
                     conta_receber_id: bill.id

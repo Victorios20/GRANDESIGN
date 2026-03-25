@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { TipoLancamento, Prisma } from "@prisma/client"
+import { Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
 
 export interface GetTransactionsOptions {
     page?: number
@@ -50,7 +50,8 @@ export async function getTransactions(options: GetTransactionsOptions = {}) {
     if (categoria_id) where.categoria_id = categoria_id
     if (centro_custo_id) where.centro_custo_id = centro_custo_id
     if (tipo) where.tipo = tipo
-    if (conciliado !== undefined) where.conciliado = conciliado
+    if (conciliado === true) where.status_conferencia = StatusConferencia.CONFERIDO
+    if (conciliado === false) where.status_conferencia = { not: StatusConferencia.CONFERIDO }
 
     // Execute Query with Efficient Selects
     const [total, data] = await prisma.$transaction([
@@ -88,7 +89,10 @@ export async function getTransactions(options: GetTransactionsOptions = {}) {
     ])
 
     return {
-        data,
+        data: data.map((item) => ({
+            ...item,
+            conciliado: item.status_conferencia === StatusConferencia.CONFERIDO,
+        })),
         meta: {
             total,
             page,

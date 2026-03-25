@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { CategoryMapping, ReportCategoryKey } from "@/services/financial/category-mapping"
-import { formatCurrency } from "@/lib/utils"
+import { Prisma, StatusConferencia } from "@prisma/client"
 
 export async function GET(request: NextRequest) {
     try {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         // For simplicity heavily requested: Just fetch transactions and filtering in JS if volume is low? 
         // NO, let's stick to the ID filter approach.
 
-        let whereClause: any = {
+        const whereClause: Prisma.LancamentoWhereInput = {
             centro_custo_id: { in: ccIds },
             tipo: "DESPESA",
         }
@@ -99,13 +99,14 @@ export async function GET(request: NextRequest) {
             valor: Number(t.valor),
             fornecedor: t.conta_pagar?.fornecedor?.nome || "—",
             categoriaOriginal: t.categoria.nome,
-            conciliado: t.conciliado
+            conciliado: t.status_conferencia === StatusConferencia.CONFERIDO
         }))
 
         return NextResponse.json({ items, total: items.length })
 
-    } catch (error: any) {
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error"
         console.error("Error fetching transactions:", error)
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        return NextResponse.json({ error: message }, { status: 500 })
     }
 }

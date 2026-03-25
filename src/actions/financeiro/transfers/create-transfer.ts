@@ -65,8 +65,7 @@ export async function createTransfer(input: TransferInput, userId?: number) {
                 conta_bancaria_id: input.conta_origem_id,
                 categoria_id: catSaida.id,
                 transferencia_id: transferencia.id,
-                created_by: userId,
-                conciliado: false
+                created_by: userId
             }
         })
 
@@ -81,8 +80,7 @@ export async function createTransfer(input: TransferInput, userId?: number) {
                 conta_bancaria_id: input.conta_destino_id,
                 categoria_id: catEntrada.id,
                 transferencia_id: transferencia.id,
-                created_by: userId,
-                conciliado: false
+                created_by: userId
             }
         })
 

@@ -35,9 +35,9 @@ export async function getPayables(options: GetPayablesOptions = {}) {
         if (endDate) (where.data_vencimento as any).lte = endDate
     }
 
-    if (status) {
-        where.status = Array.isArray(status) ? { in: status } : status
-    }
+    where.status = status
+        ? (Array.isArray(status) ? { in: status } : status)
+        : { notIn: [StatusFinanceiro.PAGO, StatusFinanceiro.CANCELADO] }
     if (fornecedor_id) where.fornecedor_id = fornecedor_id
     if (categoria_id) where.categoria_id = categoria_id
     if (centro_custo_id) where.centro_custo_id = centro_custo_id

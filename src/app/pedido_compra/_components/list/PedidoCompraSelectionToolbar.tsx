@@ -15,6 +15,8 @@ type Props = {
   onToggleVisibleSelection: (checked: boolean) => void
   onClearSelection: () => void
   onOpenBulkStatus: () => void
+  onOpenBulkIntegrate: () => void
+  onOpenBulkReverse: () => void
   onExport: () => void
   onOpenBulkDelete: () => void
 }
@@ -25,6 +27,8 @@ export function PedidoCompraSelectionToolbar({
   onToggleVisibleSelection,
   onClearSelection,
   onOpenBulkStatus,
+  onOpenBulkIntegrate,
+  onOpenBulkReverse,
   onExport,
   onOpenBulkDelete,
 }: Props) {
@@ -56,6 +60,12 @@ export function PedidoCompraSelectionToolbar({
           className={cn("gap-2 px-3 text-sm", listMutedButtonClass)}
         >
           Alterar status
+        </Button>
+        <Button type="button" variant="outline" onClick={onOpenBulkIntegrate} className={cn("gap-2 px-3 text-sm", listMutedButtonClass)}>
+          Integrar financeiro
+        </Button>
+        <Button type="button" variant="outline" onClick={onOpenBulkReverse} className={cn("gap-2 px-3 text-sm", listMutedButtonClass)}>
+          Estornar integração
         </Button>
         <Button
           type="button"

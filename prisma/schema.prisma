@@ -68,11 +68,11 @@ model cliente {
   orcamento orcamento[]
   obras     obras[]
 
-  @@index([cidade_id], map: "idx_cliente_cidade_id")
-  @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
-
   // Financeiro
   contas_receber ContaReceber[]
+
+  @@index([cidade_id], map: "idx_cliente_cidade_id")
+  @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
 }
 
 model componentes {
@@ -138,6 +138,7 @@ model orcamento {
   totais_frete_preco      Decimal       @default(0.00) @db.Decimal(10, 2)
   link_pdf                String?
   titulo                  String?       @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
+  cor_stain               String?       @db.VarChar(50)
   observacoes             String?       @db.Text
   excluido                Boolean       @default(false)
   // Fornecedor (madeira) opcional do orçamento
@@ -163,15 +164,15 @@ model orcamento {
   orcamento_material  orcamento_material[]
   orcamento_pagamento orcamento_pagamento[]
 
+  // Financeiro
+  contas_receber ContaReceber[]
+
   @@index([data_criacao(sort: Desc)], map: "idx_orcamento_data_criacao")
   @@index([data_ultima_alteracao(sort: Desc)], map: "idx_orcamento_data_ultima_alteracao")
   @@index([created_by], map: "idx_orcamento_created_by")
   @@index([updated_by], map: "idx_orcamento_updated_by")
   @@index([id_fornecedor], map: "idx_orcamento_id_fornecedor")
   @@index([excluido, data_criacao(sort: Desc)], map: "idx_orcamento_excluido_data_criacao")
-
-  // Financeiro
-  contas_receber ContaReceber[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -240,13 +241,13 @@ model User {
   passwordResetTokens PasswordResetToken[] // <<< novo (back-relation)
 
   // Financeiro
-  contasPagarCriadas   ContaPagar[] @relation("ContaPagarCreatedBy")
-  contasPagarEditadas  ContaPagar[] @relation("ContaPagarUpdatedBy")
-  
-  contasReceberCriadas ContaReceber[] @relation("ContaReceberCreatedBy")
+  contasPagarCriadas  ContaPagar[] @relation("ContaPagarCreatedBy")
+  contasPagarEditadas ContaPagar[] @relation("ContaPagarUpdatedBy")
+
+  contasReceberCriadas  ContaReceber[] @relation("ContaReceberCreatedBy")
   contasReceberEditadas ContaReceber[] @relation("ContaReceberUpdatedBy")
-  
-  lancamentosCriados   Lancamento[] @relation("LancamentoCreatedBy")
+
+  lancamentosCriados    Lancamento[]    @relation("LancamentoCreatedBy")
   transferenciasCriadas Transferencia[] @relation("TransferenciaCreatedBy")
 
   @@map("users")
@@ -353,6 +354,12 @@ enum PedidoCompraStatus {
   CANCELADO            @map("Cancelado")
 }
 
+enum IntegracaoFinanceiraStatus {
+  NAO_INTEGRADO @map("Nao integrado")
+  INTEGRADO     @map("Integrado")
+  ESTORNADO     @map("Estornado")
+}
+
 model pedido_compra {
   id Int @id @default(autoincrement())
 
@@ -381,18 +388,24 @@ model pedido_compra {
   telefone_receptor String?   @db.VarChar(20)
   link_maps         String?   @db.VarChar(500)
 
+  financeiro_integracao_status IntegracaoFinanceiraStatus @default(NAO_INTEGRADO)
+  financeiro_integrado_em      DateTime?
+  financeiro_integrado_por     Int?
+  financeiro_estornado_em      DateTime?
+  financeiro_estornado_por     Int?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   itens pedido_itens[]
 
+  // Financeiro
+  contas_pagar ContaPagar[]
+
   @@index([obra_id], map: "idx_pedido_compra_obra_id")
   @@index([fornecedor_id], map: "idx_pedido_compra_fornecedor_id")
   @@index([obra_id, categoria], map: "idx_pedido_compra_obra_categoria")
   @@index([status, created_at(sort: Desc)], map: "idx_pedido_compra_status_created_at")
-
-  // Financeiro
-  contas_pagar ContaPagar[]
 }
 
 model pedido_itens {
@@ -404,6 +417,7 @@ model pedido_itens {
   descricao      String   @db.VarChar(150)
   quantidade     Decimal  @db.Decimal(10, 2)
   tamanho        Decimal? @db.Decimal(10, 2)
+  componente     String?  @db.VarChar(100)
   preco_unitario Decimal  @db.Decimal(10, 2)
   total          Decimal  @db.Decimal(10, 2)
 
@@ -438,12 +452,18 @@ model obras {
   titulo String? @db.VarChar(150)
 
   // CAMPOS
-  endereco_obra   String  @db.VarChar(255)
-  maps_url        String  @db.VarChar(255)
-  tipo_obra       String  @db.VarChar(100)
-  largura         Decimal @db.Decimal(10, 2)
-  comprimento     Decimal @db.Decimal(10, 2)
-  telha_escolhida String  @db.VarChar(120)
+  endereco_obra     String   @db.VarChar(255)
+  maps_url          String   @db.VarChar(255)
+  tipo_obra         String   @db.VarChar(100)
+  largura           Decimal  @db.Decimal(10, 2)
+  comprimento       Decimal  @db.Decimal(10, 2)
+  telha_escolhida   String   @db.VarChar(120)
+  largura_menor     Decimal? @db.Decimal(10, 2)
+  largura_maior     Decimal? @db.Decimal(10, 2)
+  comprimento_menor Decimal? @db.Decimal(10, 2)
+  comprimento_maior Decimal? @db.Decimal(10, 2)
+  is_l_shape        Boolean  @default(false)
+  cor_stain         String?  @db.VarChar(50)
 
   valor_obra        Decimal @db.Decimal(10, 2)
   valor_mao_de_obra Decimal @db.Decimal(10, 2)
@@ -454,10 +474,10 @@ model obras {
   // Datas de prazo contratual (gestão de prazos, diferente de execução)
   data_inicio_obra DateTime? @db.Date
 
-  data_fim_obra    DateTime? @db.Date  // Prazo contratual
-  
+  data_fim_obra DateTime? @db.Date // Prazo contratual
+
   // Data real de conclusão (setada ao finalizar)
-  data_conclusao   DateTime? @db.Timestamp(6)
+  data_conclusao DateTime? @db.Timestamp(6)
 
   // Financeiro
   pagamento_entrada        Decimal?        @db.Decimal(10, 2)
@@ -469,12 +489,16 @@ model obras {
   status_pagamento_quitacao PagamentoStatus @default(PENDENTE)
 
   // ANEXOS
-  link_slide_orcamento String? @db.VarChar(255)
-  link_pdf_orcamento   String? @db.VarChar(255)
-  link_contrato        String? @db.VarChar(255)
-  link_contrato_assinado String? @db.VarChar(255) // Validated/Signed PDF upload
-  data_contrato        DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
-  link_ordem_servico   String? @db.VarChar(255)
+  link_slide_orcamento        String?   @db.VarChar(255)
+  link_pdf_orcamento          String?   @db.VarChar(255)
+  link_contrato               String?   @db.VarChar(255)
+  link_contrato_assinado      String?   @db.VarChar(255) // Validated/Signed PDF upload
+  data_contrato               DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
+  link_ordem_servico          String?   @db.VarChar(255)
+  titulo_link_contrato        String?   @db.VarChar(150)
+  titulo_link_ordem_servico   String?   @db.VarChar(150)
+  titulo_link_pdf_orcamento   String?   @db.VarChar(150)
+  titulo_link_slide_orcamento String?   @db.VarChar(150)
 
   // Auditoria
   created_by Int?
@@ -494,6 +518,12 @@ model obras {
   // Documentos anexos 1:N — caem junto com a obra
   documentos obra_documentos[]
 
+  // Financeiro
+  centro_custo CentroCusto[]
+
+  // Snapshot Orçamento
+  budget_snapshot obra_budget_snapshot?
+
   @@index([cliente_id])
   @@index([equipe_id])
   @@index([created_by])
@@ -501,33 +531,27 @@ model obras {
   @@index([titulo], map: "idx_obras_titulo")
   @@index([data_criacao(sort: Desc)], map: "idx_obras_data_criacao")
   @@index([status, data_criacao(sort: Desc)], map: "idx_obras_status_data_criacao")
-
-  // Financeiro
-  centro_custo CentroCusto[]
-  
-  // Snapshot Orçamento
-  budget_snapshot obra_budget_snapshot?
 }
 
 model obra_budget_snapshot {
-  id Int @id @default(autoincrement())
+  id      Int @id @default(autoincrement())
   obra_id Int @unique
-  
+
   // Receita
   receita_orcada Decimal @default(0.00) @db.Decimal(15, 2)
-  
+
   // Custos Previstos (Originais do Orçamento)
   mao_de_obra_orcada Decimal @default(0.00) @db.Decimal(15, 2)
   materiais_previsto Decimal @default(0.00) @db.Decimal(15, 2)
   madeira_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
   telha_previsto     Decimal @default(0.00) @db.Decimal(15, 2)
   andaime_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
-  
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-  
+
   @@map("obra_budget_snapshots")
 }
 
@@ -551,14 +575,14 @@ model ObraAgendaSegmento {
   inicio      DateTime @db.Date
   fim         DateTime @db.Date // exclusive end date
   observacoes String?  @db.Text
-  
-  tipo        String   @default("EXECUCAO") // EXECUCAO or MANUTENCAO
-  status      String   @default("AGENDADO") // AGENDADO, CONCLUIDO, CANCELADO
 
-  created_by  Int?
-  updated_by  Int?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  tipo   String @default("EXECUCAO") // EXECUCAO or MANUTENCAO
+  status String @default("AGENDADO") // AGENDADO, CONCLUIDO, CANCELADO
+
+  created_by Int?
+  updated_by Int?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   obra   obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
   equipe equipes? @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
@@ -577,6 +601,7 @@ model obra_documentos {
   titulo     String   @db.VarChar(200)
   url        String?  @db.VarChar(500) // Arquivo S3
   link       String?  @db.VarChar(500) // Link externo
+  ordem      Int?
   created_at DateTime @default(now())
 
   obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
@@ -590,34 +615,35 @@ model obra_documentos {
 // ==========================================
 
 enum TipoContaBancaria {
-  CORRENTE    @map("Corrente")
-  POUPANCA    @map("Poupança")
-  CAIXA       @map("Caixa Físico")
-  CARTEIRA    @map("Carteira Digital")
+  CORRENTE     @map("Corrente")
+  POUPANCA     @map("Poupança")
+  CAIXA        @map("Caixa Físico")
+  CARTEIRA     @map("Carteira Digital")
   INVESTIMENTO @map("Investimento")
 }
 
 model ContasBancaria {
-  id            Int               @id @default(autoincrement())
-  nome          String            @db.VarChar(100)
-  tipo          TipoContaBancaria @default(CORRENTE)
-  banco         String?           @db.VarChar(100)
-  agencia       String?           @db.VarChar(20)
-  conta         String?           @db.VarChar(30)
-  
-  saldo_inicial Decimal           @default(0.00) @db.Decimal(15, 2)
-  saldo_atual   Decimal           @default(0.00) @db.Decimal(15, 2) // Calculated/Cached
-  
-  cor           String?           @db.VarChar(7)
-  ativo         Boolean           @default(true)
-  
-  created_at    DateTime          @default(now())
-  updated_at    DateTime          @updatedAt
-  
+  id      Int               @id @default(autoincrement())
+  nome    String            @db.VarChar(100)
+  tipo    TipoContaBancaria @default(CORRENTE)
+  banco   String?           @db.VarChar(100)
+  agencia String?           @db.VarChar(20)
+  conta   String?           @db.VarChar(30)
+
+  saldo_inicial Decimal @default(0.00) @db.Decimal(15, 2)
+  saldo_atual   Decimal @default(0.00) @db.Decimal(15, 2) // Calculated/Cached
+
+  cor   String? @db.VarChar(7)
+  ativo Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   // Relations
-  lancamentos       Lancamento[]
-  transferenciasOrigem Transferencia[] @relation("ContaOrigem")
-  transferenciasDestino Transferencia[] @relation("ContaDestino")
+  conferencia_sessoes   conferencia_sessoes[]
+  lancamentos           Lancamento[]
+  transferenciasOrigem  Transferencia[]       @relation("ContaOrigem")
+  transferenciasDestino Transferencia[]       @relation("ContaDestino")
 
   @@map("contas_bancarias")
 }
@@ -628,24 +654,24 @@ enum TipoCategoria {
 }
 
 model Categoria {
-  id               Int           @id @default(autoincrement())
-  nome             String        @db.VarChar(100)
-  tipo             TipoCategoria
-  cor              String?       @db.VarChar(7)
-  icone            String?       @db.VarChar(50)
-  ativo            Boolean       @default(true)
-  
-  categoria_pai_id Int?
-  categoria_pai    Categoria?    @relation("CategoriaSubelementos", fields: [categoria_pai_id], references: [id])
-  subcategorias    Categoria[]   @relation("CategoriaSubelementos")
+  id    Int           @id @default(autoincrement())
+  nome  String        @db.VarChar(100)
+  tipo  TipoCategoria
+  cor   String?       @db.VarChar(7)
+  icone String?       @db.VarChar(50)
+  ativo Boolean       @default(true)
 
-  created_at       DateTime      @default(now())
-  updated_at       DateTime      @updatedAt
+  categoria_pai_id Int?
+  categoria_pai    Categoria?  @relation("CategoriaSubelementos", fields: [categoria_pai_id], references: [id])
+  subcategorias    Categoria[] @relation("CategoriaSubelementos")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Relations
-  lancamentos      Lancamento[]
-  contas_pagar     ContaPagar[]
-  contas_receber   ContaReceber[]
+  lancamentos    Lancamento[]
+  contas_pagar   ContaPagar[]
+  contas_receber ContaReceber[]
 
   @@index([categoria_pai_id])
   @@index([tipo])
@@ -653,16 +679,16 @@ model Categoria {
 }
 
 model CentroCusto {
-  id          Int      @id @default(autoincrement())
-  nome        String   @db.VarChar(150)
-  descricao   String?  @db.VarChar(500)
-  ativo       Boolean  @default(true)
-  
-  obra_id     Int?     // Opcional: Link automático com Obra
-  obra        obras?   @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+  id        Int     @id @default(autoincrement())
+  nome      String  @db.VarChar(150)
+  descricao String? @db.VarChar(500)
+  ativo     Boolean @default(true)
 
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  obra_id Int? // Opcional: Link automático com Obra
+  obra    obras? @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Relations
   lancamentos    Lancamento[]
@@ -682,107 +708,130 @@ enum StatusFinanceiro {
 }
 
 enum FrequenciaRecorrencia {
-  MENSAL    @map("Mensal")
-  SEMANAL   @map("Semanal")
-  ANUAL     @map("Anual")
+  MENSAL     @map("Mensal")
+  SEMANAL    @map("Semanal")
+  ANUAL      @map("Anual")
   TRIMESTRAL @map("Trimestral")
 }
 
+enum ConferenciaStatus {
+  OPEN
+  LOCKED
+  REOPENED
+}
+
+enum NaturezaRendimento {
+  TRIBUTAVEL
+  NAO_TRIBUTAVEL
+  EXCLUSIVA_FONTE
+}
+
+enum StatusConferencia {
+  PENDENTE
+  CONFERIDO
+  PENDENCIA
+}
+
 model ContaPagar {
-  id               Int              @id @default(autoincrement())
-  descricao        String           @db.VarChar(200)
-  valor_total      Decimal          @db.Decimal(15, 2)
-  valor_pago       Decimal          @default(0.00) @db.Decimal(15, 2)
-  
-  data_emissao     DateTime         @db.Date
-  data_vencimento  DateTime         @db.Date
-  data_pagamento   DateTime?        @db.Date // Último pagamento
-  
-  status           StatusFinanceiro @default(PENDENTE)
-  numero_documento String?          @db.VarChar(50) // NF, Boleto
-  observacoes      String?          @db.Text
-  anexos           String?          @db.Text // JSON string or simple types
+  id          Int     @id @default(autoincrement())
+  descricao   String  @db.VarChar(200)
+  valor_total Decimal @db.Decimal(15, 2)
+  valor_pago  Decimal @default(0.00) @db.Decimal(15, 2)
+
+  data_emissao    DateTime  @db.Date
+  data_vencimento DateTime  @db.Date
+  data_pagamento  DateTime? @db.Date // Último pagamento
+
+  status                  StatusFinanceiro @default(PENDENTE)
+  numero_documento        String?          @db.VarChar(50) // NF, Boleto
+  observacoes             String?          @db.Text
+  anexos                  String?          @db.Text // JSON string or simple types
+  cancelamento_tipo       String?          @db.VarChar(40)
+  cancelado_em            DateTime?
+  cancelado_por           Int?
+  cancelamento_observacao String?          @db.Text
 
   // Recorrência / Parcelamento
-  parcela_atual    Int              @default(1)
-  total_parcelas   Int              @default(1)
-  recorrente       Boolean          @default(false)
-  frequencia       FrequenciaRecorrencia?
+  parcela_atual  Int                    @default(1)
+  total_parcelas Int                    @default(1)
+  recorrente     Boolean                @default(false)
+  frequencia     FrequenciaRecorrencia?
 
   // Chaves Estrangeiras
-  fornecedor_id    Int?
-  fornecedor       fornecedores?    @relation(fields: [fornecedor_id], references: [id], onDelete: SetNull)
-  
-  categoria_id     Int
-  categoria        Categoria        @relation(fields: [categoria_id], references: [id])
-  
-  centro_custo_id  Int?
-  centro_custo     CentroCusto?     @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
-  
+  fornecedor_id Int?
+  fornecedor    fornecedores? @relation(fields: [fornecedor_id], references: [id], onDelete: SetNull)
+
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
+
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
   pedido_compra_id Int? // Link com módulo de compras
-  pedido_compra    pedido_compra?   @relation(fields: [pedido_compra_id], references: [id], onDelete: SetNull)
+  pedido_compra    pedido_compra? @relation(fields: [pedido_compra_id], references: [id], onDelete: SetNull)
 
-  created_by       Int?
-  updated_by       Int?
-  createdBy        User?            @relation("ContaPagarCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
-  updatedBy        User?            @relation("ContaPagarUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+  created_by Int?
+  updated_by Int?
+  createdBy  User? @relation("ContaPagarCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy  User? @relation("ContaPagarUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
 
-  created_at       DateTime         @default(now())
-  updated_at       DateTime         @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Relations
-  lancamentos      Lancamento[]
+  lancamentos Lancamento[]
 
   @@index([status])
   @@index([data_vencimento])
   @@index([fornecedor_id])
+  @@index([pedido_compra_id])
   @@map("contas_pagar")
 }
 
 model ContaReceber {
-  id               Int              @id @default(autoincrement())
-  descricao        String           @db.VarChar(200)
-  valor_total      Decimal          @db.Decimal(15, 2)
-  valor_recebido   Decimal          @default(0.00) @db.Decimal(15, 2)
-  
-  data_emissao     DateTime         @db.Date
-  data_vencimento  DateTime         @db.Date
-  data_recebimento DateTime?        @db.Date
-  
+  id             Int     @id @default(autoincrement())
+  descricao      String  @db.VarChar(200)
+  valor_total    Decimal @db.Decimal(15, 2)
+  valor_recebido Decimal @default(0.00) @db.Decimal(15, 2)
+
+  data_emissao     DateTime  @db.Date
+  data_vencimento  DateTime  @db.Date
+  data_recebimento DateTime? @db.Date
+
   status           StatusFinanceiro @default(PENDENTE)
   numero_documento String?          @db.VarChar(50)
   observacoes      String?          @db.Text
   anexos           String?          @db.Text
 
   // Recorrência / Parcelamento
-  parcela_atual    Int              @default(1)
-  total_parcelas   Int              @default(1)
-  recorrente       Boolean          @default(false)
-  frequencia       FrequenciaRecorrencia?
+  parcela_atual  Int                    @default(1)
+  total_parcelas Int                    @default(1)
+  recorrente     Boolean                @default(false)
+  frequencia     FrequenciaRecorrencia?
 
   // Chaves Estrangeiras
-  cliente_id       Int?
-  cliente          cliente?         @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
-  
-  orcamento_id     Int?
-  orcamento        orcamento?       @relation(fields: [orcamento_id], references: [id], onDelete: SetNull)
+  cliente_id Int?
+  cliente    cliente? @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
 
-  categoria_id     Int
-  categoria        Categoria        @relation(fields: [categoria_id], references: [id])
-  
-  centro_custo_id  Int?
-  centro_custo     CentroCusto?     @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+  orcamento_id Int?
+  orcamento    orcamento? @relation(fields: [orcamento_id], references: [id], onDelete: SetNull)
 
-  created_by       Int?
-  updated_by       Int?
-  createdBy        User?            @relation("ContaReceberCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
-  updatedBy        User?            @relation("ContaReceberUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
 
-  created_at       DateTime         @default(now())
-  updated_at       DateTime         @updatedAt
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
+  created_by Int?
+  updated_by Int?
+  createdBy  User? @relation("ContaReceberCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy  User? @relation("ContaReceberUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Relations
-  lancamentos      Lancamento[]
+  lancamentos Lancamento[]
 
   @@index([status])
   @@index([data_vencimento])
@@ -796,43 +845,50 @@ enum TipoLancamento {
 }
 
 model Lancamento {
-  id                Int            @id @default(autoincrement())
-  tipo              TipoLancamento // Receita (Entrada) ou Despesa (Saída)
-  descricao         String         @db.VarChar(255)
-  valor             Decimal        @db.Decimal(15, 2)
-  
-  data_lancamento   DateTime       @db.Date // Data efetiva do pagamento
-  data_competencia  DateTime       @db.Date // Data para DRE
+  id        Int            @id @default(autoincrement())
+  tipo      TipoLancamento // Receita (Entrada) ou Despesa (Saída)
+  descricao String         @db.VarChar(255)
+  valor     Decimal        @db.Decimal(15, 2)
 
-  conciliado        Boolean        @default(false)
-  observacoes       String?        @db.Text
+  data_lancamento  DateTime @db.Date // Data efetiva do pagamento
+  data_competencia DateTime @db.Date // Data para DRE
+
+  observacoes           String?           @db.Text
+  conferencia_sessao_id Int?
+  conferido_em          DateTime?
+  conferido_por         Int?
+  pendencia_motivo      String?           @db.VarChar(255)
+  status_conferencia    StatusConferencia @default(PENDENTE)
+  version               Int               @default(1)
 
   // Chaves
   conta_bancaria_id Int
   conta_bancaria    ContasBancaria @relation(fields: [conta_bancaria_id], references: [id])
 
-  categoria_id      Int
-  categoria         Categoria      @relation(fields: [categoria_id], references: [id])
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
 
-  centro_custo_id   Int?
-  centro_custo      CentroCusto?   @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
+  conferencia_sessoes conferencia_sessoes? @relation(fields: [conferencia_sessao_id], references: [id])
 
   // Links pro fluxo
-  conta_pagar_id    Int?
-  conta_pagar       ContaPagar?    @relation(fields: [conta_pagar_id], references: [id], onDelete: SetNull)
+  conta_pagar_id Int?
+  conta_pagar    ContaPagar? @relation(fields: [conta_pagar_id], references: [id], onDelete: SetNull)
 
-  conta_receber_id  Int?
-  conta_receber     ContaReceber?  @relation(fields: [conta_receber_id], references: [id], onDelete: SetNull)
+  conta_receber_id Int?
+  conta_receber    ContaReceber? @relation(fields: [conta_receber_id], references: [id], onDelete: SetNull)
 
-  transferencia_id  Int?
-  transferencia     Transferencia? @relation(fields: [transferencia_id], references: [id], onDelete: Cascade)
+  transferencia_id Int?
+  transferencia    Transferencia? @relation(fields: [transferencia_id], references: [id], onDelete: Cascade)
 
   // Auditoria
-  created_by        Int?
-  createdBy         User?          @relation("LancamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  created_by Int?
+  createdBy  User? @relation("LancamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
 
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@index([conta_bancaria_id])
   @@index([data_lancamento])
@@ -841,37 +897,57 @@ model Lancamento {
   @@map("lancamentos")
 }
 
+model conferencia_sessoes {
+  id                Int               @id @default(autoincrement())
+  periodo_inicio    DateTime          @db.Date
+  periodo_fim       DateTime          @db.Date
+  conta_bancaria_id Int?
+  status            ConferenciaStatus @default(OPEN)
+  criada_por        Int
+  criada_em         DateTime          @default(now())
+  concluida_por     Int?
+  concluida_em      DateTime?
+  reopened_by       Int?
+  reopened_at       DateTime?
+  reopen_reason     String?           @db.Text
+  nota              String?           @db.Text
+  qtd_conferidas    Int               @default(0)
+  qtd_pendencias    Int               @default(0)
+  total_conferido   Decimal           @default(0.00) @db.Decimal(15, 2)
+
+  contas_bancarias ContasBancaria? @relation(fields: [conta_bancaria_id], references: [id])
+  lancamentos      Lancamento[]
+}
+
 model Transferencia {
-  id                 Int            @id @default(autoincrement())
-  descricao          String         @db.VarChar(255)
-  valor              Decimal        @db.Decimal(15, 2)
-  data_transferencia DateTime       @db.Date
+  id                 Int      @id @default(autoincrement())
+  descricao          String   @db.VarChar(255)
+  valor              Decimal  @db.Decimal(15, 2)
+  data_transferencia DateTime @db.Date
 
-  conta_origem_id    Int
-  conta_origem       ContasBancaria @relation("ContaOrigem", fields: [conta_origem_id], references: [id])
+  conta_origem_id Int
+  conta_origem    ContasBancaria @relation("ContaOrigem", fields: [conta_origem_id], references: [id])
 
-  conta_destino_id   Int
-  conta_destino      ContasBancaria @relation("ContaDestino", fields: [conta_destino_id], references: [id])
-  
+  conta_destino_id Int
+  conta_destino    ContasBancaria @relation("ContaDestino", fields: [conta_destino_id], references: [id])
+
   // Um Lançamento de saída (origem) e um de entrada (destino)
-  lancamentos        Lancamento[]
+  lancamentos Lancamento[]
 
-  created_by         Int?
-  createdBy          User?          @relation("TransferenciaCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  created_by Int?
+  createdBy  User? @relation("TransferenciaCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
 
-  created_at         DateTime       @default(now())
-  updated_at         DateTime       @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@map("transferencias")
 }
 
-
 model IdempotencyLog {
   key        String   @id
   created_at DateTime @default(now())
-  status     String   // "PENDING", "COMPLETED", "FAILED"
+  status     String // "PENDING", "COMPLETED", "FAILED"
   result     String?  @db.Text // JSON Result
-  
+
   @@map("idempotency_logs")
 }
-

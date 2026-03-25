@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { canIntegratePedido, canReversePedidoIntegration, getPedidoFinanceBadgeClass, getPedidoFinanceLabel } from "@/lib/pedido-compra-finance"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { StatusSlug } from "@/lib/pedido-compra-theme"
 import { calcVariancePercent, formatMoney, fromSlugStatus } from "@/lib/pedido-compra-utils"
@@ -25,6 +26,7 @@ type Props = {
   onToggleOrderSelection: (orderId: string, checked: boolean) => void
   onOrderClick: (order: PurchaseOrder) => void
   onViewOrder: (order: PurchaseOrder) => void
+  onOpenFinanceAction: (kind: "integrate" | "reverse", ids: Array<string | number>) => void
   onDeleteOrder: (order: PurchaseOrder) => void
 }
 
@@ -41,6 +43,7 @@ export function PedidoCompraListTable({
   onToggleOrderSelection,
   onOrderClick,
   onViewOrder,
+  onOpenFinanceAction,
   onDeleteOrder,
 }: Props) {
   return (
@@ -151,7 +154,9 @@ export function PedidoCompraListTable({
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">
-                  <span className={listIntegrationBadgeClass}>Não integrado</span>
+                  <span className={`${listIntegrationBadgeClass} ${getPedidoFinanceBadgeClass(order.financeiroIntegracaoStatus)}`}>
+                    {getPedidoFinanceLabel(order.financeiroIntegracaoStatus)}
+                  </span>
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">
@@ -166,14 +171,24 @@ export function PedidoCompraListTable({
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#ddd7cc]">
+                      <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#ddd7cc]">
                       <DropdownMenuItem onClick={() => onViewOrder(order)}>Visualizar pedido</DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-[#8f3f37]" onClick={() => onDeleteOrder(order)}>
-                        Excluir pedido
-                      </DropdownMenuItem>
+                      {!order.integrated ? (
+                        <DropdownMenuItem asChild>
+                          <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
+                        </DropdownMenuItem>
+                      ) : null}
+                      {canIntegratePedido(order.financeiroIntegracaoStatus) ? (
+                        <DropdownMenuItem onClick={() => onOpenFinanceAction("integrate", [order.id])}>Integrar financeiro</DropdownMenuItem>
+                      ) : null}
+                      {canReversePedidoIntegration(order.financeiroIntegracaoStatus) ? (
+                        <DropdownMenuItem onClick={() => onOpenFinanceAction("reverse", [order.id])}>Estornar integração financeira</DropdownMenuItem>
+                      ) : null}
+                      {!order.integrated ? (
+                        <DropdownMenuItem className="text-[#8f3f37]" onClick={() => onDeleteOrder(order)}>
+                          Excluir pedido
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

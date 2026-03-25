@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
+import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
 
 export const payBillSchema = z.object({
     conta_pagar_id: z.number().int().positive(),
@@ -103,7 +104,6 @@ export async function payBill(input: PayBillInput, userId?: number) {
                     conta_bancaria_id: input.conta_bancaria_id,
                     categoria_id: bill.categoria_id,
                     centro_custo_id: bill.centro_custo_id,
-                    conciliado: true,
                     observacoes: `Ref: Conta Pagar #${bill.id}`,
                     created_by: userId,
                     conta_pagar_id: bill.id
@@ -118,6 +118,10 @@ export async function payBill(input: PayBillInput, userId?: number) {
 
             return updatedBill
         })
+
+        if (result.pedido_compra_id) {
+            await syncPedidoCompraValorRealizado(result.pedido_compra_id)
+        }
 
         // 6. Finalize Idempotency
         if (input.idempotencyKey) {

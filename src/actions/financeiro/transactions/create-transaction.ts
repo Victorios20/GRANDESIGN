@@ -16,9 +16,7 @@ export async function createTransaction(input: TransactionInput, userId?: number
             data: {
                 ...input,
                 data_competencia,
-                created_by: userId,
-                // Status defaults
-                conciliado: false
+                created_by: userId
             }
         })
 

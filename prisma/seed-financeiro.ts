@@ -1,4 +1,4 @@
-import { PrismaClient, TipoLancamento, StatusFinanceiro, TipoContaBancaria, TipoCategoria } from "@prisma/client"
+import { PrismaClient, TipoLancamento, StatusConferencia, StatusFinanceiro, TipoContaBancaria, TipoCategoria } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
@@ -132,7 +132,8 @@ async function main() {
                     descricao: t.desc,
                     data_competencia: t.dt,
                     data_lancamento: t.dt,
-                    conciliado: true,
+                    status_conferencia: StatusConferencia.CONFERIDO,
+                    conferido_em: t.dt,
                     categoria_id: catId,
                     centro_custo_id: cc.id,
                     conta_bancaria_id: bank.id,
@@ -140,9 +141,10 @@ async function main() {
                 }
             })
             count++
-        } catch (err: any) {
-            console.error("❌ Error creating index " + count + ":", err.message)
-            throw err
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error"
+            console.error("❌ Error creating index " + count + ":", message)
+            throw error
         }
     }
 

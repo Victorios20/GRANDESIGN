@@ -1,11 +1,12 @@
 import { prisma } from "@/lib/prisma"
-import { PedidoCompraStatus, Prisma } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, PedidoCompraStatus, Prisma } from "@prisma/client"
 
 export type PedidoCompraStatusErrorCode =
   | "PAYLOAD_INVALIDO"
   | "STATUS_INVALIDO"
   | "PEDIDO_NAO_ENCONTRADO"
   | "PEDIDOS_NAO_ENCONTRADOS"
+  | "PEDIDO_INTEGRADO_FINANCEIRO"
   | "STATUS_UPDATE_FAILED"
 
 export class PedidoCompraStatusError extends Error {
@@ -99,6 +100,22 @@ async function updatePedidoCompraStatusInTx(
   pedidoCompraId: number,
   nextStatus: PedidoCompraStatus
 ) {
+  if (nextStatus === PedidoCompraStatus.CANCELADO) {
+    const pedido = await tx.pedido_compra.findUnique({
+      where: { id: pedidoCompraId },
+      select: { financeiro_integracao_status: true },
+    })
+
+    if (pedido?.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
+      throw new PedidoCompraStatusError(
+        "PEDIDO_INTEGRADO_FINANCEIRO",
+        "Estorne a integração financeira antes de cancelar o pedido.",
+        "validate-financial-lock",
+        { pedidoCompraId }
+      )
+    }
+  }
+
   try {
     return await tx.pedido_compra.update({
       where: { id: pedidoCompraId },

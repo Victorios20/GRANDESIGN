@@ -21,6 +21,9 @@ export type PedidoStatus =
     | "ENTREGUE"
     | "CANCELADO"
 
+export type PedidoFinanceIntegrationStatus = "NAO_INTEGRADO" | "INTEGRADO" | "ESTORNADO"
+export type FinanceiroContaPagarStatus = "PENDENTE" | "PAGO" | "PARCIAL" | "ATRASADO" | "CANCELADO"
+
 export type PurchaseOrderStatusSlug =
     | "todos"
     | "rascunho"
@@ -74,6 +77,11 @@ export interface PedidoCompraListItem {
     obra_titulo: string | null
     obra_cidade: string | null
     created_at: string
+    financeiro_integracao_status: PedidoFinanceIntegrationStatus
+    financeiro_conta_pagar_id: number | null
+    financeiro_conta_pagar_status: FinanceiroContaPagarStatus | null
+    financeiro_conta_pagar_valor_total: string | number | null
+    financeiro_conta_pagar_valor_pago: string | number | null
 }
 
 export interface ListarResult {
@@ -105,6 +113,9 @@ export interface PurchaseOrder {
     deliveryDate: string | null
     status: PurchaseOrderStatusSlug
     integrated: boolean
+    financeiroIntegracaoStatus: PedidoFinanceIntegrationStatus
+    financeiroContaPagarId?: number | null
+    financeiroContaPagarStatus?: FinanceiroContaPagarStatus | null
     integratedCode?: string
     viewed?: boolean
     createdAt: string
@@ -122,6 +133,9 @@ export interface PedidoCompraSummaryInitialData {
     valorRealizado?: number | string | null
     dataEntrega?: string | null
     integrado?: boolean
+    integracaoFinanceiraStatus?: PedidoFinanceIntegrationStatus
+    financeiroContaPagarId?: number | null
+    financeiroContaPagarStatus?: FinanceiroContaPagarStatus | null
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -208,6 +222,13 @@ export interface PedidoCompraDetalhadoSnake {
     motivo_extra: string | null
 
     fornecedor_id: number | null
+    financeiro_integracao_status: PedidoFinanceIntegrationStatus
+    financeiro_integrado_em?: string | null
+    financeiro_estornado_em?: string | null
+    financeiro_conta_pagar_id: number | null
+    financeiro_conta_pagar_status: FinanceiroContaPagarStatus | null
+    financeiro_conta_pagar_valor_total: string | null
+    financeiro_conta_pagar_valor_pago: string | null
     data_entrega: string | null
     endereco_entrega: string | null
     nome_receptor: string | null
