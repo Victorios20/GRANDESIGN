@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import { headers as nextHeaders } from "next/headers"
 import ObrasPage from "@/app/obras/ObrasPage"
 import type {
   ObraDetalheDTO,
@@ -15,6 +14,7 @@ import type { ImgItem } from "@/app/obras/_sections/ObsImagens"
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
 import { detalharObraDB, AppError } from "@/actions/obras/detalhar-obra"
+import { ssrJSON } from "@/lib/ssrFetch"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -209,12 +209,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   const obraId = Number(idStr)
   if (!Number.isFinite(obraId) || obraId <= 0) notFound()
 
-  const h = await nextHeaders()
-  const cookie = h.get("cookie") ?? ""
-  const proto = h.get("x-forwarded-proto") ?? "http"
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"
-  const base = `${proto}://${host}`
-
   // Fetch obra directly from DB — avoids auth cookie roundtrip via fetch
   let dto: ObraDetalheDTO
   try {
@@ -227,56 +221,30 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
   }
 
   const [
-    resTipos,
+    tiposRaw,
     componentes,
     geraisDB,
     telhasDB,
-    resFornTelha,
-    resFornMadeira,
-    resFornAndaimes,
-    resEquipes,
-    resCidades,
+    fornecedoresTelhaJson,
+    fornecedoresMadeiraJson,
+    fornecedoresAndaimesJson,
+    equipesJson,
+    cidadesRaw,
   ] = await Promise.all([
-    fetch(`${base}/api/tipos-obra?page=1&pageSize=100`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
+    ssrJSON<any>("/api/tipos-obra?page=1&pageSize=100"),
     listarComponentesDB(),
     listarMateriaisGerais(),
     listarTelhas(),
-    fetch(`${base}/api/fornecedores?tipo=telha`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
-    fetch(`${base}/api/fornecedores?tipo=madeira`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
-    fetch(`${base}/api/fornecedores?tipo=andaimes`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
-    fetch(`${base}/api/equipes?page=1&pageSize=200`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
-    fetch(`${base}/api/cidades`, {
-      cache: "no-store",
-      headers: { cookie },
-      credentials: "include",
-    }),
+    ssrJSON<any>("/api/fornecedores?tipo=telha"),
+    ssrJSON<any>("/api/fornecedores?tipo=madeira"),
+    ssrJSON<any>("/api/fornecedores?tipo=andaimes"),
+    ssrJSON<any>("/api/equipes?page=1&pageSize=200"),
+    ssrJSON<any>("/api/cidades"),
   ])
 
-  const cidadesRaw = await resCidades.json().catch(() => [])
   const cidades = normalizeCidades(cidadesRaw)
   const cidadeMap = new Map<number, string>(cidades.map((c) => [c.id, c.nome]))
 
-  const tiposRaw = await resTipos.json().catch(() => null)
   const tiposObraOptions: Option[] = Array.isArray(tiposRaw?.data ?? tiposRaw?.items ?? tiposRaw?.options ?? tiposRaw)
     ? (tiposRaw.data ?? tiposRaw.items ?? tiposRaw.options ?? tiposRaw)
       .map((x: any) => {
@@ -354,10 +322,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
         .filter(Boolean) as Option[]
       : []
 
-  const fornecedoresTelhaJson = await resFornTelha.json().catch(() => [])
-  const fornecedoresMadeiraJson = await resFornMadeira.json().catch(() => [])
-  const fornecedoresAndaimesJson = await resFornAndaimes.json().catch(() => [])
-
   const fornecedoresTelhaOptions: Option[] = toOptions((fornecedoresTelhaJson as any)?.data ?? fornecedoresTelhaJson)
   const fornecedoresMadeiraOptions: Option[] = toOptions(
     (fornecedoresMadeiraJson as any)?.data ?? fornecedoresMadeiraJson
@@ -366,7 +330,6 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     (fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson
   )
 
-  const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
   const equipesOptions: Option[] = Array.isArray((equipesJson as any)?.data)
     ? ((equipesJson as any).data as any[])
       .map((e: any) => {
@@ -421,7 +384,7 @@ export default async function ObraViewPage({ params }: { params: Promise<{ id: s
     }
 
   const orcamentoId = pickOrcamentoId(dto)
-  const orcamentoLink = orcamentoId ? `${proto}://${host}/orcamento/detalhes/${orcamentoId}` : ""
+  const orcamentoLink = orcamentoId ? `/orcamento/detalhes/${orcamentoId}` : ""
 
   const proposta =
     String((dto as any)?.anexos?.propostaSlide ?? "") ||
