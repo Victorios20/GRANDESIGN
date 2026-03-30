@@ -1,5 +1,4 @@
 import PedidoCompraPageClient from "./_components/PedidoCompraPageClient"
-import { headers } from "next/headers"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -9,18 +8,7 @@ import {
   FornecedorOption,
   ObraSearchItem,
 } from "@/types/pedido-compra"
-
-async function getBaseUrl() {
-  const h = await headers()
-  const proto = h.get("x-forwarded-proto") ?? "http"
-  const host = h.get("x-forwarded-host") ?? h.get("host")
-  if (!host) return "http://localhost:3000"
-  return `${proto}://${host}`
-}
-
-async function safeJson(res: Response) {
-  return res.json().catch(() => null)
-}
+import { ssrJSON } from "@/lib/ssrFetch"
 
 function normalizeFornecedores(body: any): FornecedorOption[] {
   const arr: any[] = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []
@@ -30,35 +18,10 @@ function normalizeFornecedores(body: any): FornecedorOption[] {
 }
 
 export default async function Page() {
-  const baseUrl = await getBaseUrl()
-
-  const h = await headers()
-  const cookie = h.get("cookie") ?? ""
-  const authorization = h.get("authorization") ?? ""
-
-  const forwardHeaders: Record<string, string> = {}
-  if (cookie) forwardHeaders.cookie = cookie
-  if (authorization) forwardHeaders.authorization = authorization
-
-  const [listRes, fornRes] = await Promise.all([
-    fetch(`${baseUrl}/api/pedido_compra/listar?page=1&pageSize=100`, {
-      cache: "no-store",
-      headers: forwardHeaders,
-    }),
-    fetch(`${baseUrl}/api/fornecedores`, {
-      cache: "no-store",
-      headers: forwardHeaders,
-    }),
+  const [listBody, fornBody] = await Promise.all([
+    ssrJSON<{ data?: ListarResult }>("/api/pedido_compra/listar?page=1&pageSize=100"),
+    ssrJSON<unknown>("/api/fornecedores"),
   ])
-
-  const listBody = await safeJson(listRes)
-  const fornBody = await safeJson(fornRes)
-
-  console.log("[PedidoCompra/Page] baseUrl:", baseUrl)
-  console.log("[PedidoCompra/Page] list status:", listRes.status, listRes.statusText)
-  console.log("[PedidoCompra/Page] forn status:", fornRes.status, fornRes.statusText)
-  console.log("[PedidoCompra/Page] RAW listBody JSON:\n", JSON.stringify(listBody, null, 2))
-  console.log("[PedidoCompra/Page] RAW fornBody JSON:\n", JSON.stringify(fornBody, null, 2))
 
   const initialList: ListarResult =
     (listBody?.data as ListarResult) ?? { items: [], page: 1, pageSize: 100, total: 0, totalPages: 1 }
@@ -75,11 +38,7 @@ export default async function Page() {
 
   const obraResults = await Promise.all(
     obraIds.map(async (id) => {
-      const r = await fetch(`${baseUrl}/api/obras/pesquisar?q=${encodeURIComponent(String(id))}`, {
-        cache: "no-store",
-        headers: forwardHeaders,
-      })
-      const b = await safeJson(r)
+      const b = await ssrJSON<any>(`/api/obras/pesquisar?q=${encodeURIComponent(String(id))}`)
 
       const arr: any[] = Array.isArray(b?.data) ? b.data : Array.isArray(b) ? b : []
       const first = arr?.[0]

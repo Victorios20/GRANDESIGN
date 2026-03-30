@@ -25,13 +25,20 @@ export async function ssrJSON<T>(path: string, init?: RequestInit) {
     },
   }
 
+  const port = process.env.PORT || "3000"
+  const urlLoopback = new URL(path, `http://127.0.0.1:${port}`).toString()
+
+  let res: Response
+
   // 1ª tentativa: via host/proxy (público)
-  let res = await fetch(urlExternal, commonInit)
+  try {
+    res = await fetch(urlExternal, commonInit)
+  } catch {
+    res = await fetch(urlLoopback, commonInit)
+  }
 
   // fallback: loopback (caso o proxy/middleware embaralhe algo)
-  if (!res.ok) {
-    const port = process.env.PORT || "80" // seu Next está rodando na 80 pelos logs
-    const urlLoopback = new URL(path, `http://127.0.0.1:${port}`).toString()
+  if (!res.ok && urlExternal !== urlLoopback) {
     res = await fetch(urlLoopback, commonInit)
   }
 
