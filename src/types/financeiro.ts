@@ -84,8 +84,15 @@ export interface BankOption {
     id: number
     nome: string
     tipo: string
+    banco?: string | null
+    agencia?: string | null
+    conta?: string | null
+    saldo_inicial?: number
     saldo_atual: number
+    cor?: string | null
     ativo: boolean
+    transactionCount?: number
+    hasTransactions?: boolean
 }
 
 export interface CategoryOption {
@@ -93,11 +100,37 @@ export interface CategoryOption {
     nome: string
     tipo: string
     cor: string | null
+    icone?: string | null
+    ativo?: boolean
+    categoria_pai_id?: number | null
+    categoriaPai?: {
+        id: number
+        nome: string
+    } | null
+    subcategorias?: CategoryOption[]
+    lancamentosCount?: number
+    contasPagarCount?: number
+    contasReceberCount?: number
+    usageCount?: number
+    subcategoriasCount?: number
 }
 
 export interface CentroCustoOption {
     id: number
     nome: string
+    descricao?: string | null
+    ativo?: boolean
+    obra_id?: number | null
+    obra?: {
+        id: number
+        titulo: string | null
+        endereco_obra: string | null
+    } | null
+    lancamentosCount?: number
+    contasPagarCount?: number
+    contasReceberCount?: number
+    usageCount?: number
+    hasLinkedObra?: boolean
 }
 
 // ── Paginated response ──
@@ -189,11 +222,89 @@ export interface BalanceteItem {
 
 // ── Cash Flow ──
 
+export type CashFlowDayStatus = "SAUDAVEL" | "ATENCAO" | "CRITICO"
+
 export interface CashFlowProjectionItem {
     date: string
     saldo_inicial: number
     entradas_previstas: number
     saidas_previstas: number
+    saldo_dia: number
     saldo_final: number
-    status: "OK" | "ALERTA" | "CRITICO"
+    status: CashFlowDayStatus
+}
+
+export type CashFlowScopeMode =
+    | "preset_7"
+    | "preset_14"
+    | "preset_28"
+    | "preset_30"
+    | "preset_60"
+    | "preset_90"
+    | "all_open"
+    | "custom_range"
+
+export interface CashFlowProjectionScope {
+    mode: CashFlowScopeMode
+    label: string
+    period_start: string
+    period_end: string
+    days: number
+    last_open_due_date: string | null
+}
+
+export interface CashFlowProjectionSummary {
+    saldo_atual: number
+    entradas_previstas: number
+    saidas_previstas: number
+    saldo_final_previsto: number
+    pior_saldo: number
+    data_pior_saldo: string | null
+    pico_caixa: number
+    data_pico_caixa: string | null
+}
+
+export interface CashFlowAnalyticsPoint {
+    date: string | null
+    value: number
+}
+
+export interface CashFlowProjectionAnalytics {
+    worst_day: CashFlowAnalyticsPoint
+    best_day: CashFlowAnalyticsPoint
+    biggest_inflow_day: CashFlowAnalyticsPoint
+    biggest_outflow_day: CashFlowAnalyticsPoint
+    critical_days_count: number
+    attention_days_count: number
+    healthy_days_count: number
+}
+
+export interface CashFlowSettings {
+    safety_limit: number
+}
+
+export interface CashFlowExcludedTransfersSummary {
+    entradas: number
+    saidas: number
+    quantidade: number
+}
+
+export interface CashFlowOutsideScopeSummary {
+    entradas_antes: number
+    saidas_antes: number
+    entradas_depois: number
+    saidas_depois: number
+    total_entradas: number
+    total_saidas: number
+    has_values: boolean
+}
+
+export interface CashFlowProjectionResponse {
+    safety_limit: number
+    scope: CashFlowProjectionScope
+    summary: CashFlowProjectionSummary
+    analytics: CashFlowProjectionAnalytics
+    excluded_internal_transfers: CashFlowExcludedTransfersSummary
+    outside_scope: CashFlowOutsideScopeSummary
+    projection: CashFlowProjectionItem[]
 }

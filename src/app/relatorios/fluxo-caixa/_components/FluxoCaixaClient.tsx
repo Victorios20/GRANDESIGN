@@ -1,9 +1,13 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useMemo, useState } from "react"
+import type { DateRange } from "react-day-picker"
+import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
+
+import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 import { PageLayout } from "@/components/ui/pageLayout"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import {
     Select,
     SelectContent,
@@ -11,32 +15,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
-import { RefreshCw, TrendingUp, TrendingDown, AlertCircle } from "lucide-react"
-import { toast } from "sonner"
 import { formatCurrency } from "@/lib/financeiro-utils"
-import type { CashFlowProjectionItem } from "../../../../types/financeiro"
-import { format, addDays, startOfDay } from "date-fns"
-import { ptBR } from "date-fns/locale"
+import type { CashFlowProjectionResponse } from "@/types/financeiro"
+
+import { CashFlowChartPanel } from "./CashFlowChartPanel"
+import { CashFlowDailyTable } from "./CashFlowDailyTable"
+import { CashFlowMetricCard } from "./CashFlowMetricCard"
+import { CashFlowPeriodControl } from "./CashFlowPeriodControl"
 import {
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    ReferenceLine
-} from "recharts"
+    buildCashFlowDiagnosis,
+    buildCashFlowSelectionFromScope,
+    formatCashFlowDate,
+    parseCashFlowScopeRange,
+    type CashFlowPeriodSelection,
+} from "./cash-flow-view-model"
 
 interface Option {
     id: number
@@ -45,240 +37,262 @@ interface Option {
 
 interface Props {
     costCenters: Option[]
-    bankAccounts: Option[]
+    initialData: CashFlowProjectionResponse
 }
 
-export default function FluxoCaixaClient({ costCenters, bankAccounts }: Props) {
-    const [data, setData] = useState<CashFlowProjectionItem[]>([])
+interface AppliedFilters {
+    costCenterId: string
+    period: CashFlowPeriodSelection
+    range: DateRange | undefined
+}
+
+export default function FluxoCaixaClient({ costCenters, initialData }: Props) {
+    const [data, setData] = useState(initialData)
+    const [filters, setFilters] = useState<AppliedFilters>({
+        costCenterId: "all",
+        period: buildCashFlowSelectionFromScope(initialData.scope),
+        range: parseCashFlowScopeRange(initialData.scope),
+    })
     const [loading, setLoading] = useState(false)
 
-    // Filters
-    const [startDate, setStartDate] = useState(format(new Date(), "yyyy-MM-dd"))
-    const [days, setDays] = useState("30")
-    const [costCenterId, setCostCenterId] = useState<string>("all")
-    const [bankAccountId, setBankAccountId] = useState<string>("all")
+    const diagnosis = useMemo(() => buildCashFlowDiagnosis(data), [data])
+    const netVariation = data.summary.entradas_previstas - data.summary.saidas_previstas
 
-    const fetchData = useCallback(async () => {
-        setLoading(true)
+    async function fetchProjection(nextFilters: AppliedFilters) {
         try {
+            setLoading(true)
+
             const params = new URLSearchParams({
-                start_date: startDate,
-                days: days,
+                scope_mode: nextFilters.period.scopeMode,
             })
 
-            if (costCenterId && costCenterId !== "all") params.append("centro_custo_id", costCenterId)
-            if (bankAccountId && bankAccountId !== "all") params.append("conta_bancaria_id", bankAccountId)
+            if (nextFilters.period.scopeMode === "custom_range") {
+                if (nextFilters.period.periodStart) {
+                    params.set("period_start", nextFilters.period.periodStart)
+                }
 
-            const res = await fetch(`/api/financeiro/reports/cash-flow-projection?${params.toString()}`)
-            if (res.ok) {
-                const result = await res.json()
-                setData(result)
-            } else {
-                toast.error("Erro ao carregar projeção")
+                if (nextFilters.period.periodEnd) {
+                    params.set("period_end", nextFilters.period.periodEnd)
+                }
             }
-        } catch {
-            toast.error("Erro de conexão")
+
+            if (nextFilters.costCenterId !== "all") {
+                params.set("centro_custo_id", nextFilters.costCenterId)
+            }
+
+            const response = await fetch(`/api/financeiro/reports/cash-flow-projection?${params.toString()}`, {
+                cache: "no-store",
+            })
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null)
+                throw new Error(payload?.error ?? "Erro ao carregar projecao")
+            }
+
+            const nextData = (await response.json()) as CashFlowProjectionResponse
+
+            setData(nextData)
+            setFilters({
+                ...nextFilters,
+                period: buildCashFlowSelectionFromScope(nextData.scope),
+                range: parseCashFlowScopeRange(nextData.scope),
+            })
+        } catch (error) {
+            toast.error((error as Error).message)
         } finally {
             setLoading(false)
         }
-    }, [startDate, days, costCenterId, bankAccountId])
+    }
 
-    useEffect(() => {
-        fetchData()
-    }, [fetchData])
+    async function handlePeriodChange(period: CashFlowPeriodSelection, range: DateRange | undefined) {
+        await fetchProjection({
+            ...filters,
+            period,
+            range,
+        })
+    }
 
-    // Summary Calculations
-    const lowPoint = useMemo(() => data.reduce((min, item) => item.saldo_final < min ? item.saldo_final : min, Infinity), [data])
-    const highPoint = useMemo(() => data.reduce((max, item) => item.saldo_final > max ? item.saldo_final : max, -Infinity), [data])
-    const finalBalance = data.length > 0 ? data[data.length - 1].saldo_final : 0
+    async function handleCostCenterChange(costCenterId: string) {
+        await fetchProjection({
+            ...filters,
+            costCenterId,
+        })
+    }
 
     return (
-        <PageLayout title="Fluxo de Caixa Projetado">
-            <div className="space-y-6 max-w-[1400px] mx-auto pb-20">
+        <PageLayout title="Fluxo de Caixa">
+            <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
+                <section className="space-y-4">
+                    <div className="space-y-1">
+                        <h1 className="text-[2rem] font-semibold tracking-[-0.04em] text-[#2c201b]">
+                            Fluxo de Caixa
+                        </h1>
+                        <p className="text-sm text-[rgba(44,32,27,0.68)]">
+                            Projecao diaria de entradas, saidas e saldo
+                        </p>
+                    </div>
 
-                {/* Filters */}
-                <Card className="bg-card border-none shadow-sm ring-1 ring-marromClaro/20">
-                    <CardContent className="p-4 flex flex-wrap gap-4 items-end">
-                        <div className="space-y-1">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Início</Label>
-                            <Input
-                                type="date"
-                                value={startDate}
-                                onChange={e => setStartDate(e.target.value)}
-                                className="h-9 w-[140px] text-xs"
+                    <div className="flex flex-col gap-4 rounded-2xl border border-[rgba(44,32,27,0.08)] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.08)] xl:flex-row xl:items-end xl:justify-between">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-end">
+                            <CashFlowPeriodControl
+                                selection={filters.period}
+                                range={filters.range}
+                                disabled={loading}
+                                onApplySelection={(period, range) => void handlePeriodChange(period, range)}
                             />
+
+                            <div className="space-y-2">
+                                <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.62)]">
+                                    Centro de custo
+                                </Label>
+                                <Select
+                                    value={filters.costCenterId}
+                                    onValueChange={(value) => void handleCostCenterChange(value)}
+                                    disabled={loading}
+                                >
+                                    <SelectTrigger className="h-11 w-full rounded-lg border-[#2c201b] bg-transparent text-[#2c201b] md:w-[240px]">
+                                        <SelectValue placeholder="Todos os centros" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os centros</SelectItem>
+                                        {costCenters.map((costCenter) => (
+                                            <SelectItem key={costCenter.id} value={String(costCenter.id)}>
+                                                {costCenter.nome}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                        <div className="space-y-1 w-[100px]">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Dias</Label>
-                            <Select value={days} onValueChange={setDays}>
-                                <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="15">15 Dias</SelectItem>
-                                    <SelectItem value="30">30 Dias</SelectItem>
-                                    <SelectItem value="60">60 Dias</SelectItem>
-                                    <SelectItem value="90">90 Dias</SelectItem>
-                                </SelectContent>
-                            </Select>
+
+                        <div className="flex flex-wrap gap-2 text-xs text-[rgba(44,32,27,0.68)]">
+                            <span className="rounded-full border border-[rgba(44,32,27,0.10)] bg-[#FAF3E0] px-3 py-1.5">
+                                {formatCashFlowDate(data.scope.period_start)} ate {formatCashFlowDate(data.scope.period_end)}
+                            </span>
+                            <span className="rounded-full border border-[rgba(44,32,27,0.10)] bg-[#FAF3E0] px-3 py-1.5">
+                                Limite de seguranca: {formatCurrency(data.safety_limit)}
+                            </span>
                         </div>
-                        <div className="space-y-1 w-[200px]">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Centro de Custo</Label>
-                            <Select value={costCenterId} onValueChange={setCostCenterId}>
-                                <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder="Todos" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos</SelectItem>
-                                    {costCenters.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                    </div>
+                </section>
+
+                <section className="grid gap-4 xl:grid-cols-5">
+                    <CashFlowMetricCard
+                        label="Saldo atual"
+                        value={formatCurrency(data.summary.saldo_atual)}
+                        supportingText="Base disponivel hoje"
+                    />
+                    <CashFlowMetricCard
+                        label="Saldo projetado"
+                        value={formatCurrency(data.summary.saldo_final_previsto)}
+                        supportingText="Fechamento do periodo"
+                        tone={data.summary.saldo_final_previsto <= 0 ? "accent" : "default"}
+                    />
+                    <CashFlowMetricCard
+                        label="Entradas"
+                        value={formatCurrency(data.summary.entradas_previstas)}
+                        supportingText="Total previsto na janela"
+                    />
+                    <CashFlowMetricCard
+                        label="Saidas"
+                        value={formatCurrency(data.summary.saidas_previstas)}
+                        supportingText="Total previsto na janela"
+                    />
+                    <CashFlowMetricCard
+                        label="Variacao liquida"
+                        value={formatCurrency(netVariation)}
+                        supportingText="Entradas menos saidas"
+                        tone={netVariation < 0 ? "accent" : "muted"}
+                    />
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-3">
+                    <CashFlowMetricCard
+                        label="Pior dia"
+                        value={formatCurrency(data.analytics.worst_day.value)}
+                        supportingText={formatCashFlowDate(data.analytics.worst_day.date)}
+                        tone="accent"
+                    />
+                    <CashFlowMetricCard
+                        label="Melhor dia"
+                        value={formatCurrency(data.analytics.best_day.value)}
+                        supportingText={formatCashFlowDate(data.analytics.best_day.date)}
+                        tone="muted"
+                    />
+                    <CashFlowMetricCard
+                        label="Dias criticos"
+                        value={String(data.analytics.critical_days_count)}
+                        supportingText={`${data.analytics.attention_days_count} dia(s) em atencao`}
+                        tone={data.analytics.critical_days_count > 0 ? "accent" : "default"}
+                    />
+                </section>
+
+                <CashFlowChartPanel data={data} />
+
+                <Card className="rounded-2xl border border-[rgba(44,32,27,0.08)] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                    <CardContent className="p-5">
+                        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="max-w-3xl space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                                    Diagnostico rapido
+                                </p>
+                                <h2 className="text-lg font-semibold text-[#2c201b]">
+                                    {diagnosis.headline}
+                                </h2>
+                                <p className="text-sm leading-6 text-[rgba(44,32,27,0.72)]">
+                                    {diagnosis.description}
+                                </p>
+                            </div>
+
+                            <div className="grid min-w-full gap-3 sm:grid-cols-2 xl:min-w-[520px] xl:max-w-[520px]">
+                                <div className="rounded-xl border border-[rgba(44,32,27,0.08)] bg-[#FAF3E0] px-4 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                                        Menor saldo
+                                    </p>
+                                    <p className="mt-1 text-base font-semibold text-[#2c201b]">
+                                        {formatCurrency(data.analytics.worst_day.value)}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-[rgba(44,32,27,0.08)] bg-[#FAF3E0] px-4 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                                        Data critica
+                                    </p>
+                                    <p className="mt-1 text-base font-semibold text-[#2c201b]">
+                                        {formatCashFlowDate(data.analytics.worst_day.date)}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-[rgba(44,32,27,0.08)] bg-[#FAF3E0] px-4 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                                        Dias criticos
+                                    </p>
+                                    <p className="mt-1 text-base font-semibold text-[#2c201b]">
+                                        {data.analytics.critical_days_count}
+                                    </p>
+                                </div>
+                                <div className="rounded-xl border border-[rgba(44,32,27,0.08)] bg-[#FAF3E0] px-4 py-3">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                                        Pressao de caixa
+                                    </p>
+                                    <p className="mt-1 text-base font-semibold text-[#2c201b]">
+                                        {diagnosis.pressure}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
-                        <div className="space-y-1 w-[200px]">
-                            <Label className="text-[10px] uppercase font-bold text-muted-foreground">Conta Bancária</Label>
-                            <Select value={bankAccountId} onValueChange={setBankAccountId}>
-                                <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder="Todas" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {bankAccounts.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.nome}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <Button variant="outline" size="icon" onClick={fetchData} disabled={loading} className="mb-0.5">
-                            <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-                        </Button>
                     </CardContent>
                 </Card>
 
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="border-l-4 border-l-blue-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Final (Projetado)</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className={`text-2xl font-bold ${finalBalance < 0 ? 'text-red-500' : 'text-blue-600'}`}>
-                                {formatCurrency(finalBalance)}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="border-l-4 border-l-red-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Ponto Crítico (Mínimo)</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">
-                                {lowPoint === Infinity ? "-" : formatCurrency(lowPoint)}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="border-l-4 border-l-emerald-500">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">Pico de Caixa (Máximo)</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-emerald-600">
-                                {highPoint === -Infinity ? "-" : formatCurrency(highPoint)}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
+                <CashFlowDailyTable data={data} />
 
-                {/* Chart */}
-                <Card className="p-6">
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                <XAxis
-                                    dataKey="date"
-                                    tickFormatter={(val) => format(parseDate(val), "dd/MM")}
-                                    tick={{ fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    tickFormatter={(val) => `R$ ${val / 1000}k`}
-                                    tick={{ fontSize: 11 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    formatter={(val: number) => formatCurrency(val)}
-                                    labelFormatter={(label) => format(parseDate(label as string), "dd 'de' MMMM", { locale: ptBR })}
-                                />
-                                <ReferenceLine y={0} stroke="red" strokeDasharray="3 3" />
-
-                                <Line
-                                    type="monotone"
-                                    dataKey="saldo_final"
-                                    stroke="#2563EB"
-                                    strokeWidth={3}
-                                    dot={false}
-                                    activeDot={{ r: 6 }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+                {loading ? (
+                    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-20 flex justify-center">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(44,32,27,0.10)] bg-white px-4 py-2 text-sm text-[rgba(44,32,27,0.72)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
+                            <Loader2 className="size-4 animate-spin" />
+                            Atualizando fluxo de caixa...
+                        </div>
                     </div>
-                </Card>
-
-                {/* Table */}
-                <Card>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Data</TableHead>
-                                <TableHead className="text-right">Saldo Inicial</TableHead>
-                                <TableHead className="text-right text-emerald-600">Entradas Previstas</TableHead>
-                                <TableHead className="text-right text-red-600">Saídas Previstas</TableHead>
-                                <TableHead className="text-right font-bold">Saldo Final</TableHead>
-                                <TableHead className="text-center">Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data.map((item) => (
-                                <TableRow key={item.date} className="hover:bg-muted/50">
-                                    <TableCell className="font-medium text-xs">
-                                        {format(parseDate(item.date), "dd/MM/yyyy (EEEE)", { locale: ptBR })}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs font-mono text-muted-foreground">
-                                        {formatCurrency(item.saldo_inicial)}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs font-mono text-emerald-600">
-                                        {item.entradas_previstas > 0 ? `+ ${formatCurrency(item.entradas_previstas)}` : "-"}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs font-mono text-red-600">
-                                        {item.saidas_previstas > 0 ? `- ${formatCurrency(item.saidas_previstas)}` : "-"}
-                                    </TableCell>
-                                    <TableCell className={`text-right text-xs font-mono font-bold ${item.saldo_final < 0 ? "text-red-600" : "text-blue-600"}`}>
-                                        {formatCurrency(item.saldo_final)}
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <StatusBadge status={item.status} />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </Card>
+                ) : null}
             </div>
         </PageLayout>
     )
-}
-
-function parseDate(dateStr: string) {
-    const [y, m, d] = dateStr.split('-').map(Number)
-    return new Date(y, m - 1, d)
-}
-
-function StatusBadge({ status }: { status: "OK" | "ALERTA" | "CRITICO" }) {
-    if (status === "OK") {
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">OK</span>
-    }
-    if (status === "ALERTA") {
-        return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Alerta</span>
-    }
-    return <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">Crítico</span>
 }

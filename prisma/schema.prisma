@@ -951,3 +951,12 @@ model IdempotencyLog {
 
   @@map("idempotency_logs")
 }
+
+model FluxoCaixaParametro {
+  id            Int      @id
+  limite_alerta Decimal  @default(10000.00) @db.Decimal(15, 2)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  @@map("fluxo_caixa_parametros")
+}
