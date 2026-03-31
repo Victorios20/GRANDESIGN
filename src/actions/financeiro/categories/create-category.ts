@@ -32,5 +32,21 @@ export async function createCategory(input: CreateCategoryInput) {
             categoria_pai_id: data.categoria_pai_id,
             ativo: true,
         },
+        include: {
+            categoria_pai: {
+                select: {
+                    id: true,
+                    nome: true,
+                },
+            },
+            _count: {
+                select: {
+                    subcategorias: true,
+                    lancamentos: true,
+                    contas_pagar: true,
+                    contas_receber: true,
+                },
+            },
+        },
     })
 }

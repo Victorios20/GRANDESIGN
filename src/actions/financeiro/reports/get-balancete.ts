@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma"
 import { BalanceteItem } from "@/types/financeiro"
-import { TipoLancamento } from "@prisma/client"
 import { startOfDay, endOfDay, isValid, parseISO } from "date-fns"
 
 interface BalanceteParams {
@@ -41,7 +40,7 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
     // We strictly use data_competencia for DRE/Balancete compatibility
 
     let whereClause = `WHERE 1=1`
-    const queryParams: any[] = [start, end] // $1, $2
+    const queryParams: Array<Date | number> = [start, end] // $1, $2
 
     if (costCenterId) {
         whereClause += ` AND centro_custo_id = $3`
@@ -49,8 +48,8 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
     }
 
     // Types for mapping
-    const RECEITA = TipoLancamento.RECEITA
-    const DESPESA = TipoLancamento.DESPESA
+    const RECEITA_DB = "Receita"
+    const DESPESA_DB = "Despesa"
 
     // SQL Aggregation
     // saldo_anterior: everything before start. Receita (+), Despesa (-)
@@ -61,16 +60,16 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
         SELECT 
             categoria_id,
             SUM(CASE 
-                WHEN data_competencia < $1 AND tipo = '${RECEITA}' THEN valor 
-                WHEN data_competencia < $1 AND tipo = '${DESPESA}' THEN -valor 
+                WHEN data_competencia < $1 AND tipo = '${RECEITA_DB}' THEN valor 
+                WHEN data_competencia < $1 AND tipo = '${DESPESA_DB}' THEN -valor 
                 ELSE 0 
             END) as saldo_anterior,
             SUM(CASE 
-                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${RECEITA}' THEN valor 
+                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${RECEITA_DB}' THEN valor 
                 ELSE 0 
             END) as creditos,
             SUM(CASE 
-                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${DESPESA}' THEN valor 
+                WHEN data_competencia >= $1 AND data_competencia <= $2 AND tipo = '${DESPESA_DB}' THEN valor 
                 ELSE 0 
             END) as debitos
         FROM lancamentos
@@ -82,7 +81,7 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
 
     // 4. Map results to Category Map
     // Helper to parse decimal/number from raw query
-    const toNum = (val: any) => Number(val || 0)
+    const toNum = (val: unknown) => Number(val ?? 0)
 
     const categoryMap = new Map<number, BalanceteItem>()
 
@@ -102,7 +101,7 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
     })
 
     // Fill with aggregated data
-    rawData.forEach((row: any) => {
+    rawData.forEach((row) => {
         const item = categoryMap.get(row.categoria_id)
         if (item) {
             item.saldo_anterior = toNum(row.saldo_anterior)

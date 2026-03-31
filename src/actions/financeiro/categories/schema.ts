@@ -15,6 +15,7 @@ export const updateCategorySchema = z.object({
     cor: z.string().max(7).optional(),
     icone: z.string().max(50).optional(),
     ativo: z.boolean().optional(),
+    tipo: z.never().optional(),
 })
 
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>

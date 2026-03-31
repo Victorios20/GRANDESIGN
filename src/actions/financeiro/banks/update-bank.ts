@@ -1,17 +1,18 @@
+import { Prisma } from "@prisma/client"
+
 import { prisma } from "@/lib/prisma"
+import { rebuildBankCurrentBalances } from "./balance-tools"
 import { updateBankSchema, UpdateBankInput } from "./schema"
 
 export async function updateBank(input: UpdateBankInput) {
     const { id, ...data } = updateBankSchema.parse(input)
 
-    // Soft Delete Check
     if (data.ativo === false) {
         const activeCount = await prisma.contasBancaria.count({
             where: { ativo: true },
         })
 
         if (activeCount <= 1) {
-            // Check if this is the last one
             const current = await prisma.contasBancaria.findUnique({ where: { id } })
             if (current?.ativo) {
                 throw new Error("Não é possível desativar a única conta ativa do sistema")
@@ -22,28 +23,44 @@ export async function updateBank(input: UpdateBankInput) {
     return await prisma.contasBancaria.update({
         where: { id },
         data,
+        include: {
+            _count: {
+                select: {
+                    lancamentos: true,
+                },
+            },
+        },
     })
 }
 
-/**
- * Special action to update initial balance.
- * Only allowed if NO transactions exist for this account.
- */
 export async function updateInitialBalance(id: number, newBalance: number) {
-    const hasTransactions = await prisma.lancamento.count({
-        where: { conta_bancaria_id: id },
-    })
+    return await prisma.$transaction(async (tx) => {
+        const bank = await tx.contasBancaria.findUnique({
+            where: { id },
+        })
 
-    if (hasTransactions > 0) {
-        throw new Error("Não é possível alterar saldo inicial de uma conta com movimentações")
-    }
+        if (!bank) {
+            throw new Error("Conta bancária não encontrada")
+        }
 
-    // Update both initial and current (re-calc would be needed if we supported it with transactions, but we blocked it)
-    return await prisma.contasBancaria.update({
-        where: { id },
-        data: {
-            saldo_inicial: newBalance,
-            saldo_atual: newBalance,
-        },
+        await tx.contasBancaria.update({
+            where: { id },
+            data: {
+                saldo_inicial: new Prisma.Decimal(newBalance.toFixed(2)),
+            },
+        })
+
+        await rebuildBankCurrentBalances(tx, [id])
+
+        return tx.contasBancaria.findUniqueOrThrow({
+            where: { id },
+            include: {
+                _count: {
+                    select: {
+                        lancamentos: true,
+                    },
+                },
+            },
+        })
     })
 }

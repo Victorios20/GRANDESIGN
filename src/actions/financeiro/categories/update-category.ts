@@ -7,6 +7,22 @@ export async function updateCategory(input: UpdateCategoryInput) {
     return await prisma.categoria.update({
         where: { id },
         data,
+        include: {
+            categoria_pai: {
+                select: {
+                    id: true,
+                    nome: true,
+                },
+            },
+            _count: {
+                select: {
+                    subcategorias: true,
+                    lancamentos: true,
+                    contas_pagar: true,
+                    contas_receber: true,
+                },
+            },
+        },
     })
 }
 
@@ -24,5 +40,21 @@ export async function deleteCategory(id: number) {
     return await prisma.categoria.update({
         where: { id },
         data: { ativo: false },
+        include: {
+            categoria_pai: {
+                select: {
+                    id: true,
+                    nome: true,
+                },
+            },
+            _count: {
+                select: {
+                    subcategorias: true,
+                    lancamentos: true,
+                    contas_pagar: true,
+                    contas_receber: true,
+                },
+            },
+        },
     })
 }

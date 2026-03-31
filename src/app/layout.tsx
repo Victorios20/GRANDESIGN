@@ -4,10 +4,14 @@ import "../styles/cores.css";
 import "../styles/brand.css";
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import Providers from "./providers"; // 👈
+import { Geist_Mono, Inter } from "next/font/google";
+import Providers from "./providers";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const inter = Inter({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -18,8 +22,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Providers>{children}</Providers> {/* 👈 SessionProvider aplicado globalmente */}
+      <body className={`${inter.variable} ${geistMono.variable} font-sans antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

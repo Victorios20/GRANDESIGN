@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import { Prisma } from "@prisma/client"
+import { getServerSession } from "next-auth"
+import { NextResponse } from "next/server"
+import { z, ZodError } from "zod"
+
+import { updateInitialBalance } from "@/actions/financeiro/banks/update-bank"
 import { authOptions } from "@/lib/auth"
-import { getBanks, createBank } from "@/actions/financeiro/banks/read-create-bank"
-import { updateBank } from "@/actions/financeiro/banks/update-bank"
-import { ZodError } from "zod"
+
+const updateInitialBalanceSchema = z.object({
+    saldo_inicial: z.number().finite(),
+})
 
 function getSessionRoles(session: unknown) {
     const roles = (session as { user?: { roles?: unknown[] } } | null)?.user?.roles ?? []
@@ -51,21 +55,10 @@ function serializeBank(bank: {
     }
 }
 
-export async function GET(req: Request) {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-
-    try {
-        const { searchParams } = new URL(req.url)
-        const activeOnly = searchParams.get("active") !== "false"
-        const banks = await getBanks(activeOnly)
-        return NextResponse.json(banks.map(serializeBank))
-    } catch {
-        return NextResponse.json({ error: "Erro ao buscar bancos" }, { status: 500 })
-    }
-}
-
-export async function POST(req: Request) {
+export async function PATCH(
+    req: Request,
+    context: { params: Promise<{ id: string }> }
+) {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     if (!hasBankManagementAccess(session)) {
@@ -73,32 +66,23 @@ export async function POST(req: Request) {
     }
 
     try {
-        const body = await req.json()
-        const bank = await createBank(body)
-        return NextResponse.json(serializeBank(bank), { status: 201 })
-    } catch (error) {
-        if (error instanceof ZodError) {
-            return NextResponse.json({ error: "Validation Error", details: error.issues }, { status: 400 })
+        const { id } = await context.params
+        const bankId = Number(id)
+
+        if (!Number.isInteger(bankId) || bankId <= 0) {
+            return NextResponse.json({ error: "Conta bancária inválida" }, { status: 400 })
         }
-        return NextResponse.json({ error: (error as Error).message }, { status: 400 })
-    }
-}
 
-export async function PUT(req: Request) {
-    const session = await getServerSession(authOptions)
-    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!hasBankManagementAccess(session)) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
-
-    try {
         const body = await req.json()
-        const bank = await updateBank(body)
+        const input = updateInitialBalanceSchema.parse(body)
+        const bank = await updateInitialBalance(bankId, input.saldo_inicial)
+
         return NextResponse.json(serializeBank(bank))
     } catch (error) {
         if (error instanceof ZodError) {
             return NextResponse.json({ error: "Validation Error", details: error.issues }, { status: 400 })
         }
+
         return NextResponse.json({ error: (error as Error).message }, { status: 400 })
     }
 }

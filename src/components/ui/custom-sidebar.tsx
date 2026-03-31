@@ -1,178 +1,117 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { signOut, useSession } from "next-auth/react"
 import {
+  ArrowRightToLine,
+  ChevronDown,
+  Loader2,
+} from "lucide-react"
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-
 import {
-  HomeIcon,
-  PlusIcon,
-  LogOutIcon,
-  ClockIcon,
-  Loader2,
-  Users2,
-  HardHat,
-  ShoppingCart,
-  CalendarDays,
-  Settings as SettingsIcon,
-  Contact,
-  LayoutDashboard,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  ArrowLeftRight,
-  BarChart3,
-  Scale,
-  TrendingUp,
-  ChevronDown,
-} from "lucide-react"
-
-import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { useState, useMemo, useEffect } from "react"
+  SIDEBAR_NAVIGATION,
+  type SidebarChildItem,
+  type SidebarGroupItem,
+  type SidebarLinkItem,
+  type SidebarNavigationItem,
+  filterSidebarNavigation,
+  getActiveGroupIds,
+  isActivePath,
+  isSidebarGroupItem,
+  isSidebarLinkItem,
+} from "@/components/ui/sidebar-navigation"
 import { cn } from "@/lib/utils"
-import { motion, AnimatePresence } from "framer-motion"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { signOut, useSession } from "next-auth/react"
-import versionInfo from "@/../version.json"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-// --- TYPES ---
-type MenuItem = {
-  label: string
-  href: string
-  icon: any
-  roles?: string[] // if set, user needs one of these roles
-}
+const SIDEBAR_THEME = {
+  "--sidebar": "#FFFCF7",
+  "--sidebar-foreground": "#2C201B",
+  "--sidebar-accent": "#F8EFD9",
+  "--sidebar-accent-foreground": "#2C201B",
+  "--sidebar-border": "rgba(44, 32, 27, 0.08)",
+  "--sidebar-ring": "rgba(245, 209, 147, 0.72)",
+} as React.CSSProperties
 
-type MenuGroup = {
-  id: string
-  label: string
-  items: MenuItem[]
-}
+const focusRingClass =
+  "focus-visible:ring-2 focus-visible:ring-[#F5D193]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFCF7] outline-none"
 
-// --- DATA ---
-const MENU_GROUPS: MenuGroup[] = [
-  {
-    id: "gerar",
-    label: "Gerar",
-    items: [
-      { label: "Novo Orçamento", href: "/orcamento/new", icon: PlusIcon },
-    ],
-  },
-  {
-    id: "gerenciar",
-    label: "Gerenciar",
-    items: [
-      { label: "Orçamentos", href: "/orcamento", icon: ClockIcon },
-      { label: "Clientes", href: "/clientes", icon: Contact },
-      { label: "Obras", href: "/obras", icon: HardHat },
-      { label: "Calendário", href: "/calendario", icon: CalendarDays },
-      { label: "Pedidos de Compra", href: "/pedido_compra", icon: ShoppingCart },
-    ],
-  },
-  {
-    id: "financeiro",
-    label: "Financeiro",
-    items: [
-      { label: "Dashboard", href: "/dashboard-financeiro", icon: LayoutDashboard },
-      { label: "Contas a Pagar", href: "/contas-pagar", icon: ArrowDownCircle },
-      { label: "Contas a Receber", href: "/contas-receber", icon: ArrowUpCircle },
-      { label: "Transações", href: "/lancamentos", icon: ArrowLeftRight },
-    ],
-  },
-  {
-    id: "relatorios",
-    label: "Relatórios",
-    items: [
-      { label: "DRE", href: "/relatorios/resultado-operacional", icon: BarChart3 },
-      { label: "Balancete", href: "/relatorios/balancete", icon: Scale },
-      { label: "Orçado x Realizado", href: "/relatorios/orcado-realizado", icon: BarChart3 },
-      { label: "Fluxo de Caixa", href: "/relatorios/fluxo-caixa", icon: TrendingUp },
-    ],
-  },
-  {
-    id: "configuracoes",
-    label: "Configurações",
-    items: [
-      { label: "Cadastros", href: "/cadastros", icon: SettingsIcon },
-      { label: "Usuários", href: "/admin/users", icon: Users2, roles: ["ADMIN", "DEV"] },
-    ],
-  },
-]
+function getUserInitials(name?: string | null, email?: string | null) {
+  const source = name?.trim() || email?.trim() || "Grandesign"
+  const parts = source.split(/\s+/).filter(Boolean)
 
-function formatPtBR(dateIso: string) {
-  try {
-    const d = new Date(dateIso)
-    return new Intl.DateTimeFormat("pt-BR").format(d)
-  } catch {
-    return "-"
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase()
   }
+
+  return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase()
 }
 
 export function CustomSidebar() {
-  const { open: isOpen } = useSidebar()
-  const { data: session } = useSession()
   const pathname = usePathname()
-  const [loggingOut, setLoggingOut] = useState(false)
-
-  // Compact Mode State
-  const [isCompact, setIsCompact] = useState(false)
-
-  // Accordion State
-  // Default open based on pathname
-  const defaultOpen = useMemo(() => {
-    for (const group of MENU_GROUPS) {
-      if (group.items.some(item => pathname.startsWith(item.href))) {
-        return group.id
+  const { data: session } = useSession()
+  const { state, isMobile } = useSidebar()
+  const [loggingOut, setLoggingOut] = React.useState(false)
+  const [openGroupIds, setOpenGroupIds] = React.useState<string[]>(() =>
+    getActiveGroupIds(pathname, SIDEBAR_NAVIGATION)
+  )
+  const sessionUser = session?.user as
+    | {
+        name?: string | null
+        email?: string | null
+        image?: string | null
+        roles?: unknown[]
       }
+    | undefined
+
+  const isCollapsed = !isMobile && state === "collapsed"
+
+  const rolesUpper = React.useMemo(() => {
+    const roles = sessionUser?.roles ?? []
+    return Array.isArray(roles) ? roles.map((role) => String(role).toUpperCase()) : []
+  }, [sessionUser])
+
+  const navigationItems = React.useMemo(
+    () => filterSidebarNavigation(SIDEBAR_NAVIGATION, rolesUpper),
+    [rolesUpper]
+  )
+  const activeGroupIds = React.useMemo(
+    () => getActiveGroupIds(pathname, navigationItems),
+    [navigationItems, pathname]
+  )
+
+  React.useEffect(() => {
+    if (activeGroupIds.length === 0) {
+      return
     }
-    return "gerenciar" // Default fallback
-  }, [pathname])
 
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(defaultOpen)
+    setOpenGroupIds((current) => Array.from(new Set([...current, ...activeGroupIds])))
+  }, [activeGroupIds])
 
-  // Listen for resize to set compact mode
-  useEffect(() => {
-    const checkHeight = () => {
-      setIsCompact(window.innerHeight < 800)
-    }
-    checkHeight()
-    window.addEventListener("resize", checkHeight)
-    return () => window.removeEventListener("resize", checkHeight)
-  }, [])
-
-  // Auto-expand group if navigating to a link inside it
-  useEffect(() => {
-    for (const group of MENU_GROUPS) {
-      if (group.items.some(item => pathname.startsWith(item.href))) {
-        if (activeGroupId !== group.id) {
-          setActiveGroupId(group.id)
-        }
-        break
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname])
-
-  // Helpers
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/")
-
-  const iconClass = (active: boolean) =>
-    cn(
-      "transition-all duration-300",
-      isCompact ? "size-4" : "size-5",
-      active && "text-primary scale-110",
-      !active && "text-muted-foreground group-hover:text-foreground"
+  const toggleGroup = React.useCallback((groupId: string) => {
+    setOpenGroupIds((current) =>
+      current.includes(groupId)
+        ? current.filter((id) => id !== groupId)
+        : [...current, groupId]
     )
+  }, [])
 
   async function handleLogout() {
     try {
@@ -183,219 +122,288 @@ export function CustomSidebar() {
     }
   }
 
-  const rolesUpper = useMemo(() => {
-    const rs = (session?.user as any)?.roles ?? []
-    return Array.isArray(rs) ? rs.map((r: any) => String(r).toUpperCase()) : []
-  }, [session])
+  const renderLinkItem = React.useCallback(
+    ({
+      item,
+      nested = false,
+      compact = false,
+    }: {
+      item: SidebarLinkItem | SidebarChildItem
+      nested?: boolean
+      compact?: boolean
+    }) => {
+      const active = isActivePath(pathname, item.href)
 
-  const checkRole = (itemRoles?: string[]) => {
-    if (!itemRoles) return true
-    return itemRoles.some(r => rolesUpper.includes(r))
-  }
+      return (
+        <SidebarMenuItem key={item.href}>
+          <SidebarMenuButton
+            asChild
+            isActive={active}
+            tooltip={isCollapsed ? item.label : undefined}
+            className={cn(
+              "gap-3 px-3 transition-[background-color,color,box-shadow] duration-150 ease-out",
+              focusRingClass,
+              nested
+                ? "h-[38px] rounded-[12px] text-[13.5px] font-medium"
+                : "h-[44px] rounded-[14px] text-sm font-semibold",
+              nested
+                ? "text-[#2C201B]/68 hover:bg-[#FAF3E0]/88 hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]"
+                : "text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]",
+              !nested && "shadow-[inset_0_0_0_1px_rgba(44,32,27,0)]",
+              compact && "h-[44px] w-[44px] justify-center rounded-[14px] p-0",
+              isCollapsed && !nested && "h-[44px] w-[44px] justify-center rounded-[14px] p-0"
+            )}
+          >
+            <Link href={item.href} aria-current={active ? "page" : undefined}>
+              <item.icon className={cn("shrink-0", nested ? "size-[16px]" : "size-[18px]")} strokeWidth={1.9} />
+              {!compact ? <span>{item.label}</span> : <span className="sr-only">{item.label}</span>}
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )
+    },
+    [isCollapsed, pathname]
+  )
 
-  const toggleGroup = (id: string) => {
-    setActiveGroupId(prev => prev === id ? null : id)
-  }
+  const renderCollapsedGroup = React.useCallback(
+    (group: SidebarGroupItem) => {
+      const groupActive = group.children.some((item) => isActivePath(pathname, item.href))
 
-  // --- RENDER ---
+      return (
+        <SidebarMenuItem key={group.id}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <SidebarMenuButton
+                type="button"
+                isActive={groupActive}
+                tooltip={group.label}
+                className={cn(
+                  "h-[44px] w-[44px] justify-center rounded-[14px] p-0 text-[#2C201B]/84 transition-[background-color,color] duration-150 ease-out",
+                  "hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]",
+                  focusRingClass
+                )}
+              >
+                <group.icon className="size-[18px] shrink-0" strokeWidth={1.9} />
+                <span className="sr-only">{group.label}</span>
+              </SidebarMenuButton>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="start"
+              sideOffset={14}
+              className="w-[248px] rounded-[18px] border border-[#2C201B]/10 bg-[#FFFCF7] p-2 shadow-[0_12px_30px_rgba(44,32,27,0.08)]"
+            >
+              <div className="px-2 pb-2 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.24em] text-[#2C201B]/44">
+                {group.label}
+              </div>
+              <SidebarMenu className="gap-1.5">
+                {group.children.map((child) =>
+                  renderLinkItem({ item: child, nested: true, compact: false })
+                )}
+              </SidebarMenu>
+            </PopoverContent>
+          </Popover>
+        </SidebarMenuItem>
+      )
+    },
+    [pathname, renderLinkItem]
+  )
+
+  const renderExpandedGroup = React.useCallback(
+    (group: SidebarGroupItem) => {
+      const isOpen = openGroupIds.includes(group.id)
+      const groupActive = group.children.some((item) => isActivePath(pathname, item.href))
+      const contentId = `sidebar-group-${group.id}`
+
+      return (
+        <SidebarGroup key={group.id} className="gap-0 p-0">
+          <button
+            type="button"
+            onClick={() => toggleGroup(group.id)}
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            className={cn(
+              "flex h-[44px] w-full items-center justify-between rounded-[14px] px-3 text-left text-sm font-semibold transition-[background-color,color] duration-150 ease-out",
+              focusRingClass,
+              groupActive
+                ? "bg-[#FAF3E0] text-[#393316]"
+                : isOpen
+                  ? "bg-[#F8F0E1] text-[#2C201B]"
+                  : "text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B]"
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <group.icon className="size-[18px] shrink-0" strokeWidth={1.9} />
+              <span className="truncate">{group.label}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "size-[17px] shrink-0 text-[#2C201B]/42 transition-transform duration-200 ease-out",
+                isOpen && "rotate-180"
+              )}
+              strokeWidth={1.9}
+            />
+          </button>
+
+          <div
+            className={cn(
+              "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
+              isOpen ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <SidebarGroupContent id={contentId} className="overflow-hidden pl-5">
+              <div className="rounded-[16px] bg-[#FBF6EA]/88 p-1.5">
+                <SidebarMenu className="gap-1">
+                  {group.children.map((child) =>
+                    renderLinkItem({ item: child, nested: true, compact: false })
+                  )}
+                </SidebarMenu>
+              </div>
+            </SidebarGroupContent>
+          </div>
+        </SidebarGroup>
+      )
+    },
+    [openGroupIds, pathname, renderLinkItem, toggleGroup]
+  )
+
+  const renderNavigationItem = React.useCallback(
+    (item: SidebarNavigationItem, index: number) => {
+      if (item.type === "section") {
+        if (isCollapsed) {
+          return null
+        }
+
+        return (
+          <div
+            key={`${item.label}-${index}`}
+            className={cn(
+              "px-2 pb-2 pt-6 text-[10.5px] font-semibold uppercase tracking-[0.28em] text-[#2C201B]/42",
+              index > 0 && "mt-2"
+            )}
+          >
+            {item.label}
+          </div>
+        )
+      }
+
+      if (isSidebarLinkItem(item)) {
+        return (
+          <SidebarMenu key={item.href} className="gap-0">
+            {renderLinkItem({ item, compact: isCollapsed })}
+          </SidebarMenu>
+        )
+      }
+
+      if (isSidebarGroupItem(item)) {
+        return isCollapsed ? (
+          <SidebarMenu key={item.id} className="gap-0">
+            {renderCollapsedGroup(item)}
+          </SidebarMenu>
+        ) : (
+          renderExpandedGroup(item)
+        )
+      }
+
+      return null
+    },
+    [isCollapsed, renderCollapsedGroup, renderExpandedGroup, renderLinkItem]
+  )
+
+  const primaryIdentity = sessionUser?.name?.trim() || sessionUser?.email?.trim() || "Arthur"
+  const secondaryIdentity =
+    sessionUser?.name?.trim() && sessionUser.email?.trim()
+      ? sessionUser.email.trim()
+      : "Conta ativa"
+  const userImage = sessionUser?.image || undefined
+  const userInitials = getUserInitials(sessionUser?.name, sessionUser?.email)
 
   return (
-    <motion.aside
-      initial={{ width: isOpen ? 240 : 80 }}
-      animate={{ width: isOpen ? 240 : 80 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className={cn(
-        "h-screen bg-sidebar border-r border-zinc-200 transition-all flex flex-col overflow-hidden select-none",
-        isCompact ? "text-sm" : "text-base"
-      )}
+    <Sidebar
+      variant="inset"
+      collapsible="icon"
+      className="border-r-0"
+      style={SIDEBAR_THEME}
     >
-      {/* HEADER */}
-      <SidebarHeader className={cn("justify-center px-4", isCompact ? "py-2" : "py-4")}>
-        <motion.div
-          layout
-          className={cn("flex items-center", !isOpen && "justify-center")}
-        >
-          <Image
-            src="/favicon.ico"
-            alt="Logo"
-            width={isCompact ? 24 : 32}
-            height={isCompact ? 24 : 32}
-            className="transition-transform duration-300 hover:scale-110"
-          />
-          {isOpen && (
-            <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              className={cn("ml-2 font-bold text-marromEscuro whitespace-nowrap", isCompact && "text-sm")}
-            >
-              GRANDESIGN
-            </motion.span>
-          )}
-        </motion.div>
+      <SidebarHeader className="border-b border-[#2C201B]/8 px-4 py-5">
+        <div className={cn("flex items-center gap-3.5", isCollapsed && "justify-center")}>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[#2C201B]/6 bg-[#FAF3E0]/80">
+            <Image
+              src="/images/logo.png"
+              alt="Logo da GRANDESIGN"
+              width={34}
+              height={34}
+              className="h-8 w-8 object-contain"
+            />
+          </div>
+          {!isCollapsed ? (
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-semibold tracking-[0.04em] text-[#2C201B]">
+                GRANDESIGN
+              </p>
+            </div>
+          ) : null}
+        </div>
       </SidebarHeader>
 
-      {/* CONTENT */}
-      <SidebarContent className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-zinc-200 scrollbar-track-transparent">
-        <SidebarMenu className={cn("gap-1", isCompact ? "p-1" : "p-2")}>
-          <TooltipProvider delayDuration={300}>
-
-            {/* HOME */}
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip={!isOpen ? "Home" : undefined}
-                isActive={pathname === "/"}
-                className={cn(
-                  isOpen ? "justify-start" : "justify-center",
-                  "hover:bg-black/5 transition-all duration-200 rounded-none border-l-2 border-transparent",
-                  pathname === "/" && "bg-black/5 border-l-primary font-medium",
-                  isCompact ? "h-9" : "h-11"
-                )}
-              >
-                <Link href="/">
-                  <HomeIcon className={iconClass(pathname === "/")} />
-                  {isOpen && <span className="ml-3">Home</span>}
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-
-            <div className="h-px w-full bg-black/5 my-1" />
-
-            {/* GROUPS */}
-            {MENU_GROUPS.map((group) => {
-              const visibleItems = group.items.filter(item => checkRole(item.roles))
-              if (visibleItems.length === 0) return null
-
-              const isExpanded = activeGroupId === group.id
-
-              // --- COLLAPSED MODE RENDERING ---
-              if (!isOpen) {
-                return (
-                  <React.Fragment key={group.id}>
-                    {/* Divider / Group Indicator */}
-                    <div className="flex justify-center my-2">
-                      <div className="w-8 h-px bg-black/5" />
-                    </div>
-
-                    {/* Items */}
-                    {visibleItems.map(item => (
-                      <SidebarMenuItem key={item.href}>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip={item.label}
-                          isActive={isActive(item.href)}
-                          className={cn(
-                            "justify-center hover:bg-black/5 transition-all duration-200 rounded-md",
-                            isActive(item.href) && "bg-black/5 text-primary",
-                            isCompact ? "h-9" : "h-10"
-                          )}
-                        >
-                          <Link href={item.href}>
-                            <item.icon className={iconClass(isActive(item.href))} />
-                            <span className="sr-only">{item.label}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </React.Fragment>
-                )
-              }
-
-              // --- EXPANDED MODE RENDERING (ACCORDION) ---
-              return (
-                <SidebarGroup key={group.id} className="p-0">
-                  {/* Accordion Trigger */}
-                  <button
-                    onClick={() => toggleGroup(group.id)}
-                    className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-black/5 rounded-sm text-foreground/70 transition-colors group",
-                      isCompact ? "my-0.5" : "my-1"
-                    )}
-                  >
-                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-foreground transition-colors">
-                      {group.label}
-                    </span>
-                    <ChevronDown
-                      className={cn("size-3 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-180")}
-                    />
-                  </button>
-
-                  {/* Accordion Content */}
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: "circOut" }}
-                        className="overflow-hidden"
-                      >
-                        <div className="px-1 pb-2">
-                          {visibleItems.map(item => (
-                            <SidebarMenuItem key={item.href}>
-                              <SidebarMenuButton
-                                asChild
-                                isActive={isActive(item.href)}
-                                className={cn(
-                                  "justify-start hover:bg-black/5 transition-all duration-200 border-l-2 border-transparent pl-3",
-                                  isActive(item.href) && "bg-black/5 border-l-primary font-medium",
-                                  isCompact ? "h-8 text-xs" : "h-10 text-sm"
-                                )}
-                              >
-                                <Link href={item.href}>
-                                  <item.icon className={iconClass(isActive(item.href))} />
-                                  <span className="ml-3 truncate">{item.label}</span>
-                                </Link>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </SidebarGroup>
-              )
-            })}
-          </TooltipProvider>
-        </SidebarMenu>
+      <SidebarContent className="px-3 py-4">
+        <div className="flex flex-col gap-1">
+          {navigationItems.map((item, index) => renderNavigationItem(item, index))}
+        </div>
       </SidebarContent>
 
-      {/* FOOTER */}
-      <SidebarFooter className={cn("hover:bg-transparent mt-auto border-t border-black/5 bg-sidebar", isCompact ? "p-1" : "p-2")}>
-        <SidebarMenu>
-          <TooltipProvider>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={handleLogout}
-                disabled={loggingOut}
-                tooltip={!isOpen ? "Sair" : undefined}
-                className={cn(
-                  isOpen ? "justify-start" : "justify-center",
-                  "hover:bg-red-50 hover:text-red-600 transition-colors text-muted-foreground",
-                  isCompact ? "h-8" : "h-10"
-                )}
-              >
-                {loggingOut ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : (
-                  <LogOutIcon className="size-5" />
-                )}
-                {isOpen && <span className="ml-3 font-medium">{loggingOut ? "Saindo..." : "Sair"}</span>}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </TooltipProvider>
-        </SidebarMenu>
+      <SidebarSeparator className="bg-[#2C201B]/8" />
 
-        {isOpen && (
-          <div className={cn(
-            "w-full flex items-center justify-center text-muted-foreground/50 font-mono select-none",
-            isCompact ? "pt-1 text-[9px]" : "pt-2 text-[10px]"
-          )}>
-            <span>v{versionInfo.version}</span>
+      <SidebarFooter className="px-3 py-4">
+        <div className={cn("rounded-[18px] border border-[#2C201B]/10 bg-[#FCF8EF] p-3", isCollapsed && "p-2.5")}>
+          <div className={cn("flex items-center gap-3", isCollapsed && "justify-center")}>
+            <Avatar className="size-11 border border-[#2C201B]/8 bg-white/70">
+              <AvatarImage src={userImage} alt={primaryIdentity} className="object-cover" />
+              <AvatarFallback className="bg-[#FAF3E0] text-xs font-semibold text-[#2C201B]">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+            {!isCollapsed ? (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#2C201B]">{primaryIdentity}</p>
+                <p className="truncate text-xs font-medium text-[#2C201B]/52">{secondaryIdentity}</p>
+              </div>
+            ) : null}
           </div>
-        )}
+
+          <div className={cn("mt-3 border-t border-[#2C201B]/8 pt-2", isCollapsed && "mt-2")}>
+            <SidebarMenu className="gap-0">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  type="button"
+                  tooltip={isCollapsed ? "Sair" : undefined}
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className={cn(
+                    "h-[38px] rounded-[12px] px-2.5 text-[13.5px] font-medium text-[#2C201B]/62 transition-[background-color,color] duration-150 ease-out",
+                    "hover:bg-white/80 hover:text-[#2C201B]",
+                    focusRingClass,
+                    isCollapsed && "h-[40px] w-full justify-center rounded-[14px] p-0"
+                  )}
+                >
+                  {loggingOut ? (
+                    <Loader2 className="size-4 animate-spin" strokeWidth={1.9} />
+                  ) : (
+                    <ArrowRightToLine className="size-4" strokeWidth={1.9} />
+                  )}
+                  {!isCollapsed ? (
+                    <span>{loggingOut ? "Saindo..." : "Sair"}</span>
+                  ) : (
+                    <span className="sr-only">Sair</span>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </div>
+        </div>
       </SidebarFooter>
-    </motion.aside>
+
+      <SidebarRail />
+    </Sidebar>
   )
 }

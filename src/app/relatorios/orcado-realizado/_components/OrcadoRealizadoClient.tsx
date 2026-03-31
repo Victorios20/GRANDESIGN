@@ -450,19 +450,11 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
         )
     }
 
-    const breadcrumbs = [
-        { label: "Home", href: "/" },
-        { label: "Financeiro", href: "/dashboard-financeiro" },
-        { label: "Relatórios", href: "#" }, // Non-clickable or redirect
-        { label: "Orçado vs Realizado", href: "/relatorios/orcado-realizado" },
-    ]
-
     return (
         <PageLayout
             title="Orçado vs Realizado"
             headerActions={HeaderActions}
             isTitulo={false}
-            links={breadcrumbs}
         >
             {content}
         </PageLayout>

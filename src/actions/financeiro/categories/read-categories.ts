@@ -1,9 +1,27 @@
 import { prisma } from "@/lib/prisma"
 
-export async function getCategoriesTree() {
+const categoryInclude = {
+    categoria_pai: {
+        select: {
+            id: true,
+            nome: true,
+        },
+    },
+    _count: {
+        select: {
+            subcategorias: true,
+            lancamentos: true,
+            contas_pagar: true,
+            contas_receber: true,
+        },
+    },
+} as const
+
+export async function getCategoriesTree(activeOnly = true) {
     const allCategories = await prisma.categoria.findMany({
-        where: { ativo: true },
-        orderBy: { nome: "asc" },
+        where: activeOnly ? { ativo: true } : undefined,
+        include: categoryInclude,
+        orderBy: [{ nome: "asc" }, { id: "asc" }],
     })
 
     // Separate parents and children
@@ -19,9 +37,10 @@ export async function getCategoriesTree() {
     return tree
 }
 
-export async function getCategoriesFlat() {
+export async function getCategoriesFlat(activeOnly = true) {
     return await prisma.categoria.findMany({
-        where: { ativo: true },
-        orderBy: { nome: "asc" },
+        where: activeOnly ? { ativo: true } : undefined,
+        include: categoryInclude,
+        orderBy: [{ nome: "asc" }, { id: "asc" }],
     })
 }
