@@ -14,7 +14,7 @@ export function CashFlowStatusBadge({ status, className }: Props) {
         <Badge
             variant="outline"
             className={cn(
-                "rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-[0.04em]",
+                "rounded-md border px-2 py-0.5 text-[11px] font-semibold tracking-[0.04em]",
                 getCashFlowStatusClasses(status),
                 className,
             )}

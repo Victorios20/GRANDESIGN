@@ -224,26 +224,29 @@ export function getCashFlowStatusLabel(status: CashFlowDayStatus) {
 
 export function getCashFlowStatusClasses(status: CashFlowDayStatus) {
     if (status === "CRITICO") {
-        return "border-[rgba(44,32,27,0.18)] bg-[rgba(44,32,27,0.08)] text-[#2c201b]"
+        // Darker, more present — saldo zero ou negativo merece peso visual real
+        return "border-[rgba(44,32,27,0.28)] bg-[rgba(44,32,27,0.12)] text-[#2c201b]"
     }
 
     if (status === "ATENCAO") {
-        return "border-[rgba(245,209,147,0.92)] bg-[rgba(245,209,147,0.40)] text-[#2c201b]"
+        // Legível: fundo mais rico e texto escuro para contraste WCAG
+        return "border-[rgba(245,209,147,0.85)] bg-[rgba(245,209,147,0.52)] text-[#4a3400]"
     }
 
-    return "border-[rgba(44,32,27,0.10)] bg-white text-[#393316]"
+    // Usa cor semântica positiva do brand.md: #2f7a52
+    return "border-[rgba(47,122,82,0.22)] bg-[rgba(47,122,82,0.07)] text-[#2f7a52]"
 }
 
 export function getCashFlowRowClasses(status: CashFlowDayStatus) {
     if (status === "CRITICO") {
-        return "border-l-2 border-l-[#2c201b] bg-[rgba(44,32,27,0.05)] hover:bg-[rgba(44,32,27,0.07)]"
+        return "border-l-[3px] border-l-[#2c201b] bg-[rgba(44,32,27,0.05)] hover:bg-[rgba(44,32,27,0.08)]"
     }
 
     if (status === "ATENCAO") {
-        return "border-l-2 border-l-[#f5d193] bg-[rgba(245,209,147,0.18)] hover:bg-[rgba(245,209,147,0.24)]"
+        return "border-l-[3px] border-l-[#e6b84a] bg-[rgba(245,209,147,0.16)] hover:bg-[rgba(245,209,147,0.22)]"
     }
 
-    return "border-l-2 border-l-transparent bg-white hover:bg-[rgba(250,243,224,0.58)]"
+    return "border-l-[3px] border-l-transparent bg-white hover:bg-[#faf8f4]"
 }
 
 export function getCashPressureLabel(data: CashFlowProjectionResponse) {
