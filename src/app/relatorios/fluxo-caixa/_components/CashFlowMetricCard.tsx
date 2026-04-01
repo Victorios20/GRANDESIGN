@@ -1,40 +1,85 @@
-import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+
+type Tone = "default" | "accent" | "muted" | "positive"
+type Variant = "default" | "primary" | "analytics"
 
 type Props = {
     label: string
     value: string
     supportingText?: string
-    tone?: "default" | "accent" | "muted"
+    tone?: Tone
+    variant?: Variant
 }
 
-const TONE_CLASSES = {
-    default: "border-[rgba(44,32,27,0.08)] bg-white text-[#2c201b]",
-    accent: "border-[rgba(245,209,147,0.92)] bg-[rgba(245,209,147,0.24)] text-[#2c201b]",
-    muted: "border-[rgba(44,32,27,0.08)] bg-[rgba(250,243,224,0.58)] text-[#393316]",
-} as const
+/**
+ * Shell base dos cards de métrica.
+ * - `primary`: card âncora (ex: Saldo atual) — borda esquerda grossa como marcador visual
+ * - `analytics`: cards de análise (Pior/Melhor/Dias críticos) — superfície diferenciada
+ * - `default`: métricas padrão de resumo
+ */
+
+const SHELL_CLASSES: Record<Variant, string> = {
+    default:
+        "h-full min-h-[128px] rounded-2xl border border-[#e8e1d6] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]",
+    primary:
+        "h-full min-h-[128px] rounded-2xl border border-[#e8e1d6] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)] border-l-[3px] border-l-[#393316]",
+    analytics:
+        "h-full min-h-[128px] rounded-2xl border border-[#e8e1d6] bg-[#f6f2e7] shadow-[0_1px_2px_rgba(16,24,40,0.04)]",
+}
+
+// Cor do valor numérico por tone
+const VALUE_COLOR: Record<Tone, string> = {
+    default:   "text-[#2c201b]",
+    accent:    "text-[#9b4b1d]",   // vermelho terroso — "pior", "crítico"
+    muted:     "text-[#393316]",
+    positive:  "text-[#2f7a52]",   // verde escuro — "melhor"
+}
 
 export function CashFlowMetricCard({
     label,
     value,
     supportingText,
     tone = "default",
+    variant = "default",
 }: Props) {
+    const isPrimary   = variant === "primary"
+    const isAnalytics = variant === "analytics"
+
     return (
-        <Card className={cn("rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08)]", TONE_CLASSES[tone])}>
-            <CardContent className="space-y-2 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+        <div className={SHELL_CLASSES[variant]}>
+            <div className={cn(
+                "flex h-full flex-col",
+                isPrimary   ? "gap-1 px-5 py-5"    :
+                isAnalytics ? "gap-1 px-5 py-5"    :
+                              "gap-1 px-5 py-5"
+            )}>
+                {/* Label */}
+                <p className={cn(
+                    "text-[10px] font-semibold uppercase tracking-[0.12em]",
+                    isAnalytics ? "text-[#7b705f]" : "text-[#9a8f7c]"
+                )}>
                     {label}
                 </p>
-                <p className="text-[1.7rem] font-semibold tracking-[-0.03em] text-current">
+
+                {/* Valor */}
+                <p className={cn(
+                    "mt-1 tabular-nums font-bold leading-none tracking-tight",
+                    "text-[1.55rem]",
+                    VALUE_COLOR[tone]
+                )}>
                     {value}
                 </p>
+
+                {/* Supporting text */}
                 {supportingText ? (
-                    <p className="text-xs leading-5 text-[rgba(44,32,27,0.68)]">
+                    <p className={cn(
+                        "mt-auto pt-2 text-[11px] leading-4",
+                        isAnalytics ? "text-[#7b705f]" : "text-[#9a8f7c]"
+                    )}>
                         {supportingText}
                     </p>
                 ) : null}
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     )
 }
