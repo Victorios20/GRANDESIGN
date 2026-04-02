@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { fromDateOnlyDb, parseDateOnlyInput } from "@/lib/date-only"
 
 export const dynamic = "force-dynamic"
 
@@ -59,8 +60,8 @@ export async function GET(_req: Request, { params }: { params: Params }) {
                 id: segmento.id,
                 obra_id: segmento.obra_id,
                 equipe_id: segmento.equipe_id,
-                inicio: segmento.inicio.toISOString().split("T")[0],
-                fim: segmento.fim.toISOString().split("T")[0],
+                inicio: fromDateOnlyDb(segmento.inicio)!,
+                fim: fromDateOnlyDb(segmento.fim)!,
                 observacoes: segmento.observacoes,
                 equipe: segmento.equipe,
                 obra: segmento.obra,
@@ -97,8 +98,24 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
 
         const data: any = {}
 
-        if (inicio !== undefined) data.inicio = new Date(`${inicio}T12:00:00`)
-        if (fim !== undefined) data.fim = new Date(`${fim}T12:00:00`)
+        if (inicio !== undefined) {
+            const parsedInicio = parseDateOnlyInput(inicio)
+            if (!parsedInicio) {
+                return NextResponse.json({ error: "Data início inválida" }, { status: 400 })
+            }
+
+            data.inicio = parsedInicio
+        }
+
+        if (fim !== undefined) {
+            const parsedFim = parseDateOnlyInput(fim)
+            if (!parsedFim) {
+                return NextResponse.json({ error: "Data fim inválida" }, { status: 400 })
+            }
+
+            data.fim = parsedFim
+        }
+
         if (equipe_id !== undefined) data.equipe_id = equipe_id ? Number(equipe_id) : null
         if (observacoes !== undefined) data.observacoes = observacoes
 
@@ -118,8 +135,8 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
                     id: { not: id },
                     equipe_id: effectiveEquipeId,
                     AND: [
-                        { inicio: { lt: newFim } },
-                        { fim: { gt: newInicio } },
+                        { inicio: { lte: newFim } },
+                        { fim: { gte: newInicio } },
                     ],
                 },
                 include: {
@@ -146,8 +163,8 @@ export async function PATCH(req: Request, { params }: { params: Params }) {
                 id: updated.id,
                 obra_id: updated.obra_id,
                 equipe_id: updated.equipe_id,
-                inicio: updated.inicio.toISOString().split("T")[0],
-                fim: updated.fim.toISOString().split("T")[0],
+                inicio: fromDateOnlyDb(updated.inicio)!,
+                fim: fromDateOnlyDb(updated.fim)!,
                 observacoes: updated.observacoes,
                 equipe: updated.equipe,
             },

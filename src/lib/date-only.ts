@@ -8,6 +8,13 @@ function toDateOnlyStringUtc(value: Date) {
   return `${year}-${month}-${day}`
 }
 
+function toDateOnlyStringLocal(value: Date) {
+  const year = String(value.getFullYear())
+  const month = String(value.getMonth() + 1).padStart(2, "0")
+  const day = String(value.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 export function fromDateOnlyDb(value: Date | string | null | undefined): string | null {
   if (value == null || value === "") return null
 
@@ -39,6 +46,38 @@ export function parseDateOnlyInput(value: string | Date | null | undefined): Dat
 
   const [year, month, day] = ymd.split("-").map(Number)
   return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0))
+}
+
+export function toDateOnlyValue(value: Date | string | null | undefined): string | null {
+  if (value == null || value === "") return null
+
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? toDateOnlyStringLocal(value) : null
+  }
+
+  return fromDateOnlyDb(value)
+}
+
+export function getTodayDateOnly(): string {
+  return toDateOnlyStringLocal(new Date())
+}
+
+export function shiftDateOnly(value: string, days: number): string {
+  const date = parseDateOnlyInput(value)
+  if (!date) {
+    throw new Error(`Invalid date-only value: ${value}`)
+  }
+
+  date.setUTCDate(date.getUTCDate() + days)
+  return toDateOnlyStringUtc(date)
+}
+
+export function addDaysToDateOnly(value: string, days = 1): string {
+  return shiftDateOnly(value, days)
+}
+
+export function subtractDaysFromDateOnly(value: string, days = 1): string {
+  return shiftDateOnly(value, -days)
 }
 
 export function formatDateOnlyPtBr(value: string | Date | null | undefined): string {

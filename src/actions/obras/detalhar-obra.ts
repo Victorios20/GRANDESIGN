@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
-import { ObraDetalheDTO, ObraStatus, PedidoCompraDTO } from "@/app/obras/lib/types"
+import { ObraDetalheDTO, ObraStatus } from "@/app/obras/lib/types"
+import { fromDateOnlyDb } from "@/lib/date-only"
 
 export class AppError extends Error {
   code: "INVALID_ID" | "OBRA_NOT_FOUND" | "UNEXPECTED_ERROR"
@@ -125,8 +126,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
     id: obra.id,
     titulo: obra.titulo,
     status: obra.status,
-    dataInicioObra: ymd(obra.data_inicio_obra),
-    dataFimObra: ymd(obra.data_fim_obra),
+    dataInicioObra: fromDateOnlyDb(obra.data_inicio_obra),
+    dataFimObra: fromDateOnlyDb(obra.data_fim_obra),
     orcamentoId,
     dataContrato: ymd(obra.data_contrato),
     dataConclusao: ymd(obra.data_conclusao),
@@ -207,7 +208,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       frete: n(p.frete),
       descricao: p.descricao ?? null,
       observacoes: p.observacoes ?? null,
-      dataEntrega: ymd(p.data_entrega),
+      dataEntrega: fromDateOnlyDb(p.data_entrega),
       enderecoEntrega: p.endereco_entrega ?? null,
       nomeReceptor: p.nome_receptor ?? null,
       telefoneReceptor: p.telefone_receptor ?? null,
@@ -220,7 +221,7 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         frete: n(p.frete),
       },
       entrega: {
-        data: ymd(p.data_entrega),
+        data: fromDateOnlyDb(p.data_entrega),
         endereco: p.endereco_entrega ?? null,
         receptor: p.nome_receptor ?? null,
         telefone: p.telefone_receptor ?? null,
@@ -246,8 +247,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         equipe: obra.ordem_servico.equipe
           ? { id: obra.ordem_servico.equipe.id, nome: obra.ordem_servico.equipe.nome }
           : null,
-        dataPrevInicio: ymd(obra.ordem_servico.data_prev_inicio)!,
-        dataPrevConclusao: ymd(obra.ordem_servico.data_prev_conclusao)!,
+        dataPrevInicio: fromDateOnlyDb(obra.ordem_servico.data_prev_inicio)!,
+        dataPrevConclusao: fromDateOnlyDb(obra.ordem_servico.data_prev_conclusao)!,
       }
       : null,
 
@@ -261,8 +262,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
 
     agenda: (obra.segmentos || []).map((s: any) => ({
       id: s.id,
-      start: ymd(s.inicio)!,
-      end: ymd(s.fim)!,
+      start: fromDateOnlyDb(s.inicio)!,
+      end: fromDateOnlyDb(s.fim)!,
       tipo: s.tipo ?? "EXECUCAO",
       status: s.status ?? "AGENDADO",
       equipe: s.equipe

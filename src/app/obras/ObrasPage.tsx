@@ -208,10 +208,41 @@ function isEmpty(v: any) {
   return false
 }
 
-function parseMaybeDate(s?: string | null): Date | null {
-  if (!s) return null
-  const d = new Date(s)
-  return Number.isFinite(d.getTime()) ? d : null
+type ComparableAgendaSegment = {
+  id: number | null
+  start: string
+  end: string
+  equipeId: number | null
+  tipo: string
+  status: string
+  observacoes: string | null
+}
+
+function toComparableAgendaSegment(segment: Partial<AgendaSegmentInput> & { equipe?: { id?: number | null } | null }): ComparableAgendaSegment {
+  const normalizedId = Number(segment.id)
+  const normalizedEquipeId = Number(segment.equipeId ?? segment.equipe?.id)
+
+  return {
+    id: Number.isFinite(normalizedId) && normalizedId > 0 ? normalizedId : null,
+    start: String(segment.start ?? ""),
+    end: String(segment.end ?? ""),
+    equipeId: Number.isFinite(normalizedEquipeId) && normalizedEquipeId > 0 ? normalizedEquipeId : null,
+    tipo: String(segment.tipo ?? "EXECUCAO"),
+    status: String(segment.status ?? "AGENDADO"),
+    observacoes: segment.observacoes ?? null,
+  }
+}
+
+function serializeAgendaSegments(segments: Array<Partial<AgendaSegmentInput> & { equipe?: { id?: number | null } | null }>): string {
+  return JSON.stringify(
+    [...segments]
+      .map(toComparableAgendaSegment)
+      .sort((a, b) => {
+        if (a.start !== b.start) return a.start.localeCompare(b.start)
+        if (a.end !== b.end) return a.end.localeCompare(b.end)
+        return (a.id ?? Number.MAX_SAFE_INTEGER) - (b.id ?? Number.MAX_SAFE_INTEGER)
+      })
+  )
 }
 
 function focusById(id: string) {
@@ -507,12 +538,25 @@ export default function ObrasPage({
   const [agendaSegments, setAgendaSegments] = useState<AgendaSegmentInput[]>([])
   const [agendaValid, setAgendaValid] = useState(true)
   const [agendaError, setAgendaError] = useState<string | null>(null)
+  const [agendaHasDraft, setAgendaHasDraft] = useState(false)
+  const [agendaEditorVersion, setAgendaEditorVersion] = useState(0)
+  const initialAgendaSerialized = useMemo(
+    () => serializeAgendaSegments(Array.isArray(agendaInit) ? agendaInit : []),
+    [agendaInit]
+  )
 
   useEffect(() => {
     if (mode !== "view") return
     const fromDto = Array.isArray(pedidosCompraInit) ? pedidosCompraInit.map(dtoToPedidoVM) : []
     setPedidos(fromDto)
   }, [pedidosCompraInit, mode])
+
+  useEffect(() => {
+    setAgendaSegments([])
+    setAgendaValid(true)
+    setAgendaError(null)
+    setAgendaHasDraft(false)
+  }, [initialAgendaSerialized])
 
   useEffect(() => {
     if (mode !== "new") return
@@ -1061,8 +1105,11 @@ export default function ObrasPage({
 
         await updateObra(obraId, upd)
 
-        // Update Agenda
-        if (agendaSegments.length > 0 || (agendaInit && agendaInit.length > 0)) {
+        const effectiveAgendaSegments = agendaHasDraft ? agendaSegments : (Array.isArray(agendaInit) ? agendaInit : [])
+        const currentAgendaSerialized = serializeAgendaSegments(effectiveAgendaSegments as any)
+        const agendaChanged = currentAgendaSerialized !== initialAgendaSerialized
+
+        if (agendaChanged) {
           const resAgenda = await updateAgendaSegments(obraId, agendaSegments)
           if (!resAgenda.success) {
             toast.error(`Obra salva, mas erro na agenda: ${resAgenda.error}`)
@@ -1095,6 +1142,11 @@ export default function ObrasPage({
     }
 
     setFin(hydrateFinanceiro(financeiroInit))
+    setAgendaSegments([])
+    setAgendaValid(true)
+    setAgendaError(null)
+    setAgendaHasDraft(false)
+    setAgendaEditorVersion((current) => current + 1)
     setIsEditing(false)
   }
 
@@ -1316,12 +1368,16 @@ export default function ObrasPage({
         <Financeiro className="w-full h-full" value={fin} onChange={patchFinanceiro} isEditing={isEditing} />
 
         <AgendaObra
+          key={`agenda-${isEditing ? "edit" : "view"}-${agendaEditorVersion}`}
           obraId={obraId || 0}
           agenda={agendaInit}
           equipes={equipesList}
           isEditing={isEditing}
           obraStatus={vm.status}
-          onChange={setAgendaSegments}
+          onChange={(segments) => {
+            setAgendaSegments(segments)
+            setAgendaHasDraft(true)
+          }}
           onValidationChange={(valid, err) => {
             setAgendaValid(valid)
             setAgendaError(err || null)

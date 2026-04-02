@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus } from "@prisma/client"
+import { parseDateOnlyInput } from "@/lib/date-only"
 
 type Id = number | string
 
@@ -93,6 +94,10 @@ function mapPagamentoStatus(raw?: string | null): PagamentoStatus | undefined {
   return undefined
 }
 
+function parseOptionalDateOnly(value: string | Date | null | undefined) {
+  return value ? parseDateOnlyInput(value) : null
+}
+
 export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userId: Id): Promise<UpdateObraResult> {
   const id = Number(obraId)
   if (!id || Number.isNaN(id)) {
@@ -154,20 +159,20 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         }
         if (payload.obra.data_criacao !== undefined) {
           const dCriacao = payload.obra.data_criacao
-          obraData.data_criacao = dCriacao ? new Date(dCriacao) : null
+          obraData.data_criacao = parseOptionalDateOnly(dCriacao)
         }
         // Datas de prazo contratual
         if (payload.obra.data_inicio_obra !== undefined) {
           const dIni = payload.obra.data_inicio_obra;
-          obraData.data_inicio_obra = dIni ? new Date(dIni) : null;
+          obraData.data_inicio_obra = parseOptionalDateOnly(dIni);
         }
         if (payload.obra.data_fim_obra !== undefined) {
           const dFim = payload.obra.data_fim_obra;
-          obraData.data_fim_obra = dFim ? new Date(dFim) : null;
+          obraData.data_fim_obra = parseOptionalDateOnly(dFim);
         }
         if (payload.obra.data_contrato !== undefined) {
           const dContrato = payload.obra.data_contrato;
-          obraData.data_contrato = dContrato ? new Date(dContrato) : null;
+          obraData.data_contrato = parseOptionalDateOnly(dContrato);
         }
 
         // Lógica de conclusão
@@ -178,14 +183,14 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         // Se mandou data explicita, usa
         if (isFinalizingNow) {
           const explicitConclusionDate = payload.obra.data_conclusao
-          obraData.data_conclusao = explicitConclusionDate ? new Date(explicitConclusionDate) : new Date()
+          obraData.data_conclusao = explicitConclusionDate ? parseDateOnlyInput(explicitConclusionDate) : new Date()
           shouldForceFinalizationStatuses = true
           shouldClosePedidos = true
         }
         // Se NÃO mandou data, mas está mudando para FINALIZADO agora (e não estava antes), auto-set
         else if (payload.obra.data_conclusao !== undefined) {
           const dConclusao = payload.obra.data_conclusao
-          obraData.data_conclusao = dConclusao ? new Date(dConclusao) : null
+          obraData.data_conclusao = parseOptionalDateOnly(dConclusao)
         }
       }
 

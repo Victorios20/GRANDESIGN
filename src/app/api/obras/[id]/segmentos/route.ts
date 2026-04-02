@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { fromDateOnlyDb, parseDateOnlyInput } from "@/lib/date-only"
 
 export const dynamic = "force-dynamic"
 
@@ -48,8 +49,11 @@ export async function POST(req: Request, { params }: { params: Params }) {
             return NextResponse.json({ error: "Datas início e fim são obrigatórias" }, { status: 400 })
         }
 
-        const inicioDate = new Date(inicio)
-        const fimDate = new Date(fim)
+        const inicioDate = parseDateOnlyInput(inicio)
+        const fimDate = parseDateOnlyInput(fim)
+        if (!inicioDate || !fimDate) {
+            return NextResponse.json({ error: "Datas invalidas" }, { status: 400 })
+        }
 
         if (inicioDate > fimDate) {
             return NextResponse.json({ error: "Data fim deve ser maior ou igual à data início" }, { status: 400 })
@@ -62,8 +66,8 @@ export async function POST(req: Request, { params }: { params: Params }) {
                 where: {
                     equipe_id: Number(equipe_id),
                     AND: [
-                        { inicio: { lt: fimDate } },
-                        { fim: { gt: inicioDate } },
+                        { inicio: { lte: fimDate } },
+                        { fim: { gte: inicioDate } },
                     ],
                 },
                 include: {
@@ -96,8 +100,8 @@ export async function POST(req: Request, { params }: { params: Params }) {
                 id: created.id,
                 obra_id: created.obra_id,
                 equipe_id: created.equipe_id,
-                inicio: created.inicio.toISOString().split("T")[0],
-                fim: created.fim.toISOString().split("T")[0],
+                inicio: fromDateOnlyDb(created.inicio)!,
+                fim: fromDateOnlyDb(created.fim)!,
                 observacoes: created.observacoes,
                 equipe: created.equipe,
             },
@@ -133,8 +137,8 @@ export async function GET(_req: Request, { params }: { params: Params }) {
             id: s.id,
             obra_id: s.obra_id,
             equipe_id: s.equipe_id,
-            inicio: s.inicio.toISOString().split("T")[0],
-            fim: s.fim.toISOString().split("T")[0],
+            inicio: fromDateOnlyDb(s.inicio)!,
+            fim: fromDateOnlyDb(s.fim)!,
             observacoes: s.observacoes,
             equipe: s.equipe,
         }))

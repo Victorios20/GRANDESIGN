@@ -34,6 +34,7 @@ import { Toaster, toast } from "sonner"
 import { AgendaEditor } from "@/components/agenda/AgendaEditor"
 import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
 import { getLastAgendaUpdate } from "@/actions/calendar-stats"
+import { addDaysToDateOnly, parseDateOnlyInput, subtractDaysFromDateOnly } from "@/lib/date-only"
 import {
   Calendar,
   AlertTriangle,
@@ -129,21 +130,12 @@ async function fetchWithCache(url: string, bustCache = false): Promise<any> {
   return data
 }
 
-// Helper for safe date math (avoiding timezone shifts)
-function safeDateMath(dateStr: string, daysToAdd: number): string {
-  // Ensure we operate on T12:00:00 to avoid midnight offsets
-  const base = dateStr.includes("T") ? dateStr.split("T")[0] : dateStr
-  const d = new Date(base + "T12:00:00")
-  d.setDate(d.getDate() + daysToAdd)
-  return d.toISOString().split("T")[0]
-}
-
 function addDay(dateStr: string): string {
-  return safeDateMath(dateStr, 1)
+  return addDaysToDateOnly(dateStr)
 }
 
 function subtractDay(dateStr: string): string {
-  return safeDateMath(dateStr, -1)
+  return subtractDaysFromDateOnly(dateStr)
 }
 
 // Calculate days since a date (uses contract date if available, otherwise creation date)
@@ -697,7 +689,7 @@ export default function CalendarioPage() {
 
   // Format date as "Qui (06/02)"
   const formatDateShort = (dateStr: string) => {
-    const date = new Date(dateStr + "T12:00:00")
+    const date = parseDateOnlyInput(dateStr) || new Date(dateStr + "T12:00:00")
     const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
     const day = days[date.getDay()]
     const dd = String(date.getDate()).padStart(2, "0")

@@ -1,7 +1,8 @@
 // src/app/api/agenda/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { type ObraStatus, Prisma } from "@prisma/client"
+import { type ObraStatus } from "@prisma/client"
+import { fromDateOnlyDb, getTodayDateOnly, parseDateOnlyInput } from "@/lib/date-only"
 
 export const dynamic = "force-dynamic"
 
@@ -18,21 +19,23 @@ export async function GET(req: Request) {
         const status = url.searchParams.get("status")
         const bairro = url.searchParams.get("bairro")
         const tipoObra = url.searchParams.get("tipo_obra")
+        const fromDate = parseDateOnlyInput(fromStr)
+        const toDate = parseDateOnlyInput(toStr)
 
         // Build segment filters
         const segmentWhere: any = {}
 
-        if (fromStr && toStr) {
+        if (fromDate && toDate) {
             // Segments that overlap with the date range
-            // A segment overlaps if: segment.inicio < toDate AND segment.fim > fromDate
+            // Stored dates are inclusive; calendar range end is exclusive.
             segmentWhere.AND = [
-                { inicio: { lt: new Date(toStr) } },
-                { fim: { gt: new Date(fromStr) } },
+                { inicio: { lt: toDate } },
+                { fim: { gte: fromDate } },
             ]
-        } else if (fromStr) {
-            segmentWhere.fim = { gt: new Date(fromStr) }
-        } else if (toStr) {
-            segmentWhere.inicio = { lt: new Date(toStr) }
+        } else if (fromDate) {
+            segmentWhere.fim = { gte: fromDate }
+        } else if (toDate) {
+            segmentWhere.inicio = { lt: toDate }
         }
 
         if (equipeId) {
@@ -103,8 +106,8 @@ export async function GET(req: Request) {
 
             return {
                 id: s.id,
-                inicio: s.inicio.toISOString().split("T")[0],
-                fim: s.fim.toISOString().split("T")[0],
+                inicio: fromDateOnlyDb(s.inicio)!,
+                fim: fromDateOnlyDb(s.fim)!,
                 observacoes: s.observacoes,
                 tipo: s.tipo,
                 status: s.status,
@@ -130,8 +133,7 @@ export async function GET(req: Request) {
         })
 
         // Calculate KPIs
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        const today = parseDateOnlyInput(getTodayDateOnly())
 
         // Obras faltando agendar (0 segmentos and status != FINALIZADO)
         const faltandoAgendar = await prisma.obras.count({
@@ -167,8 +169,8 @@ export async function GET(req: Request) {
 
         const emAtraso = obrasComSegmentos.filter((obra) => {
             const lastFim = obra.segmentos[0]?.fim
-            if (!lastFim) return false
-            return new Date(lastFim) < today
+            if (!lastFim || !today) return false
+            return lastFim < today
         }).length
 
         return NextResponse.json({

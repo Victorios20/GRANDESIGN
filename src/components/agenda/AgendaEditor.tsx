@@ -7,32 +7,25 @@ import { format, addDays, isValid, isBefore, startOfDay } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { getTodayDateOnly, parseDateOnlyInput, toDateOnlyValue } from "@/lib/date-only"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 
-import { updateAgendaSegments, AgendaSegmentInput } from "@/actions/obras/update-agenda"
+import { AgendaSegmentInput } from "@/actions/obras/update-agenda"
 
 // Helper to reliably parse YYYY-MM-DD
 const parseYMD = (ymd: string) => {
-    if (!ymd) return null
-    const d = new Date(ymd + "T12:00:00")
-    return isValid(d) ? d : null
+    const d = parseDateOnlyInput(ymd)
+    return d && isValid(d) ? d : null
 }
 
 const formatDate = (ymd: string) => {
     const d = parseYMD(ymd)
     if (!d) return ymd
     return format(d, "dd 'de' MMM", { locale: ptBR })
-}
-
-const formatDateFull = (ymd: string) => {
-    const d = parseYMD(ymd)
-    if (!d) return ymd
-    return format(d, "dd 'de' MMMM, yyyy", { locale: ptBR })
 }
 
 
@@ -55,7 +48,7 @@ type Props = {
     onValidationChange?: (isValid: boolean, error?: string | null) => void
 }
 
-export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = false, obraStatus, onChange, onValidationChange }: Props) {
+export function AgendaEditor({ initialSegments, equipes, readOnly = false, obraStatus, onChange, onValidationChange }: Props) {
     const isObraFinalizada = obraStatus?.toUpperCase() === "FINALIZADO"
 
     // Use local state only if not controlled (fallback) or to manage internal edit drafts before propagation?
@@ -71,8 +64,6 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
 
     // Sync input props if they change externally (and are different from our current state)
     useEffect(() => {
-        if (!initialSegments || initialSegments.length === 0) return
-
         // Check if the incoming segments are same as current state to avoid loops
         const areSame = segments.length === initialSegments.length &&
             segments.every((s, i) => {
@@ -87,7 +78,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
             })
 
         if (!areSame) {
-            setSegments(initialSegments)
+            setSegments(initialSegments ?? [])
         }
     }, [initialSegments])
 
@@ -125,10 +116,7 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
         return null
     }, [sortedSegments])
 
-    const missingTeamError = useMemo(() => {
-        // Team is now optional
-        return null
-    }, [sortedSegments])
+    const missingTeamError = null
 
     // Notify parent of changes and validity
     useEffect(() => {
@@ -151,15 +139,15 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
         }
 
         const lastSeg = sortedSegments[sortedSegments.length - 1]
-        let newStart = new Date().toISOString().slice(0, 10)
-        let newEnd = new Date().toISOString().slice(0, 10)
+        let newStart = getTodayDateOnly()
+        let newEnd = getTodayDateOnly()
 
         if (lastSeg) {
             const lastEndDate = parseYMD(lastSeg.end)
             if (lastEndDate) {
                 const nextStart = addDays(lastEndDate, 1)
-                newStart = nextStart.toISOString().slice(0, 10)
-                newEnd = nextStart.toISOString().slice(0, 10)
+                newStart = toDateOnlyValue(nextStart) || newStart
+                newEnd = toDateOnlyValue(nextStart) || newEnd
             }
         }
 
@@ -177,13 +165,13 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
         ])
     }
 
-    const handleChange = (id: number, field: keyof AgendaSegmentInput, value: any) => {
+    const handleChange = (id: number, field: keyof AgendaSegmentInput, value: AgendaSegmentInput[keyof AgendaSegmentInput]) => {
         setSegments(prev => prev.map(s => {
             if (s.id !== id) return s
             const updated = { ...s, [field]: value }
             // Auto-fix dates
-            if (field === 'start' && updated.end < value) updated.end = value
-            if (field === 'end' && updated.start > value) updated.start = value
+            if (field === 'start' && typeof value === "string" && updated.end < value) updated.end = value
+            if (field === 'end' && typeof value === "string" && updated.start > value) updated.start = value
             return updated
         }))
     }
@@ -338,7 +326,10 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
                                 <CalendarComponent
                                     mode="single"
                                     selected={parseYMD(seg.start) || undefined}
-                                    onSelect={(date) => date && handleChange(seg.id!, "start", date.toISOString().split('T')[0])}
+                                    onSelect={(date) => {
+                                        const nextValue = toDateOnlyValue(date)
+                                        if (nextValue) handleChange(seg.id!, "start", nextValue)
+                                    }}
                                     initialFocus
                                     locale={ptBR}
                                 />
@@ -364,7 +355,10 @@ export function AgendaEditor({ obraId, initialSegments, equipes, readOnly = fals
                                 <CalendarComponent
                                     mode="single"
                                     selected={parseYMD(seg.end) || undefined}
-                                    onSelect={(date) => date && handleChange(seg.id!, "end", date.toISOString().split('T')[0])}
+                                    onSelect={(date) => {
+                                        const nextValue = toDateOnlyValue(date)
+                                        if (nextValue) handleChange(seg.id!, "end", nextValue)
+                                    }}
                                     initialFocus
                                     locale={ptBR}
                                 />

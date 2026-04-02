@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { revalidatePath } from "next/cache"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { parseDateOnlyInput } from "@/lib/date-only"
 
 export type AgendaSegmentInput = {
     id?: number
@@ -21,8 +22,12 @@ export type UpdateAgendaResult = {
 }
 
 function parseDate(str: string): Date {
-    // Append T12:00:00 to avoid timezone issues with pure dates
-    return new Date(`${str}T12:00:00`)
+    const parsed = parseDateOnlyInput(str)
+    if (!parsed) {
+        throw new Error(`Data inválida: ${str}`)
+    }
+
+    return parsed
 }
 
 export async function updateAgendaSegments(
