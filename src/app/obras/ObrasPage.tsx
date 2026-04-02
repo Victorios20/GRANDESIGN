@@ -30,7 +30,7 @@ import type { PedidoCompraVM } from "@/components/obras/pedido-compra/types"
 
 import type { ObraInfosVM, CreateObraPayload, UpdateObraPayload, OrdemServicoPayload } from "./lib/types"
 import { createObra, updateObra } from "./lib/api"
-import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
+import type { AgendaSegmentInput } from "@/actions/obras/update-agenda"
 
 import ClienteModal from "@/components/modals/ClienteModal"
 import { uploadImagensObra } from "./lib/upload-imagens"
@@ -243,6 +243,21 @@ function serializeAgendaSegments(segments: Array<Partial<AgendaSegmentInput> & {
         return (a.id ?? Number.MAX_SAFE_INTEGER) - (b.id ?? Number.MAX_SAFE_INTEGER)
       })
   )
+}
+
+async function saveAgendaSegments(obraId: number, segments: AgendaSegmentInput[]) {
+  const response = await fetch(`/api/obras/${obraId}/segmentos`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ segments }),
+  })
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    return { success: false, error: payload?.error || "Erro ao salvar agenda" }
+  }
+
+  return { success: payload?.success === true, error: payload?.error as string | undefined }
 }
 
 function focusById(id: string) {
@@ -1110,7 +1125,7 @@ export default function ObrasPage({
         const agendaChanged = currentAgendaSerialized !== initialAgendaSerialized
 
         if (agendaChanged) {
-          const resAgenda = await updateAgendaSegments(obraId, agendaSegments)
+          const resAgenda = await saveAgendaSegments(obraId, agendaSegments)
           if (!resAgenda.success) {
             toast.error(`Obra salva, mas erro na agenda: ${resAgenda.error}`)
           } else {

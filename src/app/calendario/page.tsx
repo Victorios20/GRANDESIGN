@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Toaster, toast } from "sonner"
 import { AgendaEditor } from "@/components/agenda/AgendaEditor"
-import { updateAgendaSegments, type AgendaSegmentInput } from "@/actions/obras/update-agenda"
+import type { AgendaSegmentInput } from "@/actions/obras/update-agenda"
 import { getLastAgendaUpdate } from "@/actions/calendar-stats"
 import { addDaysToDateOnly, parseDateOnlyInput, subtractDaysFromDateOnly } from "@/lib/date-only"
 import {
@@ -136,6 +136,21 @@ function addDay(dateStr: string): string {
 
 function subtractDay(dateStr: string): string {
   return subtractDaysFromDateOnly(dateStr)
+}
+
+async function saveAgendaSegments(obraId: number, segments: AgendaSegmentInput[]) {
+  const response = await fetch(`/api/obras/${obraId}/segmentos`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ segments }),
+  })
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    return { success: false, error: payload?.error || "Erro ao salvar agenda" }
+  }
+
+  return { success: payload?.success === true, error: payload?.error as string | undefined }
 }
 
 // Calculate days since a date (uses contract date if available, otherwise creation date)
@@ -333,7 +348,7 @@ export default function CalendarioPage() {
     try {
       setSavingAgenda(true)
       const obId = Number(formObraId)
-      const res = await updateAgendaSegments(obId, draftAgenda)
+      const res = await saveAgendaSegments(obId, draftAgenda)
 
       if (res.success) {
         toast.success("Agenda salva com sucesso!")
