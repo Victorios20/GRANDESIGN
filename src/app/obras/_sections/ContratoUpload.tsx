@@ -120,9 +120,9 @@ export default function ContratoUpload({
   }
 
   return (
-    <Card className={`w-full rounded-2xl border-0 shadow-md bg-white ${className ?? ""}`}>
-      <CardHeader className="px-7 pt-7 pb-3">
-        <CardTitle className="flex items-center gap-2 text-green text-xl">
+    <Card className={`w-full rounded-2xl border-0 bg-white shadow-md ${className ?? ""}`}>
+      <CardHeader className="px-7 pb-3 pt-7">
+        <CardTitle className="flex items-center gap-2 text-xl text-green">
           <FileSignature className="h-5 w-5" />
           Contrato Assinado (Upload)
         </CardTitle>
@@ -144,8 +144,8 @@ export default function ContratoUpload({
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-sm text-blue-600 hover:underline"
             >
-              <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-              <span className="truncate flex-1">{getFileName(savedLink)}</span>
+              <CheckCircle className="h-4 w-4 flex-shrink-0 text-green-600" />
+              <span className="flex-1 truncate">{getFileName(savedLink)}</span>
               <ExternalLink className="h-3.5 w-3.5 shrink-0" />
             </a>
 
@@ -156,7 +156,7 @@ export default function ContratoUpload({
               </div>
             )}
 
-            <div className="pt-3 border-t">
+            <div className="border-t pt-3">
               <Button
                 variant="outline"
                 size="sm"
@@ -165,12 +165,12 @@ export default function ContratoUpload({
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Enviando...
                   </>
                 ) : (
                   <>
-                    <Upload className="h-4 w-4 mr-2" />
+                    <Upload className="mr-2 h-4 w-4" />
                     Substituir contrato
                   </>
                 )}
@@ -179,8 +179,8 @@ export default function ContratoUpload({
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              FaÃ§a upload do contrato assinado para registrar a data de inÃ­cio da obra.
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              Faça upload do contrato assinado para registrar a data de início da obra.
             </p>
             <Button
               variant="default"
@@ -190,12 +190,12 @@ export default function ContratoUpload({
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Enviando...
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="mr-2 h-4 w-4" />
                   Fazer upload do contrato
                 </>
               )}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import type { ElementType } from "react"
+import { useRouter } from "next/navigation"
 import {
   ArrowDown,
   ArrowUp,
@@ -18,7 +19,6 @@ import {
   Trash2,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
 
 import {
   excluirDocumento,
@@ -26,8 +26,8 @@ import {
   reordenarDocumentos,
 } from "@/actions/obras/documentos"
 import {
-  obterTitulosLinksObra,
   atualizarLinkObra,
+  obterTitulosLinksObra,
 } from "@/actions/obras/atualizar-links-obra"
 import {
   DEFAULT_FIXED_LINK_LABELS,
@@ -42,6 +42,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
+
 import DocumentoUploadModal from "./DocumentoUploadModal"
 
 type Mode = "new" | "view" | "edit"
@@ -92,13 +93,13 @@ function LinkField({
   const hasValue = href.length > 0
 
   return (
-    <div className="w-full flex items-center gap-2 min-w-0 py-2 px-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green/10">
+    <div className="w-full flex items-center gap-2 min-w-0 rounded-lg bg-gray-50 px-3 py-2 transition-colors hover:bg-gray-100">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green/10">
         <Icon className="h-4 w-4 text-green" />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <Label className="font-medium text-black text-sm">{label}</Label>
+      <div className="min-w-0 flex-1">
+        <Label className="text-sm font-medium text-black">{label}</Label>
       </div>
 
       {hasValue ? (
@@ -106,55 +107,55 @@ function LinkField({
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-green text-sm cursor-pointer hover:underline shrink-0"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 text-sm text-green hover:underline"
         >
           Abrir
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       ) : (
-        <span className="text-black/40 text-sm shrink-0">NÃ£o vinculado</span>
+        <span className="shrink-0 text-sm text-black/40">Não vinculado</span>
       )}
 
       {showEditDelete && (
-        <div className="flex items-center gap-0.5 ml-1">
+        <div className="ml-1 flex items-center gap-0.5">
           {onMoveUp && (
             <button
               type="button"
               onClick={onMoveUp}
-              className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors"
+              className="rounded p-1.5 text-black/40 transition-colors hover:bg-black/5 hover:text-black"
               title="Mover para cima"
             >
-              <ArrowUp className="w-4 h-4" />
+              <ArrowUp className="h-4 w-4" />
             </button>
           )}
           {onMoveDown && (
             <button
               type="button"
               onClick={onMoveDown}
-              className="p-1.5 text-black/40 hover:text-black hover:bg-black/5 rounded transition-colors"
+              className="rounded p-1.5 text-black/40 transition-colors hover:bg-black/5 hover:text-black"
               title="Mover para baixo"
             >
-              <ArrowDown className="w-4 h-4" />
+              <ArrowDown className="h-4 w-4" />
             </button>
           )}
           {onEdit && (
             <button
               type="button"
               onClick={onEdit}
-              className="p-1.5 text-black/40 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              className="rounded p-1.5 text-black/40 transition-colors hover:bg-blue-50 hover:text-blue-600"
               title="Editar"
             >
-              <Pencil className="w-4 h-4" />
+              <Pencil className="h-4 w-4" />
             </button>
           )}
           {onDelete && (
             <button
               type="button"
               onClick={onDelete}
-              className="p-1.5 text-red-400 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+              className="rounded p-1.5 text-red-400 transition-colors hover:bg-red-50 hover:text-red-700"
               title="Excluir"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-4 w-4" />
             </button>
           )}
         </div>
@@ -266,7 +267,7 @@ export default function Anexos({
     startTransition(async () => {
       const result = await excluirDocumento(docId)
       if (result.success) {
-        toast.success("Documento excluÃ­do")
+        toast.success("Documento excluído")
         setDocumentos((prev) => prev.filter((doc) => doc.id !== docId))
       } else {
         toast.error(result.error || "Erro ao excluir")
@@ -320,7 +321,7 @@ export default function Anexos({
     titulo: string | null
   ): Promise<{ success: boolean; error?: string }> {
     if (!obraId) {
-      return { success: false, error: "Obra ID nÃ£o encontrado" }
+      return { success: false, error: "Obra ID não encontrado" }
     }
 
     const result = await atualizarLinkObra(obraId, key, url || null, titulo)
@@ -352,9 +353,9 @@ export default function Anexos({
 
   return (
     <>
-      <Card className={`w-full rounded-2xl border-0 shadow-sm bg-white ${className ?? ""}`}>
-        <CardHeader className="px-6 pt-6 pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-green text-xl">
+      <Card className={`w-full rounded-2xl border-0 bg-white shadow-sm ${className ?? ""}`}>
+        <CardHeader className="flex flex-row items-center justify-between px-6 pb-3 pt-6">
+          <CardTitle className="flex items-center gap-2 text-xl text-green">
             <Paperclip className="h-5 w-5" />
             Anexos
           </CardTitle>
@@ -372,7 +373,7 @@ export default function Anexos({
                 }}
                 className="h-8"
               >
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="mr-1 h-4 w-4" />
                 Adicionar
               </Button>
             )}
@@ -380,7 +381,7 @@ export default function Anexos({
         </CardHeader>
 
         <CardContent className="px-6 pb-6 pt-3">
-          <div className="w-full flex flex-col gap-2">
+          <div className="flex w-full flex-col gap-2">
             <LinkField
               label={fixedTitles.orcamento}
               value={orcamentoUrl}

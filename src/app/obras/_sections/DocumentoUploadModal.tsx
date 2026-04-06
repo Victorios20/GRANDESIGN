@@ -137,12 +137,12 @@ export default function DocumentoUploadModal({
 
   async function handleSubmit() {
     if (!isFixedLink && !titulo.trim()) {
-      toast.error("TÃ­tulo Ã© obrigatÃ³rio")
+      toast.error("Título é obrigatório")
       return
     }
 
     if (inputMode === "link" && !link.trim()) {
-      toast.error("Link Ã© obrigatÃ³rio")
+      toast.error("Link é obrigatório")
       return
     }
 
@@ -180,7 +180,7 @@ export default function DocumentoUploadModal({
         if (fixedLinkKey && onFixedLinkSave) {
           const finalUrl = inputMode === "arquivo" ? fileUrl : link.trim()
           if (!finalUrl) {
-            toast.error("Ã‰ necessÃ¡rio selecionar um arquivo ou inserir um link")
+            toast.error("É necessário selecionar um arquivo ou inserir um link")
             setIsUploading(false)
             return
           }
@@ -222,7 +222,7 @@ export default function DocumentoUploadModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-lg overflow-hidden sm:w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-green" />
@@ -231,26 +231,26 @@ export default function DocumentoUploadModal({
         </DialogHeader>
 
         <div className="grid gap-5 py-4">
-          <div className="flex rounded-lg bg-gray-100 p-1">
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1">
             <Button
               type="button"
               variant="ghost"
               onClick={() => setInputMode("arquivo")}
               disabled={isLoading}
-              className={`flex-1 h-8 text-sm font-medium transition-all ${inputMode === "arquivo" ? "bg-white shadow-sm text-black" : "text-gray-500 hover:text-gray-900"}`}
+              className={`h-10 min-w-0 justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${inputMode === "arquivo" ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload de Arquivo
+              <Upload className="h-4 w-4 shrink-0" />
+              <span className="truncate">Upload de Arquivo</span>
             </Button>
             <Button
               type="button"
               variant="ghost"
               onClick={() => setInputMode("link")}
               disabled={isLoading}
-              className={`flex-1 h-8 text-sm font-medium transition-all ${inputMode === "link" ? "bg-white shadow-sm text-black" : "text-gray-500 hover:text-gray-900"}`}
+              className={`h-10 min-w-0 justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${inputMode === "link" ? "bg-white text-black shadow-sm" : "text-gray-500 hover:text-gray-900"}`}
             >
-              <Link className="h-4 w-4 mr-2" />
-              Inserir Link
+              <Link className="h-4 w-4 shrink-0" />
+              <span className="truncate">Inserir Link</span>
             </Button>
           </div>
 
@@ -280,13 +280,13 @@ export default function DocumentoUploadModal({
 
           <div className="grid gap-2">
             <Label htmlFor="titulo" className="text-sm font-medium text-gray-700">
-              TÃ­tulo do documento {!isFixedLink && <span className="text-red-500">*</span>}
+              Título do documento {!isFixedLink && <span className="text-red-500">*</span>}
             </Label>
             <Input
               id="titulo"
               value={titulo}
               onChange={(event) => setTitulo(event.target.value)}
-              placeholder="Ex: Contrato de PrestaÃ§Ã£o de ServiÃ§o"
+              placeholder="Ex: Contrato de Prestação de Serviço"
               disabled={isLoading}
               className="focus-visible:ring-green"
             />
@@ -295,7 +295,7 @@ export default function DocumentoUploadModal({
           {inputMode === "arquivo" && (
             <div className="grid gap-2">
               <Label className="text-sm font-medium text-gray-700">
-                Arquivo (atÃ© 20MB) <span className="text-red-500">*</span>
+                Arquivo (até 20MB) <span className="text-red-500">*</span>
               </Label>
               <input
                 ref={fileInputRef}
@@ -303,16 +303,16 @@ export default function DocumentoUploadModal({
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading}
-                  className="flex-1 justify-start py-6 bg-white border-2 border-dashed border-gray-300 text-gray-600 font-normal text-left truncate hover:bg-green/5 hover:text-green hover:border-green/50 hover:shadow-sm transition-all"
+                  className="h-auto min-w-0 flex-1 justify-start overflow-hidden border-2 border-dashed border-gray-300 bg-white px-4 py-4 text-left font-normal text-gray-600 transition-all hover:border-green/50 hover:bg-green/5 hover:text-green hover:shadow-sm"
                 >
-                  <Upload className="h-4 w-4 mr-3 shrink-0 opacity-50" />
-                  <span className="truncate">
+                  <Upload className="mr-3 h-4 w-4 shrink-0 opacity-50" />
+                  <span className="block min-w-0 truncate">
                     {selectedFile ? selectedFile.name : "Clique para selecionar um arquivo..."}
                   </span>
                 </Button>
@@ -320,7 +320,7 @@ export default function DocumentoUploadModal({
                   <Button
                     type="button"
                     variant="outline"
-                    className="shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    className="w-full shrink-0 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:text-orange-800 sm:w-auto"
                     onClick={() => {
                       setSelectedFile(null)
                       if (fileInputRef.current) {
@@ -354,21 +354,21 @@ export default function DocumentoUploadModal({
           )}
         </div>
 
-        <DialogFooter className="flex gap-3 sm:gap-3 sm:space-x-0 pt-2">
+        <DialogFooter className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end sm:space-x-0">
           <Button
             variant="ghost"
             onClick={handleClose}
             disabled={isLoading}
-            className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+            className="w-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 sm:w-auto"
           >
             Cancelar
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isLoading}
-            className="bg-green text-white hover:bg-green/90 min-w-[100px]"
+            className="w-full bg-green text-white hover:bg-green/90 sm:min-w-[120px] sm:w-auto"
           >
-            {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? "Salvando..." : "Salvar"}
           </Button>
         </DialogFooter>
