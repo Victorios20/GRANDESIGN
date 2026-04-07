@@ -1,3 +1,12 @@
+> Nota de status - 2026-04-06
+>
+> Este PRD continua útil como arquitetura-alvo e ambição funcional, mas ele não representa mais com precisão o estado atual do produto.
+>
+> Para a leitura atual do módulo, usar:
+>
+> - `.agent/docs/planning/project_summary.md`
+> - `.agent/docs/planning/implementation_plan.md`
+
 ## 1. Executive Summary
 
 Integration of a comprehensive financial module into the GRANDESIGN platform to bridge the gap between construction project management and corporate financial health, providing real-time visibility into cash flow, profitability, and project-specific cost tracking.

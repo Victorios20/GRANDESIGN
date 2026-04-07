@@ -13,6 +13,13 @@ export interface GetPayablesOptions {
     search?: string
 }
 
+function buildDueDateFilter(startDate?: Date, endDate?: Date) {
+    const dateFilter: Prisma.DateTimeFilter = {}
+    if (startDate) dateFilter.gte = startDate
+    if (endDate) dateFilter.lte = endDate
+    return dateFilter
+}
+
 export async function getPayables(options: GetPayablesOptions = {}) {
     const {
         page = 1,
@@ -30,9 +37,7 @@ export async function getPayables(options: GetPayablesOptions = {}) {
     const where: Prisma.ContaPagarWhereInput = {}
 
     if (startDate || endDate) {
-        where.data_vencimento = {}
-        if (startDate) (where.data_vencimento as any).gte = startDate
-        if (endDate) (where.data_vencimento as any).lte = endDate
+        where.data_vencimento = buildDueDateFilter(startDate, endDate)
     }
 
     where.status = status
@@ -56,6 +61,13 @@ export async function getPayables(options: GetPayablesOptions = {}) {
                 fornecedor: { select: { id: true, nome: true } },
                 categoria: { select: { id: true, nome: true, cor: true } },
                 centro_custo: { select: { id: true, nome: true } },
+                pedido_compra: {
+                    select: {
+                        id: true,
+                        obra_id: true,
+                        descricao: true,
+                    },
+                },
             },
         }),
     ])
@@ -76,9 +88,7 @@ export async function getPayablesSummary(filters: Omit<GetPayablesOptions, "page
     const where: Prisma.ContaPagarWhereInput = {}
 
     if (startDate || endDate) {
-        where.data_vencimento = {}
-        if (startDate) (where.data_vencimento as any).gte = startDate
-        if (endDate) (where.data_vencimento as any).lte = endDate
+        where.data_vencimento = buildDueDateFilter(startDate, endDate)
     }
     if (status) where.status = Array.isArray(status) ? { in: status } : status
     if (fornecedor_id) where.fornecedor_id = fornecedor_id

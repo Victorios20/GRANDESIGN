@@ -5,23 +5,42 @@ import { getBankBalanceSnapshots, rebuildBankCurrentBalances } from "@/actions/f
 const prisma = new PrismaClient()
 
 const IMPORT_NAMESPACE = "financial-history-2026"
+const IMPORT_MARKER = `[IMPORT ${IMPORT_NAMESPACE}]`
 const IMPORT_MARKER_VARIANTS = [
   "Importado do hist\u00F3rico financeiro 2026.",
   "Importado do hist\u00C3\u00B3rico financeiro 2026.",
   "Importado do hist\u00C3\u0192\u00C2\u00B3rico financeiro 2026.",
+  IMPORT_MARKER,
 ]
 
 function hasFlag(flag: string) {
   return process.argv.includes(flag)
 }
 
-function buildImportMarkerWhere() {
+function buildObservationMarkerWhere() {
   return {
     OR: IMPORT_MARKER_VARIANTS.map((marker) => ({
       observacoes: {
         contains: marker,
       },
     })),
+  }
+}
+
+function buildCostCenterMarkerWhere() {
+  return {
+    OR: [
+      {
+        descricao: {
+          startsWith: "Criado automaticamente a partir do hist",
+        },
+      },
+      {
+        descricao: {
+          contains: IMPORT_MARKER,
+        },
+      },
+    ],
   }
 }
 
@@ -39,8 +58,43 @@ function parseOpeningBankId(result: string | null) {
   }
 }
 
+function parseCreatedEntityIds(result: string | null) {
+  if (!result) {
+    return {
+      clientId: null,
+      workId: null,
+      costCenterId: null,
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(result) as {
+      createdClientId?: unknown
+      createdWorkId?: unknown
+      createdCostCenterId?: unknown
+    }
+
+    const toInt = (value: unknown) => {
+      const numeric = Number(value)
+      return Number.isInteger(numeric) && numeric > 0 ? numeric : null
+    }
+
+    return {
+      clientId: toInt(parsed.createdClientId),
+      workId: toInt(parsed.createdWorkId),
+      costCenterId: toInt(parsed.createdCostCenterId),
+    }
+  } catch {
+    return {
+      clientId: null,
+      workId: null,
+      costCenterId: null,
+    }
+  }
+}
+
 async function buildCleanupPlan() {
-  const [logs, payables, receivables, lancamentos] = await Promise.all([
+  const [logs, payables, receivables, lancamentos, markerCostCenters] = await Promise.all([
     prisma.idempotencyLog.findMany({
       where: {
         key: {
@@ -57,7 +111,7 @@ async function buildCleanupPlan() {
       },
     }),
     prisma.contaPagar.findMany({
-      where: buildImportMarkerWhere(),
+      where: buildObservationMarkerWhere(),
       select: {
         id: true,
       },
@@ -66,7 +120,7 @@ async function buildCleanupPlan() {
       },
     }),
     prisma.contaReceber.findMany({
-      where: buildImportMarkerWhere(),
+      where: buildObservationMarkerWhere(),
       select: {
         id: true,
       },
@@ -75,7 +129,7 @@ async function buildCleanupPlan() {
       },
     }),
     prisma.lancamento.findMany({
-      where: buildImportMarkerWhere(),
+      where: buildObservationMarkerWhere(),
       select: {
         id: true,
         conta_bancaria_id: true,
@@ -85,20 +139,40 @@ async function buildCleanupPlan() {
         id: "asc",
       },
     }),
+    prisma.centroCusto.findMany({
+      where: buildCostCenterMarkerWhere(),
+      select: {
+        id: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    }),
   ])
 
   const bankIds = new Set<number>()
   const transferIds = new Set<number>()
+  const createdClientIds = new Set<number>()
+  const createdWorkIds = new Set<number>()
+  const createdCostCenterIds = new Set<number>(markerCostCenters.map((item) => item.id))
 
   for (const log of logs) {
-    if (!log.key.includes(":opening:")) {
-      continue
+    if (log.key.includes(":opening:")) {
+      const bankId = parseOpeningBankId(log.result ?? null)
+      if (bankId) {
+        bankIds.add(bankId)
+      }
     }
 
-    const bankId = parseOpeningBankId(log.result ?? null)
-
-    if (bankId) {
-      bankIds.add(bankId)
+    const createdIds = parseCreatedEntityIds(log.result ?? null)
+    if (createdIds.clientId) {
+      createdClientIds.add(createdIds.clientId)
+    }
+    if (createdIds.workId) {
+      createdWorkIds.add(createdIds.workId)
+    }
+    if (createdIds.costCenterId) {
+      createdCostCenterIds.add(createdIds.costCenterId)
     }
   }
 
@@ -118,6 +192,9 @@ async function buildCleanupPlan() {
     receivableIds: receivables.map((receivable) => receivable.id),
     lancamentoIds: lancamentos.map((lancamento) => lancamento.id),
     transferIds: Array.from(transferIds).sort((left, right) => left - right),
+    candidateCostCenterIds: Array.from(createdCostCenterIds).sort((left, right) => left - right),
+    candidateWorkIds: Array.from(createdWorkIds).sort((left, right) => left - right),
+    candidateClientIds: Array.from(createdClientIds).sort((left, right) => left - right),
     affectedBankIds,
     bankBalanceDiagnosticsBefore:
       affectedBankIds.length > 0
@@ -179,6 +256,141 @@ async function applyCleanup(plan: Awaited<ReturnType<typeof buildCleanupPlan>>) 
     }
   })
 
+  if (plan.candidateCostCenterIds.length > 0) {
+    const safeCostCenters = await prisma.centroCusto.findMany({
+      where: {
+        id: {
+          in: plan.candidateCostCenterIds,
+        },
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            lancamentos: true,
+            contas_pagar: true,
+            contas_receber: true,
+          },
+        },
+      },
+    })
+
+    const removableIds = safeCostCenters
+      .filter((item) =>
+        item._count.lancamentos === 0 &&
+        item._count.contas_pagar === 0 &&
+        item._count.contas_receber === 0,
+      )
+      .map((item) => item.id)
+
+    if (removableIds.length > 0) {
+      await prisma.centroCusto.deleteMany({
+        where: {
+          id: {
+            in: removableIds,
+          },
+        },
+      })
+    }
+  }
+
+  if (plan.candidateWorkIds.length > 0) {
+    const safeWorks = await prisma.obras.findMany({
+      where: {
+        id: {
+          in: plan.candidateWorkIds,
+        },
+        observacoes: {
+          contains: IMPORT_MARKER,
+        },
+      },
+      select: {
+        id: true,
+        orcamento_id: true,
+        ordem_servico: {
+          select: {
+            id: true,
+          },
+        },
+        budget_snapshot: {
+          select: {
+            id: true,
+          },
+        },
+        _count: {
+          select: {
+            pedidos_compra: true,
+            centro_custo: true,
+            imagens: true,
+            segmentos: true,
+            documentos: true,
+          },
+        },
+      },
+    })
+
+    const removableIds = safeWorks
+      .filter((item) =>
+        item.orcamento_id == null &&
+        item.ordem_servico == null &&
+        item.budget_snapshot == null &&
+        item._count.pedidos_compra === 0 &&
+        item._count.centro_custo === 0 &&
+        item._count.imagens === 0 &&
+        item._count.segmentos === 0 &&
+        item._count.documentos === 0,
+      )
+      .map((item) => item.id)
+
+    if (removableIds.length > 0) {
+      await prisma.obras.deleteMany({
+        where: {
+          id: {
+            in: removableIds,
+          },
+        },
+      })
+    }
+  }
+
+  if (plan.candidateClientIds.length > 0) {
+    const safeClients = await prisma.cliente.findMany({
+      where: {
+        id: {
+          in: plan.candidateClientIds,
+        },
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            obras: true,
+            contas_receber: true,
+            orcamento: true,
+          },
+        },
+      },
+    })
+
+    const removableIds = safeClients
+      .filter((item) =>
+        item._count.obras === 0 &&
+        item._count.contas_receber === 0 &&
+        item._count.orcamento === 0,
+      )
+      .map((item) => item.id)
+
+    if (removableIds.length > 0) {
+      await prisma.cliente.deleteMany({
+        where: {
+          id: {
+            in: removableIds,
+          },
+        },
+      })
+    }
+  }
+
   return plan.affectedBankIds.length > 0
     ? rebuildBankCurrentBalances(prisma, plan.affectedBankIds)
     : []
@@ -195,6 +407,9 @@ async function main() {
     contasReceber: plan.receivableIds.length,
     lancamentos: plan.lancamentoIds.length,
     transferencias: plan.transferIds.length,
+    centrosCustoCandidatos: plan.candidateCostCenterIds.length,
+    obrasCandidatas: plan.candidateWorkIds.length,
+    clientesCandidatos: plan.candidateClientIds.length,
     contasAfetadas: plan.affectedBankIds.length,
     affectedBankIds: plan.affectedBankIds,
     bankBalanceDiagnosticsBefore: plan.bankBalanceDiagnosticsBefore,
@@ -209,7 +424,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error("[X] Falha na limpeza da importa\u00E7\u00E3o 2026:", error)
+    console.error("[X] Falha na limpeza da importacao 2026:", error)
     process.exitCode = 1
   })
   .finally(async () => {

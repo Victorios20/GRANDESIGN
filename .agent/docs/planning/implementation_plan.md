@@ -1,62 +1,57 @@
-# Implementation Plan: Financial Module
+# Plano de Produto: Consolidação do Financeiro
 
-## Phase 1: Foundation (Essential Data Structure)
-**Goal**: Establish the base tables and CRUD for financial entities.
-**Definition of Done**: Tables created, Migrations run, Basic CRUD API endpoints active for Banks/Categories.
+## Goal
+Fazer o módulo financeiro sair do estágio de "funciona em boa parte" para o estágio de "pode sustentar a operação do negócio com confiança".
 
-- [ ] **Schema Migration**:
-    - [x] Create `contas_bancarias` table (Banks).
-    - [x] Create `categorias` table (Revenue/Expense hierarchical).
-    - [x] Create `centros_custo` table (Cost Centers).
-    - [x] Create `lancamentos` table (Ledger).
-    - [x] Create `contas_pagar` & `contas_receber` tables.
-    - [x] Add Relationships (User, Obra).
-- [ ] **Seed Data**:
-    - [ ] Default Categories (Receitas/Despesas).
-    - [ ] Default Banks (Caixa Pequeno).
-- [ ] **Core Services**:
-    - [ ] `BankService` (CRUD).
-    - [ ] `CategoryService` (CRUD + Tree view).
+## Tasks
 
-## Phase 2: Transaction Engine (The "Brain")
-**Goal**: Implement the logic for moving money and calculating balances.
-**Definition of Done**: Can create In/Out/Transfer, Balances update automatically, History is auditable.
+- [ ] `T1` Homologar contas a pagar e receber de ponta a ponta
+  Verify: cadastrar, editar, parcelar, baixar parcialmente, baixar totalmente, reprogramar vencimento e excluir sem quebrar histórico ou saldo.
 
-- [ ] **Ledger Logic**:
-    - [ ] Implement `TransactionService.create()` (Updates Account Balance).
-    - [ ] Implement `TransferService.execute()` (Double entry).
-- [ ] **Accounts Payable/Receivable Logic**:
-    - [ ] Implement Parsing/Installments logic (1x to 36x).
-    - [ ] "Pay Bill" action (Creates Ledger Entry + Updates Bill Status).
-    - [ ] "Receive Bill" action.
+- [ ] `T2` Formalizar a regra de conciliação bancária
+  Verify: o operador consegue identificar o que está conciliado, o que está pendente e fechar saldo por conta sem interpretação ambígua.
 
-## Phase 3: Integration (Connecting Obras & Purchasing)
-**Goal**: Automate financial entries from operational actions.
-**Definition of Done**: Creating an Obra creates a Cost Center. Approving a Purchase Order creates a Payable.
+- [ ] `T3` Garantir integridade dos saldos bancários
+  Verify: para cada conta, `saldo_inicial + receitas - despesas = saldo_atual`, inclusive após importações, transferências e ajustes.
 
-- [ ] **Obra Sync**:
-    - [ ] Hook: On Obra Create -> Create Cost Center.
-- [ ] **Purchase Order Sync**:
-    - [ ] Hook: On PedidoCompra "Aprovado" -> Create `ContaPagar`.
-- [ ] **Legacy Data Migration (Optional/Manual)**:
-    - [ ] Script to import existing Obra payments as `ContasReceber` (Warning: High risk of duplication, manual review recommended).
+- [ ] `T4` Tornar o fluxo de caixa uma visão executiva confiável
+  Verify: o relatório responde saldo atual, entradas previstas, saídas previstas e risco do período com base em dados reais e sem duplicidade.
 
-## Phase 4: UI & Reporting (Visibility)
-**Goal**: Give users the Dashboard and Reports.
-**Definition of Done**: Dashboard Active, DRE functional.
+- [ ] `T5` Fechar a governança do orçado x realizado das obras
+  Verify: cada obra possui leitura clara de receita orçada, custo orçado, custo realizado, desvios e margem, com origem do realizado documentada.
 
-- [ ] **Dashboard**:
-    - [ ] KPI Cards (Balance, Pending).
-    - [ ] Recent Transactions Table.
-- [ ] **Management Pages**:
-    - [ ] Payables/Receivables List (Filters: Date, Category, Supplier).
-    - [ ] Bank Accounts List.
-- [ ] **Reports**:
-    - [ ] DRE (Income Statement) Generator.
-    - [ ] Cash Flow View.
+- [ ] `T6` Definir a regra oficial do resultado operacional do mês
+  Verify: existe definição explícita do que entra e do que fica fora do relatório, e a leitura mensal é consistente para gestão.
 
-## Definition of Done (General)
-- [ ] **Test Coverage**: Unit tests for `TransactionService` (Balance calculations).
-- [ ] **Linting**: No errors in new files.
-- [ ] **Types**: Full Zod validation for all inputs.
-- [ ] **UI**: Responsive (Mobile/Desktop) via Tailwind/Shadcn.
+- [ ] `T7` Padronizar cadastros mestres do financeiro
+  Verify: contas bancárias, categorias e centros de custo possuem regras claras de uso, ativação/desativação e impacto histórico.
+
+- [ ] `T8` Fechar documentação funcional e operacional
+  Verify: existe documento simples para direção/produto e documento objetivo para operação financeira.
+
+## Prioridade
+
+### MUST
+
+- T1 Homologar contas a pagar e receber.
+- T2 Formalizar conciliação bancária.
+- T3 Garantir integridade dos saldos bancários.
+- T4 Tornar o fluxo de caixa confiável.
+- T6 Definir a regra oficial do resultado operacional.
+
+### SHOULD
+
+- T5 Fechar governança do orçado x realizado.
+- T7 Padronizar cadastros mestres.
+
+### COULD
+
+- T8 Expandir documentação operacional em formato de playbook.
+
+## Done When
+
+- [ ] O financeiro diário roda sem planilha paralela.
+- [ ] O saldo bancário confere com os lançamentos.
+- [ ] O fluxo de caixa apoia decisão de curto prazo.
+- [ ] O orçado x realizado é utilizável pelos gestores de obra.
+- [ ] O resultado operacional mensal é aceito como indicador da empresa.

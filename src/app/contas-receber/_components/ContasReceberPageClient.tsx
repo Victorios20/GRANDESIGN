@@ -1,20 +1,45 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { DateRange } from "react-day-picker"
+import { addDays, startOfDay } from "date-fns"
+import { ChevronDown, MoreHorizontal, Plus, Search, SlidersHorizontal, X } from "lucide-react"
+import { toast } from "sonner"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Checkbox } from "@/components/ui/checkbox"
 import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
 import { StatusSelect } from "@/components/ui/StatusSelect"
-import { Search, MoreHorizontal, DollarSign, Eye, Pencil, XCircle, AlertTriangle, Clock, CalendarCheck, TrendingUp, RefreshCw } from "lucide-react"
-import type { DateRange } from "react-day-picker"
-import { toast } from "sonner"
-import { formatCurrency, formatDateBR, FINANCIAL_STATUS_OPTIONS, canPay, canEdit, canCancel, remaining } from "@/lib/financeiro-utils"
-import type { PaginatedResponse, ReceivableListItem, FinancialSummary, BankOption, CategoryOption, CentroCustoOption } from "@/types/financeiro"
 import ReceiveModal from "./ReceiveModal"
+import ReceivableEditorDialog from "./ReceivableEditorDialog"
+import BulkReceiveDialog from "./BulkReceiveDialog"
+import BulkRescheduleDialog from "@/components/financeiro/BulkRescheduleDialog"
+import BulkDeleteDialog from "@/components/financeiro/BulkDeleteDialog"
+import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, remaining } from "@/lib/financeiro-utils"
+import type {
+    BankOption,
+    CategoryOption,
+    CentroCustoOption,
+    ClientOption,
+    FinancialSummary,
+    PaginatedResponse,
+    ReceivableListItem,
+} from "@/types/financeiro"
+import { cn } from "@/lib/utils"
+
+interface InitialFilters {
+    search: string
+    status: string
+    categoriaId: string
+    centroCustoId: string
+    scope: string
+    compose: boolean
+}
 
 interface Props {
     initialData: PaginatedResponse<ReceivableListItem>
@@ -22,242 +47,468 @@ interface Props {
     banks: BankOption[]
     categories: CategoryOption[]
     centrosCusto: CentroCustoOption[]
+    clients: ClientOption[]
+    initialFilters: InitialFilters
 }
 
-export default function ContasReceberPageClient({ initialData, initialSummary, banks, categories, centrosCusto }: Props) {
+function getInitialDateRange(scope: string): DateRange | undefined {
+    const today = startOfDay(new Date())
+    if (scope === "today") return { from: today, to: today }
+    if (scope === "next7") return { from: today, to: addDays(today, 7) }
+    return undefined
+}
+
+export default function ContasReceberPageClient({
+    initialData,
+    initialSummary,
+    banks,
+    categories,
+    centrosCusto,
+    clients,
+    initialFilters,
+}: Props) {
     const [data, setData] = useState(initialData.data)
     const [meta, setMeta] = useState(initialData.meta)
     const [summary, setSummary] = useState(initialSummary)
     const [loading, setLoading] = useState(false)
+    const [error, setError] = useState("")
 
-    const [search, setSearch] = useState("")
-    const [statusFilter, setStatusFilter] = useState<string[]>([])
-    const [categoriaId, setCategoriaId] = useState<string>("all")
-    const [centroCustoId, setCentroCustoId] = useState<string>("all")
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+    const [search, setSearch] = useState(initialFilters.search)
+    const [statusFilter, setStatusFilter] = useState<string[]>(initialFilters.status ? [initialFilters.status] : [])
+    const [categoriaId, setCategoriaId] = useState<string>(initialFilters.categoriaId)
+    const [centroCustoId, setCentroCustoId] = useState<string>(initialFilters.centroCustoId)
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(getInitialDateRange(initialFilters.scope))
     const [page, setPage] = useState(1)
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(
+        initialFilters.categoriaId !== "all" || initialFilters.centroCustoId !== "all"
+    )
 
+    const [selectedIds, setSelectedIds] = useState<number[]>([])
+    const [editorOpen, setEditorOpen] = useState(false)
+    const [bulkOpen, setBulkOpen] = useState(false)
+    const [bulkRescheduleOpen, setBulkRescheduleOpen] = useState(false)
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
     const [receiveModalOpen, setReceiveModalOpen] = useState(false)
     const [selectedItem, setSelectedItem] = useState<ReceivableListItem | null>(null)
     const [highlightedId, setHighlightedId] = useState<number | null>(null)
-
+    const composeHandled = useRef(false)
     const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
-    const fetchData = useCallback(async (p = page) => {
+    const fetchData = useCallback(async (targetPage = page) => {
         setLoading(true)
+        setError("")
+
         try {
             const params = new URLSearchParams()
-            params.set("page", String(p))
+            params.set("page", String(targetPage))
             params.set("limit", "50")
             if (search) params.set("search", search)
             if (statusFilter.length > 0) params.set("status", statusFilter.join(","))
-            if (categoriaId && categoriaId !== "all") params.set("categoria_id", categoriaId)
-            if (centroCustoId && centroCustoId !== "all") params.set("centro_custo_id", centroCustoId)
+            if (categoriaId !== "all") params.set("categoria_id", categoriaId)
+            if (centroCustoId !== "all") params.set("centro_custo_id", centroCustoId)
             if (dateRange?.from) params.set("startDate", dateRange.from.toISOString())
             if (dateRange?.to) params.set("endDate", dateRange.to.toISOString())
 
-            const [listRes, summaryRes] = await Promise.all([
+            const [listResponse, summaryResponse] = await Promise.all([
                 fetch(`/api/financeiro/receivables?${params}`),
                 fetch(`/api/financeiro/receivables/summary?${params}`),
             ])
 
-            if (listRes.ok) {
-                const result = await listRes.json()
-                setData(result.data)
-                setMeta(result.meta)
-            }
-            if (summaryRes.ok) {
-                setSummary(await summaryRes.json())
-            }
-        } catch {
-            toast.error("Erro ao carregar dados")
+            if (!listResponse.ok || !summaryResponse.ok) throw new Error("Falha ao carregar contas a receber")
+
+            const listResult = await listResponse.json()
+            const summaryResult = await summaryResponse.json()
+            setData(listResult.data)
+            setMeta(listResult.meta)
+            setSummary(summaryResult)
+            setSelectedIds([])
+        } catch (requestError) {
+            const message = (requestError as Error).message || "Falha ao carregar contas a receber"
+            setError(message)
         } finally {
             setLoading(false)
         }
-    }, [search, statusFilter, categoriaId, centroCustoId, dateRange, page])
+    }, [categoriaId, centroCustoId, dateRange, page, search, statusFilter])
 
     useEffect(() => {
         if (searchTimeout.current) clearTimeout(searchTimeout.current)
         searchTimeout.current = setTimeout(() => {
             setPage(1)
             fetchData(1)
-        }, 400)
-        return () => { if (searchTimeout.current) clearTimeout(searchTimeout.current) }
-    }, [search, statusFilter, categoriaId, centroCustoId, dateRange])
+        }, 250)
+        return () => {
+            if (searchTimeout.current) clearTimeout(searchTimeout.current)
+        }
+    }, [fetchData])
 
-    function handleReceiveClick(item: ReceivableListItem) {
+    useEffect(() => {
+        if (!initialFilters.compose || composeHandled.current) return
+        composeHandled.current = true
+        setSelectedItem(null)
+        setEditorOpen(true)
+    }, [initialFilters.compose])
+
+    function openCreateDialog() {
+        setSelectedItem(null)
+        setEditorOpen(true)
+    }
+
+    function openEditDialog(item: ReceivableListItem) {
+        setSelectedItem(item)
+        setEditorOpen(true)
+    }
+
+    function openReceiveModal(item: ReceivableListItem) {
         setSelectedItem(item)
         setReceiveModalOpen(true)
     }
 
-    async function handleReceiveSuccess() {
-        setReceiveModalOpen(false)
+    async function handleMutationSuccess(successMessage?: string) {
         if (selectedItem) {
             setHighlightedId(selectedItem.id)
             setTimeout(() => setHighlightedId(null), 2500)
         }
-        toast.success("Recebimento registrado com sucesso!")
+        if (successMessage) toast.success(successMessage)
         await fetchData(page)
     }
 
+    async function handleReceiveSuccess() {
+        setReceiveModalOpen(false)
+        await handleMutationSuccess("Recebimento registrado")
+    }
+
+    function toggleRowSelection(id: number, checked: boolean) {
+        setSelectedIds((current) => checked ? Array.from(new Set([...current, id])) : current.filter((itemId) => itemId !== id))
+    }
+
+    const receivableRows = useMemo(() => data.filter((item) => canPay(item.status)), [data])
+    const allSelected = receivableRows.length > 0 && receivableRows.every((item) => selectedIds.includes(item.id))
+    const selectedItems = useMemo(() => data.filter((item) => selectedIds.includes(item.id) && canPay(item.status)), [data, selectedIds])
+    const selectedTotal = useMemo(
+        () => selectedItems.reduce((total, item) => total + remaining(item.valor_total, item.valor_recebido), 0),
+        [selectedItems]
+    )
+    const hasAdvancedFilters = categoriaId !== "all" || centroCustoId !== "all"
+    const hasActiveFilters = hasAdvancedFilters || Boolean(search.trim()) || statusFilter.length > 0 || Boolean(dateRange?.from)
+    const advancedFilterCount = [
+        categoriaId !== "all",
+        centroCustoId !== "all",
+    ].filter(Boolean).length
+
+    const activeFilterChips = useMemo(() => {
+        const chips: Array<{ key: string; label: string }> = []
+
+        if (search.trim()) chips.push({ key: "search", label: `Busca: ${search.trim()}` })
+
+        if (statusFilter[0]) {
+            const statusLabel = FINANCIAL_STATUS_OPTIONS.find((option) => option.value === statusFilter[0])?.label ?? statusFilter[0]
+            chips.push({ key: "status", label: `Status: ${statusLabel}` })
+        }
+
+        if (dateRange?.from) {
+            const rangeLabel = dateRange.to
+                ? `${formatDateBR(dateRange.from)} - ${formatDateBR(dateRange.to)}`
+                : formatDateBR(dateRange.from)
+            chips.push({ key: "period", label: `Período: ${rangeLabel}` })
+        }
+
+        if (categoriaId !== "all") {
+            const categoryLabel = categories.find((category) => String(category.id) === categoriaId)?.nome ?? "Categoria"
+            chips.push({ key: "category", label: `Categoria: ${categoryLabel}` })
+        }
+
+        if (centroCustoId !== "all") {
+            const centroLabel = centrosCusto.find((centro) => String(centro.id) === centroCustoId)?.nome ?? "Centro de custo"
+            chips.push({ key: "cost-center", label: `Centro: ${centroLabel}` })
+        }
+
+        return chips
+    }, [categories, categoriaId, centroCustoId, centrosCusto, dateRange, search, statusFilter])
+
+    function clearAllFilters() {
+        setSearch("")
+        setStatusFilter([])
+        setDateRange(undefined)
+        setCategoriaId("all")
+        setCentroCustoId("all")
+    }
+
+    function removeFilterChip(key: string) {
+        if (key === "search") setSearch("")
+        if (key === "status") setStatusFilter([])
+        if (key === "period") setDateRange(undefined)
+        if (key === "category") setCategoriaId("all")
+        if (key === "cost-center") setCentroCustoId("all")
+    }
+
     const summaryCards = [
-        { label: "Total a Receber", value: formatCurrency(summary.totalAmount), count: summary.totalPending, icon: TrendingUp, color: "var(--brand-primary)" },
-        { label: "Vencidas", value: formatCurrency(summary.overdueAmount), count: summary.overdueCount, icon: AlertTriangle, color: "#b91c1c" },
-        { label: "Vence Hoje", value: formatCurrency(summary.dueTodayAmount), count: summary.dueTodayCount, icon: Clock, color: "#d97706" },
-        { label: "Próximos 7 dias", value: formatCurrency(summary.dueNext7Amount), count: summary.dueNext7Count, icon: CalendarCheck, color: "#2563eb" },
+        { label: "Carteira aberta", value: formatCurrency(summary.totalAmount), helper: `${summary.totalPending} contas` },
+        { label: "Atrasadas", value: formatCurrency(summary.overdueAmount), helper: `${summary.overdueCount} contas` },
+        { label: "Vencem hoje", value: formatCurrency(summary.dueTodayAmount), helper: `${summary.dueTodayCount} contas` },
+        { label: "Próximos 7 dias", value: formatCurrency(summary.dueNext7Amount), helper: `${summary.dueNext7Count} contas` },
     ]
 
     return (
         <PageLayout title="Contas a Receber">
             <div className="space-y-6">
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid gap-4 md:grid-cols-4">
                     {summaryCards.map((card) => (
-                        <Card key={card.label} className="border border-[var(--brand-primary)]/10" style={{ backgroundColor: "var(--brand-bg)" }}>
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-sm font-medium" style={{ color: "var(--brand-primary)", opacity: 0.7 }}>{card.label}</span>
-                                    <card.icon className="size-5" style={{ color: card.color }} />
-                                </div>
-                                <p className="text-xl font-bold" style={{ color: "var(--brand-primary)" }}>{card.value}</p>
-                                <p className="text-xs mt-1" style={{ color: "var(--brand-primary)", opacity: 0.5 }}>{card.count} {card.count === 1 ? "conta" : "contas"}</p>
+                        <Card key={card.label} className="border-[#2C201B]/10 bg-[#FFFCF7]">
+                            <CardContent className="space-y-2 p-4">
+                                <p className="text-xs uppercase tracking-[0.18em] text-[#2C201B]/45">{card.label}</p>
+                                <p className="text-2xl font-semibold text-[#2C201B]">{card.value}</p>
+                                <p className="text-sm text-[#2C201B]/60">{card.helper}</p>
                             </CardContent>
                         </Card>
                     ))}
                 </div>
 
-                {/* Filter Bar */}
-                <Card className="border border-[var(--brand-primary)]/10" style={{ backgroundColor: "var(--brand-bg)" }}>
-                    <CardContent className="p-4">
-                        <div className="flex flex-wrap items-end gap-3">
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--brand-primary)" }}>Busca</label>
-                                <div className="relative">
-                                    <Search className="absolute left-2.5 top-2.5 size-4" style={{ color: "var(--brand-primary)", opacity: 0.4 }} />
-                                    <Input placeholder="Buscar por descrição..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-                                </div>
-                            </div>
-
-                            <div className="min-w-[180px]">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--brand-primary)" }}>Status</label>
-                                <StatusSelect
-                                    options={FINANCIAL_STATUS_OPTIONS}
-                                    value={statusFilter[0] || ""}
-                                    onChange={(val) => setStatusFilter(val ? [val] : [])}
-                                    staticVariant="pill"
-                                    placeholder="Todos"
+                <Card className="border-[#2C201B]/10 bg-[#FFFCF7]">
+                    <CardContent className="space-y-4 p-4">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="relative min-w-0 flex-1">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
+                                <Input
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                    placeholder="Número, descrição, cliente ou categoria"
+                                    className="h-10 rounded-lg border-[#d9d3c8] bg-white pl-9 pr-3 text-sm text-[#2c201b] placeholder:text-[#9a8f7c] focus-visible:ring-[#393316]/15"
                                 />
                             </div>
 
-                            <div className="min-w-[180px]">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--brand-primary)" }}>Vencimento</label>
-                                <SmartDateRangePicker range={dateRange} onChange={(range) => setDateRange(range ?? undefined)} />
-                            </div>
+                            <div className="flex flex-wrap items-end gap-2">
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Status</label>
+                                    <StatusSelect
+                                        options={FINANCIAL_STATUS_OPTIONS}
+                                        value={statusFilter[0] || ""}
+                                        onChange={(value) => setStatusFilter(value ? [value] : [])}
+                                        staticVariant="pill"
+                                        placeholder="Todos os status"
+                                        className="h-9 rounded-lg"
+                                    />
+                                </div>
 
-                            <div className="min-w-[160px]">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--brand-primary)" }}>Categoria</label>
-                                <Select value={categoriaId} onValueChange={setCategoriaId}>
-                                    <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todas</SelectItem>
-                                        {categories.map(c => (
-                                            <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Período</label>
+                                    <SmartDateRangePicker
+                                        range={dateRange}
+                                        onChange={(range) => setDateRange(range ?? undefined)}
+                                        className="w-full rounded-lg border-[#d9d3c8] bg-white text-[#2c201b] focus-visible:ring-[#393316]/15"
+                                    />
+                                </div>
 
-                            <div className="min-w-[160px]">
-                                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--brand-primary)" }}>Centro de Custo</label>
-                                <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">Todos</SelectItem>
-                                        {centrosCusto.map(c => (
-                                            <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setShowAdvancedFilters((current) => !current)}
+                                    className={cn(
+                                        "h-9 gap-2 rounded-lg border border-[#ddd7cc] bg-[#f7f4ec] px-3 text-sm text-[#393316] hover:bg-[#f1ecdf]",
+                                        showAdvancedFilters && "border-[#c9bea4] bg-[#f2ead8] text-[#2c201b]"
+                                    )}
+                                >
+                                    <SlidersHorizontal className="size-4" />
+                                    Mais filtros
+                                    {advancedFilterCount > 0 ? (
+                                        <span className={cn(
+                                            "inline-flex min-w-4 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                            showAdvancedFilters ? "bg-white text-[#2c201b]" : "bg-[#ebe4d4] text-[#6f6556]"
+                                        )}>
+                                            {advancedFilterCount}
+                                        </span>
+                                    ) : null}
+                                    <ChevronDown className={cn("size-4 transition-transform", showAdvancedFilters && "rotate-180")} />
+                                </Button>
 
-                            <Button variant="outline" size="icon" onClick={() => fetchData(page)} disabled={loading} title="Atualizar">
-                                <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-                            </Button>
+                                {hasActiveFilters ? (
+                                    <Button type="button" variant="ghost" onClick={clearAllFilters} className="h-9 rounded-lg px-3 text-[#6f6556] shadow-none hover:bg-[#f3efe6] hover:text-[#2c201b]">
+                                        <X className="mr-1 size-4" />
+                                        Limpar filtros
+                                    </Button>
+                                ) : null}
+
+                                <Button type="button" className="btn-primary" onClick={openCreateDialog}>
+                                    <Plus className="mr-2 size-4" />
+                                    Nova conta
+                                </Button>
+                            </div>
                         </div>
+
+                        {activeFilterChips.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {activeFilterChips.map((chip) => (
+                                    <Badge
+                                        key={chip.key}
+                                        variant="outline"
+                                        className="h-6 rounded-md border-[#ddd7cc] bg-[#f6f4ef] px-2 text-[11px] font-medium text-[#5f584c]"
+                                    >
+                                        {chip.label}
+                                        <button
+                                            type="button"
+                                            onClick={() => removeFilterChip(chip.key)}
+                                            className="ml-1 inline-flex size-4 items-center justify-center rounded-sm text-[#8a7d69] transition-colors hover:bg-black/5 hover:text-[#2c201b]"
+                                            aria-label={`Remover filtro ${chip.label}`}
+                                        >
+                                            <X className="size-3" />
+                                        </button>
+                                    </Badge>
+                                ))}
+                            </div>
+                        ) : null}
+
+                        {showAdvancedFilters ? (
+                            <div className="grid gap-3 rounded-xl border border-[#ece6db] bg-[#faf8f3] px-3 py-3 lg:grid-cols-2 lg:items-end">
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria financeira</label>
+                                    <Select value={categoriaId} onValueChange={setCategoriaId}>
+                                        <SelectTrigger className="h-9 rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] focus:ring-[#393316]/15">
+                                            <SelectValue placeholder="Todas as categorias" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas as categorias</SelectItem>
+                                            {categories.map((category) => (
+                                                <SelectItem key={category.id} value={String(category.id)}>{category.nome}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Centro de custo</label>
+                                    <Select value={centroCustoId} onValueChange={setCentroCustoId}>
+                                        <SelectTrigger className="h-9 rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] focus:ring-[#393316]/15">
+                                            <SelectValue placeholder="Todos os centros" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os centros</SelectItem>
+                                            {centrosCusto.map((centro) => (
+                                                <SelectItem key={centro.id} value={String(centro.id)}>{centro.nome}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {selectedItems.length > 0 ? (
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2C201B]/10 bg-white/70 px-4 py-3">
+                                <div>
+                                    <p className="text-sm font-medium text-[#2C201B]">Ações em lote</p>
+                                    <p className="text-sm text-[#2C201B]/60">Escolha como tratar as contas marcadas sem sair da fila.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <div className="text-right">
+                                        <p className="text-sm text-[#2C201B]/60">{selectedItems.length} selecionadas</p>
+                                        <p className="text-sm font-semibold text-[#2C201B]">Saldo selecionado: {formatCurrency(selectedTotal)}</p>
+                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button type="button" variant="outline" className="gap-2">
+                                                Ações em lote
+                                                <ChevronDown className="size-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="min-w-[220px]">
+                                            <DropdownMenuItem onClick={() => setBulkOpen(true)}>
+                                                Receber selecionadas
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setBulkRescheduleOpen(true)}>
+                                                Alterar vencimento
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => setBulkDeleteOpen(true)}
+                                                className="text-[#8F3F37] focus:text-[#8F3F37]"
+                                            >
+                                                Excluir selecionadas
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                        ) : null}
                     </CardContent>
                 </Card>
 
-                {/* Table */}
-                <Card className="border border-[var(--brand-primary)]/10 overflow-hidden" style={{ backgroundColor: "var(--brand-bg)" }}>
+                <Card className="overflow-hidden border-[#2C201B]/10 bg-[#FFFCF7]">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b" style={{ borderColor: "rgba(44,32,27,0.1)" }}>
-                                    {["Descrição", "Cliente", "Categoria", "Vencimento", "Total", "Recebido", "Saldo", "Status", "Parcela", "Ações"].map(h => (
-                                        <th key={h} className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider" style={{ color: "var(--brand-primary)", opacity: 0.6 }}>
-                                            {h}
+                        <table className="w-full min-w-[980px] text-sm">
+                            <thead className="bg-white/60">
+                                <tr className="border-b border-[#2C201B]/10">
+                                    <th className="w-12 px-4 py-3 text-left">
+                                        <Checkbox
+                                            checked={allSelected}
+                                            onCheckedChange={(checked) => setSelectedIds(checked ? receivableRows.map((item) => item.id) : [])}
+                                            aria-label="Selecionar contas"
+                                        />
+                                    </th>
+                                    {["Vencimento", "Cliente", "Descrição", "Categoria", "Valor total", "Status", "Opções"].map((header) => (
+                                        <th key={header} className="px-4 py-3 text-left text-xs uppercase tracking-[0.18em] text-[#2C201B]/45">
+                                            {header}
                                         </th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {data.length === 0 ? (
+                                {loading ? (
                                     <tr>
-                                        <td colSpan={10} className="text-center py-12" style={{ color: "var(--brand-primary)", opacity: 0.5 }}>
-                                            Nenhuma conta a receber encontrada
-                                        </td>
+                                        <td colSpan={8} className="px-4 py-10 text-center text-[#2C201B]/55">Carregando contas...</td>
+                                    </tr>
+                                ) : error ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-4 py-10 text-center text-[#B42318]">{error}</td>
+                                    </tr>
+                                ) : data.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="px-4 py-12 text-center text-[#2C201B]/55">Nenhuma conta para este recorte.</td>
                                     </tr>
                                 ) : (
                                     data.map((item) => {
                                         const saldo = remaining(item.valor_total, item.valor_recebido)
+                                        const isSelected = selectedIds.includes(item.id)
                                         const isHighlighted = highlightedId === item.id
+                                        const isSelectable = canPay(item.status)
                                         return (
                                             <tr
                                                 key={item.id}
-                                                className="border-b transition-colors duration-500"
-                                                style={{
-                                                    borderColor: "rgba(44,32,27,0.06)",
-                                                    backgroundColor: isHighlighted ? "rgba(34,197,94,0.12)" : "transparent",
-                                                }}
+                                                className="cursor-pointer border-b border-[#2C201B]/8 transition-colors hover:bg-white/80"
+                                                style={{ backgroundColor: isHighlighted ? "rgba(57,51,22,0.08)" : undefined }}
+                                                onClick={() => openEditDialog(item)}
                                             >
-                                                <td className="px-4 py-3 font-medium" style={{ color: "var(--brand-primary)" }}>{item.descricao}</td>
-                                                <td className="px-4 py-3" style={{ color: "var(--brand-primary)", opacity: 0.8 }}>{item.cliente?.nome ?? "—"}</td>
-                                                <td className="px-4 py-3">
-                                                    {item.categoria ? (
-                                                        <span
-                                                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
-                                                            style={{
-                                                                backgroundColor: item.categoria.cor ? `${item.categoria.cor}20` : "rgba(44,32,27,0.08)",
-                                                                color: item.categoria.cor || "var(--brand-primary)",
-                                                            }}
-                                                        >
-                                                            {item.categoria.cor && <span className="size-2 rounded-full" style={{ backgroundColor: item.categoria.cor }} />}
-                                                            {item.categoria.nome}
-                                                        </span>
-                                                    ) : "—"}
+                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                    <Checkbox
+                                                        checked={isSelected}
+                                                        disabled={!isSelectable}
+                                                        onCheckedChange={(checked) => toggleRowSelection(item.id, checked === true)}
+                                                    />
                                                 </td>
-                                                <td className="px-4 py-3" style={{ color: "var(--brand-primary)" }}>{formatDateBR(item.data_vencimento)}</td>
-                                                <td className="px-4 py-3 font-medium" style={{ color: "var(--brand-primary)" }}>{formatCurrency(item.valor_total)}</td>
-                                                <td className="px-4 py-3" style={{ color: "var(--brand-primary)", opacity: 0.7 }}>{formatCurrency(item.valor_recebido)}</td>
-                                                <td className="px-4 py-3 font-semibold" style={{ color: saldo > 0 ? "#16a34a" : "var(--brand-primary)" }}>{formatCurrency(saldo)}</td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                    <p className="font-medium">{formatDateBR(item.data_vencimento)}</p>
+                                                    <p className="text-xs text-[#2C201B]/50">{item.parcela_atual}/{item.total_parcelas}</p>
+                                                </td>
+                                                <td className="px-4 py-3 text-[#2C201B]/78">{item.cliente?.nome ?? "Sem cliente"}</td>
+                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                    <p className="font-medium">{item.descricao}</p>
+                                                    <p className="text-xs text-[#2C201B]/50">Saldo {formatCurrency(saldo)}</p>
+                                                </td>
+                                                <td className="px-4 py-3 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
+                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                    <p className="font-semibold">{formatCurrency(item.valor_total)}</p>
+                                                    {item.valor_recebido > 0 ? <p className="text-xs text-[#2C201B]/50">Recebido {formatCurrency(item.valor_recebido)}</p> : null}
+                                                </td>
+                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                                                     <StatusSelect options={FINANCIAL_STATUS_OPTIONS} value={item.status} mode="static" staticVariant="pill" />
                                                 </td>
-                                                <td className="px-4 py-3 text-center" style={{ color: "var(--brand-primary)", opacity: 0.6 }}>{item.parcela_atual}/{item.total_parcelas}</td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                                                            <Button type="button" variant="ghost" size="icon" className="size-8">
+                                                                <MoreHorizontal className="size-4" />
+                                                            </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            {canPay(item.status) && (
-                                                                <DropdownMenuItem onClick={() => handleReceiveClick(item)}>
-                                                                    <DollarSign className="size-4 mr-2" /> Receber
-                                                                </DropdownMenuItem>
-                                                            )}
-                                                            <DropdownMenuItem disabled><Eye className="size-4 mr-2" /> Ver Detalhes</DropdownMenuItem>
-                                                            {canEdit(item.status) && <DropdownMenuItem disabled><Pencil className="size-4 mr-2" /> Editar</DropdownMenuItem>}
-                                                            {canCancel(item.status) && <DropdownMenuItem className="text-red-600" disabled><XCircle className="size-4 mr-2" /> Cancelar</DropdownMenuItem>}
+                                                            <DropdownMenuItem onClick={() => openEditDialog(item)}>Abrir detalhes</DropdownMenuItem>
+                                                            {canPay(item.status) ? (
+                                                                <DropdownMenuItem onClick={() => openReceiveModal(item)}>Registrar recebimento</DropdownMenuItem>
+                                                            ) : null}
                                                         </DropdownMenuContent>
                                                     </DropdownMenu>
                                                 </td>
@@ -269,21 +520,32 @@ export default function ContasReceberPageClient({ initialData, initialSummary, b
                         </table>
                     </div>
 
-                    {meta.totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: "rgba(44,32,27,0.1)" }}>
-                            <span className="text-xs" style={{ color: "var(--brand-primary)", opacity: 0.5 }}>
-                                {meta.total} registros — Página {meta.page} de {meta.totalPages}
+                    {meta.totalPages > 1 ? (
+                        <div className="flex items-center justify-between border-t border-[#2C201B]/10 px-4 py-3">
+                            <span className="text-xs text-[#2C201B]/55">
+                                {meta.total} registros - página {meta.page} de {meta.totalPages}
                             </span>
-                            <div className="flex gap-1">
-                                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => { setPage(p => p - 1); fetchData(page - 1) }}>Anterior</Button>
-                                <Button variant="outline" size="sm" disabled={page >= meta.totalPages} onClick={() => { setPage(p => p + 1); fetchData(page + 1) }}>Próxima</Button>
+                            <div className="flex gap-2">
+                                <Button type="button" variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</Button>
+                                <Button type="button" variant="outline" size="sm" disabled={page >= meta.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
                             </div>
                         </div>
-                    )}
+                    ) : null}
                 </Card>
             </div>
 
-            {selectedItem && (
+            <ReceivableEditorDialog
+                open={editorOpen}
+                onOpenChange={setEditorOpen}
+                item={selectedItem}
+                categories={categories}
+                centrosCusto={centrosCusto}
+                clients={clients}
+                onSuccess={() => handleMutationSuccess()}
+                onRequestReceive={openReceiveModal}
+            />
+
+            {selectedItem ? (
                 <ReceiveModal
                     open={receiveModalOpen}
                     onOpenChange={setReceiveModalOpen}
@@ -291,7 +553,43 @@ export default function ContasReceberPageClient({ initialData, initialSummary, b
                     banks={banks}
                     onSuccess={handleReceiveSuccess}
                 />
-            )}
+            ) : null}
+
+            <BulkReceiveDialog
+                open={bulkOpen}
+                onOpenChange={setBulkOpen}
+                banks={banks}
+                selectedIds={selectedItems.map((item) => item.id)}
+                selectedTotal={selectedTotal}
+                onSuccess={() => handleMutationSuccess()}
+            />
+
+            <BulkRescheduleDialog
+                open={bulkRescheduleOpen}
+                onOpenChange={setBulkRescheduleOpen}
+                endpoint="/api/financeiro/receivables/bulk-reschedule"
+                selectedIds={selectedItems.map((item) => item.id)}
+                selectedCount={selectedItems.length}
+                title="Alterar vencimento em lote"
+                description="Atualize a data de vencimento das contas selecionadas em uma única operação."
+                dateLabel="Novo vencimento"
+                confirmLabel="Salvar vencimento"
+                successMessage="Vencimento atualizado em lote"
+                onSuccess={() => handleMutationSuccess()}
+            />
+
+            <BulkDeleteDialog
+                open={bulkDeleteOpen}
+                onOpenChange={setBulkDeleteOpen}
+                endpoint="/api/financeiro/receivables/bulk-delete"
+                selectedIds={selectedItems.map((item) => item.id)}
+                selectedCount={selectedItems.length}
+                title="Excluir contas selecionadas"
+                description="Use essa ação apenas para lançamentos abertos sem recebimento parcial nem vínculo operacional."
+                confirmLabel="Excluir contas"
+                successMessage="Contas excluídas em lote"
+                onSuccess={() => handleMutationSuccess()}
+            />
         </PageLayout>
     )
 }

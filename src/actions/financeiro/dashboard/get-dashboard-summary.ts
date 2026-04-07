@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro } from "@prisma/client"
 import { getOperationalResult } from "@/actions/financeiro/reports/get-operational-result"
-import { format, startOfMonth, endOfMonth } from "date-fns"
+import { format } from "date-fns"
 import type { DashboardSummary, UpcomingItem } from "@/types/financeiro"
 
 const ACTIVE_STATUSES: StatusFinanceiro[] = ["PENDENTE", "PARCIAL", "ATRASADO"]
@@ -18,6 +18,50 @@ interface CategoryRow {
     cor: string | null
     tipo: string
     total: number
+}
+
+interface DashboardPayableItem {
+    id: number
+    descricao: string
+    valor_total: number | { toString(): string }
+    valor_pago: number | { toString(): string }
+    data_vencimento: Date
+    fornecedor: { nome: string } | null
+    categoria: { nome: string }
+}
+
+interface DashboardReceivableItem {
+    id: number
+    descricao: string
+    valor_total: number | { toString(): string }
+    valor_recebido: number | { toString(): string }
+    data_vencimento: Date
+    cliente: { nome: string } | null
+    categoria: { nome: string }
+}
+
+function mapUpcomingPayable(item: DashboardPayableItem): UpcomingItem {
+    return {
+        id: item.id,
+        descricao: item.descricao,
+        valor_pendente: Number(item.valor_total) - Number(item.valor_pago),
+        data_vencimento: item.data_vencimento.toISOString(),
+        tipo: "pagar",
+        entidade: item.fornecedor?.nome ?? null,
+        categoria: item.categoria.nome,
+    }
+}
+
+function mapUpcomingReceivable(item: DashboardReceivableItem): UpcomingItem {
+    return {
+        id: item.id,
+        descricao: item.descricao,
+        valor_pendente: Number(item.valor_total) - Number(item.valor_recebido),
+        data_vencimento: item.data_vencimento.toISOString(),
+        tipo: "receber",
+        entidade: item.cliente?.nome ?? null,
+        categoria: item.categoria.nome,
+    }
 }
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -205,7 +249,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     }
     // Fill with data
     for (const row of monthlyData) {
-        let key = row.month
+        const key = row.month
         // Ensure month format matches map key if necessary (to_char 'YYYY-MM' matches)
         if (monthMap.has(key)) {
             const entry = monthMap.get(key)!
@@ -223,48 +267,25 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         tipo: c.tipo,
     }))
 
-    // Merge upcoming items
+    const upcoming_payables_7d = proximosPagar
+        .map(mapUpcomingPayable)
+        .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+
+    const upcoming_receivables_7d = proximosReceber
+        .map(mapUpcomingReceivable)
+        .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+
     const proximos_vencimentos: UpcomingItem[] = [
-        ...proximosPagar.map((p) => ({
-            id: p.id,
-            descricao: p.descricao,
-            valor_pendente: Number(p.valor_total) - Number(p.valor_pago),
-            data_vencimento: p.data_vencimento.toISOString(),
-            tipo: "pagar" as const,
-            entidade: p.fornecedor?.nome ?? null,
-            categoria: p.categoria.nome,
-        })),
-        ...proximosReceber.map((r) => ({
-            id: r.id,
-            descricao: r.descricao,
-            valor_pendente: Number(r.valor_total) - Number(r.valor_recebido),
-            data_vencimento: r.data_vencimento.toISOString(),
-            tipo: "receber" as const,
-            entidade: r.cliente?.nome ?? null,
-            categoria: r.categoria.nome,
-        })),
+        ...upcoming_payables_7d,
+        ...upcoming_receivables_7d,
     ].sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
 
     const vencidas: UpcomingItem[] = [
-        ...vencidasPagar.map((p) => ({
-            id: p.id,
-            descricao: p.descricao,
-            valor_pendente: Number(p.valor_total) - Number(p.valor_pago),
-            data_vencimento: p.data_vencimento.toISOString(),
-            tipo: "pagar" as const,
-            entidade: p.fornecedor?.nome ?? null,
-            categoria: p.categoria.nome,
-        })),
-        ...vencidasReceber.map((r) => ({
-            id: r.id,
-            descricao: r.descricao,
-            valor_pendente: Number(r.valor_total) - Number(r.valor_recebido),
-            data_vencimento: r.data_vencimento.toISOString(),
-            tipo: "receber" as const,
-            entidade: r.cliente?.nome ?? null,
-            categoria: r.categoria.nome,
-        })),
+        ...vencidasPagar.map(mapUpcomingPayable),
+        ...vencidasReceber.map(mapUpcomingReceivable),
     ].sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime())
+
+    const overdue_compact = vencidas.slice(0, 4)
 
     return {
         saldo_total,
@@ -275,6 +296,9 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         top_categorias_mes,
         proximos_vencimentos,
         vencidas,
+        upcoming_payables_7d,
+        upcoming_receivables_7d,
+        overdue_compact,
         operational_result: operationalResult,
     }
 }

@@ -140,14 +140,17 @@ async function resolveExpenseCategoryId(tx: Tx) {
   )
 }
 
-async function syncPedidoCompraValorRealizadoInTx(tx: Tx, pedidoId: number) {
+export async function syncPedidoCompraValorRealizadoInTransaction(tx: Tx, pedidoId: number) {
   const latestPayable = await tx.contaPagar.findFirst({
-    where: { pedido_compra_id: pedidoId },
+    where: {
+      pedido_compra_id: pedidoId,
+      status: { not: StatusFinanceiro.CANCELADO },
+    },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
-    select: { valor_pago: true },
+    select: { valor_total: true },
   })
 
-  const valorRealizado = latestPayable?.valor_pago ?? new Prisma.Decimal(0)
+  const valorRealizado = latestPayable?.valor_total ?? new Prisma.Decimal(0)
 
   await tx.pedido_compra.update({
     where: { id: pedidoId },
@@ -161,7 +164,7 @@ export async function syncPedidoCompraValorRealizado(pedidoId: number) {
   const id = Number(pedidoId)
   if (!Number.isFinite(id) || id <= 0) return null
 
-  return prisma.$transaction(async (tx) => syncPedidoCompraValorRealizadoInTx(tx, id))
+  return prisma.$transaction(async (tx) => syncPedidoCompraValorRealizadoInTransaction(tx, id))
 }
 
 async function buildPedidoIntegrationSnapshot(tx: Tx, pedidoId: number) {
@@ -352,7 +355,7 @@ export async function integrarPedidoCompraAoFinanceiro(
           select: {
             id: true,
             status: true,
-            valor_pago: true,
+            valor_total: true,
           },
         })
 
@@ -364,7 +367,7 @@ export async function integrarPedidoCompraAoFinanceiro(
             financeiro_integrado_por: userId ?? null,
             financeiro_estornado_em: null,
             financeiro_estornado_por: null,
-            valor_realizado: new Prisma.Decimal(0),
+            valor_realizado: contaPagar.valor_total,
           },
         })
 
@@ -380,7 +383,7 @@ export async function integrarPedidoCompraAoFinanceiro(
           integracaoStatus: IntegracaoFinanceiraStatus.INTEGRADO,
           contaPagarId: contaPagar.id,
           contaPagarStatus: contaPagar.status,
-          valorRealizado: formatDecimal(contaPagar.valor_pago),
+          valorRealizado: formatDecimal(contaPagar.valor_total),
           flow: "INTEGRACAO" as const,
           message: "Pedido integrado ao financeiro com sucesso.",
         }
@@ -561,7 +564,7 @@ export async function estornarIntegracaoFinanceiraPedido(
           },
         })
 
-        const valorRealizado = await syncPedidoCompraValorRealizadoInTx(tx, pedido.id)
+        const valorRealizado = await syncPedidoCompraValorRealizadoInTransaction(tx, pedido.id)
 
         await auditPedidoFinanceiro(tx, userId, pedido.id, "PEDIDO_COMPRA_FINANCEIRO_ESTORNADO", {
           conta_pagar_id: payable.id,

@@ -41,6 +41,11 @@ export interface PayableListItem {
     categoria: { id: number; nome: string; cor: string | null }
     centro_custo: { id: number; nome: string } | null
     pedido_compra_id: number | null
+    pedido_compra: {
+        id: number
+        obra_id: number
+        descricao: string | null
+    } | null
     created_at: string
 }
 
@@ -133,6 +138,19 @@ export interface CentroCustoOption {
     hasLinkedObra?: boolean
 }
 
+export interface SupplierOption {
+    id: number
+    nome: string
+    tipo: string | null
+}
+
+export interface ClientOption {
+    id: number
+    nome: string
+    telefone: string | null
+    bairro: string | null
+}
+
 // ── Paginated response ──
 
 export interface PaginatedResponse<T> {
@@ -166,6 +184,9 @@ export interface DashboardSummary {
     top_categorias_mes: { nome: string; cor: string | null; total: number; tipo: string }[]
     proximos_vencimentos: UpcomingItem[]
     vencidas: UpcomingItem[]
+    upcoming_payables_7d: UpcomingItem[]
+    upcoming_receivables_7d: UpcomingItem[]
+    overdue_compact: UpcomingItem[]
     operational_result?: OperationalResult
 }
 

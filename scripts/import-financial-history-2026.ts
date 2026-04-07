@@ -24,6 +24,9 @@ import { rebuildBankCurrentBalances, type BankBalanceSnapshot } from "@/actions/
 const prisma = new PrismaClient()
 
 const IMPORT_NAMESPACE = "financial-history-2026"
+const IMPORT_MARKER = `[IMPORT ${IMPORT_NAMESPACE}]`
+const IMPORT_FINANCIAL_NOTE = `${IMPORT_MARKER} Importado do historico financeiro 2026.`
+const IMPORT_COST_CENTER_DESCRIPTION = `${IMPORT_MARKER} Centro de custo criado automaticamente a partir do historico financeiro 2026.`
 const OPENING_BALANCE_SUBCATEGORY_KEY = "receita de ajuste"
 const TRANSFER_SUBCATEGORY_KEY = "transferencia"
 const UNCATEGORIZED_LABEL_BY_DIRECTION = {
@@ -47,7 +50,9 @@ interface ParsedRow {
   supplierName: string | null
   clientRaw: string | null
   clientName: string | null
-  costCenterName: string | null
+  bairroHint: string | null
+  workName: string | null
+  costCenterTargetName: string | null
   notes: string | null
   isOpeningBalance: boolean
   isTransfer: boolean
@@ -78,6 +83,12 @@ interface ClientCacheEntry {
   nome: string
 }
 
+interface WorkCacheEntry {
+  id: number
+  titulo: string | null
+  cliente_id: number
+}
+
 interface SupplierCacheEntry {
   id: number
   nome: string
@@ -86,14 +97,22 @@ interface SupplierCacheEntry {
 interface CostCenterCacheEntry {
   id: number
   nome: string
+  obra_id: number | null
+}
+
+interface EnsureResult<T> {
+  record: T
+  created: boolean
 }
 
 interface ImportCaches {
   banks: Map<string, BankCacheEntry>
   categories: Map<string, CategoryCacheEntry>
   clients: Map<string, ClientCacheEntry>
+  worksByClient: Map<string, WorkCacheEntry[]>
   suppliers: Map<string, SupplierCacheEntry>
-  costCenters: Map<string, CostCenterCacheEntry>
+  costCentersByName: Map<string, CostCenterCacheEntry[]>
+  costCentersByWork: Map<number, CostCenterCacheEntry[]>
 }
 
 interface BlockedRow {
@@ -119,6 +138,7 @@ interface Summary {
   transferenciasCriadas: number
   categoriasCriadas: number
   clientesCriados: number
+  obrasCriadas: number
   fornecedoresCriados: number
   centrosCustoCriados: number
   contasBancariasCriadas: number
@@ -153,8 +173,35 @@ function normalizeKey(value: string | null | undefined) {
     .trim()
 }
 
+function repairMojibake(value: string | null | undefined) {
+  const sanitized = (value ?? "").trim()
+  if (!sanitized) {
+    return sanitized
+  }
+
+  if (!/[ÃÂ]/.test(sanitized)) {
+    return sanitized
+  }
+
+  try {
+    const repaired = Buffer.from(sanitized, "latin1").toString("utf8").trim()
+    if (!repaired) {
+      return sanitized
+    }
+
+    const replacementCount = (repaired.match(/\uFFFD/g) ?? []).length
+    if (replacementCount > 0) {
+      return sanitized
+    }
+
+    return repaired
+  } catch {
+    return sanitized
+  }
+}
+
 function sanitizeText(value: string | null | undefined) {
-  const normalized = (value ?? "").replace(/\s+/g, " ").trim()
+  const normalized = repairMojibake(value).replace(/\s+/g, " ").trim()
   return normalized.length > 0 ? normalized : null
 }
 
@@ -173,7 +220,7 @@ function parseDate(value: string) {
   const year = Number(yearText)
 
   if (!day || !month || !year) {
-    throw new Error(`Data invÃ¡lida: ${value}`)
+    throw new Error(`Data inválida: ${value}`)
   }
 
   return new Date(year, month - 1, day)
@@ -197,7 +244,7 @@ function parseCurrency(value: string) {
 
   const amount = Number(normalized)
   if (!Number.isFinite(amount)) {
-    throw new Error(`Valor invÃ¡lido: ${value}`)
+    throw new Error(`Valor inválido: ${value}`)
   }
 
   return Number(amount.toFixed(2))
@@ -268,33 +315,51 @@ function getFallbackCategoryLabel(direction: "ENTRADA" | "SAIDA") {
   return UNCATEGORIZED_LABEL_BY_DIRECTION[direction]
 }
 
-function splitClientAndCostCenter(value: string | null) {
+function deriveWorkName(clientName: string | null) {
+  if (!clientName) {
+    return null
+  }
+
+  const override = COST_CENTER_NAME_OVERRIDES[normalizeKey(clientName)]
+  return sanitizeText(override ?? clientName)
+}
+
+function splitClientAndWorkHint(value: string | null) {
   const sanitized = sanitizeText(value)
   if (!sanitized) {
-    return { clientName: null, costCenterName: null }
+    return {
+      clientName: null,
+      bairroHint: null,
+      workName: null,
+      costCenterTargetName: null,
+    }
   }
 
   const match = sanitized.match(/^(.*?)\s*\[([^\]]+)\]\s*$/)
   if (!match) {
     const overriddenName =
       CLIENT_NAME_OVERRIDES[normalizeKey(sanitized)] ?? sanitized
+    const workName = deriveWorkName(overriddenName)
 
     return {
       clientName: overriddenName,
-      costCenterName: null,
+      bairroHint: null,
+      workName,
+      costCenterTargetName: workName,
     }
   }
 
-  const [, rawClientName, rawCostCenterName] = match
+  const [, rawClientName, rawBracketValue] = match
   const clientName =
     CLIENT_NAME_OVERRIDES[normalizeKey(rawClientName)] ?? sanitizeText(rawClientName)
-  const costCenterName =
-    COST_CENTER_NAME_OVERRIDES[normalizeKey(rawCostCenterName)] ??
-    sanitizeText(rawCostCenterName)
+  const bairroHint = sanitizeText(rawBracketValue)
+  const workName = deriveWorkName(clientName ?? null)
 
   return {
     clientName: clientName ?? null,
-    costCenterName: costCenterName ?? null,
+    bairroHint: bairroHint ?? null,
+    workName,
+    costCenterTargetName: workName,
   }
 }
 
@@ -380,7 +445,8 @@ function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
     ? SUPPLIER_NAME_OVERRIDES[normalizeKey(supplierRaw)] ?? supplierRaw
     : null
   const clientRaw = sanitizeText(row["Id do cliente"])
-  const { clientName, costCenterName } = splitClientAndCostCenter(clientRaw)
+  const { clientName, bairroHint, workName, costCenterTargetName } =
+    splitClientAndWorkHint(clientRaw)
 
   return {
     rowNumber,
@@ -396,7 +462,9 @@ function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
     supplierName,
     clientRaw,
     clientName,
-    costCenterName,
+    bairroHint,
+    workName,
+    costCenterTargetName,
     notes: sanitizeText(row["Observa\u00E7\u00F5es"]),
     isOpeningBalance: categoryKey === OPENING_BALANCE_SUBCATEGORY_KEY,
     isTransfer: categoryKey === TRANSFER_SUBCATEGORY_KEY,
@@ -417,12 +485,31 @@ function createSummary(args: ParsedArgs): Summary {
     transferenciasCriadas: 0,
     categoriasCriadas: 0,
     clientesCriados: 0,
+    obrasCriadas: 0,
     fornecedoresCriados: 0,
     centrosCustoCriados: 0,
     contasBancariasCriadas: 0,
     bankBalanceDiagnostics: [],
     blockedRows: [],
     skippedRows: [],
+  }
+}
+
+function pushMapArray<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const current = map.get(key) ?? []
+  current.push(value)
+  map.set(key, current)
+}
+
+function registerWork(caches: ImportCaches, work: WorkCacheEntry, clientName: string) {
+  pushMapArray(caches.worksByClient, normalizeKey(clientName), work)
+}
+
+function registerCostCenter(caches: ImportCaches, costCenter: CostCenterCacheEntry) {
+  pushMapArray(caches.costCentersByName, normalizeKey(costCenter.nome), costCenter)
+
+  if (costCenter.obra_id) {
+    pushMapArray(caches.costCentersByWork, costCenter.obra_id, costCenter)
   }
 }
 
@@ -464,7 +551,7 @@ function collectAffectedBankIds(rows: ParsedRow[], caches: ImportCaches) {
 }
 
 async function loadCaches(): Promise<ImportCaches> {
-  const [banks, categories, clients, suppliers, costCenters] = await Promise.all([
+  const [banks, categories, clients, works, suppliers, costCenters] = await Promise.all([
     prisma.contasBancaria.findMany({
       select: {
         id: true,
@@ -481,14 +568,64 @@ async function loadCaches(): Promise<ImportCaches> {
     prisma.cliente.findMany({
       select: { id: true, nome: true },
     }),
+    prisma.obras.findMany({
+      select: {
+        id: true,
+        titulo: true,
+        cliente_id: true,
+        cliente: {
+          select: {
+            nome: true,
+          },
+        },
+      },
+    }),
     prisma.fornecedores.findMany({
       select: { id: true, nome: true },
     }),
     prisma.centroCusto.findMany({
       where: { ativo: true },
-      select: { id: true, nome: true },
+      select: { id: true, nome: true, obra_id: true },
     }),
   ])
+
+  const worksByClient = new Map<string, WorkCacheEntry[]>()
+  for (const work of works) {
+    registerWork(
+      {
+        banks: new Map(),
+        categories: new Map(),
+        clients: new Map(),
+        worksByClient,
+        suppliers: new Map(),
+        costCentersByName: new Map(),
+        costCentersByWork: new Map(),
+      },
+      {
+        id: work.id,
+        titulo: work.titulo,
+        cliente_id: work.cliente_id,
+      },
+      work.cliente.nome,
+    )
+  }
+
+  const costCentersByName = new Map<string, CostCenterCacheEntry[]>()
+  const costCentersByWork = new Map<number, CostCenterCacheEntry[]>()
+  for (const costCenter of costCenters) {
+    registerCostCenter(
+      {
+        banks: new Map(),
+        categories: new Map(),
+        clients: new Map(),
+        worksByClient: new Map(),
+        suppliers: new Map(),
+        costCentersByName,
+        costCentersByWork,
+      },
+      costCenter,
+    )
+  }
 
   return {
     banks: new Map(
@@ -503,15 +640,12 @@ async function loadCaches(): Promise<ImportCaches> {
     clients: new Map(
       clients.map((client) => [normalizeKey(client.nome), client]),
     ),
+    worksByClient,
     suppliers: new Map(
       suppliers.map((supplier) => [normalizeKey(supplier.nome), supplier]),
     ),
-    costCenters: new Map(
-      costCenters.map((costCenter) => [
-        normalizeKey(costCenter.nome),
-        costCenter,
-      ]),
-    ),
+    costCentersByName,
+    costCentersByWork,
   }
 }
 
@@ -562,7 +696,7 @@ function ensureRequiredBanksPresence(parsedRows: ParsedRow[]) {
 
   for (const requiredBank of REQUIRED_BANK_ACCOUNTS) {
     if (!presentBanks.has(normalizeKey(requiredBank))) {
-      throw new Error(`Conta obrigatÃ³ria ausente no CSV: ${requiredBank}`)
+      throw new Error(`Conta obrigatória ausente no CSV: ${requiredBank}`)
     }
   }
 }
@@ -667,13 +801,14 @@ async function ensureClient(
   caches: ImportCaches,
   summary: Summary,
   name: string,
+  bairroHint: string | null,
   apply: boolean,
-) {
+): Promise<EnsureResult<ClientCacheEntry>> {
   const key = normalizeKey(name)
   const existing = caches.clients.get(key)
 
   if (existing) {
-    return existing
+    return { record: existing, created: false }
   }
 
   if (!apply) {
@@ -684,14 +819,17 @@ async function ensureClient(
 
     caches.clients.set(key, simulated)
     summary.clientesCriados += 1
-    return simulated
+    return { record: simulated, created: true }
   }
 
   let created: ClientCacheEntry
 
   try {
     created = await prisma.cliente.create({
-      data: { nome: name },
+      data: {
+        nome: name,
+        bairro: bairroHint ?? undefined,
+      },
     })
   } catch (error) {
     if (
@@ -708,7 +846,7 @@ async function ensureClient(
       }
 
       caches.clients.set(key, existingByName)
-      return existingByName
+      return { record: existingByName, created: false }
     }
 
     throw error
@@ -716,7 +854,94 @@ async function ensureClient(
 
   caches.clients.set(key, created)
   summary.clientesCriados += 1
-  return created
+  return { record: created, created: true }
+}
+
+function getWorkObservation(name: string, bairroHint: string | null) {
+  const parts = [
+    `${IMPORT_MARKER} Obra criada automaticamente para importacao financeira 2026.`,
+    `Cliente base: ${name}.`,
+    bairroHint ? `Bairro original do CSV: ${bairroHint}.` : null,
+  ].filter(Boolean)
+
+  return parts.join("\n")
+}
+
+function resolveExistingWork(
+  caches: ImportCaches,
+  clientName: string,
+  workName: string,
+) {
+  const candidates = caches.worksByClient.get(normalizeKey(clientName)) ?? []
+  if (candidates.length === 0) {
+    return null
+  }
+
+  const exactMatch = candidates.find(
+    (candidate) => normalizeKey(candidate.titulo) === normalizeKey(workName),
+  )
+
+  if (exactMatch) {
+    return exactMatch
+  }
+
+  return candidates.length === 1 ? candidates[0] : null
+}
+
+async function ensureWork(
+  caches: ImportCaches,
+  summary: Summary,
+  client: ClientCacheEntry,
+  workName: string,
+  bairroHint: string | null,
+  createdBy: number | null,
+  apply: boolean,
+): Promise<EnsureResult<WorkCacheEntry>> {
+  const existing = resolveExistingWork(caches, client.nome, workName)
+  if (existing) {
+    return { record: existing, created: false }
+  }
+
+  if (!apply) {
+    const simulated: WorkCacheEntry = {
+      id: -6000 - summary.obrasCriadas,
+      titulo: workName,
+      cliente_id: client.id,
+    }
+
+    registerWork(caches, simulated, client.nome)
+    summary.obrasCriadas += 1
+    return { record: simulated, created: true }
+  }
+
+  const created = await prisma.obras.create({
+    data: {
+      cliente_id: client.id,
+      titulo: truncate(workName, 150),
+      endereco_obra: truncate(
+        bairroHint ? `Bairro ${bairroHint}` : "Endereco nao informado",
+        255,
+      ),
+      maps_url: "",
+      tipo_obra: "Importacao Financeira",
+      largura: new Prisma.Decimal("0"),
+      comprimento: new Prisma.Decimal("0"),
+      telha_escolhida: "Nao informado",
+      valor_obra: new Prisma.Decimal("0"),
+      valor_mao_de_obra: new Prisma.Decimal("0"),
+      observacoes: getWorkObservation(client.nome, bairroHint),
+      ...(createdBy ? { created_by: createdBy, updated_by: createdBy } : {}),
+    },
+    select: {
+      id: true,
+      titulo: true,
+      cliente_id: true,
+    },
+  })
+
+  registerWork(caches, created, client.nome)
+  summary.obrasCriadas += 1
+  return { record: created, created: true }
 }
 
 async function ensureSupplier(
@@ -781,63 +1006,82 @@ async function ensureSupplier(
 async function ensureCostCenter(
   caches: ImportCaches,
   summary: Summary,
+  work: WorkCacheEntry,
   name: string,
   apply: boolean,
-) {
-  const key = normalizeKey(name)
-  const existing = caches.costCenters.get(key)
+) : Promise<EnsureResult<CostCenterCacheEntry>> {
+  const existingByWork = caches.costCentersByWork.get(work.id)?.[0]
 
-  if (existing) {
-    return existing
+  if (existingByWork) {
+    return { record: existingByWork, created: false }
   }
 
   if (!apply) {
     const simulated: CostCenterCacheEntry = {
       id: -5000 - summary.centrosCustoCriados,
-      nome: name,
+      nome: truncate(name, 150),
+      obra_id: work.id,
     }
 
-    caches.costCenters.set(key, simulated)
+    registerCostCenter(caches, simulated)
     summary.centrosCustoCriados += 1
-    return simulated
+    return { record: simulated, created: true }
   }
 
   const created = await prisma.centroCusto.create({
     data: {
       nome: name,
-      descricao: "Criado automaticamente a partir do histÃ³rico financeiro 2026.",
+      descricao: "Criado automaticamente a partir do histórico financeiro 2026.",
       ativo: true,
+      obra_id: work.id,
     },
   })
 
-  caches.costCenters.set(key, created)
+  registerCostCenter(caches, created)
   summary.centrosCustoCriados += 1
-  return created
+  return { record: created, created: true }
 }
 
 function buildEntityDescription(row: ParsedRow) {
-  const parts = [row.categoryLabel]
+  const parts: string[] = []
+  const pushUnique = (value: string | null | undefined) => {
+    const sanitized = sanitizeText(value)
+    if (!sanitized) {
+      return
+    }
+
+    if (parts.some((part) => normalizeKey(part) === normalizeKey(sanitized))) {
+      return
+    }
+
+    parts.push(sanitized)
+  }
+
+  pushUnique(row.categoryLabel)
 
   if (row.direction === "ENTRADA" && row.clientName) {
-    parts.push(row.clientName)
+    pushUnique(row.clientName)
   }
 
   if (row.direction === "SAIDA" && row.supplierName) {
-    parts.push(row.supplierName)
+    pushUnique(row.supplierName)
   }
 
-  if (row.costCenterName) {
-    parts.push(row.costCenterName)
+  if (row.workName) {
+    pushUnique(row.workName)
   }
 
-  return truncate(parts.filter(Boolean).join(" - "), 190)
+  return truncate(parts.join(" - "), 190)
 }
 
 function buildObservations(row: ParsedRow) {
   const notes = [
-    "Importado do hist\u00F3rico financeiro 2026.",
+    IMPORT_FINANCIAL_NOTE,
     `CSV linha ${row.rowNumber}.`,
     row.clientRaw ? `Cliente original: ${row.clientRaw}.` : null,
+    row.clientName ? `Cliente base: ${row.clientName}.` : null,
+    row.workName ? `Obra/centro alvo: ${row.workName}.` : null,
+    row.bairroHint ? `Bairro original do CSV: ${row.bairroHint}.` : null,
     row.supplierName ? `Fornecedor original: ${row.supplierName}.` : null,
     row.notes ? `Observa\u00E7\u00F5es CSV: ${row.notes}.` : null,
     row.bankName ? `Conta origem CSV: ${row.bankName}.` : null,
@@ -879,7 +1123,7 @@ async function applyOpeningBalances(
 
     const bank = caches.banks.get(normalizeKey(bankName))
     if (!bank) {
-      throw new Error(`Conta bancÃ¡ria nÃ£o localizada para saldo inicial: ${bankName}`)
+      throw new Error(`Conta bancária não localizada para saldo inicial: ${bankName}`)
     }
 
     await prisma.$transaction(async (tx) => {
@@ -888,8 +1132,35 @@ async function applyOpeningBalances(
       })
 
       if (existingTransactions > 0) {
+        const currentOpeningBalance = Number(bank.saldo_inicial.toString())
+
+        if (Number(currentOpeningBalance.toFixed(2)) === amount) {
+          await tx.idempotencyLog.upsert({
+            where: { key: idempotencyKey },
+            create: {
+              key: idempotencyKey,
+              status: "COMPLETED",
+              result: JSON.stringify({
+                bankId: bank.id,
+                openingBalance: amount,
+                reusedExistingOpeningBalance: true,
+              }),
+            },
+            update: {
+              status: "COMPLETED",
+              result: JSON.stringify({
+                bankId: bank.id,
+                openingBalance: amount,
+                reusedExistingOpeningBalance: true,
+              }),
+            },
+          })
+
+          return
+        }
+
         throw new Error(
-          `NÃ£o foi possÃ­vel aplicar saldo inicial em ${bankName} porque jÃ¡ existem lanÃ§amentos na conta.`,
+            `Não foi possível aplicar saldo inicial em ${bankName} porque já existem lançamentos na conta.`,
         )
       }
 
@@ -1115,16 +1386,27 @@ async function processFinancialRow(
     row.direction === "ENTRADA" ? TipoCategoria.RECEITA : TipoCategoria.DESPESA,
     apply,
   )
-  const client =
-    row.direction === "ENTRADA" && row.clientName
-      ? await ensureClient(caches, summary, row.clientName, apply)
+  const client = row.clientName
+    ? await ensureClient(caches, summary, row.clientName, row.bairroHint, apply)
+    : null
+  const work =
+    client?.record && row.workName
+      ? await ensureWork(
+          caches,
+          summary,
+          client.record,
+          row.workName,
+          row.bairroHint,
+          createdBy,
+          apply,
+        )
       : null
   const supplier =
     row.direction === "SAIDA" && row.supplierName
       ? await ensureSupplier(caches, summary, row.supplierName, apply)
       : null
-  const costCenter = row.costCenterName
-    ? await ensureCostCenter(caches, summary, row.costCenterName, apply)
+  const costCenter = work?.record && row.costCenterTargetName
+    ? await ensureCostCenter(caches, summary, work.record, row.costCenterTargetName, apply)
     : null
 
   if (!apply) {
@@ -1179,9 +1461,9 @@ async function processFinancialRow(
                   row.status === "EFETIVADO"
                     ? StatusFinanceiro.PAGO
                     : getOpenStatus(eventDate),
-                cliente_id: client?.id ?? null,
+                cliente_id: client?.record.id ?? null,
                 categoria_id: category.id,
-                centro_custo_id: costCenter?.id ?? null,
+                centro_custo_id: costCenter?.record.id ?? null,
                 observacoes: observations,
                 created_by: createdBy,
               },
@@ -1202,7 +1484,7 @@ async function processFinancialRow(
                   conferido_em: eventDate,
                   conta_bancaria_id: bank!.id,
                   categoria_id: category.id,
-                  centro_custo_id: costCenter?.id ?? null,
+                  centro_custo_id: costCenter?.record.id ?? null,
                   conta_receber_id: contaReceber.id,
                   created_by: createdBy,
                 },
@@ -1223,6 +1505,9 @@ async function processFinancialRow(
             const completedResult = {
               contaReceberId: contaReceber.id,
               lancamentoId,
+              createdClientId: client?.created ? client.record.id : null,
+              createdWorkId: work?.created ? work.record.id : null,
+              createdCostCenterId: costCenter?.created ? costCenter.record.id : null,
             }
 
             await tx.idempotencyLog.update({
@@ -1264,7 +1549,7 @@ async function processFinancialRow(
                     : getOpenStatus(eventDate),
                 fornecedor_id: supplier?.id ?? null,
                 categoria_id: category.id,
-                centro_custo_id: costCenter?.id ?? null,
+                centro_custo_id: costCenter?.record.id ?? null,
                 observacoes: observations,
                 created_by: createdBy,
               },
@@ -1285,7 +1570,7 @@ async function processFinancialRow(
                   conferido_em: eventDate,
                   conta_bancaria_id: bank!.id,
                   categoria_id: category.id,
-                  centro_custo_id: costCenter?.id ?? null,
+                  centro_custo_id: costCenter?.record.id ?? null,
                   conta_pagar_id: contaPagar.id,
                   created_by: createdBy,
                 },
@@ -1306,6 +1591,9 @@ async function processFinancialRow(
             const completedResult = {
               contaPagarId: contaPagar.id,
               lancamentoId,
+              createdClientId: client?.created ? client.record.id : null,
+              createdWorkId: work?.created ? work.record.id : null,
+              createdCostCenterId: costCenter?.created ? costCenter.record.id : null,
             }
 
             await tx.idempotencyLog.update({
@@ -1382,7 +1670,7 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error("[X] Falha na importaÃ§Ã£o:", error)
+    console.error("[X] Falha na importação:", error)
     process.exitCode = 1
   })
   .finally(async () => {

@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { useEffect, useMemo, useState } from "react"
+import { AlertCircle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
-import { toast } from "sonner"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+import { cn } from "@/lib/utils"
 import { formatCurrency, remaining } from "@/lib/financeiro-utils"
-import type { ReceivableListItem, BankOption } from "@/types/financeiro"
+import type { BankOption, ReceivableListItem } from "@/types/financeiro"
 
 interface Props {
     open: boolean
@@ -19,18 +20,36 @@ interface Props {
     onSuccess: () => void
 }
 
+function getTodayValue() {
+    return new Date().toISOString().split("T")[0]
+}
+
 export default function ReceiveModal({ open, onOpenChange, item, banks, onSuccess }: Props) {
     const saldo = remaining(item.valor_total, item.valor_recebido)
-
     const [contaBancariaId, setContaBancariaId] = useState("")
     const [valor, setValor] = useState(saldo)
     const [juros, setJuros] = useState(0)
     const [descontos, setDescontos] = useState(0)
-    const [dataRecebimento, setDataRecebimento] = useState(() => new Date().toISOString().split("T")[0])
+    const [dataRecebimento, setDataRecebimento] = useState(getTodayValue)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState("")
 
+    useEffect(() => {
+        if (!open) return
+        setContaBancariaId("")
+        setValor(saldo)
+        setJuros(0)
+        setDescontos(0)
+        setDataRecebimento(getTodayValue())
+        setError("")
+    }, [open, saldo, item.id])
+
     const valorFinal = useMemo(() => valor + juros - descontos, [valor, juros, descontos])
+    const bankItems = useMemo(
+        () => banks.map((bank) => ({ value: String(bank.id), label: `${bank.nome} - ${formatCurrency(bank.saldo_atual)}` })),
+        [banks]
+    )
+    const selectedBank = banks.find((bank) => String(bank.id) === contaBancariaId)
 
     const isValid = useMemo(() => {
         if (!contaBancariaId) return false
@@ -38,7 +57,7 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
         if (valorFinal > saldo + 0.01) return false
         if (!dataRecebimento) return false
         return true
-    }, [contaBancariaId, valorFinal, saldo, dataRecebimento])
+    }, [contaBancariaId, dataRecebimento, saldo, valorFinal])
 
     async function handleSubmit() {
         if (!isValid) return
@@ -47,7 +66,7 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
 
         try {
             const idempotencyKey = `recv-${item.id}-${Date.now()}`
-            const res = await fetch("/api/financeiro/receivables/receive", {
+            const response = await fetch("/api/financeiro/receivables/receive", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -59,95 +78,118 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
                 }),
             })
 
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}))
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}))
                 throw new Error(body.error || "Erro ao processar recebimento")
             }
 
             onSuccess()
-        } catch (err: any) {
-            setError(err.message || "Erro inesperado")
-            toast.error(err.message || "Erro ao processar recebimento")
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Erro inesperado"
+            setError(message)
+            toast.error(message)
         } finally {
             setSubmitting(false)
         }
     }
 
-    const selectedBank = banks.find(b => String(b.id) === contaBancariaId)
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[480px]" style={{ backgroundColor: "var(--brand-bg)" }}>
+            <DialogContent className="border-[#2C201B]/10 bg-[#FFFCF7] sm:max-w-[520px]">
                 <DialogHeader>
-                    <DialogTitle style={{ color: "var(--brand-primary)" }}>Registrar Recebimento</DialogTitle>
+                    <DialogTitle className="text-[#2C201B]">Registrar recebimento</DialogTitle>
+                    <DialogDescription className="text-[#2C201B]/65">
+                        Confirme a conta bancária, a data e o valor efetivo para registrar esta entrada.
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-2">
-                    <div className="rounded-lg p-3 border" style={{ borderColor: "rgba(44,32,27,0.1)" }}>
-                        <p className="text-sm font-medium" style={{ color: "var(--brand-primary)" }}>{item.descricao}</p>
-                        <div className="flex justify-between mt-1 text-xs" style={{ color: "var(--brand-primary)", opacity: 0.6 }}>
-                            <span>Total: {formatCurrency(item.valor_total)}</span>
-                            <span>Recebido: {formatCurrency(item.valor_recebido)}</span>
-                            <span className="font-semibold" style={{ opacity: 1 }}>Saldo: {formatCurrency(saldo)}</span>
+                    <div className="rounded-xl border border-[#2C201B]/10 bg-white/70 p-4">
+                        <p className="text-sm font-semibold text-[#2C201B]">{item.descricao}</p>
+                        <div className="mt-3 grid gap-3 text-sm text-[#2C201B]/70 sm:grid-cols-3">
+                            <div>
+                                <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Total</p>
+                                <p className="mt-1 font-medium text-[#2C201B]">{formatCurrency(item.valor_total)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Recebido</p>
+                                <p className="mt-1 font-medium text-[#2C201B]">{formatCurrency(item.valor_recebido)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Saldo</p>
+                                <p className="mt-1 font-semibold text-[#2C201B]">{formatCurrency(saldo)}</p>
+                            </div>
                         </div>
                     </div>
 
-                    <div>
-                        <Label style={{ color: "var(--brand-primary)" }}>Data do Recebimento</Label>
-                        <Input type="date" value={dataRecebimento} onChange={(e) => setDataRecebimento(e.target.value)} />
+                    <div className="space-y-2">
+                        <Label className="text-[#2C201B]">Data do recebimento</Label>
+                        <Input type="date" value={dataRecebimento} onChange={(event) => setDataRecebimento(event.target.value)} />
                     </div>
 
-                    <div>
-                        <Label style={{ color: "var(--brand-primary)" }}>Conta Bancária</Label>
-                        <Select value={contaBancariaId} onValueChange={setContaBancariaId}>
-                            <SelectTrigger><SelectValue placeholder="Selecione uma conta" /></SelectTrigger>
-                            <SelectContent>
-                                {banks.map(b => (
-                                    <SelectItem key={b.id} value={String(b.id)}>
-                                        {b.nome} — Saldo: {formatCurrency(b.saldo_atual)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {selectedBank && (
-                            <p className="text-xs mt-1" style={{ color: "var(--brand-primary)", opacity: 0.5 }}>
-                                Saldo disponível: {formatCurrency(selectedBank.saldo_atual)}
-                            </p>
-                        )}
+                    <div className="space-y-2">
+                        <Label className="text-[#2C201B]">Conta bancária</Label>
+                        <SearchableSelect
+                            value={contaBancariaId}
+                            onValueChange={setContaBancariaId}
+                            items={bankItems}
+                            placeholder="Selecionar conta bancária"
+                            searchPlaceholder="Buscar conta bancária"
+                        />
+                        {selectedBank ? (
+                            <p className="text-xs text-[#2C201B]/55">Saldo atual da conta: {formatCurrency(selectedBank.saldo_atual)}</p>
+                        ) : null}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                        <div>
-                            <Label style={{ color: "var(--brand-primary)" }}>Valor</Label>
-                            <Input type="number" step="0.01" min="0.01" max={saldo} value={valor} onChange={(e) => setValor(Number(e.target.value))} />
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="space-y-2">
+                            <Label className="text-[#2C201B]">Valor do recebimento</Label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max={saldo}
+                                value={valor}
+                                onChange={(event) => setValor(Number(event.target.value))}
+                            />
                         </div>
-                        <div>
-                            <Label style={{ color: "var(--brand-primary)" }}>Juros / Multa</Label>
-                            <Input type="number" step="0.01" min="0" value={juros} onChange={(e) => setJuros(Number(e.target.value))} />
+                        <div className="space-y-2">
+                            <Label className="text-[#2C201B]">Juros / multa</Label>
+                            <Input type="number" step="0.01" min="0" value={juros} onChange={(event) => setJuros(Number(event.target.value))} />
                         </div>
-                        <div>
-                            <Label style={{ color: "var(--brand-primary)" }}>Descontos</Label>
-                            <Input type="number" step="0.01" min="0" value={descontos} onChange={(e) => setDescontos(Number(e.target.value))} />
+                        <div className="space-y-2">
+                            <Label className="text-[#2C201B]">Descontos</Label>
+                            <Input type="number" step="0.01" min="0" value={descontos} onChange={(event) => setDescontos(Number(event.target.value))} />
                         </div>
                     </div>
 
-                    <div className="rounded-lg p-3 text-center" style={{ backgroundColor: "rgba(44,32,27,0.05)" }}>
-                        <p className="text-xs" style={{ color: "var(--brand-primary)", opacity: 0.5 }}>Valor Final</p>
-                        <p className="text-xl font-bold" style={{ color: valorFinal > saldo + 0.01 ? "#b91c1c" : "var(--brand-primary)" }}>
+                    <div className={cn(
+                        "rounded-xl border p-4 text-center",
+                        valorFinal > saldo + 0.01 ? "border-[#F1B7B0] bg-[#FFF4F2]" : "border-[#E8D9BC] bg-[#FFF9EE]"
+                    )}>
+                        <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Valor final do recebimento</p>
+                        <p className={cn("mt-2 text-3xl font-semibold", valorFinal > saldo + 0.01 ? "text-[#B42318]" : "text-[#2C201B]")}>
                             {formatCurrency(valorFinal)}
                         </p>
-                        {valorFinal > saldo + 0.01 && (
-                            <p className="text-xs mt-1" style={{ color: "#b91c1c" }}>Valor excede o saldo restante</p>
-                        )}
+                        {valorFinal > saldo + 0.01 ? (
+                            <p className="mt-2 text-sm text-[#B42318]">O valor final não pode ultrapassar o saldo restante.</p>
+                        ) : null}
                     </div>
 
-                    {error && <p className="text-sm text-center" style={{ color: "#b91c1c" }}>{error}</p>}
+                    {error ? (
+                        <div className="flex items-start gap-2 rounded-xl border border-[#F1B7B0] bg-[#FFF4F2] px-4 py-3 text-sm text-[#8F3F37]">
+                            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                            <p>{error}</p>
+                        </div>
+                    ) : null}
                 </div>
 
                 <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Cancelar</Button>
-                    <Button onClick={handleSubmit} disabled={!isValid || submitting} className="btn-primary">
-                        {submitting ? <><Loader2 className="size-4 animate-spin mr-2" /> Processando...</> : "Confirmar Recebimento"}
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+                        Cancelar
+                    </Button>
+                    <Button type="button" onClick={handleSubmit} disabled={!isValid || submitting} className="btn-primary">
+                        {submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Processando...</> : "Confirmar recebimento"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

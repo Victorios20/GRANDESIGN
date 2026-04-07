@@ -1,5 +1,5 @@
 export const DEFAULT_CSV_PATH =
-  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - P\u00E1gina26.csv"
+  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página26.csv"
 
 export const REQUIRED_BANK_ACCOUNTS = [
   "Inter empresa",
@@ -9,8 +9,8 @@ export const REQUIRED_BANK_ACCOUNTS = [
 
 export const CATEGORY_LABEL_OVERRIDES: Record<string, string> = {
   andaime: "Andaime",
-  combustivel: "CombustÃ­vel",
-  comissao: "ComissÃ£o",
+  combustivel: "Combustível",
+  comissao: "Comissão",
   "compra de material": "Compra de Material",
   contabilidade: "Contabilidade",
   fardamento: "Fardamento",
@@ -18,35 +18,35 @@ export const CATEGORY_LABEL_OVERRIDES: Record<string, string> = {
   frete: "Frete",
   imposto: "Imposto",
   madeira: "Madeira",
-  manutencao: "ManutenÃ§Ã£o",
-  "mao de obra": "MÃ£o de Obra",
+  manutencao: "Manutenção",
+  "mao de obra": "Mão de Obra",
   marketing: "Marketing",
-  "materiais de escritorio": "Materiais de EscritÃ³rio",
+  "materiais de escritorio": "Materiais de Escritório",
   "pagamento de cliente": "Pagamento de Cliente",
   "receita de ajuste": "Receita de Ajuste",
-  refeicao: "RefeiÃ§Ã£o",
+  refeicao: "Refeição",
   rendimento: "Rendimento",
   "retirada de lucro": "Retirada de Lucro",
-  "taxa de cartao": "Taxa de CartÃ£o",
+  "taxa de cartao": "Taxa de Cartão",
   tecnologia: "Tecnologia",
   telha: "Telha",
-  transferencia: "TransferÃªncia",
+  transferencia: "Transferência",
 }
 
 export const SUPPLIER_NAME_OVERRIDES: Record<string, string> = {
-  "cartao inter": "CartÃ£o Inter",
+  "cartao inter": "Cartão Inter",
   "cia da madeira": "Cia da Madeira",
   "cg bordados": "Cg Bordados",
-  "deposito bandeira": "DepÃ³sito Bandeira",
+  "deposito bandeira": "Depósito Bandeira",
   "eng. anderson marques": "Eng. Anderson Marques",
   facebook: "Facebook",
   igreen: "IGreen",
-  impressao: "ImpressÃ£o",
-  indicacao: "IndicaÃ§Ã£o",
-  jeova: "JeovÃ¡",
+  impressao: "Impressão",
+  indicacao: "Indicação",
+  jeova: "Jeová",
   lorena: "Lorena",
-  marcio: "MÃ¡rcio",
-  "madeireira quixada": "Madeireira QuixadÃ¡",
+  marcio: "Márcio",
+  "madeireira quixada": "Madeireira Quixadá",
   "metro quadrado": "Metro Quadrado",
   "naldo andaimes": "Naldo Andaimes",
   "nando fretes": "Nando Fretes",
@@ -62,7 +62,7 @@ export const SUPPLIER_NAME_OVERRIDES: Record<string, string> = {
   "vem que tem": "Vem Que Tem",
   victor: "Victor",
   vitor: "Vitor",
-  "ze dos parafusos": "ZÃ© dos Parafusos",
+  "ze dos parafusos": "Zé dos Parafusos",
 }
 
 export const CLIENT_NAME_OVERRIDES: Record<string, string> = {}
