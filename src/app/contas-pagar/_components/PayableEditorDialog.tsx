@@ -3,8 +3,9 @@
 import Link from "next/link"
 import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { ChevronDown, Loader2, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
+import { revertPayable } from "@/actions/financeiro/payables/revert"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,6 +92,20 @@ export default function PayableEditorDialog({
     const [isInstallmentMode, setIsInstallmentMode] = useState(false)
     const [totalParcelas, setTotalParcelas] = useState("2")
     const [submitting, setSubmitting] = useState(false)
+    const [historyOpen, setHistoryOpen] = useState(false)
+    const [lancamentos, setLancamentos] = useState<Array<{
+        id: number
+        valor: number
+        valor_juros: number
+        valor_desconto: number
+        descricao: string | null
+        data_lancamento: string
+        conferencia_sessoes: { status: string } | null
+    }>>([])
+    const [revertingId, setRevertingId] = useState<number | null>(null)
+    const [confirmRevertId, setConfirmRevertId] = useState<number | null>(null)
+    const [deleting, setDeleting] = useState(false)
+    const [confirmDelete, setConfirmDelete] = useState(false)
 
     useEffect(() => {
         if (!open) return
@@ -107,6 +122,22 @@ export default function PayableEditorDialog({
         setObservacoes(item?.observacoes ?? "")
         setIsInstallmentMode(false)
         setTotalParcelas(item && item.total_parcelas > 1 ? String(item.total_parcelas) : "2")
+    }, [open, item])
+
+    // Load lancamentos when viewing a paid/partial bill
+    useEffect(() => {
+        if (!open || !item) return
+        setHistoryOpen(false)
+        setConfirmRevertId(null)
+        setConfirmDelete(false)
+        if (!canEdit(item.status)) {
+            fetch(`/api/financeiro/payables/${item.id}`)
+                .then((r) => r.json())
+                .then((data) => setLancamentos(data.lancamentos ?? []))
+                .catch(() => setLancamentos([]))
+        } else {
+            setLancamentos([])
+        }
     }, [open, item])
 
     const saldo = useMemo(() => (item ? remaining(item.valor_total, item.valor_pago) : 0), [item])
@@ -131,6 +162,14 @@ export default function PayableEditorDialog({
     }, [categoriaId, dataEmissao, dataVencimento, descricao, isEdit, isEditable, isInstallmentMode, primeiroVencimento, totalParcelas, valor])
 
     const statusColor = item ? statusDotClassName[getStatusColor(item.status)] : statusDotClassName.amber
+
+    const canDelete = Boolean(
+        item &&
+        !item.pedido_compra &&
+        Number(item.valor_pago) === 0 &&
+        lancamentos.length === 0 &&
+        canEdit(item.status)
+    )
 
     async function handleSubmit() {
         if (!canSubmit) return
@@ -185,6 +224,43 @@ export default function PayableEditorDialog({
             toast.error((error as Error).message)
         } finally {
             setSubmitting(false)
+        }
+    }
+
+    async function handleDelete() {
+        if (!item || !confirmDelete) return
+        setDeleting(true)
+        try {
+            const res = await fetch(`/api/financeiro/payables/${item.id}`, { method: "DELETE" })
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}))
+                throw new Error(body.error || "Falha ao excluir conta")
+            }
+            toast.success("Conta excluída")
+            onOpenChange(false)
+            await onSuccess()
+        } catch (error) {
+            toast.error((error as Error).message)
+            setConfirmDelete(false)
+        } finally {
+            setDeleting(false)
+        }
+    }
+
+    async function handleRevert(lancamentoId: number) {
+        setRevertingId(lancamentoId)
+        try {
+            await revertPayable(lancamentoId)
+            toast.success("Pagamento estornado")
+            setConfirmRevertId(null)
+            // Refresh lancamentos
+            const data = await fetch(`/api/financeiro/payables/${item!.id}`).then((r) => r.json())
+            setLancamentos(data.lancamentos ?? [])
+            await onSuccess()
+        } catch (error) {
+            toast.error((error as Error).message)
+        } finally {
+            setRevertingId(null)
         }
     }
 
@@ -248,6 +324,86 @@ export default function PayableEditorDialog({
                         {item && !isEditable ? (
                             <div className="rounded-lg border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-sm text-[#6f6556]">
                                 Conta encerrada em modo leitura. Para alterar, ajuste o status no fluxo apropriado.
+                            </div>
+                        ) : null}
+
+                        {/* Payment history — shown when conta is PAGO or PARCIAL */}
+                        {item && !isEditable && lancamentos.length > 0 ? (
+                            <div className="rounded-xl border border-[#ece6db] bg-[#faf8f3]">
+                                <button
+                                    type="button"
+                                    onClick={() => setHistoryOpen((v) => !v)}
+                                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-[#2c201b] hover:bg-[#f3efe6]/60"
+                                >
+                                    <span>Histórico de pagamentos ({lancamentos.length})</span>
+                                    <ChevronDown className={cn("size-4 text-[#8a7d69] transition-transform", historyOpen && "rotate-180")} />
+                                </button>
+                                {historyOpen ? (
+                                    <div className="divide-y divide-[#ece6db] border-t border-[#ece6db]">
+                                        {lancamentos.map((lancamento) => {
+                                            const isLocked = lancamento.conferencia_sessoes?.status === "LOCKED"
+                                            const isReverting = revertingId === lancamento.id
+                                            const isConfirming = confirmRevertId === lancamento.id
+                                            return (
+                                                <div key={lancamento.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium tabular-nums text-[#2c201b]">
+                                                            {formatCurrency(Number(lancamento.valor))}
+                                                            {Number(lancamento.valor_juros) > 0 && (
+                                                                <span className="ml-1.5 text-xs font-normal text-[#8a7d69]">+{formatCurrency(Number(lancamento.valor_juros))} juros</span>
+                                                            )}
+                                                            {Number(lancamento.valor_desconto) > 0 && (
+                                                                <span className="ml-1.5 text-xs font-normal text-emerald-600">-{formatCurrency(Number(lancamento.valor_desconto))} desc.</span>
+                                                            )}
+                                                        </p>
+                                                        <p className="text-xs text-[#8a7d69]">
+                                                            {formatDateBR(lancamento.data_lancamento)}
+                                                            {lancamento.descricao ? ` · ${lancamento.descricao}` : ""}
+                                                            {isLocked ? " · 🔒 Conferência" : ""}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex shrink-0 items-center gap-2">
+                                                        {isConfirming ? (
+                                                            <>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="ghost"
+                                                                    onClick={() => setConfirmRevertId(null)}
+                                                                    disabled={isReverting}
+                                                                    className="h-7 rounded-md px-2 text-xs text-[#6f6556]"
+                                                                >
+                                                                    Cancelar
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    onClick={() => handleRevert(lancamento.id)}
+                                                                    disabled={isReverting}
+                                                                    className="h-7 rounded-md bg-[#8F3F37] px-2 text-xs text-white hover:bg-[#7a332c]"
+                                                                >
+                                                                    {isReverting ? <Loader2 className="size-3 animate-spin" /> : "Confirmar estorno"}
+                                                                </Button>
+                                                            </>
+                                                        ) : (
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                onClick={() => !isLocked && setConfirmRevertId(lancamento.id)}
+                                                                disabled={isLocked || isReverting}
+                                                                title={isLocked ? "Bloqueado por conferência" : "Estornar este pagamento"}
+                                                                className="h-7 rounded-md px-2 text-xs text-[#8F3F37] hover:bg-[#fef2f2] disabled:opacity-40"
+                                                            >
+                                                                Estornar
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                ) : null}
                             </div>
                         ) : null}
 
@@ -404,7 +560,50 @@ export default function PayableEditorDialog({
                         </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 border-t border-[#e7e0d4] px-5 py-4 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="flex flex-col gap-3 border-t border-[#e7e0d4] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        {/* Left: delete action */}
+                        <div>
+                            {canDelete ? (
+                                confirmDelete ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-[#8F3F37]">Excluir permanentemente?</span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setConfirmDelete(false)}
+                                            disabled={deleting}
+                                            className="h-7 rounded-md px-2 text-xs text-[#6f6556]"
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={handleDelete}
+                                            disabled={deleting}
+                                            className="h-7 rounded-md bg-[#8F3F37] px-2 text-xs text-white hover:bg-[#7a332c]"
+                                        >
+                                            {deleting ? <Loader2 className="size-3 animate-spin" /> : "Excluir"}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setConfirmDelete(true)}
+                                        disabled={submitting}
+                                        className="h-9 gap-1.5 rounded-lg px-3 text-[#8F3F37] shadow-none hover:bg-[#fef2f2] hover:text-[#7a332c]"
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Excluir conta
+                                    </Button>
+                                )
+                            ) : null}
+                        </div>
+
+                        {/* Right: cancel / pay / save */}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <Button
                             type="button"
                             variant="ghost"
@@ -419,10 +618,7 @@ export default function PayableEditorDialog({
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => {
-                                    onOpenChange(false)
-                                    onRequestPay(item)
-                                }}
+                                onClick={() => onRequestPay(item)}
                                 className="h-9 rounded-lg border border-[#ddd7cc] bg-[#f7f4ec] text-[#393316] hover:bg-[#f1ecdf]"
                             >
                                 Efetuar pagamento
@@ -437,6 +633,7 @@ export default function PayableEditorDialog({
                         >
                             {submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Salvando...</> : isEdit ? "Salvar alterações" : "Criar conta"}
                         </Button>
+                        </div>
                     </div>
                 </div>
             </DialogContent>

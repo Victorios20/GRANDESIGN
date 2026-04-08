@@ -53,10 +53,10 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
         const total = Number(bill.valor_total)
         const received = Number(bill.valor_recebido)
         const remaining = total - received
-        const amountToReceive = input.valor
+        const amortizadoParaContaReceber = input.valor + input.descontos - input.juros
 
-        if (amountToReceive > remaining + 0.01) {
-            throw new Error(`Valor excedente. Restante: ${remaining.toFixed(2)}`)
+        if (amortizadoParaContaReceber > remaining + 0.01) {
+            throw new Error(`Amortização excedente. Restante: ${remaining.toFixed(2)} (Amortização calculada: ${amortizadoParaContaReceber.toFixed(2)})`)
         }
 
         const result = await prisma.$transaction(async (tx) => {
@@ -66,7 +66,7 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                     valor_recebido: bill.valor_recebido,
                 },
                 data: {
-                    valor_recebido: { increment: amountToReceive }
+                    valor_recebido: { increment: amortizadoParaContaReceber }
                 }
             })
 
@@ -74,7 +74,7 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
                 throw new Error("Conflito de concorrência: O registro foi alterado por outra transação.")
             }
 
-            const newReceived = received + amountToReceive
+            const newReceived = received + amortizadoParaContaReceber
             const isPaid = Math.abs(total - newReceived) < 0.01
             const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
 
@@ -89,7 +89,9 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
             await tx.lancamento.create({
                 data: {
                     descricao: `Recebimento: ${bill.descricao}`,
-                    valor: amountToReceive,
+                    valor: input.valor,
+                    valor_juros: input.juros,
+                    valor_desconto: input.descontos,
                     tipo: TipoLancamento.RECEITA,
                     data_lancamento: input.data_recebimento,
                     data_competencia: bill.data_vencimento,
@@ -104,7 +106,7 @@ export async function receiveBill(input: ReceiveBillInput, userId?: number) {
 
             await tx.contasBancaria.update({
                 where: { id: input.conta_bancaria_id },
-                data: { saldo_atual: { increment: amountToReceive } }
+                data: { saldo_atual: { increment: input.valor } }
             })
 
             return updatedBill

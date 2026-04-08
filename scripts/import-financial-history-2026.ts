@@ -59,6 +59,8 @@ interface ParsedRow {
 }
 
 interface ParsedArgs {
+  preflight: boolean
+  purge2026: boolean
   apply: boolean
   filePath: string
   verbose: boolean
@@ -125,8 +127,36 @@ interface BlockedRow {
   bankName: string | null
 }
 
+interface EncodingRepairEntry {
+  from: string
+  to: string
+  count: number
+}
+
+interface MissingEntityReport {
+  categories: string[]
+  suppliers: string[]
+  clients: string[]
+}
+
+interface PurgedCounts {
+  lancamentos: number
+  transferencias: number
+  contasPagar: number
+  contasReceber: number
+  idempotencyLogs: number
+}
+
+interface DeduplicatedEntities {
+  categories: number
+  suppliers: number
+  clients: number
+  works: number
+  costCenters: number
+}
+
 interface Summary {
-  mode: "dry-run" | "apply"
+  mode: "preflight" | "purge" | "apply"
   filePath: string
   totalRows: number
   actionableRows: number
@@ -142,6 +172,13 @@ interface Summary {
   fornecedoresCriados: number
   centrosCustoCriados: number
   contasBancariasCriadas: number
+  encodingRepairs: EncodingRepairEntry[]
+  missingCategoriesCreated: string[]
+  missingSuppliersCreated: string[]
+  missingClientsCreated: string[]
+  purgedCounts: PurgedCounts
+  deduplicatedEntities: DeduplicatedEntities
+  missingEntities: MissingEntityReport
   bankBalanceDiagnostics: BankBalanceSnapshot[]
   blockedRows: BlockedRow[]
   skippedRows: BlockedRow[]
@@ -149,6 +186,8 @@ interface Summary {
 
 function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2)
+  const preflight = args.includes("--preflight")
+  const purge2026 = args.includes("--purge-2026")
   const apply = args.includes("--apply")
   const verbose = args.includes("--verbose")
   const fileFlagIndex = args.findIndex((arg) => arg === "--file")
@@ -158,6 +197,8 @@ function parseArgs(): ParsedArgs {
       : DEFAULT_CSV_PATH
 
   return {
+    preflight: preflight || (!purge2026 && !apply),
+    purge2026,
     apply,
     filePath,
     verbose,
@@ -200,9 +241,55 @@ function repairMojibake(value: string | null | undefined) {
   }
 }
 
+function hasMojibake(value: string | null | undefined) {
+  return /[ÃƒÃ‚]/.test(value ?? "")
+}
+
 function sanitizeText(value: string | null | undefined) {
   const normalized = repairMojibake(value).replace(/\s+/g, " ").trim()
   return normalized.length > 0 ? normalized : null
+}
+
+function decodeCsvBuffer(buffer: Buffer) {
+  const utf8 = buffer.toString("utf8").replace(/^\uFEFF/, "")
+  return utf8
+}
+
+function trackEncodingRepair(
+  tracker: Map<string, EncodingRepairEntry>,
+  original: string,
+  repaired: string,
+) {
+  const key = `${original}=>${repaired}`
+  const current = tracker.get(key)
+
+  if (current) {
+    current.count += 1
+    return
+  }
+
+  tracker.set(key, {
+    from: original,
+    to: repaired,
+    count: 1,
+  })
+}
+
+function sanitizeCsvCell(
+  value: string | null | undefined,
+  repairs: Map<string, EncodingRepairEntry>,
+) {
+  const raw = (value ?? "").trim()
+  if (!raw) {
+    return ""
+  }
+
+  const repaired = repairMojibake(raw)
+  if (repaired !== raw) {
+    trackEncodingRepair(repairs, raw, repaired)
+  }
+
+  return repaired.replace(/\s+/g, " ").trim()
 }
 
 function truncate(value: string, maxLength: number) {
@@ -283,18 +370,21 @@ function parseCsvLine(line: string) {
   return columns
 }
 
-function readCsvRows(filePath: string): CsvRow[] {
-  const content = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "")
+function readCsvRows(
+  filePath: string,
+  repairs: Map<string, EncodingRepairEntry>,
+): CsvRow[] {
+  const content = decodeCsvBuffer(fs.readFileSync(filePath))
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0)
 
   if (lines.length < 2) {
     throw new Error("CSV vazio ou sem linhas de dados.")
   }
 
-  const headers = parseCsvLine(lines[0])
+  const headers = parseCsvLine(lines[0]).map((header) => sanitizeCsvCell(header, repairs))
 
   return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line)
+    const values = parseCsvLine(line).map((value) => sanitizeCsvCell(value, repairs))
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))
   })
 }
@@ -321,7 +411,7 @@ function deriveWorkName(clientName: string | null) {
   }
 
   const override = COST_CENTER_NAME_OVERRIDES[normalizeKey(clientName)]
-  return sanitizeText(override ?? clientName)
+  return sanitizeText(override)
 }
 
 function splitClientAndWorkHint(value: string | null) {
@@ -443,7 +533,9 @@ function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
   const supplierRaw = sanitizeText(row.Fornecedor)
   const supplierName = supplierRaw
     ? SUPPLIER_NAME_OVERRIDES[normalizeKey(supplierRaw)] ?? supplierRaw
-    : null
+    : categoryKey === "madeira"
+      ? "Madeireira Nova"
+      : null
   const clientRaw = sanitizeText(row["Id do cliente"])
   const { clientName, bairroHint, workName, costCenterTargetName } =
     splitClientAndWorkHint(clientRaw)
@@ -472,8 +564,10 @@ function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
 }
 
 function createSummary(args: ParsedArgs): Summary {
+  const mode = args.apply ? "apply" : args.purge2026 ? "purge" : "preflight"
+
   return {
-    mode: args.apply ? "apply" : "dry-run",
+    mode,
     filePath: args.filePath,
     totalRows: 0,
     actionableRows: 0,
@@ -489,9 +583,38 @@ function createSummary(args: ParsedArgs): Summary {
     fornecedoresCriados: 0,
     centrosCustoCriados: 0,
     contasBancariasCriadas: 0,
+    encodingRepairs: [],
+    missingCategoriesCreated: [],
+    missingSuppliersCreated: [],
+    missingClientsCreated: [],
+    purgedCounts: {
+      lancamentos: 0,
+      transferencias: 0,
+      contasPagar: 0,
+      contasReceber: 0,
+      idempotencyLogs: 0,
+    },
+    deduplicatedEntities: {
+      categories: 0,
+      suppliers: 0,
+      clients: 0,
+      works: 0,
+      costCenters: 0,
+    },
+    missingEntities: {
+      categories: [],
+      suppliers: [],
+      clients: [],
+    },
     bankBalanceDiagnostics: [],
     blockedRows: [],
     skippedRows: [],
+  }
+}
+
+function pushUniqueValue(values: string[], value: string) {
+  if (!values.some((current) => normalizeKey(current) === normalizeKey(value))) {
+    values.push(value)
   }
 }
 
@@ -687,17 +810,10 @@ function createBlockedRow(row: ParsedRow, reason: string): BlockedRow {
 }
 
 function ensureRequiredBanksPresence(parsedRows: ParsedRow[]) {
-  const presentBanks = new Set(
-    parsedRows
-      .map((row) => row.bankName)
-      .filter((bankName): bankName is string => Boolean(bankName))
-      .map((bankName) => normalizeKey(bankName)),
-  )
+  const presentBanks = parsedRows.some((row) => Boolean(row.bankName))
 
-  for (const requiredBank of REQUIRED_BANK_ACCOUNTS) {
-    if (!presentBanks.has(normalizeKey(requiredBank))) {
-      throw new Error(`Conta obrigatória ausente no CSV: ${requiredBank}`)
-    }
+  if (!presentBanks) {
+    throw new Error("CSV sem contas bancárias válidas para importação.")
   }
 }
 
@@ -768,6 +884,11 @@ async function ensureCategory(
   const cacheKey = `${type}:${normalizeKey(label)}`
   const existing = caches.categories.get(cacheKey)
 
+  if (!existing) {
+    pushUniqueValue(summary.missingEntities.categories, label)
+    pushUniqueValue(summary.missingCategoriesCreated, label)
+  }
+
   if (existing) {
     return existing
   }
@@ -806,6 +927,11 @@ async function ensureClient(
 ): Promise<EnsureResult<ClientCacheEntry>> {
   const key = normalizeKey(name)
   const existing = caches.clients.get(key)
+
+  if (!existing) {
+    pushUniqueValue(summary.missingEntities.clients, name)
+    pushUniqueValue(summary.missingClientsCreated, name)
+  }
 
   if (existing) {
     return { record: existing, created: false }
@@ -953,6 +1079,11 @@ async function ensureSupplier(
   const key = normalizeKey(name)
   const existing = caches.suppliers.get(key)
 
+  if (!existing) {
+    pushUniqueValue(summary.missingEntities.suppliers, name)
+    pushUniqueValue(summary.missingSuppliersCreated, name)
+  }
+
   if (existing) {
     return existing
   }
@@ -1040,6 +1171,381 @@ async function ensureCostCenter(
   registerCostCenter(caches, created)
   summary.centrosCustoCriados += 1
   return { record: created, created: true }
+}
+
+function getYearBounds(year: number) {
+  return {
+    start: new Date(`${year}-01-01T00:00:00.000Z`),
+    end: new Date(`${year + 1}-01-01T00:00:00.000Z`),
+  }
+}
+
+function chooseCanonicalName(candidates: string[], preferredName?: string | null) {
+  if (preferredName) {
+    const preferred = candidates.find(
+      (candidate) => normalizeKey(candidate) === normalizeKey(preferredName),
+    )
+
+    if (preferred) {
+      return preferred
+    }
+  }
+
+  return [...candidates].sort((left, right) => {
+    const mojibakeDiff = Number(hasMojibake(left)) - Number(hasMojibake(right))
+    if (mojibakeDiff !== 0) {
+      return mojibakeDiff
+    }
+
+    return left.localeCompare(right, "pt-BR")
+  })[0]
+}
+
+function buildCanonicalCollections(rows: ParsedRow[]) {
+  const categories = new Map<string, string>()
+  const suppliers = new Map<string, string>()
+  const clients = new Map<string, string>()
+
+  for (const row of rows) {
+    const categoryType =
+      row.direction === "ENTRADA" ? TipoCategoria.RECEITA : TipoCategoria.DESPESA
+    categories.set(`${categoryType}:${normalizeKey(row.categoryLabel)}`, row.categoryLabel)
+
+    if (row.supplierName) {
+      suppliers.set(normalizeKey(row.supplierName), row.supplierName)
+    }
+
+    if (row.clientName) {
+      clients.set(normalizeKey(row.clientName), row.clientName)
+    }
+  }
+
+  categories.set(
+    `${TipoCategoria.RECEITA}:${normalizeKey("Transferências (Entrada)")}`,
+    "Transferências (Entrada)",
+  )
+  categories.set(
+    `${TipoCategoria.DESPESA}:${normalizeKey("Transferências (Saída)")}`,
+    "Transferências (Saída)",
+  )
+
+  return {
+    categories,
+    suppliers,
+    clients,
+  }
+}
+
+async function purgeFinancialYear(summary: Summary, year: number, apply: boolean) {
+  const { start, end } = getYearBounds(year)
+
+  const counts = {
+    lancamentos: await prisma.lancamento.count({
+      where: { data_lancamento: { gte: start, lt: end } },
+    }),
+    transferencias: await prisma.transferencia.count({
+      where: { data_transferencia: { gte: start, lt: end } },
+    }),
+    contasPagar: await prisma.contaPagar.count({
+      where: { data_vencimento: { gte: start, lt: end } },
+    }),
+    contasReceber: await prisma.contaReceber.count({
+      where: { data_vencimento: { gte: start, lt: end } },
+    }),
+    idempotencyLogs: await prisma.idempotencyLog.count({
+      where: { key: { startsWith: `${IMPORT_NAMESPACE}:` } },
+    }),
+  }
+
+  summary.purgedCounts = counts
+
+  if (!apply) {
+    return counts
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.lancamento.deleteMany({
+      where: { data_lancamento: { gte: start, lt: end } },
+    })
+    await tx.transferencia.deleteMany({
+      where: { data_transferencia: { gte: start, lt: end } },
+    })
+    await tx.contaPagar.deleteMany({
+      where: { data_vencimento: { gte: start, lt: end } },
+    })
+    await tx.contaReceber.deleteMany({
+      where: { data_vencimento: { gte: start, lt: end } },
+    })
+    await tx.idempotencyLog.deleteMany({
+      where: { key: { startsWith: `${IMPORT_NAMESPACE}:` } },
+    })
+  })
+
+  return counts
+}
+
+async function deduplicateCategories(
+  summary: Summary,
+  canonicalCategories: Map<string, string>,
+  apply: boolean,
+) {
+  const categories = await prisma.categoria.findMany({
+    select: {
+      id: true,
+      nome: true,
+      tipo: true,
+      categoria_pai_id: true,
+    },
+    orderBy: [{ tipo: "asc" }, { id: "asc" }],
+  })
+
+  const grouped = new Map<string, typeof categories>()
+  for (const category of categories) {
+    const key = `${category.tipo}:${normalizeKey(category.nome)}`
+    const current = grouped.get(key) ?? []
+    current.push(category)
+    grouped.set(key, current)
+  }
+
+  for (const [key, group] of grouped) {
+    if (group.length <= 1) {
+      continue
+    }
+
+    const preferredName = canonicalCategories.get(key)
+    const canonicalName = chooseCanonicalName(
+      group.map((entry) => entry.nome),
+      preferredName,
+    )
+    const keeper =
+      group.find(
+        (entry) =>
+          normalizeKey(entry.nome) === normalizeKey(canonicalName) && !hasMojibake(entry.nome),
+      ) ?? group[0]
+
+    if (!apply) {
+      summary.deduplicatedEntities.categories += group.length - 1
+      continue
+    }
+
+    if (keeper.nome !== canonicalName) {
+      await prisma.categoria.update({
+        where: { id: keeper.id },
+        data: { nome: canonicalName },
+      })
+    }
+
+    for (const duplicate of group) {
+      if (duplicate.id === keeper.id) {
+        continue
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.lancamento.updateMany({
+          where: { categoria_id: duplicate.id },
+          data: { categoria_id: keeper.id },
+        })
+        await tx.contaPagar.updateMany({
+          where: { categoria_id: duplicate.id },
+          data: { categoria_id: keeper.id },
+        })
+        await tx.contaReceber.updateMany({
+          where: { categoria_id: duplicate.id },
+          data: { categoria_id: keeper.id },
+        })
+        await tx.categoria.updateMany({
+          where: { categoria_pai_id: duplicate.id },
+          data: { categoria_pai_id: keeper.id },
+        })
+        await tx.categoria.delete({
+          where: { id: duplicate.id },
+        })
+      })
+
+      summary.deduplicatedEntities.categories += 1
+    }
+  }
+}
+
+async function deduplicateSuppliers(
+  summary: Summary,
+  canonicalSuppliers: Map<string, string>,
+  apply: boolean,
+) {
+  const suppliers = await prisma.fornecedores.findMany({
+    select: { id: true, nome: true },
+    orderBy: { id: "asc" },
+  })
+
+  const grouped = new Map<string, typeof suppliers>()
+  for (const supplier of suppliers) {
+    const key = normalizeKey(supplier.nome)
+    const current = grouped.get(key) ?? []
+    current.push(supplier)
+    grouped.set(key, current)
+  }
+
+  for (const [key, group] of grouped) {
+    if (group.length <= 1) {
+      continue
+    }
+
+    const preferredName = canonicalSuppliers.get(key)
+    const canonicalName = chooseCanonicalName(
+      group.map((entry) => entry.nome),
+      preferredName,
+    )
+    const keeper =
+      group.find(
+        (entry) =>
+          normalizeKey(entry.nome) === normalizeKey(canonicalName) && !hasMojibake(entry.nome),
+      ) ?? group[0]
+
+    if (!apply) {
+      summary.deduplicatedEntities.suppliers += group.length - 1
+      continue
+    }
+
+    if (keeper.nome !== canonicalName) {
+      await prisma.fornecedores.update({
+        where: { id: keeper.id },
+        data: { nome: canonicalName },
+      })
+    }
+
+    for (const duplicate of group) {
+      if (duplicate.id === keeper.id) {
+        continue
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.contaPagar.updateMany({
+          where: { fornecedor_id: duplicate.id },
+          data: { fornecedor_id: keeper.id },
+        })
+        await tx.materiais.updateMany({
+          where: { fornecedorId: duplicate.id },
+          data: { fornecedorId: keeper.id },
+        })
+        await tx.orcamento.updateMany({
+          where: { id_fornecedor: duplicate.id },
+          data: { id_fornecedor: keeper.id },
+        })
+        await tx.pedido_compra.updateMany({
+          where: { fornecedor_id: duplicate.id },
+          data: { fornecedor_id: keeper.id },
+        })
+        await tx.fornecedores.delete({
+          where: { id: duplicate.id },
+        })
+      })
+
+      summary.deduplicatedEntities.suppliers += 1
+    }
+  }
+}
+
+async function cleanupImportedCostCenters(summary: Summary, apply: boolean) {
+  const costCenters = await prisma.centroCusto.findMany({
+    where: {
+      descricao: {
+        contains: IMPORT_MARKER,
+      },
+    },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          lancamentos: true,
+          contas_pagar: true,
+          contas_receber: true,
+        },
+      },
+    },
+  })
+
+  for (const costCenter of costCenters) {
+    const isOrphan =
+      costCenter._count.lancamentos === 0 &&
+      costCenter._count.contas_pagar === 0 &&
+      costCenter._count.contas_receber === 0
+
+    if (!isOrphan) {
+      continue
+    }
+
+    if (apply) {
+      await prisma.centroCusto.delete({ where: { id: costCenter.id } })
+    }
+
+    summary.deduplicatedEntities.costCenters += 1
+  }
+}
+
+async function cleanupImportedWorks(summary: Summary, apply: boolean) {
+  const works = await prisma.obras.findMany({
+    where: {
+      observacoes: {
+        contains: IMPORT_MARKER,
+      },
+    },
+    select: {
+      id: true,
+      orcamento_id: true,
+      _count: {
+        select: {
+          pedidos_compra: true,
+          segmentos: true,
+          documentos: true,
+          imagens: true,
+          centro_custo: true,
+        },
+      },
+    },
+  })
+
+  for (const work of works) {
+    const isOrphan =
+      work.orcamento_id == null &&
+      work._count.pedidos_compra === 0 &&
+      work._count.segmentos === 0 &&
+      work._count.documentos === 0 &&
+      work._count.imagens === 0 &&
+      work._count.centro_custo === 0
+
+    if (!isOrphan) {
+      continue
+    }
+
+    if (apply) {
+      await prisma.obras.delete({ where: { id: work.id } })
+    }
+
+    summary.deduplicatedEntities.works += 1
+  }
+}
+
+async function sanitizeImportedEntities(
+  summary: Summary,
+  rows: ParsedRow[],
+  apply: boolean,
+) {
+  const canonicalCollections = buildCanonicalCollections(rows)
+
+  await deduplicateCategories(summary, canonicalCollections.categories, apply)
+  await deduplicateSuppliers(summary, canonicalCollections.suppliers, apply)
+  await cleanupImportedCostCenters(summary, apply)
+  await cleanupImportedWorks(summary, apply)
+}
+
+async function ensureBaselineCategories(
+  caches: ImportCaches,
+  summary: Summary,
+  apply: boolean,
+) {
+  await ensureCategory(caches, summary, "Receita de Ajuste", TipoCategoria.RECEITA, apply)
+  await ensureCategory(caches, summary, "Transferência", TipoCategoria.RECEITA, apply)
+  await ensureCategory(caches, summary, "Transferência", TipoCategoria.DESPESA, apply)
 }
 
 function buildEntityDescription(row: ParsedRow) {
@@ -1197,6 +1703,8 @@ async function applyOpeningBalances(
 
 async function processTransferRow(
   row: ParsedRow,
+  allRows: ParsedRow[],
+  processedTransferPairs: Set<string>,
   caches: ImportCaches,
   summary: Summary,
   apply: boolean,
@@ -1223,15 +1731,73 @@ async function processTransferRow(
     return
   }
 
-  const destinationBankName = sanitizeText(TRANSFER_DESTINATION_BY_ROW_KEY[row.key])
-  if (!destinationBankName) {
-    summary.blockedRows.push(
-      createBlockedRow(row, "Transferência sem conta destino mapeada."),
+  const explicitDestinationBankName = sanitizeText(TRANSFER_DESTINATION_BY_ROW_KEY[row.key])
+  const counterpart = allRows.find((candidate) => {
+    if (candidate.key === row.key || !candidate.isTransfer) {
+      return false
+    }
+
+    if (candidate.status !== row.status || candidate.amount !== row.amount) {
+      return false
+    }
+
+    if (candidate.direction === row.direction || !candidate.date || !row.date) {
+      return false
+    }
+
+    if (candidate.date.getTime() !== row.date.getTime()) {
+      return false
+    }
+
+    if (!candidate.bankName || !row.bankName) {
+      return false
+    }
+
+    return normalizeKey(candidate.bankName) !== normalizeKey(row.bankName)
+  })
+  const pairKey = counterpart ? [row.key, counterpart.key].sort().join(":") : null
+
+  if (pairKey && processedTransferPairs.has(pairKey)) {
+    return
+  }
+
+  const sourceRow =
+    row.direction === "SAIDA" ? row : counterpart?.direction === "SAIDA" ? counterpart : null
+  const destinationRow =
+    row.direction === "ENTRADA"
+      ? row
+      : counterpart?.direction === "ENTRADA"
+        ? counterpart
+        : null
+  const destinationBankName =
+    explicitDestinationBankName ??
+    (destinationRow && sourceRow && destinationRow.key !== row.key
+      ? destinationRow.bankName
+      : null)
+
+  if (!sourceRow || !destinationRow || !sourceRow.bankName || !destinationBankName) {
+    const fallbackRow: ParsedRow = {
+      ...row,
+      isTransfer: false,
+      categoryLabel: "Transferência",
+      categoryKey: TRANSFER_SUBCATEGORY_KEY,
+    }
+
+    await processFinancialRow(
+      fallbackRow,
+      allRows,
+      processedTransferPairs,
+      caches,
+      summary,
+      apply,
+      createdBy,
     )
     return
   }
 
-  const sourceBank = await ensureBank(caches, summary, row.bankName, apply)
+  processedTransferPairs.add(pairKey!)
+
+  const sourceBank = await ensureBank(caches, summary, sourceRow.bankName, apply)
   const destinationBank = await ensureBank(caches, summary, destinationBankName, apply)
   const revenueCategory = await ensureCategory(
     caches,
@@ -1275,7 +1841,10 @@ async function processTransferRow(
 
       const transfer = await tx.transferencia.create({
         data: {
-          descricao: truncate(`Transferência - ${row.bankName} para ${destinationBankName}`, 255),
+          descricao: truncate(
+            `Transferência - ${sourceRow.bankName} para ${destinationBankName}`,
+            255,
+          ),
           valor: new Prisma.Decimal(row.amount.toFixed(2)),
           data_transferencia: eventDate,
           conta_origem_id: sourceBank.id,
@@ -1302,7 +1871,7 @@ async function processTransferRow(
           },
           {
             tipo: TipoLancamento.RECEITA,
-            descricao: truncate(`Transferência recebida - ${row.bankName}`, 255),
+            descricao: truncate(`Transferência recebida - ${sourceRow.bankName}`, 255),
             valor: new Prisma.Decimal(row.amount.toFixed(2)),
             data_lancamento: eventDate,
             data_competencia: eventDate,
@@ -1353,13 +1922,23 @@ async function processTransferRow(
 
 async function processFinancialRow(
   row: ParsedRow,
+  allRows: ParsedRow[],
+  processedTransferPairs: Set<string>,
   caches: ImportCaches,
   summary: Summary,
   apply: boolean,
   createdBy: number | null,
 ) {
   if (row.isTransfer) {
-    await processTransferRow(row, caches, summary, apply, createdBy)
+    await processTransferRow(
+      row,
+      allRows,
+      processedTransferPairs,
+      caches,
+      summary,
+      apply,
+      createdBy,
+    )
     return
   }
 
@@ -1628,12 +2207,20 @@ async function processFinancialRow(
 async function main() {
   const args = parseArgs()
   const summary = createSummary(args)
-  const rawRows = readCsvRows(args.filePath)
+  const encodingRepairs = new Map<string, EncodingRepairEntry>()
+  const rawRows = readCsvRows(args.filePath, encodingRepairs)
   const parsedRows = rawRows.map((row, index) => parseRow(row, index + 2))
   const actionableRows = parsedRows.filter((row) => !row.isOpeningBalance)
   const openingBalances = collectOpeningBalances(parsedRows)
-  const caches = await loadCaches()
-  const createdBy = await getImporterUserId()
+  const processedTransferPairs = new Set<string>()
+
+  summary.encodingRepairs = Array.from(encodingRepairs.values()).sort((left, right) => {
+    if (right.count !== left.count) {
+      return right.count - left.count
+    }
+
+    return left.from.localeCompare(right.from, "pt-BR")
+  })
 
   ensureRequiredBanksPresence(parsedRows)
 
@@ -1641,13 +2228,56 @@ async function main() {
   summary.actionableRows = actionableRows.length
   summary.openingBalanceRows = parsedRows.filter((row) => row.isOpeningBalance).length
 
-  await applyOpeningBalances(openingBalances, caches, summary, args.apply)
+  if (args.preflight) {
+    await sanitizeImportedEntities(summary, parsedRows, false)
+    const preflightCaches = await loadCaches()
+    await ensureBaselineCategories(preflightCaches, summary, false)
+    const createdBy = await getImporterUserId()
 
-  for (const row of actionableRows) {
-    await processFinancialRow(row, caches, summary, args.apply, createdBy)
+    await applyOpeningBalances(openingBalances, preflightCaches, summary, false)
+
+    for (const row of actionableRows) {
+      await processFinancialRow(
+        row,
+        parsedRows,
+        processedTransferPairs,
+        preflightCaches,
+        summary,
+        false,
+        createdBy,
+      )
+    }
+  }
+
+  if (args.purge2026) {
+    await purgeFinancialYear(summary, 2026, true)
+    await sanitizeImportedEntities(summary, parsedRows, true)
   }
 
   if (args.apply) {
+    const caches = await loadCaches()
+    const createdBy = await getImporterUserId()
+
+    await ensureBaselineCategories(caches, summary, true)
+    await applyOpeningBalances(openingBalances, caches, summary, true)
+
+    for (const row of actionableRows) {
+      await processFinancialRow(
+        row,
+        parsedRows,
+        processedTransferPairs,
+        caches,
+        summary,
+        true,
+        createdBy,
+      )
+    }
+
+    const affectedBankIds = collectAffectedBankIds(parsedRows, caches)
+    summary.bankBalanceDiagnostics = await rebuildBankCurrentBalances(prisma, affectedBankIds)
+    await sanitizeImportedEntities(summary, parsedRows, true)
+  } else if (args.purge2026) {
+    const caches = await loadCaches()
     const affectedBankIds = collectAffectedBankIds(parsedRows, caches)
     summary.bankBalanceDiagnostics = await rebuildBankCurrentBalances(prisma, affectedBankIds)
   }

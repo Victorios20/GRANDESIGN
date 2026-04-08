@@ -845,10 +845,12 @@ enum TipoLancamento {
 }
 
 model Lancamento {
-  id        Int            @id @default(autoincrement())
-  tipo      TipoLancamento // Receita (Entrada) ou Despesa (Saída)
-  descricao String         @db.VarChar(255)
-  valor     Decimal        @db.Decimal(15, 2)
+  id             Int            @id @default(autoincrement())
+  tipo           TipoLancamento // Receita (Entrada) ou Despesa (Saída)
+  descricao      String         @db.VarChar(255)
+  valor          Decimal        @db.Decimal(15, 2)
+  valor_juros    Decimal        @default(0.00) @db.Decimal(15, 2)
+  valor_desconto Decimal        @default(0.00) @db.Decimal(15, 2)
 
   data_lancamento  DateTime @db.Date // Data efetiva do pagamento
   data_competencia DateTime @db.Date // Data para DRE
@@ -953,10 +955,11 @@ model IdempotencyLog {
 }
 
 model FluxoCaixaParametro {
-  id            Int      @id
-  limite_alerta Decimal  @default(10000.00) @db.Decimal(15, 2)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id              Int       @id
+  limite_alerta   Decimal   @default(10000.00) @db.Decimal(15, 2)
+  data_fechamento DateTime? @db.Date
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   @@map("fluxo_caixa_parametros")
 }

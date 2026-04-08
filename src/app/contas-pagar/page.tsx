@@ -33,11 +33,13 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     const categoriaId = getParam(params, "categoria_id")
     const centroCustoId = getParam(params, "centro_custo_id")
     const scope = getParam(params, "scope")
+    const highlight = getParam(params, "highlight")
 
     if (search) query.set("search", search)
     if (status) query.set("status", status)
     if (categoriaId) query.set("categoria_id", categoriaId)
     if (centroCustoId) query.set("centro_custo_id", centroCustoId)
+    if (highlight) query.set("highlight", highlight)
 
     const today = startOfDay(new Date())
     if (scope === "overdue" && !status) query.set("status", "ATRASADO")
@@ -81,6 +83,7 @@ export default async function ContasPagarPage({ searchParams }: PageProps) {
                 centroCustoId: getParam(resolvedSearchParams, "centro_custo_id") ?? "all",
                 scope: getParam(resolvedSearchParams, "scope") ?? "",
                 compose: getParam(resolvedSearchParams, "compose") === "1",
+                highlight: getParam(resolvedSearchParams, "highlight") ?? null,
             }}
         />
     )

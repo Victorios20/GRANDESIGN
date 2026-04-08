@@ -6,7 +6,7 @@ import { addDays, startOfDay } from "date-fns"
 import { ChevronDown, MoreHorizontal, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import { PageLayout } from "@/components/ui/pageLayout"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,6 +20,7 @@ import ReceivableEditorDialog from "./ReceivableEditorDialog"
 import BulkReceiveDialog from "./BulkReceiveDialog"
 import BulkRescheduleDialog from "@/components/financeiro/BulkRescheduleDialog"
 import BulkDeleteDialog from "@/components/financeiro/BulkDeleteDialog"
+import { MetricStrip } from "@/components/financeiro/MetricStrip"
 import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, remaining } from "@/lib/financeiro-utils"
 import type {
     BankOption,
@@ -31,6 +32,26 @@ import type {
     ReceivableListItem,
 } from "@/types/financeiro"
 import { cn } from "@/lib/utils"
+import {
+    operationalListChipClass,
+    operationalListChipRemoveButtonClass,
+    operationalListControlClass,
+    operationalListGhostButtonClass,
+    operationalListMutedButtonClass,
+    operationalListPaginationInfoClass,
+    operationalListPaginationNavButtonClass,
+    operationalListPrimaryButtonClass,
+    operationalListSearchInputClass,
+    operationalListShellClass,
+    operationalListSelectionToolbarClass,
+    operationalListSubtleButtonClass,
+    operationalListSubtlePanelClass,
+    operationalListTableHeadCellClass,
+    operationalListTableHeadClass,
+    operationalListTableHeadRowClass,
+    operationalListTableRowClass,
+    operationalListSelectedRowClass,
+} from "@/components/ui/operational-list-styles"
 
 interface InitialFilters {
     search: string
@@ -174,6 +195,7 @@ export default function ContasReceberPageClient({
 
     async function handleReceiveSuccess() {
         setReceiveModalOpen(false)
+        setEditorOpen(false)
         await handleMutationSuccess("Recebimento registrado")
     }
 
@@ -242,198 +264,200 @@ export default function ContasReceberPageClient({
     }
 
     const summaryCards = [
-        { label: "Carteira aberta", value: formatCurrency(summary.totalAmount), helper: `${summary.totalPending} contas` },
-        { label: "Atrasadas", value: formatCurrency(summary.overdueAmount), helper: `${summary.overdueCount} contas` },
-        { label: "Vencem hoje", value: formatCurrency(summary.dueTodayAmount), helper: `${summary.dueTodayCount} contas` },
-        { label: "Próximos 7 dias", value: formatCurrency(summary.dueNext7Amount), helper: `${summary.dueNext7Count} contas` },
+        { label: "Em aberto", value: formatCurrency(summary.totalAmount), helper: `${summary.totalPending} contas`, tone: "neutral" as const },
+        { label: "Atrasadas", value: formatCurrency(summary.overdueAmount), helper: `${summary.overdueCount} contas`, tone: "warning" as const },
+        { label: "Vencem hoje", value: formatCurrency(summary.dueTodayAmount), helper: `${summary.dueTodayCount} contas`, tone: "negative" as const },
+        { label: "Próximos 7 dias", value: formatCurrency(summary.dueNext7Amount), helper: `${summary.dueNext7Count} contas`, tone: "info" as const },
     ]
 
     return (
-        <PageLayout title="Contas a Receber">
-            <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-4">
-                    {summaryCards.map((card) => (
-                        <Card key={card.label} className="border-[#2C201B]/10 bg-[#FFFCF7]">
-                            <CardContent className="space-y-2 p-4">
-                                <p className="text-xs uppercase tracking-[0.18em] text-[#2C201B]/45">{card.label}</p>
-                                <p className="text-2xl font-semibold text-[#2C201B]">{card.value}</p>
-                                <p className="text-sm text-[#2C201B]/60">{card.helper}</p>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
+        <PageLayout title="Contas a Receber" links={[{ label: "Home", href: "/" }]} pageBackground="bg-[#F7F4EE]">
+            <div className="space-y-4">
+                <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="space-y-1">
+                        <h1 className="text-xl font-bold tracking-tight text-[#393316] md:text-2xl">Contas a Receber</h1>
+                        <p className="text-sm text-[#6f6556]">
+                            {meta.total} conta{meta.total === 1 ? "" : "s"} na visualização atual
+                        </p>
+                    </div>
 
-                <Card className="border-[#2C201B]/10 bg-[#FFFCF7]">
-                    <CardContent className="space-y-4 p-4">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                            <div className="relative min-w-0 flex-1">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
-                                <Input
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Número, descrição, cliente ou categoria"
-                                    className="h-10 rounded-lg border-[#d9d3c8] bg-white pl-9 pr-3 text-sm text-[#2c201b] placeholder:text-[#9a8f7c] focus-visible:ring-[#393316]/15"
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Button
+                            type="button"
+                            className={cn(operationalListPrimaryButtonClass, "h-10 rounded-lg px-4 text-sm")}
+                            onClick={openCreateDialog}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Nova Conta
+                        </Button>
+                    </div>
+                </section>
+
+                <section className={cn(operationalListShellClass, "space-y-3 px-4 py-4 md:px-5")}>
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                        <div className="relative min-w-0 flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
+                            <Input
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Buscar por número, descrição ou cliente"
+                                className={operationalListSearchInputClass}
+                            />
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
+                            <StatusSelect
+                                options={FINANCIAL_STATUS_OPTIONS}
+                                value={statusFilter[0] || ""}
+                                onChange={(value) => setStatusFilter(value ? [value] : [])}
+                                staticVariant="pill"
+                                placeholder="Todos os status"
+                                className="min-w-[170px] h-10"
+                            />
+
+                            <div className={cn("min-w-[200px] h-10", operationalListControlClass)}>
+                                <SmartDateRangePicker
+                                    range={dateRange}
+                                    onChange={(range) => setDateRange(range ?? undefined)}
+                                    className="h-full w-full"
                                 />
                             </div>
 
-                            <div className="flex flex-wrap items-end gap-2">
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Status</label>
-                                    <StatusSelect
-                                        options={FINANCIAL_STATUS_OPTIONS}
-                                        value={statusFilter[0] || ""}
-                                        onChange={(value) => setStatusFilter(value ? [value] : [])}
-                                        staticVariant="pill"
-                                        placeholder="Todos os status"
-                                        className="h-9 rounded-lg"
-                                    />
-                                </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setShowAdvancedFilters((current) => !current)}
+                                className={cn(
+                                    "gap-2 px-3 text-sm",
+                                    operationalListSubtleButtonClass,
+                                    "h-10",
+                                    showAdvancedFilters && "border-[#c9bea4] bg-[#f2ead8] text-[#2c201b]"
+                                )}
+                            >
+                                <SlidersHorizontal className="h-4 w-4" />
+                                Mais filtros
+                                {advancedFilterCount > 0 ? (
+                                    <span className={cn(
+                                        "inline-flex min-w-4 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                        showAdvancedFilters ? "bg-white text-[#2c201b]" : "bg-[#ebe4d4] text-[#6f6556]"
+                                    )}>
+                                        {advancedFilterCount}
+                                    </span>
+                                ) : (
+                                    <ChevronDown className="h-4 w-4 opacity-50" />
+                                )}
+                            </Button>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Período</label>
-                                    <SmartDateRangePicker
-                                        range={dateRange}
-                                        onChange={(range) => setDateRange(range ?? undefined)}
-                                        className="w-full rounded-lg border-[#d9d3c8] bg-white text-[#2c201b] focus-visible:ring-[#393316]/15"
-                                    />
-                                </div>
+                            {hasActiveFilters ? (
+                                <Button type="button" variant="ghost" onClick={clearAllFilters} className={cn("px-3 text-sm", operationalListGhostButtonClass)}>
+                                    <X className="mr-1 size-4" />
+                                    Limpar filtros
+                                </Button>
+                            ) : null}
+                        </div>
+                    </div>
 
-                                <Button
-                                    type="button"
+                    <MetricStrip items={summaryCards} compact />
+
+                    {activeFilterChips.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                            {activeFilterChips.map((chip) => (
+                                <Badge
+                                    key={chip.key}
                                     variant="outline"
-                                    onClick={() => setShowAdvancedFilters((current) => !current)}
-                                    className={cn(
-                                        "h-9 gap-2 rounded-lg border border-[#ddd7cc] bg-[#f7f4ec] px-3 text-sm text-[#393316] hover:bg-[#f1ecdf]",
-                                        showAdvancedFilters && "border-[#c9bea4] bg-[#f2ead8] text-[#2c201b]"
-                                    )}
+                                    className={cn(operationalListChipClass, "h-6")}
                                 >
-                                    <SlidersHorizontal className="size-4" />
-                                    Mais filtros
-                                    {advancedFilterCount > 0 ? (
-                                        <span className={cn(
-                                            "inline-flex min-w-4 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                                            showAdvancedFilters ? "bg-white text-[#2c201b]" : "bg-[#ebe4d4] text-[#6f6556]"
-                                        )}>
-                                            {advancedFilterCount}
-                                        </span>
-                                    ) : null}
-                                    <ChevronDown className={cn("size-4 transition-transform", showAdvancedFilters && "rotate-180")} />
-                                </Button>
+                                    {chip.label}
+                                    <button
+                                        type="button"
+                                        onClick={() => removeFilterChip(chip.key)}
+                                        className={operationalListChipRemoveButtonClass}
+                                        aria-label={`Remover filtro ${chip.label}`}
+                                    >
+                                        <X className="size-3" />
+                                    </button>
+                                </Badge>
+                            ))}
+                        </div>
+                    ) : null}
 
-                                {hasActiveFilters ? (
-                                    <Button type="button" variant="ghost" onClick={clearAllFilters} className="h-9 rounded-lg px-3 text-[#6f6556] shadow-none hover:bg-[#f3efe6] hover:text-[#2c201b]">
-                                        <X className="mr-1 size-4" />
-                                        Limpar filtros
-                                    </Button>
-                                ) : null}
-
-                                <Button type="button" className="btn-primary" onClick={openCreateDialog}>
-                                    <Plus className="mr-2 size-4" />
-                                    Nova conta
-                                </Button>
+                    {showAdvancedFilters ? (
+                        <div className={cn(operationalListSubtlePanelClass, "grid gap-3 px-3 py-3 lg:grid-cols-2 lg:items-end")}>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria financeira</label>
+                                <Select value={categoriaId} onValueChange={setCategoriaId}>
+                                    <SelectTrigger className={operationalListControlClass}>
+                                        <SelectValue placeholder="Todas as categorias" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todas as categorias</SelectItem>
+                                        {categories.map((category) => (
+                                            <SelectItem key={category.id} value={String(category.id)}>{category.nome}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Centro de custo</label>
+                                <Select value={centroCustoId} onValueChange={setCentroCustoId}>
+                                    <SelectTrigger className={operationalListControlClass}>
+                                        <SelectValue placeholder="Todos os centros" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os centros</SelectItem>
+                                        {centrosCusto.map((centro) => (
+                                            <SelectItem key={centro.id} value={String(centro.id)}>{centro.nome}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
+                    ) : null}
 
-                        {activeFilterChips.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                                {activeFilterChips.map((chip) => (
-                                    <Badge
-                                        key={chip.key}
-                                        variant="outline"
-                                        className="h-6 rounded-md border-[#ddd7cc] bg-[#f6f4ef] px-2 text-[11px] font-medium text-[#5f584c]"
-                                    >
-                                        {chip.label}
-                                        <button
-                                            type="button"
-                                            onClick={() => removeFilterChip(chip.key)}
-                                            className="ml-1 inline-flex size-4 items-center justify-center rounded-sm text-[#8a7d69] transition-colors hover:bg-black/5 hover:text-[#2c201b]"
-                                            aria-label={`Remover filtro ${chip.label}`}
+                    {selectedItems.length > 0 ? (
+                        <div className={cn(operationalListSelectionToolbarClass, "flex flex-wrap items-center justify-between gap-3")}>
+                            <div>
+                                <p className="text-sm font-medium text-[#2C201B]">Ações em lote</p>
+                                <p className="text-sm text-[#2C201B]/60">Escolha como tratar as contas marcadas sem sair da fila.</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="text-right">
+                                    <p className="text-sm text-[#2C201B]/60">{selectedItems.length} selecionadas</p>
+                                    <p className="text-sm font-semibold text-[#2C201B]">Saldo selecionado: {formatCurrency(selectedTotal)}</p>
+                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button type="button" variant="outline" className={cn("gap-2", operationalListMutedButtonClass)}>
+                                            Ações em lote
+                                            <ChevronDown className="size-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="min-w-[220px]">
+                                        <DropdownMenuItem onClick={() => setBulkOpen(true)}>
+                                            Receber selecionadas
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => setBulkRescheduleOpen(true)}>
+                                            Alterar vencimento
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => setBulkDeleteOpen(true)}
+                                            className="text-[#8F3F37] focus:text-[#8F3F37]"
                                         >
-                                            <X className="size-3" />
-                                        </button>
-                                    </Badge>
-                                ))}
+                                            Excluir selecionadas
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
-                        ) : null}
+                        </div>
+                    ) : null}
+                </section>
 
-                        {showAdvancedFilters ? (
-                            <div className="grid gap-3 rounded-xl border border-[#ece6db] bg-[#faf8f3] px-3 py-3 lg:grid-cols-2 lg:items-end">
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria financeira</label>
-                                    <Select value={categoriaId} onValueChange={setCategoriaId}>
-                                        <SelectTrigger className="h-9 rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] focus:ring-[#393316]/15">
-                                            <SelectValue placeholder="Todas as categorias" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todas as categorias</SelectItem>
-                                            {categories.map((category) => (
-                                                <SelectItem key={category.id} value={String(category.id)}>{category.nome}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Centro de custo</label>
-                                    <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                                        <SelectTrigger className="h-9 rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] focus:ring-[#393316]/15">
-                                            <SelectValue placeholder="Todos os centros" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos os centros</SelectItem>
-                                            {centrosCusto.map((centro) => (
-                                                <SelectItem key={centro.id} value={String(centro.id)}>{centro.nome}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                        ) : null}
-
-                        {selectedItems.length > 0 ? (
-                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2C201B]/10 bg-white/70 px-4 py-3">
-                                <div>
-                                    <p className="text-sm font-medium text-[#2C201B]">Ações em lote</p>
-                                    <p className="text-sm text-[#2C201B]/60">Escolha como tratar as contas marcadas sem sair da fila.</p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <div className="text-right">
-                                        <p className="text-sm text-[#2C201B]/60">{selectedItems.length} selecionadas</p>
-                                        <p className="text-sm font-semibold text-[#2C201B]">Saldo selecionado: {formatCurrency(selectedTotal)}</p>
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button type="button" variant="outline" className="gap-2">
-                                                Ações em lote
-                                                <ChevronDown className="size-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="min-w-[220px]">
-                                            <DropdownMenuItem onClick={() => setBulkOpen(true)}>
-                                                Receber selecionadas
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setBulkRescheduleOpen(true)}>
-                                                Alterar vencimento
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => setBulkDeleteOpen(true)}
-                                                className="text-[#8F3F37] focus:text-[#8F3F37]"
-                                            >
-                                                Excluir selecionadas
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </div>
-                        ) : null}
-                    </CardContent>
-                </Card>
-
-                <Card className="overflow-hidden border-[#2C201B]/10 bg-[#FFFCF7]">
+                <Card className={cn(operationalListShellClass, "overflow-hidden")}>
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[980px] text-sm">
-                            <thead className="bg-white/60">
-                                <tr className="border-b border-[#2C201B]/10">
-                                    <th className="w-12 px-4 py-3 text-left">
+                            <thead className={operationalListTableHeadClass}>
+                                <tr className={operationalListTableHeadRowClass}>
+                                    <th className={cn(operationalListTableHeadCellClass, "w-12")}>
                                         <Checkbox
                                             checked={allSelected}
                                             onCheckedChange={(checked) => setSelectedIds(checked ? receivableRows.map((item) => item.id) : [])}
@@ -441,7 +465,7 @@ export default function ContasReceberPageClient({
                                         />
                                     </th>
                                     {["Vencimento", "Cliente", "Descrição", "Categoria", "Valor total", "Status", "Opções"].map((header) => (
-                                        <th key={header} className="px-4 py-3 text-left text-xs uppercase tracking-[0.18em] text-[#2C201B]/45">
+                                        <th key={header} className={operationalListTableHeadCellClass}>
                                             {header}
                                         </th>
                                     ))}
@@ -469,8 +493,11 @@ export default function ContasReceberPageClient({
                                         return (
                                             <tr
                                                 key={item.id}
-                                                className="cursor-pointer border-b border-[#2C201B]/8 transition-colors hover:bg-white/80"
-                                                style={{ backgroundColor: isHighlighted ? "rgba(57,51,22,0.08)" : undefined }}
+                                                className={cn(
+                                                    operationalListTableRowClass,
+                                                    "cursor-pointer",
+                                                    (isSelected || isHighlighted) && operationalListSelectedRowClass
+                                                )}
                                                 onClick={() => openEditDialog(item)}
                                             >
                                                 <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
@@ -521,13 +548,13 @@ export default function ContasReceberPageClient({
                     </div>
 
                     {meta.totalPages > 1 ? (
-                        <div className="flex items-center justify-between border-t border-[#2C201B]/10 px-4 py-3">
-                            <span className="text-xs text-[#2C201B]/55">
+                        <div className="flex items-center justify-between border-t border-[#e7e0d4] px-4 py-3">
+                            <span className={operationalListPaginationInfoClass}>
                                 {meta.total} registros - página {meta.page} de {meta.totalPages}
                             </span>
                             <div className="flex gap-2">
-                                <Button type="button" variant="outline" size="sm" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</Button>
-                                <Button type="button" variant="outline" size="sm" disabled={page >= meta.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
+                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</Button>
+                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page >= meta.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
                             </div>
                         </div>
                     ) : null}

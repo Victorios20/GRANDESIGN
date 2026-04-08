@@ -102,14 +102,14 @@ export function CustomSidebar() {
       return
     }
 
-    setOpenGroupIds((current) => Array.from(new Set([...current, ...activeGroupIds])))
+    setOpenGroupIds(activeGroupIds)
   }, [activeGroupIds])
 
   const toggleGroup = React.useCallback((groupId: string) => {
     setOpenGroupIds((current) =>
       current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [...current, groupId]
+        ? []
+        : [groupId]
     )
   }, [])
 
@@ -139,24 +139,22 @@ export function CustomSidebar() {
           <SidebarMenuButton
             asChild
             isActive={active}
-            tooltip={isCollapsed ? item.label : undefined}
+            tooltip={isCollapsed && !nested ? item.label : undefined}
             className={cn(
-              "gap-3 px-3 transition-[background-color,color,box-shadow] duration-150 ease-out",
+              "transition-all duration-150 ease-out",
               focusRingClass,
               nested
-                ? "h-[38px] rounded-[12px] text-[13.5px] font-medium"
-                : "h-[44px] rounded-[14px] text-sm font-semibold",
-              nested
-                ? "text-[#2C201B]/68 hover:bg-[#FAF3E0]/88 hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]"
-                : "text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]",
-              !nested && "shadow-[inset_0_0_0_1px_rgba(44,32,27,0)]",
-              compact && "h-[44px] w-[44px] justify-center rounded-[14px] p-0",
-              isCollapsed && !nested && "h-[44px] w-[44px] justify-center rounded-[14px] p-0"
+                ? "relative flex h-[34px] w-full items-center rounded-none -ml-[1px] border-l-[2px] border-transparent bg-transparent pl-4 text-[13px] font-medium text-[#2C201B]/60 hover:translate-x-[2px] hover:bg-transparent hover:text-[#2C201B] data-[active=true]:translate-x-[2px] data-[active=true]:border-[#393316] data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-[#2C201B]"
+                : "flex items-center gap-3 px-3 h-[44px] rounded-[14px] text-sm font-semibold text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316] shadow-[inset_0_0_0_1px_rgba(44,32,27,0)]",
+              compact && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]",
+              isCollapsed && !nested && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]"
             )}
           >
             <Link href={item.href} aria-current={active ? "page" : undefined}>
-              <item.icon className={cn("shrink-0", nested ? "size-[16px]" : "size-[18px]")} strokeWidth={1.9} />
-              {!compact ? <span>{item.label}</span> : <span className="sr-only">{item.label}</span>}
+              {!nested && "icon" in item && item.icon && (
+                <item.icon className="shrink-0 size-[18px]" strokeWidth={1.9} />
+              )}
+              {!compact ? <span className="truncate">{item.label}</span> : <span className="sr-only">{item.label}</span>}
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -196,11 +194,13 @@ export function CustomSidebar() {
               <div className="px-2 pb-2 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.24em] text-[#2C201B]/44">
                 {group.label}
               </div>
-              <SidebarMenu className="gap-1.5">
-                {group.children.map((child) =>
-                  renderLinkItem({ item: child, nested: true, compact: false })
-                )}
-              </SidebarMenu>
+              <div className="ml-2 border-l border-[#2C201B]/10 py-1">
+                <SidebarMenu className="gap-0">
+                  {group.children.map((child) =>
+                    renderLinkItem({ item: child, nested: true, compact: false })
+                  )}
+                </SidebarMenu>
+              </div>
             </PopoverContent>
           </Popover>
         </SidebarMenuItem>
@@ -251,9 +251,9 @@ export function CustomSidebar() {
               isOpen ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
             )}
           >
-            <SidebarGroupContent id={contentId} className="overflow-hidden pl-5">
-              <div className="rounded-[16px] bg-[#FBF6EA]/88 p-1.5">
-                <SidebarMenu className="gap-1">
+            <SidebarGroupContent id={contentId} className="overflow-hidden pl-4 pr-1">
+              <div className="relative mt-1 ml-4 border-l border-[#2C201B]/10 py-1">
+                <SidebarMenu className="gap-0">
                   {group.children.map((child) =>
                     renderLinkItem({ item: child, nested: true, compact: false })
                   )}

@@ -54,10 +54,10 @@ export async function payBill(input: PayBillInput, userId?: number) {
         const total = Number(bill.valor_total)
         const paid = Number(bill.valor_pago)
         const remaining = total - paid
-        const amountToPay = input.valor
+        const amortizadoParaContaPagar = input.valor + input.descontos - input.juros
 
-        if (amountToPay > remaining + 0.01) {
-            throw new Error(`Valor excedente. Restante: ${remaining.toFixed(2)}`)
+        if (amortizadoParaContaPagar > remaining + 0.01) {
+            throw new Error(`Amortização excedente. Restante: ${remaining.toFixed(2)} (Amortização calculada: ${amortizadoParaContaPagar.toFixed(2)})`)
         }
 
         // 5. Atomic Transaction with OCC
@@ -70,7 +70,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
                     valor_pago: bill.valor_pago // OCC Version Check
                 },
                 data: {
-                    valor_pago: { increment: amountToPay }
+                    valor_pago: { increment: amortizadoParaContaPagar }
                 }
             })
 
@@ -80,7 +80,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
 
             // Check new totals to determine status
             // We can't use `returned` value from updateMany. We calculate based on inputs.
-            const newPaid = paid + amountToPay
+            const newPaid = paid + amortizadoParaContaPagar
             const isPaid = Math.abs(total - newPaid) < 0.01
             const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
 
@@ -97,7 +97,9 @@ export async function payBill(input: PayBillInput, userId?: number) {
             await tx.lancamento.create({
                 data: {
                     descricao: `Pagamento: ${bill.descricao}`,
-                    valor: amountToPay,
+                    valor: input.valor,
+                    valor_juros: input.juros,
+                    valor_desconto: input.descontos,
                     tipo: TipoLancamento.DESPESA,
                     data_lancamento: input.data_pagamento,
                     data_competencia: bill.data_vencimento,
@@ -113,7 +115,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
             // C. Update Bank Balance
             await tx.contasBancaria.update({
                 where: { id: input.conta_bancaria_id },
-                data: { saldo_atual: { decrement: amountToPay } }
+                data: { saldo_atual: { decrement: input.valor } }
             })
 
             return updatedBill

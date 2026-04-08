@@ -1,10 +1,22 @@
-import { prisma } from "@/lib/prisma"
+﻿import { prisma } from "@/lib/prisma"
 import { validateTransaction, TransactionInput } from "@/lib/validators/financial"
 import { TipoLancamento } from "@prisma/client"
+import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
+
+function isDateClosed(date: Date, closingDateIso?: string | null) {
+    if (!closingDateIso) return false
+    return new Date(date) <= new Date(closingDateIso)
+}
 
 export async function createTransaction(input: TransactionInput, userId?: number) {
     // 1. Validate Business Rules
     await validateTransaction(input)
+    const settings = await getCashFlowSettings()
+    const effectiveDate = input.data_competencia || input.data_lancamento
+
+    if (isDateClosed(effectiveDate, settings.closing_date)) {
+        throw new Error("Período financeiro fechado")
+    }
 
     // 2. Execute Atomic Transaction
     return await prisma.$transaction(async (tx) => {
@@ -33,9 +45,29 @@ export async function createTransaction(input: TransactionInput, userId?: number
             }
         })
 
+        if (userId) {
+            await tx.auditLog.create({
+                data: {
+                    action: "TRANSACTION_CREATED",
+                    entity: "lancamento",
+                    entity_id: lancamento.id,
+                    user_id: userId,
+                    detail: {
+                        descricao: lancamento.descricao,
+                        valor: Number(lancamento.valor),
+                        tipo: lancamento.tipo,
+                        data_lancamento: lancamento.data_lancamento.toISOString(),
+                        data_competencia: lancamento.data_competencia.toISOString(),
+                    },
+                },
+            })
+        }
+
         return {
             lancamento,
             novo_saldo: updatedAccount.saldo_atual
         }
     })
 }
+
+

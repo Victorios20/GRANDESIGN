@@ -18,6 +18,9 @@ type Props = {
 export default function ParametersPageClient({ initialCashFlowSettings }: Props) {
     const [cashFlowSettings, setCashFlowSettings] = useState(initialCashFlowSettings)
     const [safetyLimitInput, setSafetyLimitInput] = useState(String(initialCashFlowSettings.safety_limit))
+    const [closingDateInput, setClosingDateInput] = useState(
+        initialCashFlowSettings.closing_date ? initialCashFlowSettings.closing_date.split("T")[0] : ""
+    )
     const [saving, setSaving] = useState(false)
 
     async function handleSave() {
@@ -31,6 +34,7 @@ export default function ParametersPageClient({ initialCashFlowSettings }: Props)
                 },
                 body: JSON.stringify({
                     safety_limit: Number(safetyLimitInput || 0),
+                    closing_date: closingDateInput ? closingDateInput : null,
                 }),
             })
 
@@ -42,6 +46,11 @@ export default function ParametersPageClient({ initialCashFlowSettings }: Props)
 
             setCashFlowSettings(payload as CashFlowSettings)
             setSafetyLimitInput(String((payload as CashFlowSettings).safety_limit))
+            setClosingDateInput(
+                (payload as CashFlowSettings).closing_date
+                    ? (payload as CashFlowSettings).closing_date!.split("T")[0]
+                    : ""
+            )
             toast.success("Parametrizacao do fluxo de caixa atualizada")
         } catch (error) {
             toast.error((error as Error).message)
@@ -83,6 +92,9 @@ export default function ParametersPageClient({ initialCashFlowSettings }: Props)
                                 <p className="text-sm text-[#2C201B]/58">
                                     Saldo acumulado acima deste valor sera classificado como saudavel.
                                 </p>
+                                <p className="text-sm text-[#2C201B]/58">
+                                    Fechamento atual: {cashFlowSettings.closing_date ? cashFlowSettings.closing_date.split("T")[0] : "Nao definido"}
+                                </p>
                             </div>
                             <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#2C201B]/8 bg-[#FAF3E0]">
                                 <WalletCards className="size-5 text-[#393316]" />
@@ -98,6 +110,22 @@ export default function ParametersPageClient({ initialCashFlowSettings }: Props)
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-5">
+                        <div className="grid gap-4 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
+                            <div className="space-y-2">
+                                <Label htmlFor="cash-flow-closing-date">Data de fechamento</Label>
+                                <Input
+                                    id="cash-flow-closing-date"
+                                    type="date"
+                                    value={closingDateInput}
+                                    onChange={(event) => setClosingDateInput(event.target.value)}
+                                    className="h-11 border-[#2C201B]/10 bg-white"
+                                />
+                            </div>
+                            <p className="text-sm leading-6 text-[#2C201B]/62">
+                                Lancamentos com data de competencia ate a data informada ficam bloqueados para alteracao ate que o periodo seja reaberto.
+                            </p>
+                        </div>
+
                         <div className="grid gap-4 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
                             <div className="space-y-2">
                                 <Label htmlFor="cash-flow-safety-limit">Limite de seguranca</Label>

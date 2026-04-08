@@ -1,11 +1,23 @@
 "use client"
 
 import * as React from "react"
-import { CalendarDays } from "lucide-react"
+import { CalendarDays, ChevronDown } from "lucide-react"
 import type { DateRange } from "react-day-picker"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import {
+    datePickerCalendarPanelClass,
+    datePickerFooterClass,
+    datePickerPopoverClass,
+    datePickerSidebarClass,
+    datePickerSidebarTitleClass,
+    datePickerSidebarValueClass,
+    datePickerTriggerClass,
+    datePickerTriggerIconWrapClass,
+    getDatePickerChevronClass,
+    getDatePickerShortcutClass,
+} from "@/components/ui/date-picker-styles"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
@@ -25,12 +37,6 @@ type Props = {
     range: DateRange | undefined
     disabled?: boolean
     onApplySelection: (selection: CashFlowPeriodSelection, range: DateRange | undefined) => void
-}
-
-function getPresetButtonClass(active: boolean) {
-    return active
-        ? "border-[#2c201b] bg-[#2c201b] text-[#FAF3E0] hover:bg-[#231a15]"
-        : "border-[rgba(44,32,27,0.12)] bg-white text-[#2c201b] hover:bg-[rgba(44,32,27,0.05)]"
 }
 
 export function CashFlowPeriodControl({
@@ -84,7 +90,7 @@ export function CashFlowPeriodControl({
     return (
         <div className="space-y-2">
             <Label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.62)]">
-                Periodo
+                Período
             </Label>
 
             <Popover open={open} onOpenChange={setOpen}>
@@ -94,44 +100,50 @@ export function CashFlowPeriodControl({
                         variant="outline"
                         disabled={disabled}
                         className={cn(
-                            "h-11 w-full justify-between rounded-lg border-[#2c201b] bg-transparent px-3 text-left font-normal text-[#2c201b] hover:bg-[rgba(44,32,27,0.05)] md:w-[320px]",
+                            datePickerTriggerClass,
+                            "md:w-[320px]",
                             disabled && "opacity-60",
                         )}
                     >
-                        <span className="flex min-w-0 items-center gap-2">
-                            <CalendarDays className="h-4 w-4 shrink-0 text-[#393316]" />
-                            <span className="truncate">{triggerLabel}</span>
+                        <span className="flex min-w-0 items-center gap-2.5">
+                            <span className={datePickerTriggerIconWrapClass}>
+                                <CalendarDays className="size-3.5 text-[#393316]" />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
                         </span>
-                        <span className="ml-3 shrink-0 text-xs text-[rgba(44,32,27,0.62)]">
-                            {selection.label}
+                        <span className="ml-3 flex shrink-0 items-center gap-2">
+                            <span className="hidden text-xs text-[rgba(44,32,27,0.62)] md:inline">
+                                {selection.label}
+                            </span>
+                            <ChevronDown className={getDatePickerChevronClass(open)} />
                         </span>
                     </Button>
                 </PopoverTrigger>
 
                 <PopoverContent
                     align="start"
-                    className="w-[min(92vw,760px)] rounded-2xl border-[rgba(44,32,27,0.10)] bg-[#FAF3E0] p-0 shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+                    sideOffset={10}
+                    className={cn(datePickerPopoverClass, "w-[min(92vw,760px)]")}
                 >
                     <div className="grid gap-0 lg:grid-cols-[220px_minmax(0,1fr)]">
-                        <div className="border-b border-[rgba(44,32,27,0.10)] p-4 lg:border-b-0 lg:border-r">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[rgba(44,32,27,0.58)]">
+                        <div className={cn(datePickerSidebarClass, "p-4")}>
+                            <p className={datePickerSidebarTitleClass}>
                                 Presets
+                            </p>
+                            <p className={cn(datePickerSidebarValueClass, "mt-1 text-xs font-normal text-[#6F6556]")}>
+                                {selection.label}
                             </p>
 
                             <div className="mt-3 grid gap-2">
                                 {CASH_FLOW_PERIOD_OPTIONS.map((option) => (
-                                    <Button
+                                    <button
                                         key={option.key}
                                         type="button"
-                                        variant="outline"
-                                        className={cn(
-                                            "justify-start rounded-lg px-3 text-sm font-medium",
-                                            getPresetButtonClass(selection.key === option.key),
-                                        )}
+                                        className={getDatePickerShortcutClass(selection.key === option.key)}
                                         onClick={() => handlePresetClick(option.key)}
                                     >
                                         {option.label}
-                                    </Button>
+                                    </button>
                                 ))}
                             </div>
                         </div>
@@ -148,7 +160,7 @@ export function CashFlowPeriodControl({
                                 </div>
                             </div>
 
-                            <div className="mt-4 overflow-auto rounded-xl border border-[rgba(44,32,27,0.10)] bg-white p-2">
+                            <div className={cn(datePickerCalendarPanelClass, "mt-4")}>
                                 <Calendar
                                     initialFocus
                                     mode="range"
@@ -167,7 +179,7 @@ export function CashFlowPeriodControl({
                                 />
                             </div>
 
-                            <div className="mt-4 flex flex-col gap-3 border-t border-[rgba(44,32,27,0.10)] pt-4 md:flex-row md:items-center md:justify-between">
+                            <div className={cn(datePickerFooterClass, "mt-4 pt-4")}>
                                 <div className="text-sm text-[rgba(44,32,27,0.72)]">
                                     {formatCashFlowRangeLabel(draftRange)}
                                 </div>

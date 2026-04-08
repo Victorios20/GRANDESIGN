@@ -5,6 +5,15 @@ import { getTransactions } from "@/actions/financeiro/transactions/get-transacti
 import { TipoLancamento } from "@prisma/client"
 import { format } from "date-fns"
 
+function parseBankIds(value: string | null) {
+    if (!value) return []
+
+    return value
+        .split(",")
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isInteger(item) && item > 0)
+}
+
 function escapeCSV(value: string): string {
     if (value.includes(",") || value.includes('"') || value.includes("\n")) {
         return `"${value.replace(/"/g, '""')}"`
@@ -30,12 +39,15 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url)
 
+        const search = searchParams.get("search") ?? undefined
         const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
         const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
         const dateType = (searchParams.get("dateType") as "lancamento" | "competencia") || "lancamento"
         const conta_bancaria_id = searchParams.get("conta_bancaria_id") ? Number(searchParams.get("conta_bancaria_id")) : undefined
+        const conta_bancaria_ids = parseBankIds(searchParams.get("conta_bancaria_ids"))
         const categoria_id = searchParams.get("categoria_id") ? Number(searchParams.get("categoria_id")) : undefined
         const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined
+        const cost_scope = searchParams.get("cost_scope") === "cost" ? "cost" : searchParams.get("cost_scope") === "expense" ? "expense" : undefined
         const tipo = searchParams.get("tipo") as TipoLancamento | undefined
         const conciliadoParam = searchParams.get("conciliado")
         const conciliado = conciliadoParam === "true" ? true : conciliadoParam === "false" ? false : undefined
@@ -43,12 +55,15 @@ export async function GET(req: Request) {
         const result = await getTransactions({
             page: 1,
             limit: 10000,
+            search,
             startDate,
             endDate,
             dateType,
             conta_bancaria_id,
+            conta_bancaria_ids,
             categoria_id,
             centro_custo_id,
+            cost_scope,
             tipo,
             conciliado,
         })

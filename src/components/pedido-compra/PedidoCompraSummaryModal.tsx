@@ -425,7 +425,18 @@ export function PedidoCompraSummaryModal({
 
               <div>
                 <span className="block text-xs text-muted-foreground">Conta a pagar vinculada</span>
-                <span className="text-sm font-medium">{linkedPayableId ? `#${linkedPayableId}` : "—"}</span>
+                {linkedPayableId ? (
+                  <a
+                    href={`/contas-pagar?highlight=${linkedPayableId}`}
+                    onClick={() => onOpenChange(false)}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-[#393316] underline-offset-2 hover:underline"
+                  >
+                    #{linkedPayableId}
+                    <ExternalLink className="h-3 w-3 opacity-60" />
+                  </a>
+                ) : (
+                  <span className="text-sm font-medium">—</span>
+                )}
               </div>
 
               <div>

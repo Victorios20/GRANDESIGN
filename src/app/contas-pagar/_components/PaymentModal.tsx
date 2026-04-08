@@ -112,6 +112,8 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                             <Link
                                 href={`/pedido_compra/ver/${item.pedido_compra.id}`}
                                 className="mt-2 inline-flex rounded-md border border-[#ebe5da] bg-[#faf8f4] px-2 py-0.5 text-[11px] font-medium text-[#8a7f70] transition-colors hover:border-[#ddd7cc] hover:text-[#2c201b]"
+                                target="_blank"
+                                rel="noopener noreferrer"
                             >
                                 Origem {formatPedidoId(item.pedido_compra.id, item.pedido_compra.obra_id)}
                             </Link>

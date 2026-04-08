@@ -141,16 +141,23 @@ async function resolveExpenseCategoryId(tx: Tx) {
 }
 
 export async function syncPedidoCompraValorRealizadoInTransaction(tx: Tx, pedidoId: number) {
-  const latestPayable = await tx.contaPagar.findFirst({
+  // Source of truth: ledger (lancamentos), per ADR-001.
+  // Sum all positive DESPESA entries linked to the active ContaPagar of this pedido.
+  // Negative entries (estornos) are excluded via valor > 0, so partial payments and
+  // reversals are automatically reflected without any special-casing.
+  const aggregate = await tx.lancamento.aggregate({
     where: {
-      pedido_compra_id: pedidoId,
-      status: { not: StatusFinanceiro.CANCELADO },
+      conta_pagar: {
+        pedido_compra_id: pedidoId,
+        status: { not: StatusFinanceiro.CANCELADO },
+      },
+      tipo: TipoLancamento.DESPESA,
+      valor: { gt: 0 },
     },
-    orderBy: [{ created_at: "desc" }, { id: "desc" }],
-    select: { valor_total: true },
+    _sum: { valor: true },
   })
 
-  const valorRealizado = latestPayable?.valor_total ?? new Prisma.Decimal(0)
+  const valorRealizado = aggregate._sum.valor ?? new Prisma.Decimal(0)
 
   await tx.pedido_compra.update({
     where: { id: pedidoId },

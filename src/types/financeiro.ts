@@ -1,4 +1,4 @@
-import type { StatusFinanceiro, TipoLancamento } from "@prisma/client"
+import type { ConferenciaStatus, StatusConferencia, StatusFinanceiro, TipoLancamento } from "@prisma/client"
 
 // ── Transaction (Lancamento) type ──
 
@@ -10,6 +10,9 @@ export interface TransactionListItem {
     data_lancamento: string
     data_competencia: string
     conciliado: boolean
+    status_conferencia: StatusConferencia
+    pendencia_motivo: string | null
+    conferencia_sessao_id: number | null
     observacoes: string | null
     conta_bancaria: { id: number; nome: string; banco: string | null; cor: string | null }
     categoria: { id: number; nome: string; cor: string | null; icone: string | null; tipo: string }
@@ -17,6 +20,12 @@ export interface TransactionListItem {
     conta_pagar: { id: number; descricao: string; fornecedor: { nome: string } | null } | null
     conta_receber: { id: number; descricao: string; cliente: { nome: string } | null } | null
     transferencia: { id: number } | null
+    conferencia_sessoes: {
+        id: number
+        status: ConferenciaStatus
+        periodo_inicio: string
+        periodo_fim: string
+    } | null
     createdBy: { id: number; name: string } | null
     created_at: string
 }
@@ -82,6 +91,49 @@ export interface FinancialSummary {
     dueNext7Count: number
     dueNext7Amount: number
 }
+
+export interface TransactionSummary {
+    incomeAmount: number
+    expenseAmount: number
+    netAmount: number
+    reconciledCount: number
+    totalCount: number
+}
+
+export interface ConferenceSessionSummary {
+    id: number
+    conta_bancaria_id: number | null
+    conta_bancaria_nome: string | null
+    criada_em: string
+    concluida_em: string | null
+    periodo_inicio: string
+    periodo_fim: string
+    status: ConferenciaStatus
+    qtd_conferidas: number
+    qtd_pendencias: number
+    total_lancamentos: number
+    remainingCount: number
+    snapshot_total: number
+    reviewed_count: number
+    pending_issue_count: number
+    not_reviewed_count: number
+    new_pending_after_open_count: number
+    account_backlog_total: number
+    total_conferido: number
+    nota: string | null
+    reopen_reason: string | null
+}
+
+export interface ConferenceAccountContext {
+    conta_bancaria_id: number
+    conta_bancaria_nome: string
+    saldo_atual: number
+    account_backlog_total: number
+    active_session: ConferenceSessionSummary | null
+    latest_closed_session: ConferenceSessionSummary | null
+}
+
+export type ConferenceSessionHistoryItem = ConferenceSessionSummary
 
 // ── Dropdown options ──
 
@@ -165,6 +217,80 @@ export interface PaginatedResponse<T> {
 
 // ── Dashboard ──
 
+export type DashboardPeriodPreset =
+    | "today"
+    | "yesterday"
+    | "last7"
+    | "last30"
+    | "thisMonth"
+    | "lastMonth"
+    | "thisYear"
+    | "last3Months"
+    | "custom"
+
+export type DashboardAnalysisStatus = "realizado" | "previsto" | "ambos"
+export type DashboardExpenseScope = "expense" | "cost"
+
+export type DashboardChartWindowPreset = "thisMonth" | "30d" | "3m" | "6m" | "12m"
+
+export interface DashboardHeaderContext {
+    title: string
+    subtitle: string
+}
+
+export interface DashboardAppliedFilters {
+    period_preset: DashboardPeriodPreset
+    period_start: string
+    period_end: string
+    period_label: string
+    account_ids: number[]
+    analysis_status: DashboardAnalysisStatus
+}
+
+export interface DashboardKpiComparison {
+    label: string
+    value: number
+}
+
+export interface DashboardKpiMetric {
+    label: string
+    microcopy?: string
+    value: number
+    anchor_label: string
+    comparison?: DashboardKpiComparison | null
+}
+
+export interface DashboardEvolutionPoint {
+    bucket_key: string
+    label: string
+    start: string
+    end: string
+    receitas: number
+    despesas: number
+    resultado: number
+    saldo_acumulado: number
+    is_current: boolean
+}
+
+export interface DashboardTopExpenseItem {
+    categoria_id: number
+    nome: string
+    cor: string | null
+    total: number
+    percentual_total: number
+    lancamentos_count: number
+}
+
+export interface DashboardAlert {
+    id: string
+    priority: number
+    tone: "critical" | "warning" | "info"
+    title: string
+    description: string
+    cta_label?: string | null
+    cta_href?: string | null
+}
+
 export interface UpcomingItem {
     id: number
     descricao: string
@@ -173,21 +299,144 @@ export interface UpcomingItem {
     tipo: "pagar" | "receber"
     entidade: string | null
     categoria: string
+    urgency: "overdue" | "today" | "tomorrow" | "upcoming"
+    badge_label: string
+    account_name?: string | null
+    route_href?: string | null
+}
+
+export interface DashboardCashAccountItem {
+    id: number
+    nome: string
+    tipo: string
+    banco: string | null
+    saldo_atual: number
 }
 
 export interface DashboardSummary {
-    saldo_total: number
-    a_receber_30d: number
-    a_pagar_30d: number
-    projecao_30d: number
-    entradas_saidas_12m: { month: string; receitas: number; despesas: number }[]
-    top_categorias_mes: { nome: string; cor: string | null; total: number; tipo: string }[]
-    proximos_vencimentos: UpcomingItem[]
-    vencidas: UpcomingItem[]
-    upcoming_payables_7d: UpcomingItem[]
-    upcoming_receivables_7d: UpcomingItem[]
-    overdue_compact: UpcomingItem[]
-    operational_result?: OperationalResult
+    header_context: DashboardHeaderContext
+    filters_applied: DashboardAppliedFilters
+    kpis: {
+        saldo_disponivel: DashboardKpiMetric
+        resultado_periodo: DashboardKpiMetric
+        saidas_previstas: DashboardKpiMetric
+        saldo_projetado: DashboardKpiMetric
+    }
+    evolution: {
+        title: string
+        subtitle: string
+        window_preset?: DashboardChartWindowPreset
+        range_label?: string
+        resolution: "day" | "month"
+        summary: {
+            receitas: number
+            despesas: number
+            resultado: number
+            saldo_acumulado: number
+        }
+        points: DashboardEvolutionPoint[]
+    }
+    top_expenses: {
+        title: string
+        subtitle: string
+        scope: DashboardExpenseScope
+        total_despesas: number
+        items: DashboardTopExpenseItem[]
+    }
+    alerts?: {
+        title: string
+        subtitle: string
+        items: DashboardAlert[]
+    }
+    upcoming_payables: {
+        title: string
+        subtitle: string
+        items: UpcomingItem[]
+    }
+    upcoming_receivables: {
+        title: string
+        subtitle: string
+        items: UpcomingItem[]
+    }
+    cash_composition: {
+        title: string
+        subtitle: string
+        total: number
+        items: DashboardCashAccountItem[]
+    }
+}
+
+export interface DashboardDetailListItem {
+    id: number
+    title: string
+    subtitle: string
+    amount: number
+    date: string
+    source: "realizado" | "previsto"
+    tone: "positive" | "negative" | "neutral"
+    href: string
+}
+
+export interface DashboardPeriodDetail {
+    title: string
+    subtitle: string
+    period_label: string
+    summary: {
+        receitas: number
+        despesas: number
+        resultado: number
+    }
+    items: DashboardDetailListItem[]
+    cta_label: string
+    cta_href: string
+}
+
+export interface DashboardExpenseSupplierBreakdownItem {
+    supplier_id: number | null
+    nome: string
+    total: number
+    lancamentos_count: number
+    href: string
+}
+
+export interface DashboardExpenseCategoryDetail {
+    title: string
+    subtitle: string
+    scope: DashboardExpenseScope
+    category: {
+        categoria_id: number
+        nome: string
+        total: number
+        percentual_total: number
+    }
+    suppliers: DashboardExpenseSupplierBreakdownItem[]
+    latest_items: DashboardDetailListItem[]
+    cta_label: string
+    cta_href: string
+}
+
+export interface DashboardEntryDetail {
+    title: string
+    subtitle: string
+    amount: number
+    due_date: string
+    badge_label: string
+    category: string
+    entity: string | null
+    description: string
+    notes: string | null
+    cta_label: string
+    cta_href: string
+}
+
+export interface DashboardCashDetail {
+    title: string
+    subtitle: string
+    total: number
+    accounts: DashboardCashAccountItem[]
+    latest_movements: DashboardDetailListItem[]
+    cta_label: string
+    cta_href: string
 }
 
 // ── Reports ──
@@ -302,6 +551,7 @@ export interface CashFlowProjectionAnalytics {
 
 export interface CashFlowSettings {
     safety_limit: number
+    closing_date: string | null
 }
 
 export interface CashFlowExcludedTransfersSummary {

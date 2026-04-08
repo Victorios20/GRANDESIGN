@@ -1,5 +1,5 @@
 export const DEFAULT_CSV_PATH =
-  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página26.csv"
+  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (2).csv"
 
 export const REQUIRED_BANK_ACCOUNTS = [
   "Inter empresa",
@@ -40,14 +40,14 @@ export const SUPPLIER_NAME_OVERRIDES: Record<string, string> = {
   "deposito bandeira": "Depósito Bandeira",
   "eng. anderson marques": "Eng. Anderson Marques",
   facebook: "Facebook",
-  igreen: "IGreen",
+  igreen: "Igreen",
   impressao: "Impressão",
   indicacao: "Indicação",
   jeova: "Jeová",
   lorena: "Lorena",
   marcio: "Márcio",
   "madeireira quixada": "Madeireira Quixadá",
-  "metro quadrado": "Metro Quadrado",
+  "metro quadrado": "Metro quadrado",
   "naldo andaimes": "Naldo Andaimes",
   "nando fretes": "Nando Fretes",
   "parafuso e prego": "Parafuso e Prego",
@@ -65,7 +65,10 @@ export const SUPPLIER_NAME_OVERRIDES: Record<string, string> = {
   "ze dos parafusos": "Zé dos Parafusos",
 }
 
-export const CLIENT_NAME_OVERRIDES: Record<string, string> = {}
+export const CLIENT_NAME_OVERRIDES: Record<string, string> = {
+  dhyego: "Dhyego",
+  "jose juraci": "José Juraci",
+}
 
 export const COST_CENTER_NAME_OVERRIDES: Record<string, string> = {}
 

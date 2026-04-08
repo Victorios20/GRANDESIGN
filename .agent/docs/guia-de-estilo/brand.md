@@ -217,3 +217,37 @@ rounded-md border border-[#ebe5da] bg-[#faf8f4] px-2 py-0.5 text-[11px] font-med
   --text-faint:      #9a8f7c;
 }
 ```
+
+---
+
+## 11. Operational List Recipe
+
+Telas operacionais nao devem ser montadas apenas "com base na paleta". O baseline aprovado para esse tipo de interface e o recipe visual de `Contas a Pagar` e `Pedidos de Compra`.
+
+### Quando usar
+
+- Listagens com filtros, selecao em lote, tabela e paginacao
+- Telas de trabalho continuo, consulta, conciliacao e acompanhamento
+- Interfaces em que a tabela e a area principal e o topo nao deve parecer dashboard
+
+### Recipe obrigatorio
+
+- **Page background:** `#F7F4EE`
+- **Shell principal:** `rounded-2xl border border-[#e8e1d6] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]`
+- **Toolbar / filtros:** `rounded-xl border border-[#e8e1d6] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]`
+- **Subtle panel:** `rounded-xl border border-[#ece6db] bg-[#faf8f3]`
+- **Selection toolbar:** `rounded-xl border border-[#ddd6c9] bg-[#f7f4ed] px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]`
+- **Controles:** `h-9 rounded-lg border-[#d9d3c8] bg-white text-[#2c201b]`
+- **Busca:** `h-10`, placeholder `#9a8f7c`, sem fundo destacado
+- **Chips ativos:** `rounded-md border border-[#ddd7cc] bg-[#f6f4ef] text-[#5f584c]`
+- **Tabela header:** `bg-[#faf8f3]` com borda `#e7e0d4`
+- **Tabela body:** linhas `bg-white`, borda `#efe8dc`, hover `#faf8f4`
+- **Linha selecionada:** `#f6f2e7`, hover `#f3ecdc`
+- **Footer / paginacao:** mesma linguagem de toolbar, com texto `#7b705f`, botoes brancos com borda `#ddd7cc` e pagina ativa `#393316 / #faf3e0`
+
+### Regra de composicao
+
+- Nao inventar uma nova pele para cada modulo operacional.
+- Se a tela for lista operacional, copiar o recipe aprovado primeiro.
+- Tokens de cor continuam sendo a base, mas a combinacao de shell, borda, hover, chips, toolbar e footer deve seguir esse recipe.
+- Quando `Contas a Pagar` e outro modulo divergirem, `Contas a Pagar` vence como referencia para telas financeiras operacionais.

@@ -13,8 +13,6 @@ import {
   Contact,
   Landmark,
   FileBarChart,
-  FilePlus2,
-  FileSpreadsheet,
   FileText,
   HardHat,
   House,
@@ -31,7 +29,7 @@ import {
 export type SidebarChildItem = {
   label: string
   href: string
-  icon: LucideIcon
+  icon?: LucideIcon
   roles?: string[]
 }
 
@@ -78,22 +76,16 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     label: "Módulos",
   },
   {
-    type: "group",
-    id: "orcamento",
-    label: "Orçamento",
+    type: "link",
+    label: "Clientes",
+    href: "/clientes",
+    icon: Contact,
+  },
+  {
+    type: "link",
+    label: "Orçamentos",
+    href: "/orcamento",
     icon: FileText,
-    children: [
-      {
-        label: "Novo Orçamento",
-        href: "/orcamento/new",
-        icon: FilePlus2,
-      },
-      {
-        label: "Lista",
-        href: "/orcamento",
-        icon: FileSpreadsheet,
-      },
-    ],
   },
   {
     type: "group",
@@ -153,6 +145,11 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     icon: BarChart3,
     children: [
       {
+        label: "Performance Equipe",
+        href: "/relatorios/equipe",
+        icon: Users2,
+      },
+      {
         label: "DRE",
         href: "/relatorios/resultado-operacional",
         icon: FileBarChart,
@@ -208,11 +205,6 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
         href: "/configuracoes/categorias-financeiras",
         icon: Tags,
         roles: ["ADMIN", "DEV"],
-      },
-      {
-        label: "Clientes",
-        href: "/clientes",
-        icon: Contact,
       },
       {
         label: "Usuários",

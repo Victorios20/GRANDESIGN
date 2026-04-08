@@ -23,9 +23,6 @@ function hasSettingsManagementAccess(session: unknown) {
 export async function GET() {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    if (!hasSettingsManagementAccess(session)) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
 
     try {
         return NextResponse.json(await getCashFlowSettings())
@@ -43,7 +40,7 @@ export async function PUT(req: Request) {
 
     try {
         const body = await req.json()
-        return NextResponse.json(await updateCashFlowSettings(body))
+        return NextResponse.json(await updateCashFlowSettings(body, Number(session.user.id)))
     } catch (error) {
         if (error instanceof ZodError) {
             return NextResponse.json({ error: "Validation Error", details: error.issues }, { status: 400 })
