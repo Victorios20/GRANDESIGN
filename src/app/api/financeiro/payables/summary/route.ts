@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getPayablesSummary } from "@/actions/financeiro/payables/get"
+import { getPayablesSummary, type GetPayablesOptions } from "@/actions/financeiro/payables/get"
 import { StatusFinanceiro } from "@prisma/client"
 
 export async function GET(req: Request) {
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url)
 
-        const filters: any = {}
+        const filters: Omit<GetPayablesOptions, "page" | "limit"> = {}
 
         const startDate = searchParams.get("startDate")
         const endDate = searchParams.get("endDate")
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 
         const summary = await getPayablesSummary(filters)
         return NextResponse.json(summary)
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: "Erro ao buscar resumo" }, { status: 500 })
     }
 }

@@ -87,6 +87,8 @@ type Props = {
   initialObrasById: Record<number, ObraSearchItem>
 }
 
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
+
 type PedidoCompraUIState = {
   viewMode: "list" | "kanban"
   kanbanGroupBy: "category" | "status"
@@ -97,7 +99,7 @@ type PedidoCompraUIState = {
   selectedCategory: PurchaseOrderCategoryLabel | "todas"
   selectedSupplierId: number | "all"
   selectedProjectId: number | null
-  sortBy: "date" | "value" | "delivery" | "status"
+  sortBy: PedidoCompraSortBy
   sortOrder: "asc" | "desc"
 }
 
@@ -260,7 +262,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "status")
   const [showEmptyColumns, setShowEmptyColumns] = React.useState(persisted?.showEmptyColumns ?? true)
   const [onlyActiveObras, setOnlyActiveObras] = React.useState(persisted?.onlyActiveObras ?? true)
-  const [sortBy, setSortBy] = React.useState<"date" | "value" | "delivery" | "status">(persisted?.sortBy ?? "date")
+  const [sortBy, setSortBy] = React.useState<PedidoCompraSortBy>(persisted?.sortBy ?? "date")
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">(persisted?.sortOrder ?? "desc")
   const [fornecedores, setFornecedores] = React.useState<FornecedorOption[]>(initialFornecedores ?? [])
   const [obrasById, setObrasById] = React.useState<Record<number, ObraSearchItem>>(initialObrasById ?? {})
@@ -437,12 +439,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     next.sort((a, b) => {
       let comparison = 0
       if (sortBy === "date") comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      if (sortBy === "number") comparison = Number(a.id) - Number(b.id)
+      if (sortBy === "description") comparison = a.description.localeCompare(b.description, "pt-BR")
+      if (sortBy === "category") comparison = a.category.localeCompare(b.category, "pt-BR")
       if (sortBy === "value") comparison = a.expectedValue - b.expectedValue
+      if (sortBy === "actualValue") comparison = (a.actualValue ?? -Infinity) - (b.actualValue ?? -Infinity)
       if (sortBy === "delivery") comparison = (a.deliveryDate ?? "9999-12-31").localeCompare(b.deliveryDate ?? "9999-12-31")
       if (sortBy === "status") {
         const order = ["todos", "rascunho", "aprovado", "em-compra", "aguardando-pagamento", "aguardando-entrega", "entregue"]
         comparison = order.indexOf(a.status) - order.indexOf(b.status)
       }
+      if (sortBy === "integration") comparison = a.financeiroIntegracaoStatus.localeCompare(b.financeiroIntegracaoStatus, "pt-BR")
       return sortOrder === "asc" ? comparison : -comparison
     })
     return next
@@ -527,6 +534,18 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       setObraQuery("")
     }
     if (key === "active-obras") setOnlyActiveObras(false)
+  }, [])
+
+  const handleSortChange = React.useCallback((column: PedidoCompraSortBy) => {
+    setSortBy((current) => {
+      if (current === column) {
+        setSortOrder((direction) => direction === "asc" ? "desc" : "asc")
+        return current
+      }
+
+      setSortOrder(["date", "value", "actualValue", "delivery"].includes(column) ? "desc" : "asc")
+      return column
+    })
   }, [])
 
   const handleRecarregar = React.useCallback(async () => {
@@ -917,6 +936,9 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 onViewOrder={(order) => router.push(`/pedido_compra/ver/${order.id}`)}
                 onOpenFinanceAction={openFinanceActionDialog}
                 onDeleteOrder={handleExcluir}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortChange={handleSortChange}
               />
             ) : (
               <div className="space-y-6">

@@ -54,6 +54,21 @@ const CHART_SERIES_META = [
     { key: "saldo_acumulado", label: "Saldo acumulado", color: CHART_SERIES_COLORS.saldo_acumulado },
 ] as const
 
+const CHART_BAR_LAYOUT = {
+    day: {
+        barCategoryGap: "24%",
+        barGap: 1,
+        barSize: 10,
+        xAxisPadding: { left: 4, right: 4 },
+    },
+    month: {
+        barCategoryGap: "42%",
+        barGap: 2,
+        barSize: 22,
+        xAxisPadding: { left: 14, right: 14 },
+    },
+} as const
+
 function formatAxisValue(value: number) {
     const absoluteValue = Math.abs(value)
 
@@ -157,6 +172,7 @@ export function DashboardChartCard({ data, filters, onSelectPoint }: DashboardCh
     }, [chartWindow, data, filtersQuery])
 
     const currentPoint = chartData.points.find((point) => point.is_current)
+    const barLayout = CHART_BAR_LAYOUT[chartData.resolution === "month" ? "month" : "day"]
 
     return (
         <Card className="border-[#E8E1D6] bg-[#FFFCF7] py-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -226,7 +242,10 @@ export function DashboardChartCard({ data, filters, onSelectPoint }: DashboardCh
                     <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                             data={chartData.points}
-                            margin={{ top: 8, right: 12, left: 0, bottom: 18 }}
+                            barCategoryGap={barLayout.barCategoryGap}
+                            barGap={barLayout.barGap}
+                            barSize={barLayout.barSize}
+                            margin={{ top: 8, right: 8, left: 0, bottom: 14 }}
                             onClick={(state) => {
                                 const point = (state as unknown as ChartClickState).activePayload?.[0]?.payload
                                 if (point) onSelectPoint(point)
@@ -245,7 +264,9 @@ export function DashboardChartCard({ data, filters, onSelectPoint }: DashboardCh
                             <XAxis
                                 dataKey="label"
                                 tick={{ fontSize: 12, fill: "#5B5347" }}
+                                tickMargin={8}
                                 tickLine={false}
+                                padding={barLayout.xAxisPadding}
                                 axisLine={{ stroke: "rgba(44,32,27,0.08)" }}
                             />
                             <YAxis
@@ -259,14 +280,14 @@ export function DashboardChartCard({ data, filters, onSelectPoint }: DashboardCh
                                 dataKey="receitas"
                                 name="Receitas"
                                 radius={[6, 6, 0, 0]}
-                                maxBarSize={24}
+                                maxBarSize={barLayout.barSize}
                                 fill={CHART_SERIES_COLORS.receitas}
                             />
                             <Bar
                                 dataKey="despesas"
                                 name="Despesas"
                                 radius={[6, 6, 0, 0]}
-                                maxBarSize={24}
+                                maxBarSize={barLayout.barSize}
                                 fill={CHART_SERIES_COLORS.despesas}
                             />
                             <Area

@@ -2,6 +2,18 @@ import { prisma } from "@/lib/prisma"
 import { ObraStatus, Prisma } from "@prisma/client"
 
 type Decimalish = number | string | Prisma.Decimal
+export type ObrasStatusCounts = Record<"todos" | ObraStatus, number>
+
+const OBRA_STATUSES: ObraStatus[] = [
+  ObraStatus.ASSINATURA_DE_CONTRATO,
+  ObraStatus.AGUARDANDO_VALIDACAO_TECNICA,
+  ObraStatus.COMPRAS,
+  ObraStatus.A_INICIAR,
+  ObraStatus.EXECUCAO,
+  ObraStatus.AGUARDANDO_PAGAMENTO,
+  ObraStatus.PENDENCIA,
+  ObraStatus.FINALIZADO,
+]
 
 const n = (v: any) =>
   v == null ? null : typeof v?.toNumber === "function" ? v.toNumber() : Number(v)
@@ -122,6 +134,7 @@ export type ObraTableRowDTO = {
 export type ListarObrasTableResult = {
   dados: ObraTableRowDTO[]
   total: number
+  statusCounts: ObrasStatusCounts
 }
 
 export async function listarObrasTableDB(params: ListarObrasTableParams): Promise<ListarObrasTableResult> {
@@ -171,9 +184,8 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
   const telDigits = onlyDigits(telefone)
 
   const idNum = /^\d+$/.test(q) ? Number(q) : null
-  const where: any = {}
-
-  const and: any[] = []
+  const statusAnd: any[] = []
+  const baseAnd: any[] = []
 
   if (q) {
     const or: any[] = []
@@ -185,15 +197,15 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     or.push({ titulo: { contains: q, mode: "insensitive" } })
     or.push({ cliente: { nome: { contains: q, mode: "insensitive" } } })
 
-    and.push({ OR: or })
+    baseAnd.push({ OR: or })
   }
 
   if (bairro) {
-    and.push({ cliente: { bairro: { contains: bairro, mode: "insensitive" } } })
+    baseAnd.push({ cliente: { bairro: { contains: bairro, mode: "insensitive" } } })
   }
 
   if (tipoObra) {
-    and.push({ tipo_obra: { contains: tipoObra, mode: "insensitive" } })
+    baseAnd.push({ tipo_obra: { contains: tipoObra, mode: "insensitive" } })
   }
 
   if (telefone) {
@@ -201,29 +213,39 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     if (telDigits) {
       ors.push({ cliente: { telefone: { contains: telDigits, mode: "insensitive" } } })
     }
-    and.push({ OR: ors })
+    baseAnd.push({ OR: ors })
   }
 
   if (statusArray.length > 0) {
-    and.push({ status: { in: statusArray } })
+    statusAnd.push({ status: { in: statusArray } })
   }
 
   if (dIni || dFimExclusive) {
     const dateFilter: any = {}
     if (dIni) dateFilter.gte = dIni
     if (dFimExclusive) dateFilter.lt = dFimExclusive
-    and.push({ data_ultima_alteracao: dateFilter })
+    baseAnd.push({ data_ultima_alteracao: dateFilter })
   }
 
   // Filter obras without agenda segments
   if (params?.semAgenda === true || params?.semAgenda === "true") {
-    and.push({ segmentos: { none: {} } })
+    baseAnd.push({ segmentos: { none: {} } })
   }
 
-  if (and.length) where.AND = and
+  const baseWhere: Prisma.obrasWhereInput = baseAnd.length ? { AND: baseAnd } : {}
+  const where: Prisma.obrasWhereInput = [...baseAnd, ...statusAnd].length ? { AND: [...baseAnd, ...statusAnd] } : {}
+  const statusCountQueries = OBRA_STATUSES.map((itemStatus) =>
+    prisma.obras.count({
+      where: {
+        ...baseWhere,
+        status: itemStatus,
+      },
+    })
+  )
 
-  const [total, rows] = await Promise.all([
+  const [total, totalByFilters, rows, ...statusCountValues] = await Promise.all([
     prisma.obras.count({ where }),
+    prisma.obras.count({ where: baseWhere }),
     prisma.obras.findMany({
       where,
       orderBy: prismaOrderBy,
@@ -246,7 +268,16 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
         _count: { select: { segmentos: true } },
       },
     }),
+    ...statusCountQueries,
   ])
+
+  const statusCounts = OBRA_STATUSES.reduce(
+    (acc, itemStatus, index) => ({
+      ...acc,
+      [itemStatus]: Number(statusCountValues[index] ?? 0),
+    }),
+    { todos: totalByFilters } as ObrasStatusCounts
+  )
 
   const dados: ObraTableRowDTO[] = rows.map((o: any) => {
     // Calculate margin: GD / Max(Total Price)
@@ -322,5 +353,5 @@ export async function listarObrasTableDB(params: ListarObrasTableParams): Promis
     }
   })
 
-  return { dados, total }
+  return { dados, total, statusCounts }
 }

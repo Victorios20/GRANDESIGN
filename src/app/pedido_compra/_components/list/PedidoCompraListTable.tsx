@@ -5,6 +5,7 @@ import type { CheckedState } from "@radix-ui/react-checkbox"
 import { Calendar, MoreVertical, TrendingDown, TrendingUp } from "lucide-react"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
+import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,7 +29,12 @@ type Props = {
   onViewOrder: (order: PurchaseOrder) => void
   onOpenFinanceAction: (kind: "integrate" | "reverse", ids: Array<string | number>) => void
   onDeleteOrder: (order: PurchaseOrder) => void
+  sortBy: PedidoCompraSortBy
+  sortOrder: "asc" | "desc"
+  onSortChange: (column: PedidoCompraSortBy) => void
 }
+
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
 
 function formatSafeDate(dateValue: string | null | undefined) {
   if (!dateValue) return "Sem data"
@@ -45,6 +51,9 @@ export function PedidoCompraListTable({
   onViewOrder,
   onOpenFinanceAction,
   onDeleteOrder,
+  sortBy,
+  sortOrder,
+  onSortChange,
 }: Props) {
   return (
     <section className={cn(listShellClass, "overflow-hidden")}>
@@ -58,14 +67,30 @@ export function PedidoCompraListTable({
                 aria-label="Selecionar pedidos visíveis"
               />
             </TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Número</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Descrição</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Status</TableHead>
-            <TableHead className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Valor previsto</TableHead>
-            <TableHead className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Valor realizado</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Entrega</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Integração</TableHead>
+            <SortableHeader column="number" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Número
+            </SortableHeader>
+            <SortableHeader column="description" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Descrição
+            </SortableHeader>
+            <SortableHeader column="category" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Categoria
+            </SortableHeader>
+            <SortableHeader column="status" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Status
+            </SortableHeader>
+            <SortableHeader column="value" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
+              Valor previsto
+            </SortableHeader>
+            <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
+              Valor realizado
+            </SortableHeader>
+            <SortableHeader column="delivery" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Entrega
+            </SortableHeader>
+            <SortableHeader column="integration" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Integração
+            </SortableHeader>
             <TableHead className="w-14 px-3 py-3" />
           </TableRow>
         </TableHeader>

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { createPayable, createPayableInstallments, createPayableSchema, createPayableInstallmentSchema } from "@/actions/financeiro/payables/create"
-import { getPayables } from "@/actions/financeiro/payables/get"
+import { getPayables, type PayableOrderBy } from "@/actions/financeiro/payables/get"
 import { StatusFinanceiro } from "@prisma/client"
-import { ZodError } from "zod"
+
+const PAYABLE_ORDER_FIELDS = new Set(["data_vencimento", "fornecedor", "descricao", "categoria", "valor_total", "status", "created_at"])
 
 export async function GET(req: Request) {
     const session = await getServerSession(authOptions)
@@ -19,6 +19,9 @@ export async function GET(req: Request) {
     const categoria_id = searchParams.get("categoria_id") ? Number(searchParams.get("categoria_id")) : undefined
     const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined
     const search = searchParams.get("search") || undefined
+    const orderByParam = searchParams.get("orderBy")
+    const orderBy = orderByParam && PAYABLE_ORDER_FIELDS.has(orderByParam) ? orderByParam as PayableOrderBy : undefined
+    const orderDir = searchParams.get("orderDir") === "asc" ? "asc" : "desc"
 
     const statusParam = searchParams.get("status")
     let status: StatusFinanceiro | StatusFinanceiro[] | undefined
@@ -28,21 +31,18 @@ export async function GET(req: Request) {
     }
 
     try {
-        const result = await getPayables({ page, limit, startDate, endDate, status, fornecedor_id, categoria_id, centro_custo_id, search })
+        const result = await getPayables({ page, limit, startDate, endDate, status, fornecedor_id, categoria_id, centro_custo_id, search, orderBy, orderDir })
         return NextResponse.json(result)
     } catch (error) {
         return NextResponse.json({ error: (error as Error).message }, { status: 500 })
     }
 }
 
-export async function POST(req: Request) {
+export async function POST() {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     try {
-        const body = await req.json()
-        const url = new URL(req.url)
-
         // Check if it's the installment endpoint
         // Next.js App Router uses folders. If this file is in `api/financeiro/payables/route.ts`,
         // the path is `/api/financeiro/payables`. 

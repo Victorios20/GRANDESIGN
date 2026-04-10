@@ -5,8 +5,21 @@ import { createTransaction } from "@/actions/financeiro/transactions/create-tran
 import { transactionSchema } from "@/lib/validators/financial"
 import { ZodError } from "zod"
 
-import { getTransactions } from "@/actions/financeiro/transactions/get-transactions"
+import { getTransactions, type TransactionOrderBy } from "@/actions/financeiro/transactions/get-transactions"
 import { TipoLancamento } from "@prisma/client"
+
+const TRANSACTION_ORDER_FIELDS = new Set([
+    "data_lancamento",
+    "data_competencia",
+    "tipo",
+    "categoria",
+    "descricao",
+    "conta_bancaria",
+    "centro_custo",
+    "valor",
+    "status_conferencia",
+    "created_at",
+])
 
 function parseBankIds(value: string | null) {
     if (!value) return []
@@ -38,6 +51,9 @@ export async function GET(req: Request) {
         const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined
         const cost_scope = searchParams.get("cost_scope") === "cost" ? "cost" : searchParams.get("cost_scope") === "expense" ? "expense" : undefined
         const tipo = searchParams.get("tipo") as TipoLancamento | undefined
+        const orderByParam = searchParams.get("orderBy")
+        const orderBy = orderByParam && TRANSACTION_ORDER_FIELDS.has(orderByParam) ? orderByParam as TransactionOrderBy : undefined
+        const orderDir = searchParams.get("orderDir") === "asc" ? "asc" : "desc"
 
         const conciliadoParam = searchParams.get("conciliado")
         const conciliado = conciliadoParam === "true" ? true : conciliadoParam === "false" ? false : undefined
@@ -55,7 +71,9 @@ export async function GET(req: Request) {
             centro_custo_id,
             cost_scope,
             tipo,
-            conciliado
+            conciliado,
+            orderBy,
+            orderDir,
         })
 
         return NextResponse.json(result)

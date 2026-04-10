@@ -15,9 +15,21 @@ export interface GetTransactionsOptions {
     cost_scope?: "expense" | "cost"
     tipo?: TipoLancamento
     conciliado?: boolean
-    orderBy?: "data_lancamento" | "data_competencia" | "created_at"
+    orderBy?: TransactionOrderBy
     orderDir?: "asc" | "desc"
 }
+
+export type TransactionOrderBy =
+    | "data_lancamento"
+    | "data_competencia"
+    | "tipo"
+    | "categoria"
+    | "descricao"
+    | "conta_bancaria"
+    | "centro_custo"
+    | "valor"
+    | "status_conferencia"
+    | "created_at"
 
 function buildTransactionsWhere({
     search,
@@ -65,6 +77,34 @@ function buildTransactionsWhere({
     return where
 }
 
+function buildTransactionsOrderBy(orderBy: TransactionOrderBy = "data_lancamento", orderDir: "asc" | "desc" = "desc") {
+    const direction = orderDir === "asc" ? "asc" : "desc"
+    const fallback: Prisma.LancamentoOrderByWithRelationInput = { id: direction }
+
+    const primary: Prisma.LancamentoOrderByWithRelationInput =
+        orderBy === "categoria"
+            ? { categoria: { nome: direction } }
+            : orderBy === "conta_bancaria"
+                ? { conta_bancaria: { nome: direction } }
+                : orderBy === "centro_custo"
+                    ? { centro_custo: { nome: direction } }
+                    : orderBy === "tipo"
+                        ? { tipo: direction }
+                        : orderBy === "descricao"
+                            ? { descricao: direction }
+                            : orderBy === "valor"
+                                ? { valor: direction }
+                                : orderBy === "status_conferencia"
+                                    ? { status_conferencia: direction }
+                                    : orderBy === "data_competencia"
+                                        ? { data_competencia: direction }
+                                        : orderBy === "created_at"
+                                            ? { created_at: direction }
+                                            : { data_lancamento: direction }
+
+    return [primary, fallback]
+}
+
 export async function getTransactions(options: GetTransactionsOptions = {}) {
     const {
         page = 1,
@@ -107,7 +147,7 @@ export async function getTransactions(options: GetTransactionsOptions = {}) {
             where,
             skip,
             take: limit,
-            orderBy: { [orderBy]: orderDir },
+            orderBy: buildTransactionsOrderBy(orderBy, orderDir),
             include: {
                 conta_bancaria: {
                     select: { id: true, nome: true, banco: true, cor: true }

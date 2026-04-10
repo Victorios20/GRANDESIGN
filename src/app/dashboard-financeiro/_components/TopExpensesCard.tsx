@@ -43,7 +43,32 @@ interface DefaultDonutShapeProps extends ActiveDonutShapeProps {
     cornerRadius?: number
 }
 
-const DONUT_FALLBACK_COLORS = ["#B66A61", "#C4846B", "#D5A15F", "#9E7867", "#C48B79", "#D8B37D", "#B39A86", "#A96E66"]
+const DONUT_FALLBACK_COLORS = ["#B3261E", "#D97904", "#2E7D52", "#375A9E", "#8A5A12", "#6F5A48", "#A23E63", "#4F6F73"]
+const SOFT_BLACK = "#2F2A24"
+const MIN_DONUT_COLOR_LUMINANCE = 0.72
+
+function getHexLuminance(color: string) {
+    const normalized = color.trim().replace("#", "")
+    const hex = normalized.length === 3 ? normalized.split("").map((char) => `${char}${char}`).join("") : normalized
+
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null
+
+    const red = parseInt(hex.slice(0, 2), 16) / 255
+    const green = parseInt(hex.slice(2, 4), 16) / 255
+    const blue = parseInt(hex.slice(4, 6), 16) / 255
+
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+}
+
+function normalizeDonutColor(color: string | null | undefined, fallbackColor: string) {
+    const normalized = color?.trim().toLowerCase()
+
+    if (!normalized) return fallbackColor
+    if (normalized === "#000" || normalized === "#000000" || normalized === "black") return SOFT_BLACK
+    if (normalized.startsWith("#") && (getHexLuminance(normalized) ?? 0) > MIN_DONUT_COLOR_LUMINANCE) return fallbackColor
+
+    return color!
+}
 
 function getDetailKey(scope: DashboardExpenseScope, categoryId: number) {
     return `${scope}:${categoryId}`
@@ -63,18 +88,18 @@ function ActiveDonutShape({
             <Sector
                 cx={cx}
                 cy={cy}
-                innerRadius={innerRadius - 2}
-                outerRadius={outerRadius + 7}
+                innerRadius={innerRadius}
+                outerRadius={outerRadius + 8}
                 startAngle={startAngle}
                 endAngle={endAngle}
                 fill={fill}
-                fillOpacity={0.14}
+                fillOpacity={0.12}
             />
             <Sector
                 cx={cx}
                 cy={cy}
-                innerRadius={innerRadius}
-                outerRadius={outerRadius + 3}
+                innerRadius={innerRadius + 1}
+                outerRadius={outerRadius + 4}
                 startAngle={startAngle}
                 endAngle={endAngle}
                 fill={fill}
@@ -126,7 +151,7 @@ function DonutTooltip({
                 <span className="size-2.5 rounded-full" style={{ backgroundColor: item.displayColor }} />
                 <p className="truncate whitespace-nowrap font-medium text-[#8C6A5D]">{item.nome}</p>
             </div>
-            <p className="mt-1.5 font-semibold text-[#2C201B]">{formatCurrency(item.total)}</p>
+            <p className="mt-1.5 font-semibold text-[#393316]">{formatCurrency(item.total)}</p>
             <p className="mt-1 text-[11px] text-[#6F6556]">
                 {item.percentual_total.toFixed(1).replace(".", ",")}% do total
                 {" • "}
@@ -154,7 +179,10 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                 .sort((left, right) => right.total - left.total)
                 .map((item, index) => ({
                     ...item,
-                    displayColor: item.cor || DONUT_FALLBACK_COLORS[index % DONUT_FALLBACK_COLORS.length],
+                    displayColor: normalizeDonutColor(
+                        item.cor,
+                        DONUT_FALLBACK_COLORS[index % DONUT_FALLBACK_COLORS.length],
+                    ),
                 })),
         [currentSummary.items],
     )
@@ -297,7 +325,7 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                 </div>
             </CardHeader>
 
-            <CardContent className="px-4 py-2.5">
+            <CardContent className="px-4 py-2">
                 {loadingScope ? (
                     <div className="flex min-h-[248px] items-center justify-center rounded-xl border border-dashed border-[#DDD7CC] bg-[#F7F4ED] px-4 text-center text-sm text-[#6F6556]">
                         Atualizando ranking...
@@ -307,23 +335,24 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                         Nenhum registro relevante para {activeScope === "cost" ? "custos" : "despesas"} no período.
                     </div>
                 ) : (
-                    <div className="space-y-2.5">
-                        <div className="relative mx-auto h-[156px] w-full max-w-[260px] sm:h-[164px] sm:max-w-[276px] lg:h-[172px]">
+                    <div className="space-y-3">
+                        <div className="relative mx-auto h-[208px] w-full max-w-[300px] sm:h-[214px] sm:max-w-[312px] lg:h-[218px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
+                                <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
                                     <Pie
                                         data={currentItems}
                                         dataKey="total"
                                         nameKey="nome"
                                         cx="50%"
-                                        cy="50%"
+                                        cy="52%"
                                         startAngle={90}
                                         endAngle={-270}
-                                        innerRadius={49}
-                                        outerRadius={72}
+                                        innerRadius={66}
+                                        outerRadius={88}
                                         paddingAngle={2}
                                         cornerRadius={3}
-                                        stroke="none"
+                                        stroke="#FFFCF7"
+                                        strokeWidth={2}
                                         shape={renderDonutShape}
                                         onMouseEnter={(_, index) => setActiveCategoryId(currentItems[index]?.categoria_id ?? null)}
                                         onMouseLeave={() => setActiveCategoryId(null)}
@@ -348,19 +377,20 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                                 </PieChart>
                             </ResponsiveContainer>
 
-                            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7C705F]">Total</span>
-                                <span className="mt-1.5 text-base font-semibold text-[#2C201B]">
+                            <div className="pointer-events-none absolute left-1/2 top-[52%] flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center">
+                                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#9A8F7C]">Total</span>
+                                <span className="mt-1 max-w-[112px] text-center text-sm font-semibold leading-tight text-[#393316] sm:max-w-[124px] sm:text-base">
                                     {formatCurrency(currentSummary.total_despesas)}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             {currentItems.map((item) => {
                                 const detailKey = getDetailKey(activeScope, item.categoria_id)
                                 const isExpanded = expandedCategoryId === item.categoria_id
                                 const isActive = activeCategoryId === item.categoria_id
+                                const isLeader = currentItems[0]?.categoria_id === item.categoria_id
                                 const detail = details[detailKey]
                                 const isLoading = loadingCategoryKey === detailKey
 
@@ -368,9 +398,10 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                                     <div
                                         key={`${activeScope}-${item.categoria_id}`}
                                         className={cn(
-                                            "rounded-xl border border-[#E8E1D6] bg-white transition-[border-color,box-shadow,background-color]",
+                                            "rounded-lg border border-[#EFE8DC] bg-white/80 transition-[border-color,box-shadow,background-color]",
+                                            isLeader && "bg-white shadow-[0_1px_4px_rgba(44,32,27,0.04)]",
                                             (isActive || isExpanded) &&
-                                                "border-[#D7C8B6] bg-[#FFFDFC] shadow-[0_6px_18px_rgba(44,32,27,0.06)]",
+                                                "border-[#D7C8B6] bg-[#FFFDFC] shadow-[0_4px_12px_rgba(44,32,27,0.05)]",
                                         )}
                                     >
                                         <button
@@ -381,34 +412,34 @@ export function TopExpensesCard({ data, filters }: TopExpensesCardProps) {
                                             onFocus={() => setActiveCategoryId(item.categoria_id)}
                                             onBlur={() => setActiveCategoryId(null)}
                                             className={cn(
-                                                "grid w-full gap-1.5 px-3 py-2 text-left transition-colors md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-3",
+                                                "grid w-full gap-1 px-2.5 py-1.5 text-left transition-colors md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-3",
                                                 isActive || isExpanded ? "bg-[#FFFDFC]" : "hover:bg-[#FAF8F4]",
                                             )}
                                         >
-                                            <div className="flex min-w-0 flex-1 items-center gap-2">
+                                            <div className="flex min-w-0 flex-1 items-center gap-2.5">
                                                 <span
-                                                    className="size-2.5 shrink-0 rounded-full"
-                                                    style={{ backgroundColor: item.displayColor }}
+                                                    className="size-3.5 shrink-0 rounded-full ring-2 ring-white"
+                                                    style={{ backgroundColor: item.displayColor, boxShadow: `0 0 0 1px ${item.displayColor}88` }}
                                                 />
-                                                <p className="truncate text-sm font-semibold text-[#2C201B]">{item.nome}</p>
+                                                <p className="truncate text-sm font-medium text-[#393316]">{item.nome}</p>
                                             </div>
 
-                                            <div className="flex min-w-0 items-center justify-between gap-3 md:shrink-0 md:justify-end">
-                                                <p className="text-[11px] font-medium text-[#6F6556] sm:text-xs">
-                                                    <span className="font-semibold text-[#2C201B]">{formatCurrency(item.total)}</span>
-                                                    {" • "}
-                                                    {item.percentual_total.toFixed(1).replace(".", ",")}%
-                                                    {" • "}
-                                                    <span className="text-[#8A7D69]">{item.lancamentos_count}</span>
-                                                </p>
+                                            <div className="flex min-w-0 items-center justify-between gap-2 md:shrink-0 md:justify-end">
+                                                <div className="grid min-w-[206px] grid-cols-[112px_52px_42px] items-baseline gap-x-2 text-right text-[11px] tabular-nums text-[#7C705F]">
+                                                    <span className={cn("font-semibold text-[#393316]", isLeader && "text-[#2F2A24]")}>
+                                                        {formatCurrency(item.total)}
+                                                    </span>
+                                                    <span className="font-medium text-[#6F6556]">{item.percentual_total.toFixed(1).replace(".", ",")}%</span>
+                                                    <span className="text-[10px] text-[#A99F91]">{item.lancamentos_count} lanç.</span>
+                                                </div>
                                                 {isExpanded ? (
                                                     <ChevronDown
-                                                        className="size-4"
+                                                        className="size-3.5 shrink-0"
                                                         style={{ color: isActive || isExpanded ? item.displayColor : "#9A8F7C" }}
                                                     />
                                                 ) : (
                                                     <ChevronRight
-                                                        className="size-4"
+                                                        className="size-3.5 shrink-0"
                                                         style={{ color: isActive || isExpanded ? item.displayColor : "#9A8F7C" }}
                                                     />
                                                 )}

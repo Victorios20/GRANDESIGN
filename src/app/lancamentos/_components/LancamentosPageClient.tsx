@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner"
 
 import { AccountBalanceStrip } from "@/components/financeiro/AccountBalanceStrip"
+import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -93,10 +94,35 @@ interface Props {
         dateType?: "lancamento" | "competencia"
         startDate: string
         endDate: string
+        orderBy?: TransactionSortBy
+        orderDir?: SortDirection
     }
 }
 
 const PAGE_SIZE_OPTIONS = ["25", "50", "100"] as const
+type SortDirection = "asc" | "desc"
+type TransactionSortBy =
+    | "data_lancamento"
+    | "tipo"
+    | "categoria"
+    | "descricao"
+    | "conta_bancaria"
+    | "centro_custo"
+    | "valor"
+    | "status_conferencia"
+    | "created_at"
+
+const DEFAULT_SORT_DIRECTIONS: Record<TransactionSortBy, SortDirection> = {
+    data_lancamento: "desc",
+    tipo: "asc",
+    categoria: "asc",
+    descricao: "asc",
+    conta_bancaria: "asc",
+    centro_custo: "asc",
+    valor: "desc",
+    status_conferencia: "asc",
+    created_at: "desc",
+}
 
 function getOriginMeta(item: TransactionListItem) {
     if (item.conta_pagar) {
@@ -206,6 +232,8 @@ export default function LancamentosPageClient({
     )
     const [page, setPage] = useState(initialData.meta.page)
     const [limit, setLimit] = useState(initialData.meta.limit)
+    const [sortBy, setSortBy] = useState<TransactionSortBy>(initialFilters?.orderBy ?? "data_lancamento")
+    const [sortOrder, setSortOrder] = useState<SortDirection>(initialFilters?.orderDir ?? "desc")
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
 
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -248,9 +276,11 @@ export default function LancamentosPageClient({
             if (dateType !== "lancamento") params.set("dateType", dateType)
             if (dateRange?.from) params.set("startDate", dateRange.from.toISOString())
             if (dateRange?.to) params.set("endDate", dateRange.to.toISOString())
+            params.set("orderBy", sortBy)
+            params.set("orderDir", sortOrder)
             return params
         },
-        [search, bankFilterIds, categoriaId, centroCustoId, costScope, tipoFilter, conciliadoFilter, dateType, dateRange]
+        [search, bankFilterIds, categoriaId, centroCustoId, costScope, tipoFilter, conciliadoFilter, dateType, dateRange, sortBy, sortOrder]
     )
 
     const refreshCurrentView = useCallback(
@@ -589,6 +619,18 @@ export default function LancamentosPageClient({
         })
     }
 
+    function handleSort(column: TransactionSortBy) {
+        setPage(1)
+        setSortBy((current) => {
+            if (current === column) {
+                setSortOrder((direction) => direction === "asc" ? "desc" : "asc")
+                return current
+            }
+            setSortOrder(DEFAULT_SORT_DIRECTIONS[column])
+            return column
+        })
+    }
+
     function clearAllFilters() {
         setSearch("")
         setContaBancariaId("all")
@@ -902,11 +944,32 @@ export default function LancamentosPageClient({
                                             aria-label="Selecionar lançamentos"
                                         />
                                     </th>
-                                    {["Data", "Tipo", "Categoria", "Descrição", "Conta", "Centro de custo", "Valor", "Conferência", "Origem", "Opções"].map((header) => (
-                                        <th key={header} className={operationalListTableHeadCellClass}>
-                                            {header}
-                                        </th>
-                                    ))}
+                                    <SortableHeader column="data_lancamento" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Data
+                                    </SortableHeader>
+                                    <SortableHeader column="tipo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Tipo
+                                    </SortableHeader>
+                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Categoria
+                                    </SortableHeader>
+                                    <SortableHeader column="descricao" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Descrição
+                                    </SortableHeader>
+                                    <SortableHeader column="conta_bancaria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Conta
+                                    </SortableHeader>
+                                    <SortableHeader column="centro_custo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Centro de custo
+                                    </SortableHeader>
+                                    <SortableHeader column="valor" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Valor
+                                    </SortableHeader>
+                                    <SortableHeader column="status_conferencia" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Conferência
+                                    </SortableHeader>
+                                    <th className={operationalListTableHeadCellClass}>Origem</th>
+                                    <th className={operationalListTableHeadCellClass}>Opções</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -951,22 +1014,22 @@ export default function LancamentosPageClient({
                                                 )}
                                                 onClick={() => handleOpenDetails(item)}
                                             >
-                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                                                     <Checkbox
                                                         checked={selectedIds.has(item.id)}
                                                         disabled={!selectable}
                                                         onCheckedChange={() => handleToggleItem(item.id)}
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-[#2c201b]">
+                                                <td className="px-3 py-3.5 whitespace-nowrap text-[#2c201b]">
                                                     {formatDateBR(item.data_lancamento)}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-3 py-3.5">
                                                     <span className={cn("text-sm font-medium", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>
                                                         {isReceita ? "Receita" : "Despesa"}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-3 py-3.5">
                                                     {item.categoria ? (
                                                         <span
                                                             className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -981,7 +1044,7 @@ export default function LancamentosPageClient({
                                                         <span className="text-[#6f6556]">â€”</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-[#2c201b]">
+                                                <td className="px-3 py-3.5 text-[#2c201b]">
                                                     <p className="max-w-[280px] truncate font-medium" title={item.descricao}>
                                                         {item.descricao}
                                                     </p>
@@ -999,16 +1062,16 @@ export default function LancamentosPageClient({
                                                         </p>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-[#6f6556]">
+                                                <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
                                                     {item.conta_bancaria.nome}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-[#6f6556]">
+                                                <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
                                                     {item.centro_custo?.nome ?? "â€”"}
                                                 </td>
-                                                <td className={cn("px-4 py-3 whitespace-nowrap font-semibold", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>
+                                                <td className={cn("px-3 py-3.5 whitespace-nowrap font-semibold", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>
                                                     {isReceita ? "+" : "-"} {formatCurrency(item.valor)}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="px-3 py-3.5">
                                                     <span
                                                         className={cn(
                                                             "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
@@ -1020,7 +1083,7 @@ export default function LancamentosPageClient({
                                                         {getConferenceStatusLabel(item)}
                                                     </span>
                                                 </td>
-                                                <td className="px-4 py-3 text-[#6f6556]">
+                                                <td className="px-3 py-3.5 text-[#6f6556]">
                                                     {originMeta.href ? (
                                                         <span className="inline-flex items-center rounded-full border border-[#e4ddd0] bg-[#faf8f3] px-2 py-0.5 text-xs font-medium text-[#5f584c]">
                                                             {originMeta.label}
@@ -1029,7 +1092,7 @@ export default function LancamentosPageClient({
                                                         <span className="text-xs text-[#9a8f7c]">Manual</span>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button type="button" variant="ghost" size="icon" className={operationalListIconButtonClass}>

@@ -82,6 +82,9 @@ export interface ReceivableListItem {
 // ── Summary ──
 
 export interface FinancialSummary {
+    filterCount: number
+    filterOpenAmount: number
+    statusCounts: Record<"todos" | StatusFinanceiro, number>
     totalAmount: number
     totalPending: number
     overdueCount: number

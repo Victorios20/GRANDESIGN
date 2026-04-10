@@ -16,6 +16,17 @@ interface PageProps {
     searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
+type TransactionSortBy =
+    | "data_lancamento"
+    | "tipo"
+    | "categoria"
+    | "descricao"
+    | "conta_bancaria"
+    | "centro_custo"
+    | "valor"
+    | "status_conferencia"
+    | "created_at"
+
 function getParam(params: Record<string, string | string[] | undefined>, key: string) {
     const value = params[key]
     return Array.isArray(value) ? value[0] : value
@@ -46,6 +57,8 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     const costScope = getParam(params, "cost_scope")
     const tipo = getParam(params, "tipo")
     const conciliado = getParam(params, "conciliado")
+    const orderBy = getParam(params, "orderBy")
+    const orderDir = getParam(params, "orderDir")
 
     if (search) query.set("search", search)
     if (startDate) query.set("startDate", startDate)
@@ -58,8 +71,15 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     if (costScope) query.set("cost_scope", costScope)
     if (tipo) query.set("tipo", tipo)
     if (conciliado) query.set("conciliado", conciliado)
+    if (orderBy) query.set("orderBy", orderBy)
+    if (orderDir) query.set("orderDir", orderDir)
 
     return query
+}
+
+function parseOrderBy(value?: string): TransactionSortBy | undefined {
+    const allowed = new Set(["data_lancamento", "tipo", "categoria", "descricao", "conta_bancaria", "centro_custo", "valor", "status_conferencia", "created_at"])
+    return value && allowed.has(value) ? value as TransactionSortBy : undefined
 }
 
 export default async function LancamentosPage({ searchParams }: PageProps) {
@@ -97,6 +117,8 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
                 dateType,
                 startDate: getParam(resolvedSearchParams, "startDate") ?? "",
                 endDate: getParam(resolvedSearchParams, "endDate") ?? "",
+                orderBy: parseOrderBy(getParam(resolvedSearchParams, "orderBy")),
+                orderDir: getParam(resolvedSearchParams, "orderDir") === "asc" ? "asc" : "desc",
             }}
         />
     )

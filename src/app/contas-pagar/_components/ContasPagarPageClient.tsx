@@ -21,7 +21,9 @@ import PayableEditorDialog from "./PayableEditorDialog"
 import BulkPayDialog from "./BulkPayDialog"
 import BulkRescheduleDialog from "@/components/financeiro/BulkRescheduleDialog"
 import BulkDeleteDialog from "@/components/financeiro/BulkDeleteDialog"
-import { MetricStrip } from "@/components/financeiro/MetricStrip"
+import { ListSummaryBar } from "@/components/financeiro/ListSummaryBar"
+import { SortableHeader } from "@/components/financeiro/SortableHeader"
+import { StatusTabs } from "@/components/financeiro/StatusTabs"
 import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, remaining } from "@/lib/financeiro-utils"
 import { formatPedidoId } from "@/lib/pedido-compra-utils"
 import type {
@@ -43,7 +45,6 @@ import {
     operationalListPrimaryButtonClass,
     operationalListSubtlePanelClass,
     operationalListControlClass,
-    operationalListSelectionToolbarClass,
     operationalListTableHeadCellClass,
     operationalListTableHeadClass,
     operationalListTableHeadRowClass,
@@ -55,6 +56,10 @@ import {
 } from "@/components/ui/operational-list-styles"
 import { cn } from "@/lib/utils"
 
+type PayableSortBy = "data_vencimento" | "fornecedor" | "descricao" | "categoria" | "valor_total" | "status" | "created_at"
+type SortDirection = "asc" | "desc"
+type FinancialStatusFilter = "todos" | "PENDENTE" | "PARCIAL" | "ATRASADO" | "PAGO" | "CANCELADO"
+
 interface InitialFilters {
     search: string
     status: string
@@ -63,6 +68,29 @@ interface InitialFilters {
     scope: string
     compose: boolean
     highlight: string | null
+}
+
+const STATUS_TABS: Array<{ value: FinancialStatusFilter; label: string }> = [
+    { value: "todos", label: "Todos" },
+    { value: "PENDENTE", label: "Pendente" },
+    { value: "PARCIAL", label: "Parcial" },
+    { value: "ATRASADO", label: "Atrasadas" },
+    { value: "PAGO", label: "Pagas" },
+    { value: "CANCELADO", label: "Canceladas" },
+]
+
+const DEFAULT_SORT_DIRECTIONS: Record<PayableSortBy, SortDirection> = {
+    data_vencimento: "desc",
+    fornecedor: "asc",
+    descricao: "asc",
+    categoria: "asc",
+    valor_total: "desc",
+    status: "asc",
+    created_at: "desc",
+}
+
+function isFinancialStatus(value: string): value is Exclude<FinancialStatusFilter, "todos"> {
+    return ["PENDENTE", "PARCIAL", "ATRASADO", "PAGO", "CANCELADO"].includes(value)
 }
 
 interface Props {
@@ -98,11 +126,15 @@ export default function ContasPagarPageClient({
     const [error, setError] = useState("")
 
     const [search, setSearch] = useState(initialFilters.search)
-    const [statusFilter, setStatusFilter] = useState<string[]>(initialFilters.status ? [initialFilters.status] : [])
+    const [statusFilter, setStatusFilter] = useState<FinancialStatusFilter>(
+        initialFilters.status && isFinancialStatus(initialFilters.status) ? initialFilters.status : "todos"
+    )
     const [categoriaId, setCategoriaId] = useState<string>(initialFilters.categoriaId)
     const [centroCustoId, setCentroCustoId] = useState<string>(initialFilters.centroCustoId)
     const [dateRange, setDateRange] = useState<DateRange | undefined>(getInitialDateRange(initialFilters.scope))
     const [page, setPage] = useState(1)
+    const [sortBy, setSortBy] = useState<PayableSortBy>("data_vencimento")
+    const [sortOrder, setSortOrder] = useState<SortDirection>("desc")
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(
         initialFilters.categoriaId !== "all" || initialFilters.centroCustoId !== "all"
     )
@@ -128,11 +160,13 @@ export default function ContasPagarPageClient({
             params.set("page", String(targetPage))
             params.set("limit", "50")
             if (search) params.set("search", search)
-            if (statusFilter.length > 0) params.set("status", statusFilter.join(","))
+            if (statusFilter !== "todos") params.set("status", statusFilter)
             if (categoriaId !== "all") params.set("categoria_id", categoriaId)
             if (centroCustoId !== "all") params.set("centro_custo_id", centroCustoId)
             if (dateRange?.from) params.set("startDate", dateRange.from.toISOString())
             if (dateRange?.to) params.set("endDate", dateRange.to.toISOString())
+            params.set("orderBy", sortBy)
+            params.set("orderDir", sortOrder)
 
             const [listResponse, summaryResponse] = await Promise.all([
                 fetch(`/api/financeiro/payables?${params}`),
@@ -153,7 +187,7 @@ export default function ContasPagarPageClient({
         } finally {
             setLoading(false)
         }
-    }, [categoriaId, centroCustoId, dateRange, page, search, statusFilter])
+    }, [categoriaId, centroCustoId, dateRange, page, search, sortBy, sortOrder, statusFilter])
 
     useEffect(() => {
         if (searchTimeout.current) clearTimeout(searchTimeout.current)
@@ -240,7 +274,7 @@ export default function ContasPagarPageClient({
         [selectedItems]
     )
     const hasAdvancedFilters = categoriaId !== "all" || centroCustoId !== "all"
-    const hasActiveFilters = hasAdvancedFilters || Boolean(search.trim()) || statusFilter.length > 0 || Boolean(dateRange?.from)
+    const hasActiveFilters = hasAdvancedFilters || Boolean(search.trim()) || statusFilter !== "todos" || Boolean(dateRange?.from)
     const advancedFilterCount = [
         categoriaId !== "all",
         centroCustoId !== "all",
@@ -251,8 +285,8 @@ export default function ContasPagarPageClient({
 
         if (search.trim()) chips.push({ key: "search", label: `Busca: ${search.trim()}` })
 
-        if (statusFilter[0]) {
-            const statusLabel = FINANCIAL_STATUS_OPTIONS.find((option) => option.value === statusFilter[0])?.label ?? statusFilter[0]
+        if (statusFilter !== "todos") {
+            const statusLabel = FINANCIAL_STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? statusFilter
             chips.push({ key: "status", label: `Status: ${statusLabel}` })
         }
 
@@ -278,7 +312,7 @@ export default function ContasPagarPageClient({
 
     function clearAllFilters() {
         setSearch("")
-        setStatusFilter([])
+        setStatusFilter("todos")
         setDateRange(undefined)
         setCategoriaId("all")
         setCentroCustoId("all")
@@ -286,18 +320,28 @@ export default function ContasPagarPageClient({
 
     function removeFilterChip(key: string) {
         if (key === "search") setSearch("")
-        if (key === "status") setStatusFilter([])
+        if (key === "status") setStatusFilter("todos")
         if (key === "period") setDateRange(undefined)
         if (key === "category") setCategoriaId("all")
         if (key === "cost-center") setCentroCustoId("all")
     }
 
-    const summaryCards = [
-        { label: "Em aberto", value: formatCurrency(summary.totalAmount), helper: `${summary.totalPending} contas`, tone: "neutral" as const },
-        { label: "Atrasadas", value: formatCurrency(summary.overdueAmount), helper: `${summary.overdueCount} contas`, tone: "warning" as const },
-        { label: "Vencem hoje", value: formatCurrency(summary.dueTodayAmount), helper: `${summary.dueTodayCount} contas`, tone: "negative" as const },
-        { label: "Próximos 7 dias", value: formatCurrency(summary.dueNext7Amount), helper: `${summary.dueNext7Count} contas`, tone: "info" as const },
-    ]
+    function handleSort(column: PayableSortBy) {
+        setPage(1)
+        setSortBy((current) => {
+            if (current === column) {
+                setSortOrder((direction) => direction === "asc" ? "desc" : "asc")
+                return current
+            }
+            setSortOrder(DEFAULT_SORT_DIRECTIONS[column])
+            return column
+        })
+    }
+
+    const statusTabItems = STATUS_TABS.map((item) => ({
+        ...item,
+        count: summary.statusCounts?.[item.value] ?? 0,
+    }))
 
     return (
         <PageLayout title="Contas a Pagar" links={[{ label: "Home", href: "/" }]} pageBackground="bg-[#F7F4EE]">
@@ -335,15 +379,6 @@ export default function ContasPagarPageClient({
                             </div>
 
                             <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
-                                <StatusSelect
-                                    options={FINANCIAL_STATUS_OPTIONS}
-                                    value={statusFilter[0] || ""}
-                                    onChange={(value) => setStatusFilter(value ? [value] : [])}
-                                    staticVariant="pill"
-                                    placeholder="Todos os status"
-                                    className="min-w-[170px] h-10"
-                                />
-
                                 <div className={cn("min-w-[200px] h-10", operationalListControlClass)}>
                                     <SmartDateRangePicker
                                         range={dateRange}
@@ -386,8 +421,6 @@ export default function ContasPagarPageClient({
 
                             </div>
                         </div>
-
-                        <MetricStrip items={summaryCards} compact />
 
                         {activeFilterChips.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
@@ -444,43 +477,39 @@ export default function ContasPagarPageClient({
                             </div>
                         ) : null}
 
-                        {selectedItems.length > 0 ? (
-                            <div className={cn(operationalListSelectionToolbarClass, "flex flex-wrap items-center justify-between gap-3")}>
-                                <div>
-                                    <p className="text-sm font-medium text-[#2C201B]">Ações em lote</p>
-                                    <p className="text-sm text-[#2C201B]/60">Escolha como tratar as contas marcadas sem sair da fila.</p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <div className="text-right">
-                                        <p className="text-sm text-[#2C201B]/60">{selectedItems.length} selecionadas</p>
-                                        <p className="text-sm font-semibold text-[#2C201B]">Saldo selecionado: {formatCurrency(selectedTotal)}</p>
-                                    </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button type="button" variant="outline" className={cn("gap-2", operationalListMutedButtonClass)}>
-                                                Ações em lote
-                                                <ChevronDown className="size-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="min-w-[220px]">
-                                            <DropdownMenuItem onClick={() => setBulkOpen(true)}>
-                                                Pagar selecionadas
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setBulkRescheduleOpen(true)}>
-                                                Alterar vencimento
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => setBulkDeleteOpen(true)}
-                                                className="text-[#8F3F37] focus:text-[#8F3F37]"
-                                            >
-                                                Excluir selecionadas
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                            </div>
-                        ) : null}
+                        <StatusTabs value={statusFilter} items={statusTabItems} onValueChange={setStatusFilter} />
                 </section>
+
+                <ListSummaryBar
+                    countLabel={`${meta.total} conta${meta.total === 1 ? "" : "s"} na listagem atual`}
+                    totalLabel={`Total do filtro: ${formatCurrency(summary.filterOpenAmount ?? 0)}`}
+                    selectedCountLabel={selectedItems.length > 0 ? `${selectedItems.length} selecionada${selectedItems.length === 1 ? "" : "s"}` : undefined}
+                    selectedTotalLabel={selectedItems.length > 0 ? `Total selecionado: ${formatCurrency(selectedTotal)}` : undefined}
+                    actions={selectedItems.length > 0 ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button type="button" variant="outline" className={cn("gap-2", operationalListMutedButtonClass)}>
+                                    Ações em lote
+                                    <ChevronDown className="size-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[220px]">
+                                <DropdownMenuItem onClick={() => setBulkOpen(true)}>
+                                    Pagar selecionadas
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setBulkRescheduleOpen(true)}>
+                                    Alterar vencimento
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    onClick={() => setBulkDeleteOpen(true)}
+                                    className="text-[#8F3F37] focus:text-[#8F3F37]"
+                                >
+                                    Excluir selecionadas
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : undefined}
+                />
 
                 <Card className={cn(operationalListShellClass, "overflow-hidden")}>
                     <div className="overflow-x-auto">
@@ -494,11 +523,25 @@ export default function ContasPagarPageClient({
                                             aria-label="Selecionar contas"
                                         />
                                     </th>
-                                    {["Vencimento", "Fornecedor", "Descrição", "Categoria", "Valor total", "Status", "Opções"].map((header) => (
-                                        <th key={header} className={operationalListTableHeadCellClass}>
-                                            {header}
-                                        </th>
-                                    ))}
+                                    <SortableHeader column="data_vencimento" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Vencimento
+                                    </SortableHeader>
+                                    <SortableHeader column="fornecedor" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Fornecedor
+                                    </SortableHeader>
+                                    <SortableHeader column="descricao" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Descrição
+                                    </SortableHeader>
+                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Categoria
+                                    </SortableHeader>
+                                    <SortableHeader column="valor_total" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} align="right">
+                                        Valor total
+                                    </SortableHeader>
+                                    <SortableHeader column="status" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                        Status
+                                    </SortableHeader>
+                                    <th className={operationalListTableHeadCellClass}>Opções</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -530,19 +573,19 @@ export default function ContasPagarPageClient({
                                                 )}
                                                 onClick={() => openEditDialog(item)}
                                             >
-                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                                                     <Checkbox
                                                         checked={isSelected}
                                                         disabled={!isSelectable}
                                                         onCheckedChange={(checked) => toggleRowSelection(item.id, checked === true)}
                                                     />
                                                 </td>
-                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                <td className="px-3 py-3.5 text-[#2C201B]">
                                                     <p className="font-medium">{formatDateBR(item.data_vencimento)}</p>
                                                     <p className="text-xs text-[#2C201B]/50">{item.parcela_atual}/{item.total_parcelas}</p>
                                                 </td>
-                                                <td className="px-4 py-3 text-[#2C201B]/78">{item.fornecedor?.nome ?? "Sem fornecedor"}</td>
-                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                <td className="px-3 py-3.5 text-[#2C201B]/78">{item.fornecedor?.nome ?? "Sem fornecedor"}</td>
+                                                <td className="px-3 py-3.5 text-[#2C201B]">
                                                     <p className="font-medium">{item.descricao}</p>
                                                     <p className="text-xs text-[#2C201B]/50">Saldo {formatCurrency(saldo)}</p>
                                                     {item.pedido_compra ? (
@@ -557,15 +600,15 @@ export default function ContasPagarPageClient({
                                                         </Link>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-4 py-3 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
-                                                <td className="px-4 py-3 text-[#2C201B]">
+                                                <td className="px-3 py-3.5 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
+                                                <td className="px-3 py-3.5 text-[#2C201B]">
                                                     <p className="font-semibold">{formatCurrency(item.valor_total)}</p>
                                                     {item.valor_pago > 0 ? <p className="text-xs text-[#2C201B]/50">Pago {formatCurrency(item.valor_pago)}</p> : null}
                                                 </td>
-                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                                                     <StatusSelect options={FINANCIAL_STATUS_OPTIONS} value={item.status} mode="static" staticVariant="pill" />
                                                 </td>
-                                                <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+                                                <td className="px-3 py-3.5" onClick={(event) => event.stopPropagation()}>
                                                     <DropdownMenu>
                                                         <DropdownMenuTrigger asChild>
                                                             <Button type="button" variant="ghost" size="icon" className="size-8">

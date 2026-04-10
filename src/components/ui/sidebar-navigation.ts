@@ -2,28 +2,31 @@
 
 import type { LucideIcon } from "lucide-react"
 import {
-  ArrowDownCircle,
   ArrowLeftRight,
-  ArrowUpCircle,
-  BarChart3,
-  BriefcaseBusiness,
-  Building2,
   CalendarDays,
+  ChartColumnIncreasing,
+  ChartSpline,
+  CircleDollarSign,
   ClipboardList,
-  Contact,
-  Landmark,
-  FileBarChart,
-  FileText,
+  ClipboardPenLine,
+  Construction,
+  FileChartColumnIncreasing,
+  FolderCog,
+  GitBranch,
+  HandCoins,
   HardHat,
   House,
+  Landmark,
   LayoutDashboard,
+  PackageCheck,
+  ReceiptText,
   Scale,
-  ShoppingCart,
   SlidersHorizontal,
   Tags,
-  TrendingUp,
+  UserCog,
+  UserRound,
   Users2,
-  WalletCards,
+  Wrench,
 } from "lucide-react"
 
 export type SidebarChildItem = {
@@ -79,19 +82,19 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     type: "link",
     label: "Clientes",
     href: "/clientes",
-    icon: Contact,
+    icon: UserRound,
   },
   {
     type: "link",
     label: "Orçamentos",
     href: "/orcamento",
-    icon: FileText,
+    icon: ClipboardPenLine,
   },
   {
     type: "group",
     id: "operacional",
     label: "Operacional",
-    icon: BriefcaseBusiness,
+    icon: Construction,
     children: [
       {
         label: "Obras",
@@ -106,7 +109,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "Pedidos de Compra",
         href: "/pedido_compra",
-        icon: ShoppingCart,
+        icon: PackageCheck,
       },
     ],
   },
@@ -114,7 +117,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     type: "group",
     id: "financeiro",
     label: "Financeiro",
-    icon: WalletCards,
+    icon: CircleDollarSign,
     children: [
       {
         label: "Dashboard",
@@ -124,12 +127,12 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "Contas a Pagar",
         href: "/contas-pagar",
-        icon: ArrowDownCircle,
+        icon: ReceiptText,
       },
       {
         label: "Contas a Receber",
         href: "/contas-receber",
-        icon: ArrowUpCircle,
+        icon: HandCoins,
       },
       {
         label: "Transações",
@@ -142,7 +145,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     type: "group",
     id: "relatorios",
     label: "Relatórios",
-    icon: BarChart3,
+    icon: ChartColumnIncreasing,
     children: [
       {
         label: "Performance Equipe",
@@ -152,7 +155,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "DRE",
         href: "/relatorios/resultado-operacional",
-        icon: FileBarChart,
+        icon: FileChartColumnIncreasing,
       },
       {
         label: "Balancete",
@@ -167,7 +170,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "Fluxo de Caixa",
         href: "/relatorios/fluxo-caixa",
-        icon: TrendingUp,
+        icon: ChartSpline,
       },
     ],
   },
@@ -175,12 +178,12 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     type: "group",
     id: "configuracoes",
     label: "Configurações",
-    icon: SlidersHorizontal,
+    icon: Wrench,
     children: [
       {
         label: "Cadastros",
         href: "/cadastros",
-        icon: SlidersHorizontal,
+        icon: FolderCog,
       },
       {
         label: "Parametrizações",
@@ -197,7 +200,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "Centros de Custo",
         href: "/configuracoes/centros-custo",
-        icon: Building2,
+        icon: GitBranch,
         roles: ["ADMIN", "DEV"],
       },
       {
@@ -209,7 +212,7 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
       {
         label: "Usuários",
         href: "/admin/users",
-        icon: Users2,
+        icon: UserCog,
         roles: ["ADMIN", "DEV"],
       },
     ],

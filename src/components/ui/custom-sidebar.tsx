@@ -9,6 +9,7 @@ import {
   ArrowRightToLine,
   ChevronDown,
   Loader2,
+  type LucideIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -52,6 +53,44 @@ const SIDEBAR_THEME = {
 
 const focusRingClass =
   "focus-visible:ring-2 focus-visible:ring-[#F5D193]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFCF7] outline-none"
+
+type SidebarNavIconProps = {
+  icon?: LucideIcon
+  active?: boolean
+  compact?: boolean
+}
+
+function SidebarNavIcon({
+  icon: Icon,
+  active = false,
+  compact = false,
+}: SidebarNavIconProps) {
+  if (!Icon) {
+    return null
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex shrink-0 items-center justify-center border transition-[background-color,border-color,color] duration-150 ease-out",
+        "size-7 rounded-[10px]",
+        compact && "size-8 rounded-[12px]",
+        active
+          ? "border-[#393316]/16 bg-[#393316]/8 text-[#393316]"
+          : "border-[#2C201B]/8 bg-white/35 text-[#2C201B]/58 group-hover/sidebar-link:border-[#2C201B]/14 group-hover/sidebar-link:bg-white/70 group-hover/sidebar-link:text-[#2C201B]/88"
+      )}
+    >
+      <Icon
+        className={cn(
+          "shrink-0",
+          compact ? "size-[17.5px]" : "size-[16.5px]"
+        )}
+        strokeWidth={1.95}
+      />
+    </span>
+  )
+}
 
 function getUserInitials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email?.trim() || "Grandesign"
@@ -141,19 +180,23 @@ export function CustomSidebar() {
             isActive={active}
             tooltip={isCollapsed && !nested ? item.label : undefined}
             className={cn(
-              "transition-all duration-150 ease-out",
+              "group/sidebar-link transition-[background-color,border-color,color] duration-150 ease-out",
               focusRingClass,
               nested
-                ? "relative flex h-[34px] w-full items-center rounded-none -ml-[1px] border-l-[2px] border-transparent bg-transparent pl-4 text-[13px] font-medium text-[#2C201B]/60 hover:translate-x-[2px] hover:bg-transparent hover:text-[#2C201B] data-[active=true]:translate-x-[2px] data-[active=true]:border-[#393316] data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-[#2C201B]"
+                ? "relative flex h-[34px] w-full items-center rounded-none -ml-[1px] border-l-[2px] border-transparent bg-transparent pl-4 text-[13px] font-medium text-[#2C201B]/60 hover:bg-transparent hover:text-[#2C201B] data-[active=true]:border-[#393316] data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-[#2C201B]"
                 : "flex items-center gap-3 px-3 h-[44px] rounded-[14px] text-sm font-semibold text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316] shadow-[inset_0_0_0_1px_rgba(44,32,27,0)]",
               compact && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]",
               isCollapsed && !nested && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]"
             )}
           >
             <Link href={item.href} aria-current={active ? "page" : undefined}>
-              {!nested && "icon" in item && item.icon && (
-                <item.icon className="shrink-0 size-[18px]" strokeWidth={1.9} />
-              )}
+              {!nested ? (
+                <SidebarNavIcon
+                  icon={item.icon}
+                  active={active}
+                  compact={compact || isCollapsed}
+                />
+              ) : null}
               {!compact ? <span className="truncate">{item.label}</span> : <span className="sr-only">{item.label}</span>}
             </Link>
           </SidebarMenuButton>
@@ -176,12 +219,12 @@ export function CustomSidebar() {
                 isActive={groupActive}
                 tooltip={group.label}
                 className={cn(
-                  "h-[44px] w-[44px] justify-center rounded-[14px] p-0 text-[#2C201B]/84 transition-[background-color,color] duration-150 ease-out",
+                  "group/sidebar-link h-[44px] w-[44px] justify-center rounded-[14px] p-0 text-[#2C201B]/84 transition-[background-color,color] duration-150 ease-out",
                   "hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]",
                   focusRingClass
                 )}
               >
-                <group.icon className="size-[18px] shrink-0" strokeWidth={1.9} />
+                <SidebarNavIcon icon={group.icon} active={groupActive} compact />
                 <span className="sr-only">{group.label}</span>
               </SidebarMenuButton>
             </PopoverTrigger>
@@ -223,7 +266,7 @@ export function CustomSidebar() {
             aria-expanded={isOpen}
             aria-controls={contentId}
             className={cn(
-              "flex h-[44px] w-full items-center justify-between rounded-[14px] px-3 text-left text-sm font-semibold transition-[background-color,color] duration-150 ease-out",
+              "group/sidebar-link flex h-[44px] w-full items-center justify-between rounded-[14px] px-3 text-left text-sm font-semibold transition-[background-color,color] duration-150 ease-out",
               focusRingClass,
               groupActive
                 ? "bg-[#FAF3E0] text-[#393316]"
@@ -233,7 +276,7 @@ export function CustomSidebar() {
             )}
           >
             <div className="flex min-w-0 items-center gap-3">
-              <group.icon className="size-[18px] shrink-0" strokeWidth={1.9} />
+              <SidebarNavIcon icon={group.icon} active={groupActive || isOpen} />
               <span className="truncate">{group.label}</span>
             </div>
             <ChevronDown

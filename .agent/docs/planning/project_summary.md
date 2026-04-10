@@ -1,4 +1,4 @@
-# Resumo do Produto: Módulo Financeiro
+i# Resumo do Produto: Módulo Financeiro
 
 ## Objetivo do módulo
 Transformar o financeiro do GRANDESIGN em uma base confiável para operar o dia a dia da empresa e das obras, sem depender de controles paralelos.

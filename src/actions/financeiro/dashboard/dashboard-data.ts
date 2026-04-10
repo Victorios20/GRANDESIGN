@@ -78,6 +78,10 @@ function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
     return Number(value)
 }
 
+function roundMoney(value: number) {
+    return Number(value.toFixed(2))
+}
+
 function parseFilterDate(value: string, end = false) {
     return end ? endOfDay(new Date(`${value}T00:00:00`)) : new Date(`${value}T00:00:00`)
 }
@@ -436,53 +440,84 @@ async function getForecastMovementRows(range: { start: Date; end: Date }, resolu
     return [...receitas, ...despesas]
 }
 
+async function getCurrentCashBalance(accountIds: number[]) {
+    const bankAgg = await prisma.contasBancaria.aggregate({
+        _sum: { saldo_atual: true },
+        where: {
+            ativo: true,
+            ...(accountIds.length > 0 ? { id: { in: accountIds } } : {}),
+        },
+    })
+
+    return roundMoney(toNumber(bankAgg._sum.saldo_atual))
+}
+
+function getMovementNet(rows: MovementRow[]) {
+    return roundMoney(
+        rows.reduce((total, row) => {
+        if (row.tipo === "Receita") return total + row.total
+        if (row.tipo === "Despesa") return total - row.total
+        return total
+        }, 0),
+    )
+}
+
 async function buildEvolutionData(filters: DashboardAppliedFilters, windowPreset: DashboardChartWindowPreset) {
     const range = getDashboardChartWindowRange(windowPreset)
     const resolution = range.resolution
     const points = buildBucketPoints(range.start, range.end, resolution)
     const pointMap = new Map(points.map((point) => [point.bucket_key, point]))
 
+    const [realizedRows, currentBalance] = await Promise.all([
+        getRealizedMovementRows(range, resolution, filters.account_ids),
+        getCurrentCashBalance(filters.account_ids),
+    ])
+
+    const forecastRows =
+        filters.analysis_status === "previsto" || filters.analysis_status === "ambos"
+            ? await getForecastMovementRows(range, resolution)
+            : []
+
     const rows =
         filters.analysis_status === "realizado"
-            ? await getRealizedMovementRows(range, resolution, filters.account_ids)
+            ? realizedRows
             : filters.analysis_status === "previsto"
-              ? await getForecastMovementRows(range, resolution)
-              : [
-                    ...(await getRealizedMovementRows(range, resolution, filters.account_ids)),
-                    ...(await getForecastMovementRows(range, resolution)),
-                ]
+              ? forecastRows
+              : [...realizedRows, ...forecastRows]
 
     for (const row of rows) {
         const entry = pointMap.get(row.bucket)
         if (!entry) continue
 
         if (row.tipo === "Receita") {
-            entry.receitas += row.total
+            entry.receitas = roundMoney(entry.receitas + row.total)
         }
 
         if (row.tipo === "Despesa") {
-            entry.despesas += row.total
+            entry.despesas = roundMoney(entry.despesas + row.total)
         }
 
-        entry.resultado = entry.receitas - entry.despesas
+        entry.resultado = roundMoney(entry.receitas - entry.despesas)
     }
 
-    let saldoAcumulado = 0
+    const saldoInicial = roundMoney(currentBalance - getMovementNet(realizedRows))
+    let saldoAcumulado = saldoInicial
+
     for (const point of points) {
-        saldoAcumulado += point.resultado
+        saldoAcumulado = roundMoney(saldoAcumulado + point.resultado)
         point.saldo_acumulado = saldoAcumulado
     }
 
     const summary = points.reduce(
         (acc, point) => ({
-            receitas: acc.receitas + point.receitas,
-            despesas: acc.despesas + point.despesas,
-            resultado: acc.resultado + point.resultado,
+            receitas: roundMoney(acc.receitas + point.receitas),
+            despesas: roundMoney(acc.despesas + point.despesas),
+            resultado: roundMoney(acc.resultado + point.resultado),
             saldo_acumulado: point.saldo_acumulado,
         }),
         {
             ...emptyTotals(),
-            saldo_acumulado: 0,
+            saldo_acumulado: saldoInicial,
         },
     )
 
