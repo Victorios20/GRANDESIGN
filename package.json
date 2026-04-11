@@ -94,5 +94,8 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "optionalDependencies": {
+    "lightningcss-linux-x64-gnu": "^1.30.1"
   }
 }
