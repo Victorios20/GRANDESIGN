@@ -447,9 +447,7 @@ export default function ContasReceberPageClient({
                     ) : null}
                 </section>
 
-                <section className={cn(operationalListShellClass, "px-4 py-3 md:px-5")}>
-                    <StatusTabs value={statusFilter} items={statusTabItems} onValueChange={setStatusFilter} />
-                </section>
+                <StatusTabs value={statusFilter} items={statusTabItems} onValueChange={setStatusFilter} />
 
                 <ListSummaryBar
                     countLabel={`${meta.total} conta${meta.total === 1 ? "" : "s"} na listagem atual`}
