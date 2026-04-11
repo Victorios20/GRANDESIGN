@@ -1,0 +1,62 @@
+import { NextResponse } from "next/server"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { getPayables, type PayableOrderBy } from "@/actions/financeiro/payables/get"
+import { StatusFinanceiro } from "@prisma/client"
+
+const PAYABLE_ORDER_FIELDS = new Set(["data_vencimento", "fornecedor", "descricao", "categoria", "valor_total", "status", "created_at"])
+
+export async function GET(req: Request) {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const { searchParams } = new URL(req.url)
+    const page = Number(searchParams.get("page")) || 1
+    const limit = Number(searchParams.get("limit")) || 20
+    const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
+    const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
+    const fornecedor_id = searchParams.get("fornecedor_id") ? Number(searchParams.get("fornecedor_id")) : undefined
+    const categoria_id = searchParams.get("categoria_id") ? Number(searchParams.get("categoria_id")) : undefined
+    const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined
+    const search = searchParams.get("search") || undefined
+    const orderByParam = searchParams.get("orderBy")
+    const orderBy = orderByParam && PAYABLE_ORDER_FIELDS.has(orderByParam) ? orderByParam as PayableOrderBy : undefined
+    const orderDir = searchParams.get("orderDir") === "asc" ? "asc" : "desc"
+
+    const statusParam = searchParams.get("status")
+    let status: StatusFinanceiro | StatusFinanceiro[] | undefined
+    if (statusParam) {
+        const arr = statusParam.split(",").filter(Boolean) as StatusFinanceiro[]
+        status = arr.length === 1 ? arr[0] : arr
+    }
+
+    try {
+        const result = await getPayables({ page, limit, startDate, endDate, status, fornecedor_id, categoria_id, centro_custo_id, search, orderBy, orderDir })
+        return NextResponse.json(result)
+    } catch (error) {
+        return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+    }
+}
+
+export async function POST() {
+    const session = await getServerSession(authOptions)
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    try {
+        // Check if it's the installment endpoint
+        // Next.js App Router uses folders. If this file is in `api/financeiro/payables/route.ts`,
+        // the path is `/api/financeiro/payables`. 
+        // To handle `/create` and `/create-installments`, user might want separate routes or params.
+        // User requested: POST /payables/create and POST /payables/create-installments
+        // This implies sub-routes. We should structure folders for that or use query param?
+        // Let's implement sub-folders for cleaner API as requested.
+        // But since I'm in `route.ts`, this is the root.
+
+        // Changing strategy: This file will handle the root LIST. 
+        // I need separate files for create and create-installments.
+        return NextResponse.json({ error: "Use specific endpoints /create or /create-installments" }, { status: 404 })
+
+    } catch (error) {
+        return NextResponse.json({ error: (error as Error).message }, { status: 500 })
+    }
+}

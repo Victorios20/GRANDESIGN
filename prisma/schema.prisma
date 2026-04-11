@@ -7,10 +7,52 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Status da OBRA
+enum ObraStatus {
+  ASSINATURA_DE_CONTRATO       @map("Assinatura de contrato")
+  AGUARDANDO_VALIDACAO_TECNICA @map("Aguardando validação técnica")
+  COMPRAS                      @map("Compras")
+  A_INICIAR                    @map("À iniciar")
+  EXECUCAO                     @map("Execução")
+  AGUARDANDO_PAGAMENTO         @map("Aguardando pagamento")
+  PENDENCIA                    @map("Pendência")
+  FINALIZADO                   @map("Finalizado")
+}
+
+// Status genérico de pagamento
+enum PagamentoStatus {
+  PENDENTE @map("Pendente")
+  EFETUADO @map("Efetuado")
+}
+
+// Status de TELHA/MADEIRA (iguais)
+enum PedidoStatusPadrao {
+  PENDENTE             @map("Pendente")
+  AGUARDANDO_PAGAMENTO @map("Aguardando pagamento")
+  PEDIDO_FEITO         @map("Pedido feito")
+  ENTREGUE             @map("Entregue")
+}
+
+// Status de MATERIAIS
+enum PedidoStatusMateriais {
+  PENDENTE   @map("Pendente")
+  EM_ESTOQUE @map("Em estoque")
+  ENTREGUE   @map("Entregue")
+}
+
+// Status de ANDAIMES
+enum PedidoStatusAndaimes {
+  PENDENTE     @map("Pendente")
+  PEDIDO_FEITO @map("Pedido feito")
+  ENTREGUE     @map("Entregue")
+  A_COLETAR    @map("À coletar")
+  COLETADO     @map("Coletado")
+}
+
 model cidades {
   id      Int       @id @default(autoincrement())
   nome    String    @unique @db.VarChar(100)
-  cor     String?   @db.VarChar(7)
+  cor     String?   @db.VarChar(7) // HEX color
   cliente cliente[]
 }
 
@@ -23,11 +65,14 @@ model cliente {
   cidade_id Int?
   cpf       String?     @db.VarChar(11)
   cidades   cidades?    @relation(fields: [cidade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  obras     obras[]
   orcamento orcamento[]
+  obras     obras[]
+
+  // Financeiro
+  contas_receber ContaReceber[]
 
   @@index([cidade_id], map: "idx_cliente_cidade_id")
-  @@index([nome], map: "idx_cliente_nome")
+  @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
 }
 
 model componentes {
@@ -49,7 +94,7 @@ model materiais {
   preco_unitario    Decimal          @db.Decimal(10, 2)
   unidade_de_medida String?          @default("un") @db.VarChar(20)
   fornecedorId      Int?
-  fornecedor        fornecedores?    @relation(fields: [fornecedorId], references: [id], onUpdate: NoAction)
+  fornecedor        fornecedores?    @relation(fields: [fornecedorId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   receitas_fixas    receitas_fixas[]
 
   @@unique([descricao, fornecedorId], map: "ux_materiais_desc_fornecedor")
@@ -58,12 +103,17 @@ model materiais {
 }
 
 model fornecedores {
-  id                   Int             @id @default(autoincrement())
-  nome                 String          @unique @db.VarChar(120)
-  tipo                 String?         @db.VarChar(50)
-  materiais            materiais[]
-  orcamentosFornecedor orcamento[]     @relation("FornecedorOrcamentos")
-  pedidosCompra        pedido_compra[] @relation("FornecedorPedidoCompra")
+  id        Int         @id @default(autoincrement())
+  nome      String      @unique @db.VarChar(120)
+  tipo      String?     @db.VarChar(50)
+  materiais materiais[]
+
+  pedidosCompra pedido_compra[] @relation("FornecedorPedidoCompra")
+
+  orcamentosFornecedor orcamento[] @relation("FornecedorOrcamentos")
+
+  // Financeiro
+  contas_pagar ContaPagar[]
 
   @@index([tipo])
 }
@@ -71,48 +121,56 @@ model fornecedores {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model orcamento {
-  id                      Int                   @id @default(autoincrement())
-  cliente_id              Int
-  tipo_obra_id            Int?
-  link_slide              String?               @db.VarChar(255)
-  data_criacao            DateTime?             @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
-  totais_madeiras_preco   Decimal               @default(0.00) @db.Decimal(10, 2)
-  totais_materiais_preco  Decimal               @default(0.00) @db.Decimal(10, 2)
-  totais_comissao_preco   Decimal               @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_ps_preco Decimal               @default(0.00) @db.Decimal(10, 2)
-  totais_empresa_gd_preco Decimal               @default(0.00) @db.Decimal(10, 2)
-  largura                 Decimal?              @db.Decimal(10, 2)
-  comprimento             Decimal?              @db.Decimal(10, 2)
-  totais_frete_preco      Decimal               @default(0.00) @db.Decimal(10, 2)
+  id                    Int       @id @default(autoincrement())
+  cliente_id            Int
+  tipo_obra_id          Int?
+  link_slide            String?   @db.VarChar(255)
+  data_criacao          DateTime? @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
+  data_ultima_alteracao DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @map("data_ultima_alteracao") @db.Timestamp(6)
+
+  totais_madeiras_preco   Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_materiais_preco  Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_comissao_preco   Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_ps_preco Decimal       @default(0.00) @db.Decimal(10, 2)
+  totais_empresa_gd_preco Decimal       @default(0.00) @db.Decimal(10, 2)
+  largura                 Decimal?      @db.Decimal(10, 2)
+  comprimento             Decimal?      @db.Decimal(10, 2)
+  totais_frete_preco      Decimal       @default(0.00) @db.Decimal(10, 2)
   link_pdf                String?
-  titulo                  String?               @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
-  largura_menor           Decimal?              @db.Decimal(10, 2)
-  largura_maior           Decimal?              @db.Decimal(10, 2)
-  comprimento_menor       Decimal?              @db.Decimal(10, 2)
-  comprimento_maior       Decimal?              @db.Decimal(10, 2)
-  data_ultima_alteracao   DateTime              @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @map("data_ultima_alteracao") @db.Timestamp(6)
-  created_by              Int?
-  updated_by              Int?
-  lancado_obra            Boolean               @default(false)
-  lancado_obra_em         DateTime?
+  titulo                  String?       @unique(map: "orcamento_titulo_unique") @db.VarChar(150)
+  cor_stain               String?       @db.VarChar(50)
+  observacoes             String?       @db.Text
+  excluido                Boolean       @default(false)
+  // Fornecedor (madeira) opcional do orçamento
   id_fornecedor           Int?
-  observacoes             String?
-  excluido                Boolean               @default(false)
-  cor_stain               String?               @db.VarChar(50)
-  obra                    obras?
-  cliente                 cliente               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdBy               User?                 @relation("OrcamentoCreatedBy", fields: [created_by], references: [id])
-  fornecedor              fornecedores?         @relation("FornecedorOrcamentos", fields: [id_fornecedor], references: [id])
-  tipo_obra               tipo_obra?            @relation(fields: [tipo_obra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  updatedBy               User?                 @relation("OrcamentoUpdatedBy", fields: [updated_by], references: [id])
-  orcamento_material      orcamento_material[]
-  orcamento_pagamento     orcamento_pagamento[]
+  fornecedor              fornecedores? @relation("FornecedorOrcamentos", fields: [id_fornecedor], references: [id], onDelete: SetNull)
+
+  largura_menor     Decimal?  @db.Decimal(10, 2)
+  largura_maior     Decimal?  @db.Decimal(10, 2)
+  comprimento_menor Decimal?  @db.Decimal(10, 2)
+  comprimento_maior Decimal?  @db.Decimal(10, 2)
+  lancado_obra      Boolean   @default(false)
+  lancado_obra_em   DateTime?
+  obra              obras?
+
+  created_by Int?
+  updated_by Int?
+
+  createdBy User? @relation("OrcamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy User? @relation("OrcamentoUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  cliente             cliente               @relation(fields: [cliente_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tipo_obra           tipo_obra?            @relation(fields: [tipo_obra_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  orcamento_material  orcamento_material[]
+  orcamento_pagamento orcamento_pagamento[]
+
+  // Financeiro
+  contas_receber ContaReceber[]
 
   @@index([data_criacao(sort: Desc)], map: "idx_orcamento_data_criacao")
   @@index([data_ultima_alteracao(sort: Desc)], map: "idx_orcamento_data_ultima_alteracao")
   @@index([created_by], map: "idx_orcamento_created_by")
   @@index([updated_by], map: "idx_orcamento_updated_by")
-  @@index([lancado_obra], map: "idx_orcamento_lancado_obra")
   @@index([id_fornecedor], map: "idx_orcamento_id_fornecedor")
   @@index([excluido, data_criacao(sort: Desc)], map: "idx_orcamento_excluido_data_criacao")
 }
@@ -163,28 +221,42 @@ model tipo_obra {
 }
 
 model User {
-  id                    Int                  @id @default(autoincrement())
-  name                  String               @db.VarChar(150)
-  email                 String               @unique @db.VarChar(150)
-  password_hash         String
-  is_active             Boolean              @default(true)
-  created_at            DateTime             @default(now())
-  updated_at            DateTime             @updatedAt
-  auditLogs             AuditLog[]
-  obrasCriadas          obras[]              @relation("ObraCreatedBy")
-  obrasAtualizadas      obras[]              @relation("ObraUpdatedBy")
-  orcamentosCriados     orcamento[]          @relation("OrcamentoCreatedBy")
-  orcamentosAtualizados orcamento[]          @relation("OrcamentoUpdatedBy")
-  passwordResetTokens   PasswordResetToken[]
-  roles                 UserRole[]
+  id            Int      @id @default(autoincrement())
+  name          String   @db.VarChar(150)
+  email         String   @unique @db.VarChar(150)
+  password_hash String
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  roles UserRole[]
+
+  orcamentosCriados     orcamento[] @relation("OrcamentoCreatedBy")
+  orcamentosAtualizados orcamento[] @relation("OrcamentoUpdatedBy")
+
+  obrasCriadas     obras[] @relation("ObraCreatedBy")
+  obrasAtualizadas obras[] @relation("ObraUpdatedBy")
+
+  auditLogs           AuditLog[] // <<< novo (back-relation)
+  passwordResetTokens PasswordResetToken[] // <<< novo (back-relation)
+
+  // Financeiro
+  contasPagarCriadas  ContaPagar[] @relation("ContaPagarCreatedBy")
+  contasPagarEditadas ContaPagar[] @relation("ContaPagarUpdatedBy")
+
+  contasReceberCriadas  ContaReceber[] @relation("ContaReceberCreatedBy")
+  contasReceberEditadas ContaReceber[] @relation("ContaReceberUpdatedBy")
+
+  lancamentosCriados    Lancamento[]    @relation("LancamentoCreatedBy")
+  transferenciasCriadas Transferencia[] @relation("TransferenciaCreatedBy")
 
   @@map("users")
 }
 
 model Role {
   id    Int        @id @default(autoincrement())
-  name  String     @unique @db.VarChar(50)
-  label String     @db.VarChar(100)
+  name  String     @unique @db.VarChar(50) // ex: 'ADMIN', 'DEV', 'VENDEDOR'
+  label String     @db.VarChar(100) // ex: 'Administrador'
   users UserRole[]
 
   @@map("roles")
@@ -193,8 +265,9 @@ model Role {
 model UserRole {
   user_id Int
   role_id Int
-  role    Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  user    User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
 
   @@id([user_id, role_id])
   @@index([user_id])
@@ -209,7 +282,8 @@ model PasswordResetToken {
   expires_at DateTime
   used_at    DateTime?
   created_at DateTime  @default(now())
-  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([expires_at])
@@ -218,15 +292,16 @@ model PasswordResetToken {
 
 model AuditLog {
   id         Int      @id @default(autoincrement())
-  user_id    Int?
-  action     String   @db.VarChar(60)
-  entity     String   @db.VarChar(60)
+  user_id    Int? // null = ação de sistema
+  action     String   @db.VarChar(60) // ex: 'ORCAMENTO_CREATE'
+  entity     String   @db.VarChar(60) // ex: 'orcamento'
   entity_id  Int?
   detail     Json?
   ip         String?  @db.VarChar(64)
   user_agent String?
   created_at DateTime @default(now())
-  user       User?    @relation(fields: [user_id], references: [id])
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([entity, entity_id])
   @@index([user_id, created_at])
@@ -239,218 +314,26 @@ model ordem_servico {
   equipe_id           Int
   data_prev_inicio    DateTime @db.Date
   data_prev_conclusao DateTime @db.Date
-  obra_id             Int      @unique
-  equipe              equipes  @relation(fields: [equipe_id], references: [id])
-  obra                obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  // 1:1 com Obra — cai se a obra cair
+  obra_id Int   @unique
+  obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  // equipe permanece se OS cair
+  equipe equipes @relation(fields: [equipe_id], references: [id])
 
   @@index([equipe_id])
   @@index([obra_id])
 }
 
 model equipes {
-  id            Int                  @id @default(autoincrement())
-  nome          String               @db.VarChar(120)
-  cor           String?              @db.VarChar(7)
-  segmentos     ObraAgendaSegmento[]
-  obras         obras[]
+  id   Int     @id @default(autoincrement())
+  nome String  @db.VarChar(120)
+  cor  String? @db.VarChar(7) // HEX color, e.g. "#FF5733"
+
   ordem_servico ordem_servico[]
-}
-
-model pedido_compra {
-  id                Int                @id @default(autoincrement())
-  obra_id           Int
-  categoria         PedidoCategoria
-  created_at        DateTime           @default(now())
-  data_entrega      DateTime?          @db.Date
-  descricao         String?            @db.VarChar(500)
-  endereco_entrega  String?            @db.VarChar(500)
-  fornecedor_id     Int?
-  frete             Decimal?           @db.Decimal(10, 2)
-  link_maps         String?            @db.VarChar(500)
-  nome_receptor     String?            @db.VarChar(150)
-  observacoes       String?
-  status            PedidoCompraStatus @default(RASCUNHO)
-  telefone_receptor String?            @db.VarChar(20)
-  updated_at        DateTime           @updatedAt
-  valor_orcado      Decimal?           @db.Decimal(10, 2)
-  valor_realizado   Decimal?           @db.Decimal(10, 2)
-  fornecedor        fornecedores?      @relation("FornecedorPedidoCompra", fields: [fornecedor_id], references: [id])
-  obra              obras              @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-  itens             pedido_itens[]
-
-  @@index([obra_id], map: "idx_pedido_compra_obra_id")
-  @@index([fornecedor_id], map: "idx_pedido_compra_fornecedor_id")
-  @@index([obra_id, categoria], map: "idx_pedido_compra_obra_categoria")
-  @@index([status], map: "idx_pedido_compra_status")
-  @@index([status, created_at(sort: Desc)], map: "idx_pedido_compra_status_created_at")
-}
-
-model pedido_itens {
-  id               Int           @id @default(autoincrement())
-  pedido_compra_id Int
-  descricao        String        @db.VarChar(150)
-  quantidade       Decimal       @db.Decimal(10, 2)
-  tamanho          Decimal?      @db.Decimal(10, 2)
-  preco_unitario   Decimal       @db.Decimal(10, 2)
-  total            Decimal       @db.Decimal(10, 2)
-  created_at       DateTime      @default(now())
-  updated_at       DateTime      @updatedAt
-  componente       String?       @db.VarChar(100)
-  pedido_compra    pedido_compra @relation(fields: [pedido_compra_id], references: [id], onDelete: Cascade)
-
-  @@index([pedido_compra_id], map: "idx_pedido_itens_pedido_compra_id")
-}
-
-model obras {
-  id                          Int                  @id @default(autoincrement())
-  orcamento_id                Int?                 @unique
-  cliente_id                  Int
-  equipe_id                   Int?
-  endereco_obra               String               @db.VarChar(255)
-  maps_url                    String               @db.VarChar(255)
-  tipo_obra                   String               @db.VarChar(100)
-  largura                     Decimal              @db.Decimal(10, 2)
-  comprimento                 Decimal              @db.Decimal(10, 2)
-  telha_escolhida             String               @db.VarChar(120)
-  valor_obra                  Decimal              @db.Decimal(10, 2)
-  valor_mao_de_obra           Decimal              @db.Decimal(10, 2)
-  status                      ObraStatus           @default(ASSINATURA_DE_CONTRATO)
-  observacoes                 String?
-  pagamento_entrada           Decimal?             @db.Decimal(10, 2)
-  forma_pagamento_entrada     String?              @db.VarChar(30)
-  status_pagamento_entrada    PagamentoStatus      @default(PENDENTE)
-  pagamento_quitacao          Decimal?             @db.Decimal(10, 2)
-  forma_pagamento_quitacao    String?              @db.VarChar(30)
-  status_pagamento_quitacao   PagamentoStatus      @default(PENDENTE)
-  created_by                  Int?
-  updated_by                  Int?
-  data_criacao                DateTime?            @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
-  data_ultima_alteracao       DateTime             @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @updatedAt @map("data_ultima_alteracao") @db.Timestamp(6)
-  link_contrato               String?              @db.VarChar(255)
-  link_ordem_servico          String?              @db.VarChar(255)
-  link_pdf_orcamento          String?              @db.VarChar(255)
-  link_slide_orcamento        String?              @db.VarChar(255)
-  titulo                      String?              @db.VarChar(150)
-  data_contrato               DateTime?            @db.Timestamp(6)
-  data_fim_obra               DateTime?            @db.Date
-  data_inicio_obra            DateTime?            @db.Date
-  link_contrato_assinado      String?              @db.VarChar(255)
-  data_conclusao              DateTime?            @db.Timestamp(6)
-  comprimento_maior           Decimal?             @db.Decimal(10, 2)
-  comprimento_menor           Decimal?             @db.Decimal(10, 2)
-  largura_maior               Decimal?             @db.Decimal(10, 2)
-  largura_menor               Decimal?             @db.Decimal(10, 2)
-  titulo_link_contrato        String?              @db.VarChar(150)
-  titulo_link_ordem_servico   String?              @db.VarChar(150)
-  titulo_link_pdf_orcamento   String?              @db.VarChar(150)
-  titulo_link_slide_orcamento String?              @db.VarChar(150)
-  cor_stain                   String?              @db.VarChar(50)
-  is_l_shape                  Boolean              @default(false)
-  segmentos                   ObraAgendaSegmento[]
-  documentos                  obra_documentos[]
-  imagens                     obra_imagens[]
-  cliente                     cliente              @relation(fields: [cliente_id], references: [id])
-  createdBy                   User?                @relation("ObraCreatedBy", fields: [created_by], references: [id])
-  equipe                      equipes?             @relation(fields: [equipe_id], references: [id])
-  orcamento                   orcamento?           @relation(fields: [orcamento_id], references: [id])
-  updatedBy                   User?                @relation("ObraUpdatedBy", fields: [updated_by], references: [id])
-  ordem_servico               ordem_servico?
-  pedidos_compra              pedido_compra[]
-
-  @@index([cliente_id])
-  @@index([equipe_id])
-  @@index([created_by])
-  @@index([updated_by])
-  @@index([titulo], map: "idx_obras_titulo")
-  @@index([data_criacao(sort: Desc)], map: "idx_obras_data_criacao")
-  @@index([status], map: "idx_obras_status")
-  @@index([status, data_criacao(sort: Desc)], map: "idx_obras_status_data_criacao")
-}
-
-model obra_imagens {
-  id         Int      @id @default(autoincrement())
-  obra_id    Int
-  url        String   @db.VarChar(500)
-  ordem      Int?
-  legenda    String?
-  created_at DateTime @default(now())
-  obra       obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-
-  @@index([obra_id])
-}
-
-model ObraAgendaSegmento {
-  id          Int      @id @default(autoincrement())
-  obra_id     Int
-  equipe_id   Int?
-  inicio      DateTime @db.Date
-  fim         DateTime @db.Date
-  observacoes String?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  created_by  Int?
-  status      String   @default("AGENDADO")
-  tipo        String   @default("EXECUCAO")
-  updated_by  Int?
-  equipe      equipes? @relation(fields: [equipe_id], references: [id])
-  obra        obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-
-  @@index([obra_id])
-  @@index([equipe_id])
-  @@index([inicio, fim])
-  @@map("obra_agenda_segmento")
-}
-
-model obra_documentos {
-  id         Int      @id @default(autoincrement())
-  obra_id    Int
-  tipo       String   @db.VarChar(50)
-  titulo     String   @db.VarChar(200)
-  url        String?  @db.VarChar(500)
-  link       String?  @db.VarChar(500)
-  created_at DateTime @default(now())
-  ordem      Int?
-  obra       obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-
-  @@index([obra_id])
-  @@index([obra_id, tipo])
-}
-
-enum ObraStatus {
-  ASSINATURA_DE_CONTRATO       @map("Assinatura de contrato")
-  AGUARDANDO_VALIDACAO_TECNICA @map("Aguardando validação técnica")
-  COMPRAS                      @map("Compras")
-  A_INICIAR                    @map("À iniciar")
-  EXECUCAO                     @map("Execução")
-  AGUARDANDO_PAGAMENTO         @map("Aguardando pagamento")
-  PENDENCIA                    @map("Pendência")
-  FINALIZADO                   @map("Finalizado")
-}
-
-enum PagamentoStatus {
-  PENDENTE @map("Pendente")
-  EFETUADO @map("Efetuado")
-}
-
-enum PedidoStatusPadrao {
-  PENDENTE             @map("Pendente")
-  AGUARDANDO_PAGAMENTO @map("Aguardando pagamento")
-  PEDIDO_FEITO         @map("Pedido feito")
-  ENTREGUE             @map("Entregue")
-}
-
-enum PedidoStatusMateriais {
-  PENDENTE   @map("Pendente")
-  EM_ESTOQUE @map("Em estoque")
-  ENTREGUE   @map("Entregue")
-}
-
-enum PedidoStatusAndaimes {
-  PENDENTE     @map("Pendente")
-  PEDIDO_FEITO @map("Pedido feito")
-  ENTREGUE     @map("Entregue")
-  A_COLETAR    @map("À coletar")
-  COLETADO     @map("Coletado")
+  obras         obras[]
+  segmentos     ObraAgendaSegmento[]
 }
 
 enum PedidoCategoria {
@@ -469,4 +352,614 @@ enum PedidoCompraStatus {
   AGUARDANDO_ENTREGA   @map("Aguardando entrega")
   ENTREGUE             @map("Entregue")
   CANCELADO            @map("Cancelado")
+}
+
+enum IntegracaoFinanceiraStatus {
+  NAO_INTEGRADO @map("Nao integrado")
+  INTEGRADO     @map("Integrado")
+  ESTORNADO     @map("Estornado")
+}
+
+model pedido_compra {
+  id Int @id @default(autoincrement())
+
+  obra_id Int
+  obra    obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  categoria PedidoCategoria
+  status    PedidoCompraStatus @default(RASCUNHO)
+
+  valor_orcado    Decimal? @db.Decimal(10, 2)
+  valor_realizado Decimal? @db.Decimal(10, 2)
+  frete           Decimal? @db.Decimal(10, 2)
+
+  descricao   String? @db.VarChar(500)
+  observacoes String? @db.Text
+
+  nao_previsto Boolean @default(false)
+  motivo_extra String? @db.Text
+
+  fornecedor_id Int?
+  fornecedor    fornecedores? @relation("FornecedorPedidoCompra", fields: [fornecedor_id], references: [id], onDelete: SetNull)
+
+  data_entrega      DateTime? @db.Date
+  endereco_entrega  String?   @db.VarChar(500)
+  nome_receptor     String?   @db.VarChar(150)
+  telefone_receptor String?   @db.VarChar(20)
+  link_maps         String?   @db.VarChar(500)
+
+  financeiro_integracao_status IntegracaoFinanceiraStatus @default(NAO_INTEGRADO)
+  financeiro_integrado_em      DateTime?
+  financeiro_integrado_por     Int?
+  financeiro_estornado_em      DateTime?
+  financeiro_estornado_por     Int?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  itens pedido_itens[]
+
+  // Financeiro
+  contas_pagar ContaPagar[]
+
+  @@index([obra_id], map: "idx_pedido_compra_obra_id")
+  @@index([fornecedor_id], map: "idx_pedido_compra_fornecedor_id")
+  @@index([obra_id, categoria], map: "idx_pedido_compra_obra_categoria")
+  @@index([status, created_at(sort: Desc)], map: "idx_pedido_compra_status_created_at")
+}
+
+model pedido_itens {
+  id Int @id @default(autoincrement())
+
+  pedido_compra_id Int
+  pedido_compra    pedido_compra @relation(fields: [pedido_compra_id], references: [id], onDelete: Cascade)
+
+  descricao      String   @db.VarChar(150)
+  quantidade     Decimal  @db.Decimal(10, 2)
+  tamanho        Decimal? @db.Decimal(10, 2)
+  componente     String?  @db.VarChar(100)
+  preco_unitario Decimal  @db.Decimal(10, 2)
+  total          Decimal  @db.Decimal(10, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([pedido_compra_id], map: "idx_pedido_itens_pedido_compra_id")
+}
+
+model obras {
+  id Int @id @default(autoincrement())
+
+  // 1:1 com Orçamento (mantém a obra se o orçamento cair)
+  orcamento_id Int?       @unique
+  orcamento    orcamento? @relation(fields: [orcamento_id], references: [id], onDelete: SetNull)
+
+  // N:1 com Cliente (cliente permanece se a obra cair)
+  cliente_id Int
+  cliente    cliente @relation(fields: [cliente_id], references: [id])
+
+  // N:1 com Equipe (mantém a obra se a equipe cair)
+  equipe_id Int?
+  equipe    equipes? @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+
+  // 1:1 com Ordem de Serviço — FK fica no filho (ordem_servico)
+  ordem_servico ordem_servico?
+
+  // 1:1 com Pedido de Compra — FK fica no filho (pedido_compra)
+  pedidos_compra pedido_compra[]
+
+  // NOVO — título espelho do orçamento (igual ao orcamento.titulo)
+  titulo String? @db.VarChar(150)
+
+  // CAMPOS
+  endereco_obra     String   @db.VarChar(255)
+  maps_url          String   @db.VarChar(255)
+  tipo_obra         String   @db.VarChar(100)
+  largura           Decimal  @db.Decimal(10, 2)
+  comprimento       Decimal  @db.Decimal(10, 2)
+  telha_escolhida   String   @db.VarChar(120)
+  largura_menor     Decimal? @db.Decimal(10, 2)
+  largura_maior     Decimal? @db.Decimal(10, 2)
+  comprimento_menor Decimal? @db.Decimal(10, 2)
+  comprimento_maior Decimal? @db.Decimal(10, 2)
+  is_l_shape        Boolean  @default(false)
+  cor_stain         String?  @db.VarChar(50)
+
+  valor_obra        Decimal @db.Decimal(10, 2)
+  valor_mao_de_obra Decimal @db.Decimal(10, 2)
+
+  status      ObraStatus @default(ASSINATURA_DE_CONTRATO)
+  observacoes String?    @db.Text
+
+  // Datas de prazo contratual (gestão de prazos, diferente de execução)
+  data_inicio_obra DateTime? @db.Date
+
+  data_fim_obra DateTime? @db.Date // Prazo contratual
+
+  // Data real de conclusão (setada ao finalizar)
+  data_conclusao DateTime? @db.Timestamp(6)
+
+  // Financeiro
+  pagamento_entrada        Decimal?        @db.Decimal(10, 2)
+  forma_pagamento_entrada  String?         @db.VarChar(30)
+  status_pagamento_entrada PagamentoStatus @default(PENDENTE)
+
+  pagamento_quitacao        Decimal?        @db.Decimal(10, 2)
+  forma_pagamento_quitacao  String?         @db.VarChar(30)
+  status_pagamento_quitacao PagamentoStatus @default(PENDENTE)
+
+  // ANEXOS
+  link_slide_orcamento        String?   @db.VarChar(255)
+  link_pdf_orcamento          String?   @db.VarChar(255)
+  link_contrato               String?   @db.VarChar(255)
+  link_contrato_assinado      String?   @db.VarChar(255) // Validated/Signed PDF upload
+  data_contrato               DateTime? @db.Timestamp(6) // Date contract was signed/uploaded
+  link_ordem_servico          String?   @db.VarChar(255)
+  titulo_link_contrato        String?   @db.VarChar(150)
+  titulo_link_ordem_servico   String?   @db.VarChar(150)
+  titulo_link_pdf_orcamento   String?   @db.VarChar(150)
+  titulo_link_slide_orcamento String?   @db.VarChar(150)
+
+  // Auditoria
+  created_by Int?
+  updated_by Int?
+  createdBy  User? @relation("ObraCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy  User? @relation("ObraUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  data_criacao          DateTime? @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @db.Timestamp(6)
+  data_ultima_alteracao DateTime  @default(dbgenerated("(now() AT TIME ZONE 'America/Sao_Paulo'::text)")) @updatedAt @map("data_ultima_alteracao") @db.Timestamp(6)
+
+  // Imagens 1:N — caem junto com a obra
+  imagens obra_imagens[]
+
+  // Segmentos de agenda 1:N — caem junto com a obra
+  segmentos ObraAgendaSegmento[]
+
+  // Documentos anexos 1:N — caem junto com a obra
+  documentos obra_documentos[]
+
+  // Financeiro
+  centro_custo CentroCusto[]
+
+  // Snapshot Orçamento
+  budget_snapshot obra_budget_snapshot?
+
+  @@index([cliente_id])
+  @@index([equipe_id])
+  @@index([created_by])
+  @@index([updated_by])
+  @@index([titulo], map: "idx_obras_titulo")
+  @@index([data_criacao(sort: Desc)], map: "idx_obras_data_criacao")
+  @@index([status, data_criacao(sort: Desc)], map: "idx_obras_status_data_criacao")
+}
+
+model obra_budget_snapshot {
+  id      Int @id @default(autoincrement())
+  obra_id Int @unique
+
+  // Receita
+  receita_orcada Decimal @default(0.00) @db.Decimal(15, 2)
+
+  // Custos Previstos (Originais do Orçamento)
+  mao_de_obra_orcada Decimal @default(0.00) @db.Decimal(15, 2)
+  materiais_previsto Decimal @default(0.00) @db.Decimal(15, 2)
+  madeira_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+  telha_previsto     Decimal @default(0.00) @db.Decimal(15, 2)
+  andaime_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@map("obra_budget_snapshots")
+}
+
+model obra_imagens {
+  id         Int      @id @default(autoincrement())
+  obra_id    Int
+  url        String   @db.VarChar(500)
+  ordem      Int?
+  legenda    String?
+  created_at DateTime @default(now())
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+}
+
+model ObraAgendaSegmento {
+  id          Int      @id @default(autoincrement())
+  obra_id     Int
+  equipe_id   Int?
+  inicio      DateTime @db.Date
+  fim         DateTime @db.Date // exclusive end date
+  observacoes String?  @db.Text
+
+  tipo   String @default("EXECUCAO") // EXECUCAO or MANUTENCAO
+  status String @default("AGENDADO") // AGENDADO, CONCLUIDO, CANCELADO
+
+  created_by Int?
+  updated_by Int?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  obra   obras    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  equipe equipes? @relation(fields: [equipe_id], references: [id], onDelete: SetNull)
+
+  @@index([obra_id])
+  @@index([equipe_id])
+  @@index([inicio, fim])
+  @@map("obra_agenda_segmento")
+}
+
+// Documentos anexos da obra (uploads e links)
+model obra_documentos {
+  id         Int      @id @default(autoincrement())
+  obra_id    Int
+  tipo       String   @db.VarChar(50) // CONTRATO_ASSINADO, RECIBO, TERMO, OUTROS
+  titulo     String   @db.VarChar(200)
+  url        String?  @db.VarChar(500) // Arquivo S3
+  link       String?  @db.VarChar(500) // Link externo
+  ordem      Int?
+  created_at DateTime @default(now())
+
+  obra obras @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([obra_id, tipo])
+}
+
+// ==========================================
+// MÓDULO FINANCEIRO
+// ==========================================
+
+enum TipoContaBancaria {
+  CORRENTE     @map("Corrente")
+  POUPANCA     @map("Poupança")
+  CAIXA        @map("Caixa Físico")
+  CARTEIRA     @map("Carteira Digital")
+  INVESTIMENTO @map("Investimento")
+}
+
+model ContasBancaria {
+  id      Int               @id @default(autoincrement())
+  nome    String            @db.VarChar(100)
+  tipo    TipoContaBancaria @default(CORRENTE)
+  banco   String?           @db.VarChar(100)
+  agencia String?           @db.VarChar(20)
+  conta   String?           @db.VarChar(30)
+
+  saldo_inicial Decimal @default(0.00) @db.Decimal(15, 2)
+  saldo_atual   Decimal @default(0.00) @db.Decimal(15, 2) // Calculated/Cached
+
+  cor   String? @db.VarChar(7)
+  ativo Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  conferencia_sessoes   conferencia_sessoes[]
+  lancamentos           Lancamento[]
+  transferenciasOrigem  Transferencia[]       @relation("ContaOrigem")
+  transferenciasDestino Transferencia[]       @relation("ContaDestino")
+
+  @@map("contas_bancarias")
+}
+
+enum TipoCategoria {
+  RECEITA @map("Receita")
+  DESPESA @map("Despesa")
+}
+
+model Categoria {
+  id    Int           @id @default(autoincrement())
+  nome  String        @db.VarChar(100)
+  tipo  TipoCategoria
+  cor   String?       @db.VarChar(7)
+  icone String?       @db.VarChar(50)
+  ativo Boolean       @default(true)
+
+  categoria_pai_id Int?
+  categoria_pai    Categoria?  @relation("CategoriaSubelementos", fields: [categoria_pai_id], references: [id])
+  subcategorias    Categoria[] @relation("CategoriaSubelementos")
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  lancamentos    Lancamento[]
+  contas_pagar   ContaPagar[]
+  contas_receber ContaReceber[]
+
+  @@index([categoria_pai_id])
+  @@index([tipo])
+  @@map("categorias")
+}
+
+model CentroCusto {
+  id        Int     @id @default(autoincrement())
+  nome      String  @db.VarChar(150)
+  descricao String? @db.VarChar(500)
+  ativo     Boolean @default(true)
+
+  obra_id Int? // Opcional: Link automático com Obra
+  obra    obras? @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  lancamentos    Lancamento[]
+  contas_pagar   ContaPagar[]
+  contas_receber ContaReceber[]
+
+  @@index([obra_id])
+  @@map("centros_custo")
+}
+
+enum StatusFinanceiro {
+  PENDENTE  @map("Pendente")
+  PAGO      @map("Pago")
+  PARCIAL   @map("Parcial")
+  ATRASADO  @map("Atrasado")
+  CANCELADO @map("Cancelado")
+}
+
+enum FrequenciaRecorrencia {
+  MENSAL     @map("Mensal")
+  SEMANAL    @map("Semanal")
+  ANUAL      @map("Anual")
+  TRIMESTRAL @map("Trimestral")
+}
+
+enum ConferenciaStatus {
+  OPEN
+  LOCKED
+  REOPENED
+}
+
+enum NaturezaRendimento {
+  TRIBUTAVEL
+  NAO_TRIBUTAVEL
+  EXCLUSIVA_FONTE
+}
+
+enum StatusConferencia {
+  PENDENTE
+  CONFERIDO
+  PENDENCIA
+}
+
+model ContaPagar {
+  id          Int     @id @default(autoincrement())
+  descricao   String  @db.VarChar(200)
+  valor_total Decimal @db.Decimal(15, 2)
+  valor_pago  Decimal @default(0.00) @db.Decimal(15, 2)
+
+  data_emissao    DateTime  @db.Date
+  data_vencimento DateTime  @db.Date
+  data_pagamento  DateTime? @db.Date // Último pagamento
+
+  status                  StatusFinanceiro @default(PENDENTE)
+  numero_documento        String?          @db.VarChar(50) // NF, Boleto
+  observacoes             String?          @db.Text
+  anexos                  String?          @db.Text // JSON string or simple types
+  cancelamento_tipo       String?          @db.VarChar(40)
+  cancelado_em            DateTime?
+  cancelado_por           Int?
+  cancelamento_observacao String?          @db.Text
+
+  // Recorrência / Parcelamento
+  parcela_atual  Int                    @default(1)
+  total_parcelas Int                    @default(1)
+  recorrente     Boolean                @default(false)
+  frequencia     FrequenciaRecorrencia?
+
+  // Chaves Estrangeiras
+  fornecedor_id Int?
+  fornecedor    fornecedores? @relation(fields: [fornecedor_id], references: [id], onDelete: SetNull)
+
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
+
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
+  pedido_compra_id Int? // Link com módulo de compras
+  pedido_compra    pedido_compra? @relation(fields: [pedido_compra_id], references: [id], onDelete: SetNull)
+
+  created_by Int?
+  updated_by Int?
+  createdBy  User? @relation("ContaPagarCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy  User? @relation("ContaPagarUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  lancamentos Lancamento[]
+
+  @@index([status])
+  @@index([data_vencimento])
+  @@index([fornecedor_id])
+  @@index([pedido_compra_id])
+  @@map("contas_pagar")
+}
+
+model ContaReceber {
+  id             Int     @id @default(autoincrement())
+  descricao      String  @db.VarChar(200)
+  valor_total    Decimal @db.Decimal(15, 2)
+  valor_recebido Decimal @default(0.00) @db.Decimal(15, 2)
+
+  data_emissao     DateTime  @db.Date
+  data_vencimento  DateTime  @db.Date
+  data_recebimento DateTime? @db.Date
+
+  status           StatusFinanceiro @default(PENDENTE)
+  numero_documento String?          @db.VarChar(50)
+  observacoes      String?          @db.Text
+  anexos           String?          @db.Text
+
+  // Recorrência / Parcelamento
+  parcela_atual  Int                    @default(1)
+  total_parcelas Int                    @default(1)
+  recorrente     Boolean                @default(false)
+  frequencia     FrequenciaRecorrencia?
+
+  // Chaves Estrangeiras
+  cliente_id Int?
+  cliente    cliente? @relation(fields: [cliente_id], references: [id], onDelete: SetNull)
+
+  orcamento_id Int?
+  orcamento    orcamento? @relation(fields: [orcamento_id], references: [id], onDelete: SetNull)
+
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
+
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
+  created_by Int?
+  updated_by Int?
+  createdBy  User? @relation("ContaReceberCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+  updatedBy  User? @relation("ContaReceberUpdatedBy", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  lancamentos Lancamento[]
+
+  @@index([status])
+  @@index([data_vencimento])
+  @@index([cliente_id])
+  @@map("contas_receber")
+}
+
+enum TipoLancamento {
+  RECEITA @map("Receita") // Entrada
+  DESPESA @map("Despesa") // Saída
+}
+
+model Lancamento {
+  id             Int            @id @default(autoincrement())
+  tipo           TipoLancamento // Receita (Entrada) ou Despesa (Saída)
+  descricao      String         @db.VarChar(255)
+  valor          Decimal        @db.Decimal(15, 2)
+  valor_juros    Decimal        @default(0.00) @db.Decimal(15, 2)
+  valor_desconto Decimal        @default(0.00) @db.Decimal(15, 2)
+
+  data_lancamento  DateTime @db.Date // Data efetiva do pagamento
+  data_competencia DateTime @db.Date // Data para DRE
+
+  observacoes           String?           @db.Text
+  conferencia_sessao_id Int?
+  conferido_em          DateTime?
+  conferido_por         Int?
+  pendencia_motivo      String?           @db.VarChar(255)
+  status_conferencia    StatusConferencia @default(PENDENTE)
+  version               Int               @default(1)
+
+  // Chaves
+  conta_bancaria_id Int
+  conta_bancaria    ContasBancaria @relation(fields: [conta_bancaria_id], references: [id])
+
+  categoria_id Int
+  categoria    Categoria @relation(fields: [categoria_id], references: [id])
+
+  centro_custo_id Int?
+  centro_custo    CentroCusto? @relation(fields: [centro_custo_id], references: [id], onDelete: SetNull)
+
+  conferencia_sessoes conferencia_sessoes? @relation(fields: [conferencia_sessao_id], references: [id])
+
+  // Links pro fluxo
+  conta_pagar_id Int?
+  conta_pagar    ContaPagar? @relation(fields: [conta_pagar_id], references: [id], onDelete: SetNull)
+
+  conta_receber_id Int?
+  conta_receber    ContaReceber? @relation(fields: [conta_receber_id], references: [id], onDelete: SetNull)
+
+  transferencia_id Int?
+  transferencia    Transferencia? @relation(fields: [transferencia_id], references: [id], onDelete: Cascade)
+
+  // Auditoria
+  created_by Int?
+  createdBy  User? @relation("LancamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@index([conta_bancaria_id])
+  @@index([data_lancamento])
+  @@index([data_competencia])
+  @@index([tipo])
+  @@map("lancamentos")
+}
+
+model conferencia_sessoes {
+  id                Int               @id @default(autoincrement())
+  periodo_inicio    DateTime          @db.Date
+  periodo_fim       DateTime          @db.Date
+  conta_bancaria_id Int?
+  status            ConferenciaStatus @default(OPEN)
+  criada_por        Int
+  criada_em         DateTime          @default(now())
+  concluida_por     Int?
+  concluida_em      DateTime?
+  reopened_by       Int?
+  reopened_at       DateTime?
+  reopen_reason     String?           @db.Text
+  nota              String?           @db.Text
+  qtd_conferidas    Int               @default(0)
+  qtd_pendencias    Int               @default(0)
+  total_conferido   Decimal           @default(0.00) @db.Decimal(15, 2)
+
+  contas_bancarias ContasBancaria? @relation(fields: [conta_bancaria_id], references: [id])
+  lancamentos      Lancamento[]
+}
+
+model Transferencia {
+  id                 Int      @id @default(autoincrement())
+  descricao          String   @db.VarChar(255)
+  valor              Decimal  @db.Decimal(15, 2)
+  data_transferencia DateTime @db.Date
+
+  conta_origem_id Int
+  conta_origem    ContasBancaria @relation("ContaOrigem", fields: [conta_origem_id], references: [id])
+
+  conta_destino_id Int
+  conta_destino    ContasBancaria @relation("ContaDestino", fields: [conta_destino_id], references: [id])
+
+  // Um Lançamento de saída (origem) e um de entrada (destino)
+  lancamentos Lancamento[]
+
+  created_by Int?
+  createdBy  User? @relation("TransferenciaCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("transferencias")
+}
+
+model IdempotencyLog {
+  key        String   @id
+  created_at DateTime @default(now())
+  status     String // "PENDING", "COMPLETED", "FAILED"
+  result     String?  @db.Text // JSON Result
+
+  @@map("idempotency_logs")
+}
+
+model FluxoCaixaParametro {
+  id              Int       @id
+  limite_alerta   Decimal   @default(10000.00) @db.Decimal(15, 2)
+  data_fechamento DateTime? @db.Date
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@map("fluxo_caixa_parametros")
 }

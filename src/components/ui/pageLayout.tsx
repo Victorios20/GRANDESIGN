@@ -1,28 +1,26 @@
-// components/ui/pageLayout.tsx (COMPLETO — título à direita com ícone redondo à DIREITA do texto)
 "use client"
 
 import React, { type PropsWithChildren } from "react"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { ChevronRight, PanelLeft } from "lucide-react"
+import { ChevronRight } from "lucide-react"
 import { Toaster } from "sonner"
+
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
-
-import { SidebarProvider, useSidebar } from "@/components/ui/sidebar"
-import { CustomSidebar } from "@/components/ui/custom-sidebar"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { CustomSidebar } from "@/components/ui/custom-sidebar"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { getNavigationBreadcrumbs, type BreadcrumbItem as NavigationBreadcrumbItem } from "@/components/ui/sidebar-navigation"
+import { cn } from "@/lib/utils"
 
-type Crumb = { href: string; label: string }
+type Crumb = NavigationBreadcrumbItem
 
 type PageLayoutProps = PropsWithChildren<{
   links?: Crumb[]
   backgroundImage?: boolean
   headerActions?: React.ReactNode
   title?: string
-  /** Com ações: mostra o título ao lado dos botões quando true. Sem ações: sempre mostra. */
   isTitulo?: boolean
-  /** Classe Tailwind para background da página (ex: "bg-white"). Default: bg-bege-pagina */
   pageBackground?: string
 }>
 
@@ -36,28 +34,24 @@ export function PageLayout({
   pageBackground,
 }: PageLayoutProps) {
   const pathname = usePathname() || "/"
-
-  const baseBreadcrumbs =
-    links ??
-    (() => {
-      const segments = pathname.split("/").filter((seg) => seg.length > 0)
-      return [
-        { label: "Home", href: "/" },
-        ...segments.map((seg, idx) => {
-          const href = "/" + segments.slice(0, idx + 1).join("/")
-          const label = seg
-            .split("-")
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(" ")
-          return { label, href }
-        }),
-      ]
-    })()
-
-  const breadcrumbs = title ? [...baseBreadcrumbs, { label: title, href: pathname }] : baseBreadcrumbs
+  const breadcrumbs = buildBreadcrumbs({ pathname, links, title })
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "17rem",
+          "--sidebar-width-icon": "4.5rem",
+          "--sidebar": "#FFFCF7",
+          "--sidebar-foreground": "#2C201B",
+          "--sidebar-accent": "#F8EFD9",
+          "--sidebar-accent-foreground": "#2C201B",
+          "--sidebar-border": "rgba(44, 32, 27, 0.08)",
+          "--sidebar-ring": "rgba(245, 209, 147, 0.72)",
+        } as React.CSSProperties
+      }
+    >
+      <CustomSidebar />
       <InnerLayout
         breadcrumbs={breadcrumbs}
         backgroundImage={backgroundImage}
@@ -69,6 +63,57 @@ export function PageLayout({
       </InnerLayout>
     </SidebarProvider>
   )
+}
+
+function buildBreadcrumbs({
+  pathname,
+  links,
+  title,
+}: {
+  pathname: string
+  links?: Crumb[]
+  title?: string
+}) {
+  const baseBreadcrumbs = links ?? getNavigationBreadcrumbs(pathname) ?? buildFallbackBreadcrumbs(pathname)
+
+  if (!title) {
+    return baseBreadcrumbs
+  }
+
+  const lastCrumb = baseBreadcrumbs[baseBreadcrumbs.length - 1]
+
+  if (lastCrumb && normalizePath(lastCrumb.href) === normalizePath(pathname)) {
+    return [...baseBreadcrumbs.slice(0, -1), { ...lastCrumb, label: title }]
+  }
+
+  return [...baseBreadcrumbs, { href: pathname, label: title }]
+}
+
+function buildFallbackBreadcrumbs(pathname: string): Crumb[] {
+  const segments = pathname.split("/").filter((segment) => segment.length > 0)
+
+  return [
+    { label: "Home", href: "/" },
+    ...segments.map((segment, index) => ({
+      href: `/${segments.slice(0, index + 1).join("/")}`,
+      label: humanizeSegment(segment),
+    })),
+  ]
+}
+
+function humanizeSegment(segment: string) {
+  return segment
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+function normalizePath(path: string) {
+  if (!path || path === "/") {
+    return "/"
+  }
+
+  return path.endsWith("/") ? path.slice(0, -1) : path
 }
 
 function InnerLayout({
@@ -85,139 +130,122 @@ function InnerLayout({
   isTitulo?: boolean
   pageBackground?: string
 }>) {
-  const { toggleSidebar } = useSidebar()
   const hasActions = !!headerActions && React.Children.count(headerActions) > 0
   const showTitleNearActions = hasActions ? (isTitulo ?? false) : true
 
   return (
-    <div className={`flex h-screen w-full ${pageBackground ?? "bg-bege-pagina"}`}>
-      <CustomSidebar />
+    <SidebarInset className={cn(pageBackground ?? "bg-[#F7F4EE]", "min-w-0 overflow-hidden font-sans")}>
+      {backgroundImage ? (
+        <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
+          <Image src="/favicon.ico" alt="Logo centralizada de fundo" width={400} height={400} className="opacity-10" />
+        </div>
+      ) : null}
 
-      <div className="flex-1 flex flex-col relative">
-        {backgroundImage && (
-          <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
-            <Image src="/favicon.ico" alt="Logo centralizada (fundo)" width={400} height={400} className="opacity-10" />
-          </div>
-        )}
-        <Toaster position="top-right" duration={10000} closeButton richColors offset={80} />
+      <Toaster position="top-right" duration={10000} closeButton richColors offset={80} />
 
-        {/* HEADER */}
-        <header className="flex h-14 md:h-16 items-center justify-between bg-bege-header px-4 md:px-6 shadow-header z-10 border-b border-marromClaro/20">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleSidebar}
-              className="flex-shrink-0 hover:bg-marromClaro/20 h-8 w-8"
-            >
-              <PanelLeft className="h-4 w-4 text-marromEscuro" />
-            </Button>
+      <header className="relative z-10 flex h-14 items-center justify-between border-b border-[#2C201B]/8 bg-[#FFFCF7]/95 px-4 backdrop-blur md:h-16 md:px-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <SidebarTrigger className="h-9 w-9 flex-shrink-0 rounded-[12px] border border-[#2C201B]/10 bg-white/70 text-[#2C201B]/76 hover:bg-[#FAF3E0] hover:text-[#2C201B]" />
 
-            {/* Desktop: breadcrumbs */}
-            <div className="hidden sm:block flex-1 min-w-0">
-              <Breadcrumb className="flex items-center gap-1 text-sm text-marromEscuro">
-                {breadcrumbs.map((crumb, idx) => {
-                  const isLast = idx === breadcrumbs.length - 1
-                  return (
-                    <React.Fragment key={`${crumb.href}-${idx}`}>
-                      <BreadcrumbItem>
-                        <BreadcrumbLink
-                          href={crumb.href}
-                          aria-current={isLast ? "page" : undefined}
-                          className={
-                            isLast
-                              ? "font-semibold text-marromEscuro"
-                              : "text-marromEscuro hover:text-marromEscuro/80 transition-colors"
-                          }
-                        >
-                          {crumb.label}
-                        </BreadcrumbLink>
-                      </BreadcrumbItem>
-                      {!isLast && (
-                        <BreadcrumbSeparator>
-                          <ChevronRight className="h-4 w-4 text-marromClaro" />
-                        </BreadcrumbSeparator>
-                      )}
-                    </React.Fragment>
-                  )
-                })}
-              </Breadcrumb>
-            </div>
+          <div className="hidden min-w-0 flex-1 sm:block">
+            <Breadcrumb className="flex items-center gap-1 text-sm text-[#2C201B]">
+              {breadcrumbs.map((crumb, index) => {
+                const isLast = index === breadcrumbs.length - 1
 
-            {/* Mobile: página atual */}
-            <div className="sm:hidden flex-1 min-w-0">
-              <h1 className="font-semibold text-marromEscuro text-base truncate">
-                {breadcrumbs[breadcrumbs.length - 1]?.label}
-              </h1>
-            </div>
+                return (
+                  <React.Fragment key={`${crumb.href}-${index}`}>
+                    <BreadcrumbItem>
+                      <BreadcrumbLink
+                        href={crumb.href}
+                        aria-current={isLast ? "page" : undefined}
+                        className={
+                          isLast
+                            ? "font-semibold text-[#2C201B]"
+                            : "text-[#2C201B]/62 transition-colors hover:text-[#2C201B]"
+                        }
+                      >
+                        {crumb.label}
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    {!isLast ? (
+                      <BreadcrumbSeparator>
+                        <ChevronRight className="h-4 w-4 text-[#2C201B]/28" />
+                      </BreadcrumbSeparator>
+                    ) : null}
+                  </React.Fragment>
+                )
+              })}
+            </Breadcrumb>
           </div>
 
-          {/* LADO DIREITO DO HEADER */}
-          <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-            {hasActions ? (
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">{headerActions}</div>
-
-                {showTitleNearActions && (
-                  <div className="hidden md:flex items-center gap-2">
-                    <h2 className="text-base md:text-lg text-marromEscuro font-bold tracking-wide">GRANDESIGN</h2>
-                    <Avatar className="h-7 w-7 md:h-8 md:w-8 shadow-sm border-0 ring-0">
-                      <AvatarImage src="/favicon.ico" alt="Logo Grandesign" className="object-cover" />
-                      <AvatarFallback className="bg-bege text-marromEscuro text-xs font-bold">GD</AvatarFallback>
-                    </Avatar>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="hidden md:flex items-center gap-2">
-                  <h2 className="text-base md:text-lg text-marromEscuro font-bold tracking-wide">GRANDESIGN</h2>
-                  <Avatar className="h-8 w-8 md:h-10 md:w-10 shadow-md border-0 ring-0">
-                    <AvatarImage src="/favicon.ico" alt="Logo Grandesign" className="object-cover" />
-                    <AvatarFallback className="bg-bege text-marromEscuro text-sm font-bold">GD</AvatarFallback>
-                  </Avatar>
-                </div>
-              </>
-            )}
+          <div className="min-w-0 flex-1 sm:hidden">
+            <h1 className="truncate text-base font-semibold text-[#2C201B]">
+              {breadcrumbs[breadcrumbs.length - 1]?.label}
+            </h1>
           </div>
-        </header>
-
-        {/* Breadcrumb fino no mobile */}
-        <div className="sm:hidden px-4 py-1.5 bg-bege-header/50 border-b border-marromClaro/10">
-          <Breadcrumb className="flex items-center gap-1 text-xs text-marromEscuro">
-            {breadcrumbs.map((crumb, idx) => {
-              const isLast = idx === breadcrumbs.length - 1
-              return (
-                <React.Fragment key={`${crumb.href}-${idx}`}>
-                  <BreadcrumbItem>
-                    <BreadcrumbLink
-                      href={crumb.href}
-                      aria-current={isLast ? "page" : undefined}
-                      className={
-                        isLast
-                          ? "font-semibold text-marromEscuro"
-                          : "text-marromEscuro/70 hover:text-marromEscuro transition-colors"
-                      }
-                    >
-                      {crumb.label}
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  {!isLast && (
-                    <BreadcrumbSeparator>
-                      <ChevronRight className="h-3 w-3 text-marromClaro" />
-                    </BreadcrumbSeparator>
-                  )}
-                </React.Fragment>
-              )
-            })}
-          </Breadcrumb>
         </div>
 
-        {/* MAIN */}
-        <main className="flex-1 overflow-auto p-6 md:p-4 lg:p-6 relative z-10 w-full">
-          <div className="w-full">{children}</div>
-        </main>
+        <div className="flex flex-shrink-0 items-center gap-2 md:gap-3">
+          {hasActions ? (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">{headerActions}</div>
+
+              {showTitleNearActions ? (
+                <div className="hidden items-center gap-2 md:flex">
+                  <h2 className="text-base font-semibold tracking-[0.08em] text-[#2C201B] md:text-lg">GRANDESIGN</h2>
+                  <Avatar className="h-7 w-7 border border-[#2C201B]/8 bg-[#FAF3E0] ring-0 md:h-8 md:w-8">
+                    <AvatarImage src="/favicon.ico" alt="Logo Grandesign" className="object-cover" />
+                    <AvatarFallback className="bg-[#FAF3E0] text-xs font-semibold text-[#2C201B]">GD</AvatarFallback>
+                  </Avatar>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="hidden items-center gap-2 md:flex">
+              <h2 className="text-base font-semibold tracking-[0.08em] text-[#2C201B] md:text-lg">GRANDESIGN</h2>
+              <Avatar className="h-8 w-8 border border-[#2C201B]/8 bg-[#FAF3E0] ring-0 md:h-10 md:w-10">
+                <AvatarImage src="/favicon.ico" alt="Logo Grandesign" className="object-cover" />
+                <AvatarFallback className="bg-[#FAF3E0] text-sm font-semibold text-[#2C201B]">GD</AvatarFallback>
+              </Avatar>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="relative z-10 border-b border-[#2C201B]/6 bg-[#FFFCF7]/80 px-4 py-1.5 sm:hidden">
+        <Breadcrumb className="flex items-center gap-1 text-xs text-[#2C201B]">
+          {breadcrumbs.map((crumb, index) => {
+            const isLast = index === breadcrumbs.length - 1
+
+            return (
+              <React.Fragment key={`${crumb.href}-${index}`}>
+                <BreadcrumbItem>
+                  <BreadcrumbLink
+                    href={crumb.href}
+                    aria-current={isLast ? "page" : undefined}
+                    className={
+                      isLast
+                        ? "font-semibold text-[#2C201B]"
+                        : "text-[#2C201B]/58 transition-colors hover:text-[#2C201B]"
+                    }
+                  >
+                    {crumb.label}
+                  </BreadcrumbLink>
+                </BreadcrumbItem>
+                {!isLast ? (
+                  <BreadcrumbSeparator>
+                    <ChevronRight className="h-3 w-3 text-[#2C201B]/28" />
+                  </BreadcrumbSeparator>
+                ) : null}
+              </React.Fragment>
+            )
+          })}
+        </Breadcrumb>
       </div>
-    </div>
+
+      <section className="relative z-10 flex-1 overflow-auto p-6 md:p-5 lg:p-6">
+        <div className="w-full min-w-0">{children}</div>
+      </section>
+    </SidebarInset>
   )
 }

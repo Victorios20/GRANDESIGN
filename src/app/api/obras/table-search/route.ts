@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
       semAgenda,
     })
 
-    return json({ dados: out.dados, total: out.total, requestId }, 200, requestId)
+    return json({ dados: out.dados, total: out.total, statusCounts: out.statusCounts, requestId }, 200, requestId)
   } catch (err: any) {
     console.error("[GET /api/obras/table-search] unexpected", err)
     return json({ error: "UNEXPECTED_ERROR", requestId }, 500, requestId)

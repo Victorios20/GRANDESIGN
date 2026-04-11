@@ -46,22 +46,20 @@ function Calendar({
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
       classNames={{
-        months: "flex flex-col sm:flex-row gap-2",
+        months: "flex flex-col gap-4 sm:flex-row sm:gap-3",
         month: "flex flex-col gap-4",
-        caption: "flex justify-center pt-1 relative items-center w-full",
+        caption: "relative flex h-9 items-center justify-center px-9",
         caption_label: cn(
-          "text-sm font-medium",
+          "truncate text-sm font-semibold tracking-[0.01em]",
           variantToCaptionClasses[colorVariant]
         ),
-        nav: "flex items-center gap-1",
+        nav: "absolute inset-0 flex items-center justify-between",
         nav_button: cn(
-          buttonVariants({ variant: "outline" }),
-          "size-7 p-0 opacity-90 hover:opacity-100",
-          // aplica a paleta escolhida nos botões de navegação do calendário
+          "inline-flex size-7 items-center justify-center rounded-full border border-[#ddd7cc] bg-white p-0 text-[#6f6556] shadow-none transition-colors hover:bg-[#f7f4ed] hover:text-[#2c201b] disabled:pointer-events-none disabled:opacity-40",
           variantToBtnClasses[colorVariant]
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
+        nav_button_previous: "absolute left-0",
+        nav_button_next: "absolute right-0",
         table: "w-full border-collapse space-x-1",
         head_row: "flex",
         head_cell:

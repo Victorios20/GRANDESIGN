@@ -9,18 +9,24 @@ import Link from "next/link"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
-import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button"
 
-import { EllipsisVertical, Eye, Copy, ShoppingCart, FileText, User, CalendarDays, Search } from "lucide-react"
+import { Copy, EllipsisVertical, Eye, Plus, Search, ShoppingCart, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 
 import FilterCardObras, { STATUS_OPTIONS } from "@/components/obras/FilterCardObras"
 import { ObraStatusBadge } from "@/components/obras/ObraStatusBadge"
 import type { FilterStateObras } from "@/components/obras/FilterCardObras"
+import { ListSummaryBar } from "@/components/financeiro/ListSummaryBar"
+import { StatusTabs } from "@/components/financeiro/StatusTabs"
+import {
+  operationalListGhostButtonClass,
+  operationalListPrimaryButtonClass,
+  operationalListSearchInputClass,
+  operationalListShellClass,
+} from "@/components/ui/operational-list-styles"
+import type { ObrasStatusCounts } from "@/actions/obras/listar-obras-table-db"
 
 import MUIDataTable, { MUIDataTableColumnDef, MUIDataTableOptions } from "mui-datatables"
 import { createTheme, ThemeProvider } from "@mui/material/styles"
@@ -28,10 +34,6 @@ import { GlobalStyles } from "@mui/material"
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { deleteObraDB } from "@/actions/obras/delete-obra-db"
-import { Trash2, Check, ChevronDown, Filter, X } from "lucide-react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 type ClienteDTO = {
@@ -111,12 +113,10 @@ type InitialData = {
   listaBairros?: string[]
   dados: ObraRow[]
   total: number
+  statusCounts?: ObrasStatusCounts
 }
 
-const BEGE = "#E8C99A"
-const MARROM = "#8B5E3C"
 const VERDE_HEADER = "#376139"
-const VERDE_CLARO = "#EBF0EC"
 const CINZA_TEXTO = "#737373"
 
 export type ObraStatusFilter =
@@ -130,6 +130,26 @@ export type ObraStatusFilter =
   | "PENDENCIA"
   | "FINALIZADO"
 
+type ObraStatusValue = Exclude<ObraStatusFilter, "">
+type ObraStatusTab = "todos" | ObraStatusValue
+
+const EMPTY_STATUS_COUNTS: ObrasStatusCounts = {
+  todos: 0,
+  ASSINATURA_DE_CONTRATO: 0,
+  AGUARDANDO_VALIDACAO_TECNICA: 0,
+  COMPRAS: 0,
+  A_INICIAR: 0,
+  EXECUCAO: 0,
+  AGUARDANDO_PAGAMENTO: 0,
+  PENDENCIA: 0,
+  FINALIZADO: 0,
+}
+
+const STATUS_TABS: Array<{ value: ObraStatusTab; label: string }> = [
+  { value: "todos", label: "Todos" },
+  ...STATUS_OPTIONS.map((option) => ({ value: option.value as ObraStatusValue, label: option.label })),
+]
+
 export default function ObrasClient({ initial }: { initial: InitialData }) {
   const [nome, setNome] = useState("")
   const [searchInput, setSearchInput] = useState("")
@@ -138,7 +158,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   const [dataFim, setDataFim] = useState<Date | undefined>()
   const [telefone, setTelefone] = useState("")
   const [tipoObra, setTipoObra] = useState("")
-  const [status, setStatus] = useState<ObraStatusFilter[]>([])
+  const [status, setStatus] = useState<ObraStatusTab>("todos")
 
   const [obras, setObras] = useState<ObraRow[]>(
     (initial.dados ?? []).map((o, i) => ({
@@ -152,6 +172,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   const canDelete = roles.includes("ADMIN") || roles.includes("DEV")
 
   const [total, setTotal] = useState<number>(initial.total ?? 0)
+  const [statusCounts, setStatusCounts] = useState<ObrasStatusCounts>(initial.statusCounts ?? EMPTY_STATUS_COUNTS)
   const [loadingTabela, setLoadingTabela] = useState(false)
 
   const [page, setPage] = useState(0)
@@ -163,7 +184,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
   // State for delete dialog
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const cacheConsultar = useRef<Map<string, { dados: ObraRow[]; total: number }>>(new Map())
+  const cacheConsultar = useRef<Map<string, { dados: ObraRow[]; total: number; statusCounts: ObrasStatusCounts }>>(new Map())
 
 
   useEffect(() => {
@@ -212,9 +233,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     if (tipoObra) qs.set("tipoObra", tipoObra)
     if (dIniISO) qs.set("dIni", dIniISO)
     if (dFimISO) qs.set("dFim", dFimISO)
-    if (status && status.length > 0) {
-      status.forEach(s => qs.append("status", String(s)))
-    }
+    if (status !== "todos") qs.set("status", status)
     qs.set("orderBy", orderBy)
     qs.set("ordem", ordem)
 
@@ -223,6 +242,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       const cached = cacheConsultar.current.get(key)!
       setObras(cached.dados)
       setTotal(cached.total)
+      setStatusCounts(cached.statusCounts)
       setLoadingTabela(false)
       return
     }
@@ -231,6 +251,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     if (!res.ok) {
       setObras([])
       setTotal(0)
+      setStatusCounts(EMPTY_STATUS_COUNTS)
       setLoadingTabela(false)
       return
     }
@@ -242,9 +263,13 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
       ...o,
     }))
 
-    cacheConsultar.current.set(key, { dados: mapped, total: Number(json.total ?? 0) })
+    const nextTotal = Number(json.total ?? 0)
+    const nextStatusCounts = { ...EMPTY_STATUS_COUNTS, ...(json.statusCounts ?? {}) }
+
+    cacheConsultar.current.set(key, { dados: mapped, total: nextTotal, statusCounts: nextStatusCounts })
     setObras(mapped)
-    setTotal(Number(json.total ?? 0))
+    setTotal(nextTotal)
+    setStatusCounts(nextStatusCounts)
     setLoadingTabela(false)
 
   }
@@ -280,7 +305,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     setTipoObra("")
     setDataIni(undefined)
     setDataFim(undefined)
-    setStatus([])
+    setStatus("todos")
     setPage(0)
   }
 
@@ -628,17 +653,17 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
             },
           },
 
-          MuiTableHead: { styleOverrides: { root: { backgroundColor: VERDE_HEADER, borderRadius: "8px 8px 0 0" } } },
-          MuiTableRow: { styleOverrides: { head: { backgroundColor: VERDE_HEADER, height: 36 } } },
+          MuiTableHead: { styleOverrides: { root: { backgroundColor: "#faf8f3" } } },
+          MuiTableRow: { styleOverrides: { head: { backgroundColor: "#faf8f3", height: 40 } } },
 
           MUIDataTableHeadCell: {
             styleOverrides: {
               sortActive: {
-                color: "#f4f4f4 !important",
+                color: "#2c201b !important",
               },
               sortAction: {
                 "& .MuiTableSortLabel-root, & .MuiTableSortLabel-icon": {
-                  color: "#f4f4f4 !important",
+                  color: "#2c201b !important",
                   opacity: "1 !important",
                 },
               },
@@ -648,14 +673,14 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           MuiTableSortLabel: {
             styleOverrides: {
               root: {
-                color: "#f4f4f4 !important",
+                color: "#7b705f !important",
                 opacity: 1,
-                "&:hover": { color: "#ffffff !important" },
-                "&.Mui-active": { color: "#ffffff !important" },
-                "&.Mui-active .MuiTableSortLabel-icon": { color: "#ffffff !important" },
+                "&:hover": { color: "#2c201b !important" },
+                "&.Mui-active": { color: "#2c201b !important" },
+                "&.Mui-active .MuiTableSortLabel-icon": { color: "#393316 !important" },
               },
               icon: {
-                color: "#ffffff !important",
+                color: "#a19686 !important",
               },
             },
           },
@@ -663,30 +688,29 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           MuiTableCell: {
             styleOverrides: {
               head: {
-                backgroundColor: VERDE_HEADER,
-                color: "#f4f4f4",
+                backgroundColor: "#faf8f3",
+                color: "#7b705f",
                 fontWeight: 600,
-                fontSize: "0.875rem",
-                letterSpacing: "0.01em",
-                textTransform: "none",
-                paddingTop: 6,
-                paddingBottom: 6,
-                lineHeight: 1.1,
+                fontSize: "0.6875rem",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                padding: "12px",
+                lineHeight: 1.2,
                 whiteSpace: "nowrap",
+                borderBottom: "1px solid #e7e0d4",
                 "&.MuiTableCell-head": {
-                  color: "#f4f4f4",
-                  textTransform: "none",
+                  color: "#7b705f",
+                  textTransform: "uppercase",
                 },
                 "& .MUIDataTableHeadCell-sortActive": {
-                  color: "#f4f4f4 !important",
-                  textTransform: "none",
+                  color: "#2c201b !important",
+                  textTransform: "uppercase",
                 },
               },
               root: {
-                color: CINZA_TEXTO,
-                borderBottom: "1px solid rgba(0,0,0,0.04)", // Even softer border for cleaner look
-                paddingTop: 8,
-                paddingBottom: 8, // Added slightly more padding for breathing room
+                color: "#2c201b",
+                borderBottom: "1px solid #efe8dc",
+                padding: "14px 12px",
                 transition: "background-color 0.2s ease, box-shadow 0.2s ease",
               },
             },
@@ -694,10 +718,10 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
           MuiIconButton: {
             styleOverrides: {
-              root: { color: VERDE_HEADER, "&:hover": { backgroundColor: "rgba(55,97,57,0.12)" } },
+              root: { color: "#7b705f", "&:hover": { backgroundColor: "#f4efe4", color: "#2c201b" } },
               colorPrimary: {
-                color: CINZA_TEXTO,
-                "&:hover": { backgroundColor: "rgba(55,97,57,0.12)" },
+                color: "#7b705f",
+                "&:hover": { backgroundColor: "#f4efe4", color: "#2c201b" },
               },
             },
           },
@@ -719,18 +743,19 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
               },
             },
           },
-          MuiPaper: { styleOverrides: { root: { borderRadius: 12 } } },
+          MuiPaper: { styleOverrides: { root: { borderRadius: 0, boxShadow: "none" } } },
         },
       }),
     []
   )
 
-  const headerActions = (
+  const primaryAction = (
     <div className="flex items-center gap-2">
       <Link href="/obras/new">
-        <InteractiveHoverButton className="px-4 py-1.5 text-sm rounded-lg shadow-sm hover:shadow-md">
+        <Button className={cn(operationalListPrimaryButtonClass, "h-10 rounded-lg px-4 text-sm")}>
+          <Plus className="mr-2 size-4" />
           Nova Obra
-        </InteractiveHoverButton>
+        </Button>
       </Link>
     </div>
   )
@@ -745,23 +770,51 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
     pageSize: perPage as any,
   }
 
+  const hasActiveFilters = Boolean(
+    nome ||
+    searchInput ||
+    bairro ||
+    telefone ||
+    tipoObra ||
+    dataIni ||
+    dataFim ||
+    status !== "todos"
+  )
+
+  const statusTabItems = STATUS_TABS.map((item) => ({
+    ...item,
+    count: statusCounts[item.value] ?? 0,
+  }))
+
+  function handleStatusChange(nextStatus: ObraStatusTab) {
+    setStatus(nextStatus)
+    setPage(0)
+  }
+
   return (
-    <PageLayout headerActions={headerActions} isTitulo>
-      <TooltipProvider>
-        <Card ultraCompact>
-          <CardHeader className="pb-0 pt-4 px-4 sm:px-6">
+    <PageLayout
+      links={[{ label: "Home", href: "/" }, { label: "Obras", href: "/obras" }]}
+      title="Obras"
+      pageBackground="bg-[#F7F4EE]"
+    >
+      <div className="space-y-4">
+        <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold tracking-tight text-[#393316] md:text-2xl">Obras</h1>
+            <p className="text-sm text-[#6f6556]">
+              {total} obra{total === 1 ? "" : "s"} na visualização atual
+            </p>
+          </div>
+          {primaryAction}
+        </section>
+
+        <section className={cn(operationalListShellClass, "space-y-3 px-4 py-4 md:px-5")}>
             {/* Título */}
-            <div className="flex items-baseline gap-3 mb-4">
-              <CardTitle className="text-xl font-bold tracking-tight text-[#376139]">Obras</CardTitle>
-              <span className="text-xs font-medium" style={{ color: CINZA_TEXTO }}>
-                {total} resultado{total !== 1 ? "s" : ""}
-              </span>
-            </div>
  
             {/* Barra de busca + filtros */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-[#376139]/50" />
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
                 <Input
                   placeholder="Pesquisar por Título, cliente, bairro ou telefone..."
                   value={searchInput}
@@ -772,13 +825,13 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                       setPage(0)
                     }
                   }}
-                  className="pl-9 pr-10 h-10 rounded-sm border-[#737373]/30 focus:border-[#376139] focus:ring-1 focus:ring-[#376139]/20 transition-all font-medium text-[#376139] placeholder:text-[#737373]/60 w-full"
+                  className={operationalListSearchInputClass}
                 />
                 {searchInput && (
                   <button
                     type="button"
                     onClick={() => { setSearchInput(""); setNome(""); setPage(0) }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors text-[#737373] hover:text-[#376139]"
+                    className="absolute right-3 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-[#8a7d69] transition-colors hover:bg-[#f3efe6] hover:text-[#2c201b]"
                     aria-label="Limpar busca"
                   >
                     ✕
@@ -786,69 +839,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                 )}
               </div>
  
-              {/* Filtro de Status Multi-select */}
-              <div className="shrink-0 min-w-[180px]">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      role="combobox"
-                      className="w-full h-10 px-4 justify-between rounded-lg border-none bg-[#EBF0EC] text-[#376139] font-medium hover:bg-[#376139]/20 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 overflow-hidden truncate">
-                        <Filter className="h-4 w-4 shrink-0 opacity-80" />
-                        {status.length === 0 ? "Todos os Status" : (
-                          <div className="flex gap-1 overflow-hidden">
-                            {status.map((s) => (
-                              <Badge
-                                key={s}
-                                variant="secondary"
-                                className="h-5 px-1 font-normal text-[10px] bg-green/10 text-green border-green/20 whitespace-nowrap"
-                              >
-                                {STATUS_OPTIONS.find(o => o.value === s)?.label || s}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[260px] p-0" align="end">
-                    <Command>
-                      <CommandInput placeholder="Filtrar status..." h-9 />
-                      <CommandList>
-                        <CommandEmpty>Nenhum status encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          {STATUS_OPTIONS.map((opt) => (
-                            <CommandItem
-                              key={opt.value}
-                              onSelect={() => {
-                                const next = status.includes(opt.value as any)
-                                  ? status.filter(s => s !== opt.value)
-                                  : [...status, opt.value as any]
-                                setStatus(next)
-                                setPage(0)
-                              }}
-                              className="cursor-pointer"
-                            >
-                              <div className={cn(
-                                "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
-                                status.includes(opt.value as any) ? "bg-primary text-primary-foreground" : "opacity-50"
-                              )}>
-                                {status.includes(opt.value as any) && <Check className="h-3 w-3" />}
-                              </div>
-                              <span>{opt.label}</span>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
- 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <FilterCardObras
                   value={filterValue}
                   onChange={(next) => {
@@ -865,18 +856,25 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                     setPage(0)
                   }}
                   onApply={() => consultar()}
-                  onClear={() => {
-                    limparFiltros()
-                    consultar()
-                  }}
+                  onClear={limparFiltros}
                   pageSizeOptions={[10, 20, 25, 50, 100]}
                   loading={loadingTabela}
                 />
+                {hasActiveFilters ? (
+                  <Button type="button" variant="ghost" onClick={limparFiltros} className={cn("px-3 text-sm", operationalListGhostButtonClass)}>
+                    <X className="mr-1 size-4" />
+                    Limpar filtros
+                  </Button>
+                ) : null}
               </div>
             </div>
-          </CardHeader>
+          <StatusTabs value={status} items={statusTabItems} onValueChange={handleStatusChange} />
+        </section>
 
-          <CardContent className="pt-2 pb-4 px-4 sm:px-6">
+        <ListSummaryBar countLabel={`${total} obra${total === 1 ? "" : "s"} na listagem atual`} />
+
+        <section className={cn(operationalListShellClass, "overflow-hidden")}>
+          <div className="px-0 py-0">
             {loadingTabela ? (
               <div className="space-y-3">
                 <Skeleton className="h-[36px] w-full" /> {/* Header */}
@@ -892,8 +890,8 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
                     // Cabeçalho da tabela com o verde suave
                     ".MUIDataTableHeadCell-fixedHeader, .MuiTableHead-root, .MuiTableRow-head, .MuiTableCell-head": {
-                      backgroundColor: VERDE_HEADER + " !important",
-                      color: "#f4f4f4 !important",
+                      backgroundColor: "#faf8f3 !important",
+                      color: "#7b705f !important",
                       transition: "background-color 0.2s ease",
                     },
 
@@ -903,7 +901,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
                     // Efeito Hover na célula inteira do cabeçalho
                     ".MUIDataTableHeadCell-root:hover, .MuiTableCell-head:hover": {
-                       backgroundColor: "#386e3b !important", // Um verde levemente mais claro que o VERDE_HEADER (#2E5C31)
+                       backgroundColor: "#f3efe6 !important",
                        cursor: "pointer",
                     },
 
@@ -916,7 +914,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                     // Configuração da setinha de ordenação (sempre levemente aparente)
                     ".MuiTableSortLabel-icon": {
                        opacity: "0.25 !important",
-                       color: "#f4f4f4 !important",
+                       color: "#a19686 !important",
                        transition: "opacity 0.2s ease, transform 0.2s ease, color 0.2s",
                     },
 
@@ -927,12 +925,12 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
                     // Corrige a cor do texto quando a coluna está ordenada ativamente
                     ".MuiTableSortLabel-root:hover, .MuiTableSortLabel-root.Mui-active": {
-                      color: "#f4f4f4 !important",
+                      color: "#2c201b !important",
                       opacity: "1 !important",
                     },
 
                     "& .MUIDataTableHeadCell-sortActive": {
-                      color: "#ffffff !important",
+                      color: "#2c201b !important",
                       opacity: 1,
                     },
 
@@ -941,7 +939,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important",
                     },
                     ".obras-table-row:hover td": {
-                      backgroundColor: "#EEF3EF !important", // Slightly deeper but very clean green tint
+                      backgroundColor: "#faf8f4 !important",
                     },
                     ".obras-table-row:hover td:first-child": {
                       boxShadow: "inset 4px 0 0 " + VERDE_HEADER + " !important",
@@ -956,9 +954,8 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
                 <MUIDataTable title={""} data={rows as any} columns={columns} options={options} />
               </ThemeProvider>
             )}
-          </CardContent>
-        </Card>
-      </TooltipProvider>
+          </div>
+        </section>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
@@ -983,6 +980,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </PageLayout>
   )
 }

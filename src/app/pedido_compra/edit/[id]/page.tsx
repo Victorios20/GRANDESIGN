@@ -17,6 +17,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       where: { id: pedidoCompraId },
       include: {
         fornecedor: { select: { id: true, nome: true, tipo: true } },
+        contas_pagar: {
+          orderBy: [{ created_at: "desc" }, { id: "desc" }],
+          take: 1,
+          select: { id: true, status: true, valor_total: true, valor_pago: true },
+        },
         itens: true,
       },
     }),
@@ -62,7 +67,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     frete: pedido.frete?.toString?.() ?? null,
     descricao: pedido.descricao ?? null,
     observacoes: pedido.observacoes ?? null,
+    nao_previsto: pedido.nao_previsto ?? false,
+    motivo_extra: pedido.motivo_extra ?? null,
     fornecedor_id: pedido.fornecedor_id ?? null,
+    financeiro_integracao_status: pedido.financeiro_integracao_status,
+    financeiro_integrado_em: pedido.financeiro_integrado_em?.toISOString?.() ?? null,
+    financeiro_estornado_em: pedido.financeiro_estornado_em?.toISOString?.() ?? null,
+    financeiro_conta_pagar_id: pedido.contas_pagar?.[0]?.id ?? null,
+    financeiro_conta_pagar_status: pedido.contas_pagar?.[0]?.status ?? null,
+    financeiro_conta_pagar_valor_total: pedido.contas_pagar?.[0]?.valor_total?.toString?.() ?? null,
+    financeiro_conta_pagar_valor_pago: pedido.contas_pagar?.[0]?.valor_pago?.toString?.() ?? null,
     data_entrega: fromDateOnlyDb(pedido.data_entrega),
     endereco_entrega: pedido.endereco_entrega ?? null,
     nome_receptor: pedido.nome_receptor ?? null,
@@ -89,6 +103,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   const initialFornecedores = fornecedores.map((f) => ({ id: f.id, nome: f.nome }))
   const initialFornecedoresRaw = fornecedores.map((f) => ({ id: f.id, nome: f.nome, tipo: f.tipo ?? null }))
+  const isFinanceLocked = pedido.financeiro_integracao_status === "INTEGRADO"
 
   const initialMateriaisByTipo = {
     madeira: madeiras.map((m) => ({
@@ -127,13 +142,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <PedidoCompraForm
-      mode="edit"
+      mode={isFinanceLocked ? "view" : "edit"}
       pedidoCompraId={pedidoCompraId}
       initialData={initialData}
       initialFornecedores={initialFornecedores}
       initialFornecedoresRaw={initialFornecedoresRaw}
       initialMateriaisByTipo={initialMateriaisByTipo}
       initialComponentes={componentes}
+      lockedMessage={isFinanceLocked ? "Pedido integrado ao financeiro. Estorne a integração para liberar edição." : null}
+      disableEditAction={isFinanceLocked}
     />
   )
 }

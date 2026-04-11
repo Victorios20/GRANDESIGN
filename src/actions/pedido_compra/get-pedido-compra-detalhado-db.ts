@@ -47,6 +47,13 @@ export type PedidoCompraDetalhadoDTO = {
   observacoes: string | null
 
   fornecedor_id: number | null
+  financeiro_integracao_status: any
+  financeiro_integrado_em: Date | null
+  financeiro_estornado_em: Date | null
+  financeiro_conta_pagar_id: number | null
+  financeiro_conta_pagar_status: any | null
+  financeiro_conta_pagar_valor_total: any | null
+  financeiro_conta_pagar_valor_pago: any | null
   fornecedor: { id: number; nome: string; tipo: string | null } | null
 
   data_entrega: string | null
@@ -72,6 +79,16 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
       include: {
         obra: { select: { titulo: true } },
         fornecedor: { select: { id: true, nome: true, tipo: true } },
+        contas_pagar: {
+          orderBy: [{ created_at: "desc" }, { id: "desc" }],
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            valor_total: true,
+            valor_pago: true,
+          },
+        },
         itens: {
           orderBy: { id: "asc" },
           select: {
@@ -98,6 +115,10 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
 
     return {
       ...(pedido as any),
+      financeiro_conta_pagar_id: (pedido as any).contas_pagar?.[0]?.id ?? null,
+      financeiro_conta_pagar_status: (pedido as any).contas_pagar?.[0]?.status ?? null,
+      financeiro_conta_pagar_valor_total: (pedido as any).contas_pagar?.[0]?.valor_total ?? null,
+      financeiro_conta_pagar_valor_pago: (pedido as any).contas_pagar?.[0]?.valor_pago ?? null,
       data_entrega: fromDateOnlyDb(pedido.data_entrega),
     } as PedidoCompraDetalhadoDTO
   } catch (err: any) {

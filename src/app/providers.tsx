@@ -1,5 +1,6 @@
 "use client"
 
+import type { Session } from "next-auth"
 import { SessionProvider } from "next-auth/react"
 import type { ReactNode } from "react"
 
@@ -8,7 +9,15 @@ export default function Providers({
   session,
 }: {
   children: ReactNode
-  session?: any // se quiser hidratar a sessão via getServerSession depois
+  session: Session | null
 }) {
-  return <SessionProvider session={session}>{children}</SessionProvider>
+  return (
+    <SessionProvider
+      session={session}
+      refetchOnWindowFocus={false}
+      refetchWhenOffline={false}
+    >
+      {children}
+    </SessionProvider>
+  )
 }

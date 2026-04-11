@@ -34,6 +34,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -95,6 +96,8 @@ type Props = {
   initialFornecedoresRaw?: FornecedorItem[]
   initialMateriaisByTipo?: MateriaisByTipo
   initialComponentes?: { id: number; nome: string }[]
+  lockedMessage?: string | null
+  disableEditAction?: boolean
 }
 
 const emptyMateriaisByTipo: MateriaisByTipo = { madeira: [], telha: [], geral: [], andaime: [] }
@@ -192,6 +195,8 @@ export default function PedidoCompraForm({
   initialFornecedoresRaw,
   initialMateriaisByTipo,
   initialComponentes,
+  lockedMessage,
+  disableEditAction = false,
 }: Props) {
   const router = useRouter()
 
@@ -227,6 +232,8 @@ export default function PedidoCompraForm({
           status: "RASCUNHO" as PedidoStatus,
           frete: "0",
           observacoes: "",
+          naoPrevisto: false,
+          motivoExtra: ""
         } satisfies FormData,
         deliveryAddress: {
           nomeReceptor: "",
@@ -255,6 +262,8 @@ export default function PedidoCompraForm({
         status: statusNorm,
         frete: initialData.frete == null ? "0" : String(initialData.frete),
         observacoes: initialData.observacoes ?? "",
+        naoPrevisto: initialData.nao_previsto ?? false,
+        motivoExtra: initialData.motivo_extra ?? "",
       } satisfies FormData,
       deliveryAddress: {
         nomeReceptor: initialData.nome_receptor ?? "",
@@ -680,7 +689,11 @@ export default function PedidoCompraForm({
         valor_realizado: asNumberOrNull(formData.valorRealizado),
         frete: asNumberOrNull(formData.frete) ?? 0,
         observacoes: formData.observacoes?.trim() || null,
-        data_entrega: formData.dataEntrega || null,
+
+        nao_previsto: formData.naoPrevisto,
+        motivo_extra: formData.motivoExtra?.trim() || null,
+
+        data_entrega: formData.dataEntrega ? formData.dataEntrega : null,
         nome_receptor: deliveryAddress.nomeReceptor?.trim() || null,
         telefone_receptor: deliveryAddress.telefoneReceptor?.trim() || null,
         endereco_entrega: deliveryAddress.enderecoEntrega?.trim() || null,
@@ -866,37 +879,47 @@ export default function PedidoCompraForm({
             actions={
               isView ? (
                 <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className={cn(listPrimaryButtonClass, "h-9 rounded-lg")}
-                    onClick={() => resolvedPedidoId > 0 && router.push(`/pedido_compra/edit/${resolvedPedidoId}`)}
-                    disabled={resolvedPedidoId <= 0}
-                  >
-                    <Edit className="size-4" />
-                    Editar
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button type="button" variant="outline" size="icon" className={cn(listMutedButtonClass, "size-9 rounded-lg px-0")}>
-                        <MoreVertical className="size-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-xl border-[#e8e1d6]">
-                      <DropdownMenuItem
-                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                        onSelect={() => setDeleteDialogOpen(true)}
-                        disabled={resolvedPedidoId <= 0}
-                      >
-                        <Trash2 className="mr-2 size-4" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {!disableEditAction ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className={cn(listPrimaryButtonClass, "h-9 rounded-lg")}
+                      onClick={() => resolvedPedidoId > 0 && router.push(`/pedido_compra/edit/${resolvedPedidoId}`)}
+                      disabled={resolvedPedidoId <= 0}
+                    >
+                      <Edit className="size-4" />
+                      Editar
+                    </Button>
+                  ) : null}
+                  {!disableEditAction ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="outline" size="icon" className={cn(listMutedButtonClass, "size-9 rounded-lg px-0")}>
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="rounded-xl border-[#e8e1d6]">
+                        <DropdownMenuItem
+                          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                          onSelect={() => setDeleteDialogOpen(true)}
+                          disabled={resolvedPedidoId <= 0}
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </>
               ) : null
             }
           />
+
+          {lockedMessage ? (
+            <Alert>
+              <AlertDescription>{lockedMessage}</AlertDescription>
+            </Alert>
+          ) : null}
 
           {!isView ? (
             <PedidoCompraSectionCard
