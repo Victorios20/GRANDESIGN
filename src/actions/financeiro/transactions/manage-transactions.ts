@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { transactionSchema, validateTransaction } from "@/lib/validators/financial"
 import { ConferenciaStatus, Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
@@ -506,56 +506,66 @@ export async function openConferenceSession(
 ) {
     const parsed = conferenceSessionCreateSchema.parse(input)
 
-    return prisma.$transaction(async (tx) => {
-        const activeSession = await getActiveSession(tx, parsed.conta_bancaria_id)
-        if (activeSession) {
-            return buildConferenceSessionSummary(tx, activeSession.id)
-        }
+    // Check for an existing active session first — outside the transaction to
+    // avoid holding a lock while we query potentially thousands of rows.
+    const existingSession = await getActiveSession(prisma, parsed.conta_bancaria_id)
+    if (existingSession) {
+        return buildConferenceSessionSummary(prisma, existingSession.id)
+    }
 
-        const candidates = await tx.lancamento.findMany({
-            where: {
-                conta_bancaria_id: parsed.conta_bancaria_id,
-                status_conferencia: { not: StatusConferencia.CONFERIDO },
-                OR: [
-                    { conferencia_sessao_id: null },
-                    { conferencia_sessoes: { status: ConferenciaStatus.LOCKED } },
-                ],
-            },
-            select: {
-                id: true,
-                data_lancamento: true,
-            },
-        })
-
-        if (candidates.length === 0) {
-            throw new Error("Nenhum lançamento pendente nesta conta")
-        }
-
-        const sortedDates = candidates
-            .map((item) => item.data_lancamento)
-            .sort((left, right) => left.getTime() - right.getTime())
-
-        const session = await tx.conferencia_sessoes.create({
-            data: {
-                conta_bancaria_id: parsed.conta_bancaria_id,
-                periodo_inicio: sortedDates[0] ?? new Date(),
-                periodo_fim: sortedDates[sortedDates.length - 1] ?? new Date(),
-                criada_por: userId,
-                nota: parsed.nota ?? null,
-            },
-        })
-
-        await tx.lancamento.updateMany({
-            where: {
-                id: { in: candidates.map((item) => item.id) },
-            },
-            data: {
-                conferencia_sessao_id: session.id,
-            },
-        })
-
-        return buildConferenceSessionSummary(tx, session.id)
+    const candidates = await prisma.lancamento.findMany({
+        where: {
+            conta_bancaria_id: parsed.conta_bancaria_id,
+            status_conferencia: { not: StatusConferencia.CONFERIDO },
+            OR: [
+                { conferencia_sessao_id: null },
+                { conferencia_sessoes: { status: ConferenciaStatus.LOCKED } },
+            ],
+        },
+        select: {
+            id: true,
+            data_lancamento: true,
+        },
     })
+
+    if (candidates.length === 0) {
+        throw new Error("Nenhum lançamento pendente nesta conta")
+    }
+
+    const sortedDates = candidates
+        .map((item) => item.data_lancamento)
+        .sort((left, right) => left.getTime() - right.getTime())
+
+    // The actual write transaction is now minimal: create session + bulk-update.
+    // buildConferenceSessionSummary runs *after* the transaction commits so it
+    // never contributes to the interactive-transaction timer.
+    const session = await prisma.$transaction(
+        async (tx) => {
+            const created = await tx.conferencia_sessoes.create({
+                data: {
+                    conta_bancaria_id: parsed.conta_bancaria_id,
+                    periodo_inicio: sortedDates[0] ?? new Date(),
+                    periodo_fim: sortedDates[sortedDates.length - 1] ?? new Date(),
+                    criada_por: userId,
+                    nota: parsed.nota ?? null,
+                },
+            })
+
+            await tx.lancamento.updateMany({
+                where: {
+                    id: { in: candidates.map((item) => item.id) },
+                },
+                data: {
+                    conferencia_sessao_id: created.id,
+                },
+            })
+
+            return created
+        },
+        { timeout: 15000 }
+    )
+
+    return buildConferenceSessionSummary(prisma, session.id)
 }
 
 export async function closeConferenceSession(
@@ -577,32 +587,35 @@ export async function closeConferenceSession(
         throw new Error("Essa revisão já está encerrada")
     }
 
-    return prisma.$transaction(async (tx) => {
-        const updatedSession = await tx.conferencia_sessoes.update({
-            where: { id: sessionId },
-            data: {
-                status: ConferenciaStatus.LOCKED,
-                concluida_por: userId,
-                concluida_em: new Date(),
-                nota: parsed.nota ?? session.nota ?? null,
-            },
-        })
-
-        await tx.auditLog.create({
-            data: {
-                action: "CONFERENCE_SESSION_CLOSED",
-                entity: "conferencia_sessoes",
-                entity_id: sessionId,
-                user_id: userId,
-                detail: {
-                    conta_bancaria_id: updatedSession.conta_bancaria_id,
-                    nota: updatedSession.nota ?? null,
+    await prisma.$transaction(
+        async (tx) => {
+            const updatedSession = await tx.conferencia_sessoes.update({
+                where: { id: sessionId },
+                data: {
+                    status: ConferenciaStatus.LOCKED,
+                    concluida_por: userId,
+                    concluida_em: new Date(),
+                    nota: parsed.nota ?? session.nota ?? null,
                 },
-            },
-        })
+            })
 
-        return buildConferenceSessionSummary(tx, sessionId)
-    })
+            await tx.auditLog.create({
+                data: {
+                    action: "CONFERENCE_SESSION_CLOSED",
+                    entity: "conferencia_sessoes",
+                    entity_id: sessionId,
+                    user_id: userId,
+                    detail: {
+                        conta_bancaria_id: updatedSession.conta_bancaria_id,
+                        nota: updatedSession.nota ?? null,
+                    },
+                },
+            })
+        },
+        { timeout: 10000 }
+    )
+
+    return buildConferenceSessionSummary(prisma, sessionId)
 }
 
 export async function reopenConferenceSession(
@@ -620,32 +633,35 @@ export async function reopenConferenceSession(
         throw new Error("Sessão de conferência não encontrada")
     }
 
-    return prisma.$transaction(async (tx) => {
-        const updatedSession = await tx.conferencia_sessoes.update({
-            where: { id: sessionId },
-            data: {
-                status: ConferenciaStatus.REOPENED,
-                reopened_by: userId,
-                reopened_at: new Date(),
-                reopen_reason: parsed.reason,
-            },
-        })
-
-        await tx.auditLog.create({
-            data: {
-                action: "CONFERENCE_SESSION_REOPENED",
-                entity: "conferencia_sessoes",
-                entity_id: sessionId,
-                user_id: userId,
-                detail: {
-                    conta_bancaria_id: updatedSession.conta_bancaria_id,
-                    reason: parsed.reason,
+    await prisma.$transaction(
+        async (tx) => {
+            const updatedSession = await tx.conferencia_sessoes.update({
+                where: { id: sessionId },
+                data: {
+                    status: ConferenciaStatus.REOPENED,
+                    reopened_by: userId,
+                    reopened_at: new Date(),
+                    reopen_reason: parsed.reason,
                 },
-            },
-        })
+            })
 
-        return buildConferenceSessionSummary(tx, sessionId)
-    })
+            await tx.auditLog.create({
+                data: {
+                    action: "CONFERENCE_SESSION_REOPENED",
+                    entity: "conferencia_sessoes",
+                    entity_id: sessionId,
+                    user_id: userId,
+                    detail: {
+                        conta_bancaria_id: updatedSession.conta_bancaria_id,
+                        reason: parsed.reason,
+                    },
+                },
+            })
+        },
+        { timeout: 10000 }
+    )
+
+    return buildConferenceSessionSummary(prisma, sessionId)
 }
 
 export async function updateTransactionConferenceStatus(
@@ -678,20 +694,23 @@ export async function updateTransactionConferenceStatus(
         throw new Error("Informe o motivo da pendência")
     }
 
-    return prisma.$transaction(async (tx) => {
-        await tx.lancamento.update({
-            where: { id },
-            data: {
-                status_conferencia: parsed.status,
-                pendencia_motivo: parsed.status === "PENDENCIA" ? parsed.pendencia_motivo?.trim() ?? null : null,
-                conferido_em: parsed.status === "CONFERIDO" ? new Date() : null,
-                conferido_por: parsed.status === "CONFERIDO" ? userId : null,
-                version: { increment: 1 },
-            },
-        })
+    await prisma.$transaction(
+        async (tx) => {
+            await tx.lancamento.update({
+                where: { id },
+                data: {
+                    status_conferencia: parsed.status,
+                    pendencia_motivo: parsed.status === "PENDENCIA" ? parsed.pendencia_motivo?.trim() ?? null : null,
+                    conferido_em: parsed.status === "CONFERIDO" ? new Date() : null,
+                    conferido_por: parsed.status === "CONFERIDO" ? userId : null,
+                    version: { increment: 1 },
+                },
+            })
+        },
+        { timeout: 10000 }
+    )
 
-        return buildConferenceSessionSummary(tx, sessionId)
-    })
+    return buildConferenceSessionSummary(prisma, sessionId)
 }
 
 export async function bulkConfirmTransactions(ids: number[], userId: number) {
@@ -715,25 +734,31 @@ export async function bulkConfirmTransactions(ids: number[], userId: number) {
         throw new Error("Revisão encerrada. Reabra a revisão para corrigir")
     }
 
-    return prisma.$transaction(async (tx) => {
-        const result = await tx.lancamento.updateMany({
-            where: { id: { in: ids } },
-            data: {
-                status_conferencia: StatusConferencia.CONFERIDO,
-                conferido_em: new Date(),
-                conferido_por: userId,
-                pendencia_motivo: null,
-                version: { increment: 1 },
-            },
-        })
+    const result = await prisma.$transaction(
+        async (tx) => {
+            return tx.lancamento.updateMany({
+                where: { id: { in: ids } },
+                data: {
+                    status_conferencia: StatusConferencia.CONFERIDO,
+                    conferido_em: new Date(),
+                    conferido_por: userId,
+                    pendencia_motivo: null,
+                    version: { increment: 1 },
+                },
+            })
+        },
+        { timeout: 15000 }
+    )
 
-        const sessionIds = Array.from(new Set(lancamentos.map((item) => item.conferencia_sessao_id).filter(Boolean))) as number[]
-        for (const sessionId of sessionIds) {
-            await buildConferenceSessionSummary(tx, sessionId)
-        }
+    // Run session summaries outside the transaction to avoid timeout pressure.
+    const sessionIds = Array.from(
+        new Set(lancamentos.map((item) => item.conferencia_sessao_id).filter(Boolean))
+    ) as number[]
+    for (const sessionId of sessionIds) {
+        await buildConferenceSessionSummary(prisma, sessionId)
+    }
 
-        return result
-    })
+    return result
 }
 
 

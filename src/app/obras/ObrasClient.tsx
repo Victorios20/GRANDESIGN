@@ -9,7 +9,6 @@ import Link from "next/link"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
@@ -874,7 +873,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
 
         <ListSummaryBar countLabel={`${total} obra${total === 1 ? "" : "s"} na listagem atual`} />
 
-        <Card className={cn(operationalListShellClass, "overflow-hidden")}>
+        <section className={cn(operationalListShellClass, "overflow-hidden")}>
           <div className="px-0 py-0">
             {loadingTabela ? (
               <div className="space-y-3">
@@ -956,7 +955,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
               </ThemeProvider>
             )}
           </div>
-        </Card>
+        </section>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

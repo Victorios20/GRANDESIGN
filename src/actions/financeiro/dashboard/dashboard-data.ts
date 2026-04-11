@@ -43,7 +43,7 @@ const ACTIVE_STATUSES_SQL = Prisma.join(
 )
 const PERIOD_DETAIL_LIMIT = 10
 const CATEGORY_DETAIL_LIMIT = 8
-const UPCOMING_VISIBLE_LIMIT = 8
+const UPCOMING_VISIBLE_LIMIT = 6
 const CASH_DETAIL_MOVEMENT_LIMIT = 10
 
 interface Totals {
@@ -702,49 +702,63 @@ async function getSummaryAlerts() {
 async function getUpcomingPayables() {
     const start = startOfDay(new Date())
     const end = endOfDay(addDays(start, 7))
-    const rows = await prisma.contaPagar.findMany({
-        where: {
-            status: { in: ACTIVE_STATUSES },
-            data_vencimento: { gte: start, lte: end },
-        },
-        select: {
-            id: true,
-            descricao: true,
-            valor_total: true,
-            valor_pago: true,
-            data_vencimento: true,
-            fornecedor: { select: { nome: true } },
-            categoria: { select: { nome: true } },
-        },
-        orderBy: [{ data_vencimento: "asc" }, { id: "asc" }],
-        take: UPCOMING_VISIBLE_LIMIT,
-    })
+    const where = {
+        status: { in: ACTIVE_STATUSES },
+        data_vencimento: { gte: start, lte: end },
+    } satisfies Prisma.ContaPagarWhereInput
+    const [count, rows] = await Promise.all([
+        prisma.contaPagar.count({ where }),
+        prisma.contaPagar.findMany({
+            where,
+            select: {
+                id: true,
+                descricao: true,
+                valor_total: true,
+                valor_pago: true,
+                data_vencimento: true,
+                fornecedor: { select: { nome: true } },
+                categoria: { select: { nome: true } },
+            },
+            orderBy: [{ data_vencimento: "asc" }, { id: "asc" }],
+            take: UPCOMING_VISIBLE_LIMIT,
+        }),
+    ])
 
-    return rows.map((item) => toUpcomingItem(item, "pagar"))
+    return {
+        items: rows.map((item) => toUpcomingItem(item, "pagar")),
+        remaining_count: Math.max(count - UPCOMING_VISIBLE_LIMIT, 0),
+    }
 }
 
 async function getUpcomingReceivables() {
     const start = startOfDay(new Date())
     const end = endOfDay(addDays(start, 7))
-    const rows = await prisma.contaReceber.findMany({
-        where: {
-            status: { in: ACTIVE_STATUSES },
-            data_vencimento: { gte: start, lte: end },
-        },
-        select: {
-            id: true,
-            descricao: true,
-            valor_total: true,
-            valor_recebido: true,
-            data_vencimento: true,
-            cliente: { select: { nome: true } },
-            categoria: { select: { nome: true } },
-        },
-        orderBy: [{ data_vencimento: "asc" }, { id: "asc" }],
-        take: UPCOMING_VISIBLE_LIMIT,
-    })
+    const where = {
+        status: { in: ACTIVE_STATUSES },
+        data_vencimento: { gte: start, lte: end },
+    } satisfies Prisma.ContaReceberWhereInput
+    const [count, rows] = await Promise.all([
+        prisma.contaReceber.count({ where }),
+        prisma.contaReceber.findMany({
+            where,
+            select: {
+                id: true,
+                descricao: true,
+                valor_total: true,
+                valor_recebido: true,
+                data_vencimento: true,
+                cliente: { select: { nome: true } },
+                categoria: { select: { nome: true } },
+            },
+            orderBy: [{ data_vencimento: "asc" }, { id: "asc" }],
+            take: UPCOMING_VISIBLE_LIMIT,
+        }),
+    ])
 
-    return rows.map((item) => toUpcomingItem(item, "receber"))
+    return {
+        items: rows.map((item) => toUpcomingItem(item, "receber")),
+        remaining_count: Math.max(count - UPCOMING_VISIBLE_LIMIT, 0),
+    }
 }
 
 async function getCashComposition(accountIds: number[]) {
@@ -1232,12 +1246,14 @@ export async function getDashboardSummaryData(filters: DashboardAppliedFilters):
         upcoming_payables: {
             title: "Pagamentos a vencer",
             subtitle: "Compromissos com vencimento nos próximos dias.",
-            items: upcomingPayables,
+            items: upcomingPayables.items,
+            remaining_count: upcomingPayables.remaining_count,
         },
         upcoming_receivables: {
             title: "Recebimentos previstos",
             subtitle: "Entradas esperadas para os próximos dias.",
-            items: upcomingReceivables,
+            items: upcomingReceivables.items,
+            remaining_count: upcomingReceivables.remaining_count,
         },
         cash_composition: {
             title: "Composição do caixa",

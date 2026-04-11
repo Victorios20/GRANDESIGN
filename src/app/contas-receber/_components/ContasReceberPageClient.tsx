@@ -6,7 +6,6 @@ import { addDays, startOfDay } from "date-fns"
 import { ChevronDown, MoreHorizontal, Plus, Search, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import { PageLayout } from "@/components/ui/pageLayout"
-import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -446,7 +445,9 @@ export default function ContasReceberPageClient({
                             </div>
                         </div>
                     ) : null}
+                </section>
 
+                <section className={cn(operationalListShellClass, "px-4 py-3 md:px-5")}>
                     <StatusTabs value={statusFilter} items={statusTabItems} onValueChange={setStatusFilter} />
                 </section>
 
@@ -481,7 +482,7 @@ export default function ContasReceberPageClient({
                     ) : undefined}
                 />
 
-                <Card className={cn(operationalListShellClass, "overflow-hidden")}>
+                <section className={cn(operationalListShellClass, "overflow-hidden")}>
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[980px] text-sm">
                             <thead className={operationalListTableHeadClass}>
@@ -601,7 +602,7 @@ export default function ContasReceberPageClient({
                             </div>
                         </div>
                     ) : null}
-                </Card>
+                </section>
             </div>
 
             <ReceivableEditorDialog

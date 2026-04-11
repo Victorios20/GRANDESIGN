@@ -355,11 +355,13 @@ export interface DashboardSummary {
         title: string
         subtitle: string
         items: UpcomingItem[]
+        remaining_count: number
     }
     upcoming_receivables: {
         title: string
         subtitle: string
         items: UpcomingItem[]
+        remaining_count: number
     }
     cash_composition: {
         title: string

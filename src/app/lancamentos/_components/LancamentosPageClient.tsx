@@ -22,7 +22,6 @@ import { AccountBalanceStrip } from "@/components/financeiro/AccountBalanceStrip
 import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import {
     Dialog,
     DialogContent,
@@ -932,7 +931,7 @@ export default function LancamentosPageClient({
                         ) : null}
                 </section>
 
-                <Card className={cn(operationalListShellClass, "overflow-hidden")}>
+                <section className={cn(operationalListShellClass, "overflow-hidden")}>
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[1180px] text-sm">
                             <thead className={operationalListTableHeadClass}>
@@ -1259,7 +1258,7 @@ export default function LancamentosPageClient({
                             </div>
                         </div>
                     </div>
-                </Card>
+                </section>
             </div>
 
             <TransactionEditorDialog
