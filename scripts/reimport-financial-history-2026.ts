@@ -15,7 +15,7 @@ import { getFixedFinancialGroups } from "@/lib/financial/fixed-category-taxonomy
 const prisma = new PrismaClient()
 
 const DEFAULT_CSV_PATH =
-  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (3).csv"
+  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (4).csv"
 
 /**
  * The only allowed bank names in the CSV (column 9 "Conta").
@@ -233,7 +233,7 @@ function getValue(fields: CsvFields, index: number) {
   return sanitizeText(fields[index])
 }
 
-function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
+function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow | null {
   const month = getValue(fields, COL_MES)
   const dateText = getValue(fields, COL_DATA)
   const statusText = normalizeKey(fields[COL_STATUS])
@@ -245,7 +245,9 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
   const rawBankCol = getValue(fields, COL_CONTA)
   const groupHint = getValue(fields, COL_CATEGORIA)
 
-  if (!dateText) throw new Error(`Linha ${rowNumber} sem data preenchida.`)
+  if (!dateText) {
+    return null
+  }
 
   const status: StatusRaw =
     statusText === "efetivado"
@@ -551,7 +553,9 @@ async function main() {
   }
 
   const { rows: rawRows, repeatedHeaderRows } = readCsvRows(args.filePath)
-  const parsedRows = rawRows.map((fields, index) => parseFinancialRow(fields, index + 2))
+  const parsedRows = rawRows
+    .map((fields, index) => parseFinancialRow(fields, index + 2))
+    .filter((row): row is ParsedRow => row !== null)
 
   // Collect unique bank names found in Efetivado rows only
   const csvBankNames = Array.from(
