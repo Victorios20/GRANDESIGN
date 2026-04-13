@@ -650,6 +650,7 @@ model ContasBancaria {
 
 enum TipoCategoria {
   RECEITA @map("Receita")
+  CUSTO   @map("Custo")
   DESPESA @map("Despesa")
 }
 
@@ -955,11 +956,12 @@ model IdempotencyLog {
 }
 
 model FluxoCaixaParametro {
-  id              Int       @id
-  limite_alerta   Decimal   @default(10000.00) @db.Decimal(15, 2)
-  data_fechamento DateTime? @db.Date
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
+  id                  Int       @id
+  limite_alerta       Decimal   @default(10000.00) @db.Decimal(15, 2)
+  data_fechamento     DateTime? @db.Date
+  margem_padrao_obras Decimal   @default(15.00) @db.Decimal(5, 2) // Representa a margem padrão %
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
 
   @@map("fluxo_caixa_parametros")
 }
