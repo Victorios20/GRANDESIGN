@@ -405,6 +405,13 @@ export default function LancamentosPageClient({
     }, [activeSession, contaBancariaId, data])
 
     const visiblePages = useMemo(() => getVisiblePages(meta.page, meta.totalPages), [meta.page, meta.totalPages])
+    const advancedFilterCount = [
+        tipoFilter !== "all",
+        conciliadoFilter !== "all",
+        categoriaId !== "all",
+        centroCustoId !== "all",
+    ].filter(Boolean).length
+
     const activeFilterChips = useMemo(() => {
         const chips: Array<{ key: string; label: string }> = []
 
@@ -771,8 +778,8 @@ export default function LancamentosPageClient({
                     </section>
                 ) : null}
 
-                <section className={cn(operationalListShellClass, "space-y-3.5 px-4 py-4 md:px-5")}>
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <section className={cn(operationalListShellClass, "space-y-3 px-4 py-4 md:px-5")}>
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
                             <div className="relative min-w-0 flex-1">
                                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
                                 <Input
@@ -783,42 +790,14 @@ export default function LancamentosPageClient({
                                 />
                             </div>
 
-                            <div className="flex flex-wrap items-end gap-2">
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Período</label>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
+                                <div className="min-w-[200px] h-10">
                                     <SmartDateRangePicker
                                         range={dateRange}
                                         onChange={(range) => setDateRange(range ?? undefined)}
-                                        className={cn(operationalListControlClass, "w-full")}
+                                        variant="operational"
+                                        className="h-full w-full"
                                     />
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Tipo</label>
-                                    <Select value={tipoFilter} onValueChange={setTipoFilter}>
-                                        <SelectTrigger className={cn(operationalListControlClass, "min-w-[140px]")}>
-                                            <SelectValue placeholder="Todos" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos</SelectItem>
-                                            <SelectItem value="RECEITA">Receita</SelectItem>
-                                            <SelectItem value="DESPESA">Despesa</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Conciliação</label>
-                                    <Select value={conciliadoFilter} onValueChange={setConciliadoFilter}>
-                                        <SelectTrigger className={cn(operationalListControlClass, "min-w-[160px]")}>
-                                            <SelectValue placeholder="Todos" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos</SelectItem>
-                                            <SelectItem value="true">Conferidos</SelectItem>
-                                            <SelectItem value="false">Não conferidos</SelectItem>
-                                        </SelectContent>
-                                    </Select>
                                 </div>
 
                                 <Button
@@ -826,18 +805,35 @@ export default function LancamentosPageClient({
                                     variant="outline"
                                     onClick={() => setShowAdvancedFilters((current) => !current)}
                                     className={cn(
+                                        "gap-2 px-3 text-sm",
                                         operationalListSubtleButtonClass,
-                                        "gap-2",
+                                        "h-10",
                                         showAdvancedFilters && "border-[#c9bea4] bg-[#f2ead8] text-[#2c201b]"
                                     )}
                                 >
                                     <SlidersHorizontal className="size-4" />
                                     Mais filtros
-                                    <ChevronDown className={cn("size-4 transition-transform", showAdvancedFilters && "rotate-180")} />
+                                    {advancedFilterCount > 0 ? (
+                                        <span
+                                            className={cn(
+                                                "inline-flex min-w-4 items-center justify-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                                                showAdvancedFilters ? "bg-white text-[#2c201b]" : "bg-[#ebe4d4] text-[#6f6556]"
+                                            )}
+                                        >
+                                            {advancedFilterCount}
+                                        </span>
+                                    ) : (
+                                        <ChevronDown className={cn("size-4 opacity-50 transition-transform", showAdvancedFilters && "rotate-180")} />
+                                    )}
                                 </Button>
 
                                 {activeFilterChips.length > 0 ? (
-                                    <Button type="button" variant="ghost" onClick={clearAllFilters} className={operationalListGhostButtonClass}>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={clearAllFilters}
+                                        className={cn("px-3 text-sm", operationalListGhostButtonClass)}
+                                    >
                                         <X className="mr-1 size-4" />
                                         Limpar filtros
                                     </Button>
@@ -848,7 +844,7 @@ export default function LancamentosPageClient({
                         {activeFilterChips.length > 0 ? (
                             <div className="flex flex-wrap gap-2">
                                 {activeFilterChips.map((chip) => (
-                                    <Badge key={chip.key} variant="outline" className={operationalListChipClass}>
+                                    <Badge key={chip.key} variant="outline" className={cn(operationalListChipClass, "h-6")}>
                                         {chip.label}
                                         <button
                                             type="button"
@@ -865,6 +861,34 @@ export default function LancamentosPageClient({
 
                         {showAdvancedFilters ? (
                             <div className={cn(operationalListSubtlePanelClass, "grid gap-3 px-3 py-3 lg:grid-cols-2 lg:items-end")}>
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Tipo</label>
+                                    <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                                        <SelectTrigger className={operationalListControlClass}>
+                                            <SelectValue placeholder="Todos" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos</SelectItem>
+                                            <SelectItem value="RECEITA">Receita</SelectItem>
+                                            <SelectItem value="DESPESA">Despesa</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Conciliação</label>
+                                    <Select value={conciliadoFilter} onValueChange={setConciliadoFilter}>
+                                        <SelectTrigger className={operationalListControlClass}>
+                                            <SelectValue placeholder="Todos" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos</SelectItem>
+                                            <SelectItem value="true">Conferidos</SelectItem>
+                                            <SelectItem value="false">Não conferidos</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 <div className="space-y-1.5">
                                     <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria financeira</label>
                                     <Select value={categoriaId} onValueChange={setCategoriaId}>

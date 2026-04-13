@@ -557,6 +557,7 @@ export interface CashFlowProjectionAnalytics {
 export interface CashFlowSettings {
     safety_limit: number
     closing_date: string | null
+    margem_padrao_obras?: number | null
 }
 
 export interface CashFlowExcludedTransfersSummary {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
+import { operationalListPageBackgroundClass } from "@/components/ui/operational-list-styles"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { ssrJSON } from "@/lib/ssrFetch"
 import type { CentroCustoOption } from "@/types/financeiro"
@@ -28,7 +29,7 @@ export default async function CentrosCustoPage() {
     const costCenters = await ssrJSON<CentroCustoOption[]>("/api/financeiro/centros-custo?active=false")
 
     return (
-        <PageLayout title="Centros de Custo">
+        <PageLayout title="Centros de Custo" pageBackground={operationalListPageBackgroundClass}>
             <CostCentersPageClient initialCostCenters={costCenters} />
         </PageLayout>
     )

@@ -1,5 +1,6 @@
 import { addDays, startOfDay } from "date-fns"
 import { ssrJSON } from "@/lib/ssrFetch"
+import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import ContasReceberPageClient from "./_components/ContasReceberPageClient"
 import type {
     BankOption,
@@ -71,7 +72,7 @@ export default async function ContasReceberPage({ searchParams }: PageProps) {
             initialData={listData}
             initialSummary={summary}
             banks={banks}
-            categories={categories.filter((category) => category.tipo === "RECEITA")}
+            categories={categories.filter(isReceivableCategory)}
             centrosCusto={centrosCusto}
             clients={clients.dados}
             initialFilters={{

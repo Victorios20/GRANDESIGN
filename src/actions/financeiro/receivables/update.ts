@@ -1,6 +1,8 @@
-import { prisma } from "@/lib/prisma"
-import { StatusFinanceiro, TipoCategoria } from "@prisma/client"
+import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
+
+import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { prisma } from "@/lib/prisma"
 
 export const updateReceivableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -16,10 +18,22 @@ export const updateReceivableSchema = z.object({
 export type UpdateReceivableInput = z.infer<typeof updateReceivableSchema>
 
 async function validateRevenueCategory(categoryId: number) {
-    const category = await prisma.categoria.findUnique({ where: { id: categoryId } })
-    if (!category) throw new Error("Categoria não encontrada")
+    const category = await prisma.categoria.findUnique({
+        where: { id: categoryId },
+        include: {
+            categoria_pai: {
+                select: {
+                    nome: true,
+                },
+            },
+        },
+    })
+
+    if (!category) throw new Error("Categoria nao encontrada")
     if (!category.ativo) throw new Error("Categoria inativa")
-    if (category.tipo !== TipoCategoria.RECEITA) throw new Error("Categoria deve ser de Receita")
+    if (!isReceivableCategory(category)) {
+        throw new Error("Categoria deve ser operacional de receita")
+    }
 }
 
 function resolveOpenStatus(currentStatus: StatusFinanceiro, dueDate: Date) {
@@ -31,9 +45,9 @@ function resolveOpenStatus(currentStatus: StatusFinanceiro, dueDate: Date) {
 
 export async function updateReceivable(id: number, input: UpdateReceivableInput) {
     const receivable = await prisma.contaReceber.findUnique({ where: { id } })
-    if (!receivable) throw new Error("Conta a receber não encontrada")
+    if (!receivable) throw new Error("Conta a receber nao encontrada")
     if (receivable.status === StatusFinanceiro.PAGO || receivable.status === StatusFinanceiro.CANCELADO) {
-        throw new Error("Essa conta não pode mais ser editada")
+        throw new Error("Essa conta nao pode mais ser editada")
     }
 
     await validateRevenueCategory(input.categoria_id)

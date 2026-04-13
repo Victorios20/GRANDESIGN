@@ -7,18 +7,19 @@ import { CalendarIcon, ChevronDown, X } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { getRestartedRangeSelection, useResponsiveCalendarMonths } from "@/components/ui/calendar-range-utils"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
-    datePickerCalendarPanelClass,
-    datePickerFooterClass,
-    datePickerPopoverClass,
-    datePickerSidebarClass,
-    datePickerSidebarTitleClass,
-    datePickerSidebarValueClass,
-    datePickerTriggerClass,
-    datePickerTriggerIconWrapClass,
+    getDatePickerCalendarPanelClass,
     getDatePickerChevronClass,
+    getDatePickerFooterClass,
+    getDatePickerPopoverClass,
+    getDatePickerSidebarClass,
+    getDatePickerSidebarTitleClass,
+    getDatePickerSidebarValueClass,
     getDatePickerShortcutClass,
+    getDatePickerTriggerClass,
+    getDatePickerTriggerIconWrapClass,
 } from "@/components/ui/date-picker-styles"
 import { cn } from "@/lib/utils"
 import {
@@ -52,7 +53,7 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
     const [open, setOpen] = useState(false)
     const [draftRange, setDraftRange] = useState<DateRange | undefined>(() => parseDateRange(filters))
     const [draftPreset, setDraftPreset] = useState<DashboardPeriodPreset>(filters.period_preset)
-    const [calendarMonths, setCalendarMonths] = useState(2)
+    const { months: calendarMonths, setCalendarPanelElement } = useResponsiveCalendarMonths()
     const shortcutOptions = getDashboardShortcutOptions()
 
     useEffect(() => {
@@ -61,16 +62,6 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
             setDraftPreset(filters.period_preset)
         }
     }, [filters, open])
-
-    useEffect(() => {
-        if (typeof window === "undefined") return
-
-        const media = window.matchMedia("(min-width: 1024px)")
-        const sync = () => setCalendarMonths(media.matches ? 2 : 1)
-        sync()
-        media.addEventListener("change", sync)
-        return () => media.removeEventListener("change", sync)
-    }, [])
 
     function navigate(nextFilters: DashboardAppliedFilters) {
         const nextSearch = buildDashboardSearchParams(nextFilters).toString()
@@ -130,12 +121,12 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
                         type="button"
                         variant="secondary"
                         className={cn(
-                            datePickerTriggerClass,
+                            getDatePickerTriggerClass("default"),
                             "md:w-[320px] lg:w-[340px]",
                         )}
                     >
                         <span className="flex min-w-0 items-center gap-2.5">
-                            <span className={datePickerTriggerIconWrapClass}>
+                            <span className={getDatePickerTriggerIconWrapClass("default")}>
                                 <CalendarIcon className="size-3.5" />
                             </span>
                             <span className="truncate">{formatRangeLabel(parseDateRange(filters))}</span>
@@ -147,13 +138,13 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
                 <PopoverContent
                     align="end"
                     sideOffset={10}
-                    className={cn(datePickerPopoverClass, "w-[min(calc(100vw-1.5rem),720px)]")}
+                    className={cn(getDatePickerPopoverClass("default"), "w-[min(calc(100vw-1.5rem),720px)]")}
                 >
                     <div className="flex flex-col lg:flex-row">
-                        <div className={cn(datePickerSidebarClass, "lg:w-[210px]")}>
+                        <div className={cn(getDatePickerSidebarClass("default"), "lg:w-[210px]")}>
                             <div className="mb-3 space-y-1">
-                                <p className={datePickerSidebarTitleClass}>Período</p>
-                                <p className={cn(datePickerSidebarValueClass, "text-xs font-normal text-[#6F6556]")}>
+                                <p className={getDatePickerSidebarTitleClass("default")}>Período</p>
+                                <p className={cn(getDatePickerSidebarValueClass("default"), "text-xs font-normal text-[#6F6556]")}>
                                     {formatRangeLabel(draftRange)}
                                 </p>
                             </div>
@@ -176,15 +167,17 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
                             </div>
                         </div>
 
-                        <div className="flex min-w-0 flex-1 flex-col p-3">
-                            <div className={datePickerCalendarPanelClass}>
+                        <div ref={setCalendarPanelElement} className="flex min-w-0 flex-1 flex-col p-3">
+                            <div className={getDatePickerCalendarPanelClass("default")}>
                                 <Calendar
                                     mode="range"
                                     numberOfMonths={calendarMonths}
                                     selected={draftRange}
                                     defaultMonth={draftRange?.from}
-                                    onSelect={(nextRange) => {
-                                        setDraftRange(nextRange)
+                                    onSelect={(nextRange, selectedDay) => {
+                                        setDraftRange((currentRange) =>
+                                            getRestartedRangeSelection(currentRange, nextRange || undefined, selectedDay),
+                                        )
                                         setDraftPreset("custom")
                                     }}
                                     className="mx-auto"
@@ -192,7 +185,7 @@ export function DashboardFilterBar({ filters }: DashboardFilterBarProps) {
                                 />
                             </div>
 
-                            <div className={datePickerFooterClass}>
+                            <div className={getDatePickerFooterClass("default")}>
                                 <Button
                                     type="button"
                                     variant="ghost"

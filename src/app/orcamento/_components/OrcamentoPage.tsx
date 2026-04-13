@@ -191,6 +191,7 @@ type BaseProps = {
     componentes: Componente[]
     tiposObra: TipoObra[]
     cidades: Cidade[]
+    margemPadrao: number
 }
 
 type CreateProps = BaseProps & {
@@ -1307,7 +1308,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             const { maoDeObra, empresaGD, comissao } = calcularTotais({
                 madeiras: madeirasNew,
                 materiais: materGNew,
-                telhas: telhasNew
+                telhas: telhasNew,
+                margemPadrao: props.margemPadrao
             })
 
             setTotEdit(prev =>

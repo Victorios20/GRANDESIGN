@@ -8,6 +8,7 @@ import { getCidadesDB } from "@/actions/cidades-db/cidades-db"
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
 import { getOrcamentoById, type GetOrcamentoResult } from "@/actions/edit-orcamento-db/edit-orcamento-db"
+import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
 
 // Opcional: revalidate em 5 min para catálogos
 export const revalidate = 300
@@ -97,13 +98,14 @@ export default async function Page(context: { params: Promise<{ id: string }> })
     notFound()
   }
 
-  const [tiposObra, cidades, componentes, geraisDB, telhasDB, orc] = await Promise.all([
+  const [tiposObra, cidades, componentes, geraisDB, telhasDB, orc, cashSettings] = await Promise.all([
     listarTiposObra(),
     getCidadesDB(),
     listarComponentesDB(),
     listarMateriaisGerais(),
     listarTelhas(),
     getOrcamentoById(id),
+    getCashFlowSettings()
   ])
 
   const catalogo = {
@@ -135,6 +137,7 @@ export default async function Page(context: { params: Promise<{ id: string }> })
       componentes={componentes}
       tiposObra={tiposObra}
       cidades={cidades}
+      margemPadrao={cashSettings.margem_padrao_obras ?? 15}
     />
   )
 }

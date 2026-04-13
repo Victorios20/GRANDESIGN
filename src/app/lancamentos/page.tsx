@@ -1,4 +1,5 @@
 import { ssrJSON } from "@/lib/ssrFetch"
+import { isOperationalFinancialCategory } from "@/lib/financial/fixed-category-taxonomy"
 import LancamentosPageClient from "./_components/LancamentosPageClient"
 import type {
     BankOption,
@@ -102,7 +103,7 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
         <LancamentosPageClient
             initialData={listData}
             banks={banks}
-            categories={categories}
+            categories={categories.filter(isOperationalFinancialCategory)}
             centrosCusto={centrosCusto}
             closingDate={cashFlowSettings.closing_date}
             initialFilters={{

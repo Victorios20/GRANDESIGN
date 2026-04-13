@@ -1,9 +1,9 @@
-import { prisma } from "@/lib/prisma"
-import { StatusFinanceiro, FrequenciaRecorrencia, TipoCategoria, Prisma } from "@prisma/client"
-import { calculateInstallments } from "@/lib/financial/installments"
+import { FrequenciaRecorrencia, Prisma, StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
-// --- Schemas ---
+import { calculateInstallments } from "@/lib/financial/installments"
+import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { prisma } from "@/lib/prisma"
 
 export const createReceivableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -33,21 +33,33 @@ export const createReceivableInstallmentSchema = z.object({
 })
 
 export type CreateReceivableInput = z.infer<typeof createReceivableSchema>
-export type CreateReceivableInstallmentInput = z.infer<typeof createReceivableInstallmentSchema>
-
-// --- Services ---
+export type CreateReceivableInstallmentInput = z.infer<
+    typeof createReceivableInstallmentSchema
+>
 
 async function validateCategory(id: number) {
-    const category = await prisma.categoria.findUnique({ where: { id } })
-    if (!category) throw new Error("Categoria não encontrada")
+    const category = await prisma.categoria.findUnique({
+        where: { id },
+        include: {
+            categoria_pai: {
+                select: {
+                    nome: true,
+                },
+            },
+        },
+    })
+
+    if (!category) throw new Error("Categoria nao encontrada")
     if (!category.ativo) throw new Error("Categoria inativa")
-    if (category.tipo !== TipoCategoria.RECEITA) throw new Error("Categoria deve ser de Receita")
+    if (!isReceivableCategory(category)) {
+        throw new Error("Categoria deve ser operacional de receita")
+    }
 }
 
 export async function createReceivable(input: CreateReceivableInput, userId?: number) {
     await validateCategory(input.categoria_id)
 
-    return await prisma.contaReceber.create({
+    return prisma.contaReceber.create({
         data: {
             descricao: input.descricao,
             valor_total: input.valor,
@@ -64,21 +76,24 @@ export async function createReceivable(input: CreateReceivableInput, userId?: nu
             status: StatusFinanceiro.PENDENTE,
             parcela_atual: 1,
             total_parcelas: 1,
-            created_by: userId
-        }
+            created_by: userId,
+        },
     })
 }
 
-export async function createReceivableInstallments(input: CreateReceivableInstallmentInput, userId?: number) {
+export async function createReceivableInstallments(
+    input: CreateReceivableInstallmentInput,
+    userId?: number,
+) {
     await validateCategory(input.categoria_id)
 
     const installments = calculateInstallments(
         input.valor_total,
         input.total_parcelas,
-        input.primeiro_vencimento
+        input.primeiro_vencimento,
     )
 
-    return await prisma.$transaction(
+    return prisma.$transaction(
         installments.map((inst) =>
             prisma.contaReceber.create({
                 data: {
@@ -95,14 +110,12 @@ export async function createReceivableInstallments(input: CreateReceivableInstal
                     orcamento_id: input.orcamento_id,
                     parcela_atual: inst.parcela,
                     total_parcelas: input.total_parcelas,
-                    created_by: userId
-                }
-            })
-        )
+                    created_by: userId,
+                },
+            }),
+        ),
     )
 }
-
-// --- List Service ---
 
 export interface GetReceivablesOptions {
     page?: number
@@ -143,14 +156,20 @@ function buildDueDateFilter(startDate?: Date, endDate?: Date) {
 }
 
 function isOnlyOverdueStatus(status?: StatusFinanceiro | StatusFinanceiro[]) {
-    return status === StatusFinanceiro.ATRASADO || (Array.isArray(status) && status.length === 1 && status[0] === StatusFinanceiro.ATRASADO)
+    return (
+        status === StatusFinanceiro.ATRASADO ||
+        (Array.isArray(status) &&
+            status.length === 1 &&
+            status[0] === StatusFinanceiro.ATRASADO)
+    )
 }
 
 function buildReceivablesWhere(
     filters: Omit<GetReceivablesOptions, "page" | "limit" | "orderBy" | "orderDir">,
-    options: { includeStatus?: boolean; includeDate?: boolean } = {}
+    options: { includeStatus?: boolean; includeDate?: boolean } = {},
 ) {
-    const { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search } = filters
+    const { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search } =
+        filters
     const { includeStatus = true, includeDate = true } = options
     const where: Prisma.ContaReceberWhereInput = {}
 
@@ -169,7 +188,10 @@ function buildReceivablesWhere(
     return where
 }
 
-function buildReceivablesOrderBy(orderBy: ReceivableOrderBy = "data_vencimento", orderDir: "asc" | "desc" = "desc") {
+function buildReceivablesOrderBy(
+    orderBy: ReceivableOrderBy = "data_vencimento",
+    orderDir: "asc" | "desc" = "desc",
+) {
     const direction = orderDir === "asc" ? "asc" : "desc"
     const fallback: Prisma.ContaReceberOrderByWithRelationInput = { id: direction }
 
@@ -177,16 +199,16 @@ function buildReceivablesOrderBy(orderBy: ReceivableOrderBy = "data_vencimento",
         orderBy === "cliente"
             ? { cliente: { nome: direction } }
             : orderBy === "categoria"
-                ? { categoria: { nome: direction } }
-                : orderBy === "descricao"
-                    ? { descricao: direction }
-                    : orderBy === "valor_total"
-                        ? { valor_total: direction }
-                        : orderBy === "status"
-                            ? { status: direction }
-                            : orderBy === "created_at"
-                                ? { created_at: direction }
-                                : { data_vencimento: direction }
+              ? { categoria: { nome: direction } }
+              : orderBy === "descricao"
+                ? { descricao: direction }
+                : orderBy === "valor_total"
+                  ? { valor_total: direction }
+                  : orderBy === "status"
+                    ? { status: direction }
+                    : orderBy === "created_at"
+                      ? { created_at: direction }
+                      : { data_vencimento: direction }
 
     return [primary, fallback]
 }
@@ -213,7 +235,7 @@ export async function getReceivables(options: GetReceivablesOptions = {}) {
 
     const where = buildReceivablesWhere(
         { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search },
-        { includeDate: !isOnlyOverdueStatus(status) }
+        { includeDate: !isOnlyOverdueStatus(status) },
     )
 
     const [total, data] = await prisma.$transaction([
@@ -242,19 +264,22 @@ export async function getReceivables(options: GetReceivablesOptions = {}) {
     }
 }
 
-export async function getReceivablesSummary(filters: Omit<GetReceivablesOptions, "page" | "limit"> = {}) {
-    const { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search } = filters
+export async function getReceivablesSummary(
+    filters: Omit<GetReceivablesOptions, "page" | "limit"> = {},
+) {
+    const { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search } =
+        filters
     const filterWhere = buildReceivablesWhere(
         { startDate, endDate, status, cliente_id, categoria_id, centro_custo_id, search },
-        { includeDate: !isOnlyOverdueStatus(status) }
+        { includeDate: !isOnlyOverdueStatus(status) },
     )
     const countBaseWhere = buildReceivablesWhere(
         { startDate, endDate, cliente_id, categoria_id, centro_custo_id, search },
-        { includeStatus: false }
+        { includeStatus: false },
     )
     const countNoDateWhere = buildReceivablesWhere(
         { cliente_id, categoria_id, centro_custo_id, search },
-        { includeStatus: false, includeDate: false }
+        { includeStatus: false, includeDate: false },
     )
 
     const today = new Date()
@@ -266,19 +291,32 @@ export async function getReceivablesSummary(filters: Omit<GetReceivablesOptions,
 
     const baseWhere = {
         ...countBaseWhere,
-        status: { notIn: [StatusFinanceiro.PAGO, StatusFinanceiro.CANCELADO] as StatusFinanceiro[] },
+        status: {
+            notIn: [StatusFinanceiro.PAGO, StatusFinanceiro.CANCELADO] as StatusFinanceiro[],
+        },
     }
 
     const statusCountQueries = FINANCIAL_STATUSES.map((itemStatus) =>
         prisma.contaReceber.count({
             where: {
-                ...(itemStatus === StatusFinanceiro.ATRASADO ? countNoDateWhere : countBaseWhere),
+                ...(itemStatus === StatusFinanceiro.ATRASADO
+                    ? countNoDateWhere
+                    : countBaseWhere),
                 status: itemStatus,
             },
-        })
+        }),
     )
 
-    const [filterAggregate, filterCount, totalByDate, totalPending, overdue, dueToday, dueNext7, ...statusCountValues] = await prisma.$transaction([
+    const [
+        filterAggregate,
+        filterCount,
+        totalByDate,
+        totalPending,
+        overdue,
+        dueToday,
+        dueNext7,
+        ...statusCountValues
+    ] = await prisma.$transaction([
         prisma.contaReceber.aggregate({
             where: filterWhere,
             _sum: { valor_total: true, valor_recebido: true },
@@ -313,21 +351,32 @@ export async function getReceivablesSummary(filters: Omit<GetReceivablesOptions,
             ...acc,
             [itemStatus]: Number(statusCountValues[index] ?? 0),
         }),
-        { todos: totalByDate } as Record<"todos" | StatusFinanceiro, number>
+        { todos: totalByDate } as Record<"todos" | StatusFinanceiro, number>,
     )
 
     return {
         filterCount,
-        filterOpenAmount: sumOpenAmount(filterAggregate._sum.valor_total, filterAggregate._sum.valor_recebido),
+        filterOpenAmount: sumOpenAmount(
+            filterAggregate._sum.valor_total,
+            filterAggregate._sum.valor_recebido,
+        ),
         statusCounts,
-        totalAmount: sumOpenAmount(totalPending._sum.valor_total, totalPending._sum.valor_recebido),
+        totalAmount: sumOpenAmount(
+            totalPending._sum.valor_total,
+            totalPending._sum.valor_recebido,
+        ),
         totalPending: totalPending._count,
         overdueAmount: sumOpenAmount(overdue._sum.valor_total, overdue._sum.valor_recebido),
         overdueCount: overdue._count,
-        dueTodayAmount: sumOpenAmount(dueToday._sum.valor_total, dueToday._sum.valor_recebido),
+        dueTodayAmount: sumOpenAmount(
+            dueToday._sum.valor_total,
+            dueToday._sum.valor_recebido,
+        ),
         dueTodayCount: dueToday._count,
-        dueNext7Amount: sumOpenAmount(dueNext7._sum.valor_total, dueNext7._sum.valor_recebido),
+        dueNext7Amount: sumOpenAmount(
+            dueNext7._sum.valor_total,
+            dueNext7._sum.valor_recebido,
+        ),
         dueNext7Count: dueNext7._count,
     }
 }
-

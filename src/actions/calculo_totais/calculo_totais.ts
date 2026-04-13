@@ -37,7 +37,8 @@ export function calcularTotais({
   madeiras = [],
   materiais = [],
   telhas = [],
-}: Partial<ParametrosTotais> = {}): TotaisCalculados {
+  margemPadrao = 30,
+}: Partial<ParametrosTotais> & { margemPadrao?: number } = {}): TotaisCalculados {
   const arrMadeiras = Array.isArray(madeiras) ? madeiras : []
   const arrMateriais = Array.isArray(materiais) ? materiais : []
   const arrTelhas = Array.isArray(telhas) ? telhas : []
@@ -55,24 +56,24 @@ export function calcularTotais({
     arrTelhas as Item[]
   )
 
-  const empresaGDBase = (valorTotalMateriais + maoDeObra) * 0.3
+  const empresaGDBase = (valorTotalMateriais + maoDeObra) * (margemPadrao / 100)
   const empresaGD = Math.ceil(empresaGDBase / 100) * 100
 
   /* =======================
      🔍 LOG DE AUDITORIA
      ======================= */
   if (process.env.NODE_ENV !== "production") {
-    console.groupCollapsed("🧮 [calcularTotais] Auditoria Empresa GD (20%)")
+    console.groupCollapsed(`🧮 [calcularTotais] Auditoria Empresa GD (${margemPadrao}%)`)
     console.log("Madeiras:", totalMadeiras.toFixed(2))
     console.log("Materiais Gerais:", totalMateriais.toFixed(2))
     console.log("Telha mais cara:", telhaMaxTotal.toFixed(2))
     console.log("Subtotal Materiais:", valorTotalMateriais.toFixed(2))
     console.log("Mão de Obra:", maoDeObra.toFixed(2))
     console.log(
-      "Base 20% (materiais + mão de obra):",
+      "Base (materiais + mão de obra):",
       (valorTotalMateriais + maoDeObra).toFixed(2)
     )
-    console.log("Empresa GD (20%):", empresaGD.toFixed(2))
+    console.log(`Empresa GD (${margemPadrao}%):`, empresaGD.toFixed(2))
     console.groupEnd()
   }
 

@@ -18,19 +18,24 @@ import { cn } from "@/lib/utils"
 import { Button } from "./button"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { Calendar } from "./calendar"
+import { getRestartedRangeSelection, useResponsiveCalendarMonths } from "./calendar-range-utils"
 import { Label } from "./label"
 import { Checkbox } from "./checkbox"
 import {
-  datePickerCalendarPanelClass,
-  datePickerFooterClass,
-  datePickerPopoverClass,
-  datePickerSidebarClass,
-  datePickerSidebarTitleClass,
-  datePickerSidebarValueClass,
-  datePickerTriggerClass,
-  datePickerTriggerIconWrapClass,
+  type DatePickerVariant,
+  getDatePickerCalendarPanelClass,
+  getDatePickerClearButtonClass,
+  getDatePickerFooterClass,
   getDatePickerChevronClass,
+  getDatePickerPopoverClass,
+  getDatePickerSidebarClass,
+  getDatePickerSidebarTitleClass,
+  getDatePickerSidebarValueClass,
+  getDatePickerSingleDayLabelClass,
+  getDatePickerSingleDayRowClass,
   getDatePickerShortcutClass,
+  getDatePickerTriggerClass,
+  getDatePickerTriggerIconWrapClass,
 } from "./date-picker-styles"
 
 type Preset = {
@@ -109,11 +114,17 @@ interface Props {
   range?: DateRange
   onChange: (range: DateRange | undefined) => void
   className?: string
+  variant?: DatePickerVariant
 }
 
-export function SmartDateRangePicker({ range, onChange, className }: Props) {
+export function SmartDateRangePicker({
+  range,
+  onChange,
+  className,
+  variant = "default",
+}: Props) {
   const [open, setOpen] = React.useState(false)
-  const [months, setMonths] = React.useState(1)
+  const { months, setCalendarPanelElement } = useResponsiveCalendarMonths()
   const [singleDay, setSingleDay] = React.useState<boolean>(() => {
     if (!range?.from || !range?.to) return false
     return isSameDay(range.from, range.to)
@@ -136,16 +147,6 @@ export function SmartDateRangePicker({ range, onChange, className }: Props) {
     setSingleDay(isSameDay(range.from, range.to))
   }, [range])
 
-  React.useEffect(() => {
-    if (typeof window === "undefined") return
-
-    const media = window.matchMedia("(min-width: 768px)")
-    const sync = () => setMonths(media.matches ? 2 : 1)
-    sync()
-    media.addEventListener("change", sync)
-    return () => media.removeEventListener("change", sync)
-  }, [])
-
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -153,41 +154,51 @@ export function SmartDateRangePicker({ range, onChange, className }: Props) {
           id="date"
           variant="secondary"
           className={cn(
-            datePickerTriggerClass,
+            getDatePickerTriggerClass(variant),
             "w-[250px]",
             className
           )}
         >
           <span className="flex min-w-0 items-center gap-2.5">
-            <span className={datePickerTriggerIconWrapClass}>
+            <span className={getDatePickerTriggerIconWrapClass(variant)}>
               <CalendarIcon className="size-3.5" />
             </span>
             <span className={cn("truncate", !range?.from && "text-[#8A7F70]")}>
               {triggerLabel}
             </span>
           </span>
-          <ChevronDown className={getDatePickerChevronClass(open)} />
+          <ChevronDown className={getDatePickerChevronClass(open, variant)} />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
         align="start"
         sideOffset={10}
-        className={cn(datePickerPopoverClass, "w-[min(calc(100vw-1.5rem),760px)]")}
+        className={cn(
+          getDatePickerPopoverClass(variant),
+          months === 1
+            ? "w-[min(calc(100vw-1.5rem),620px)]"
+            : "w-[min(calc(100vw-1.5rem),760px)]"
+        )}
       >
-        <div className="flex flex-col lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">
-          <div className={cn(datePickerSidebarClass, "min-w-[220px]")}>
+        <div
+          className={cn(
+            "flex flex-col lg:grid",
+            months === 1 ? "lg:grid-cols-[220px_auto]" : "lg:grid-cols-[220px_minmax(0,1fr)]"
+          )}
+        >
+          <div className={cn(getDatePickerSidebarClass(variant), "min-w-[220px]")}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="space-y-1">
-                <p className={datePickerSidebarTitleClass}>Atalhos</p>
-                <p className={cn(datePickerSidebarValueClass, "text-xs font-normal text-[#6F6556]")}>
+                <p className={getDatePickerSidebarTitleClass(variant)}>Atalhos</p>
+                <p className={cn(getDatePickerSidebarValueClass(variant), "text-xs font-normal text-[#6F6556]")}>
                   {triggerLabel}
                 </p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-lg border border-transparent text-[#7B705F] shadow-none hover:border-[#DDD3C4] hover:bg-white"
+                className={getDatePickerClearButtonClass(variant)}
                 onClick={() => onChange(undefined)}
                 title="Limpar"
               >
@@ -204,7 +215,7 @@ export function SmartDateRangePicker({ range, onChange, className }: Props) {
                   <button
                     key={preset.key}
                     type="button"
-                    className={getDatePickerShortcutClass(isActive)}
+                    className={getDatePickerShortcutClass(isActive, variant)}
                     onClick={() => {
                       onChange(presetRange)
                       setSingleDay(
@@ -222,26 +233,32 @@ export function SmartDateRangePicker({ range, onChange, className }: Props) {
               })}
             </div>
 
-            <div className="mt-4 flex items-center gap-2 border-t border-[#E7DED1] pt-3">
+            <div className={getDatePickerSingleDayRowClass(variant)}>
               <Checkbox
                 id="single-day"
                 checked={singleDay}
                 onCheckedChange={(v) => setSingleDay(Boolean(v))}
               />
-              <Label htmlFor="single-day" className="text-sm">
+              <Label htmlFor="single-day" className={getDatePickerSingleDayLabelClass(variant)}>
                 Apenas 1 dia
               </Label>
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col p-3">
-            <div className={datePickerCalendarPanelClass}>
+          <div ref={setCalendarPanelElement} className="flex min-w-0 flex-1 flex-col p-3">
+            <div
+              className={cn(
+                getDatePickerCalendarPanelClass(variant),
+                months === 1 ? "mx-auto w-fit self-center" : "w-full"
+              )}
+            >
               {singleDay ? (
                 <Calendar
                   key="single"
                   initialFocus
                   mode="single"
                   numberOfMonths={months}
+                  appearance={variant === "operational" ? "operational" : "default"}
                   selected={range?.from}
                   onSelect={(date) => onChange(date ? { from: date, to: date } : undefined)}
                   className="mx-auto"
@@ -252,21 +269,17 @@ export function SmartDateRangePicker({ range, onChange, className }: Props) {
                   initialFocus
                   mode="range"
                   numberOfMonths={months}
+                  appearance={variant === "operational" ? "operational" : "default"}
                   selected={range}
-                  onSelect={(nextRange) => {
-                    if (nextRange?.from && !nextRange?.to) {
-                      onChange({ from: nextRange.from, to: nextRange.from })
-                      return
-                    }
-
-                    onChange(nextRange || undefined)
-                  }}
+                  onSelect={(nextRange, selectedDay) =>
+                    onChange(getRestartedRangeSelection(range, nextRange || undefined, selectedDay))
+                  }
                   className="mx-auto"
                 />
               )}
             </div>
 
-            <div className={datePickerFooterClass}>
+            <div className={getDatePickerFooterClass(variant)}>
               <Button variant="secondary" onClick={() => onChange(undefined)}>
                 Limpar
               </Button>

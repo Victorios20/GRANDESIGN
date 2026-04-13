@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { MoneyInput } from "@/components/ui/money-input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Textarea } from "@/components/ui/textarea"
+import { isTransactionSelectableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { formatCurrency, formatDateBR } from "@/lib/financeiro-utils"
 import { cn } from "@/lib/utils"
 import type {
@@ -158,7 +159,7 @@ export default function TransactionEditorDialog({
     const categoryItems = useMemo(
         () =>
             categories
-                .filter((category) => category.tipo === tipo)
+                .filter((category) => isTransactionSelectableCategory(category, tipo))
                 .map((category) => ({ value: String(category.id), label: category.nome })),
         [categories, tipo]
     )

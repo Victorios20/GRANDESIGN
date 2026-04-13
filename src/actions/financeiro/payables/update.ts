@@ -1,7 +1,9 @@
-import { syncPedidoCompraValorRealizadoInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
-import { prisma } from "@/lib/prisma"
-import { StatusFinanceiro, TipoCategoria } from "@prisma/client"
+import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
+
+import { syncPedidoCompraValorRealizadoInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
+import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { prisma } from "@/lib/prisma"
 
 export const updatePayableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -17,10 +19,22 @@ export const updatePayableSchema = z.object({
 export type UpdatePayableInput = z.infer<typeof updatePayableSchema>
 
 async function validateExpenseCategory(categoryId: number) {
-    const category = await prisma.categoria.findUnique({ where: { id: categoryId } })
-    if (!category) throw new Error("Categoria nÃ£o encontrada")
+    const category = await prisma.categoria.findUnique({
+        where: { id: categoryId },
+        include: {
+            categoria_pai: {
+                select: {
+                    nome: true,
+                },
+            },
+        },
+    })
+
+    if (!category) throw new Error("Categoria nao encontrada")
     if (!category.ativo) throw new Error("Categoria inativa")
-    if (category.tipo !== TipoCategoria.DESPESA) throw new Error("Categoria deve ser de Despesa")
+    if (!isPayableCategory(category)) {
+        throw new Error("Categoria deve ser operacional de custo ou despesa")
+    }
 }
 
 function resolveOpenStatus(currentStatus: StatusFinanceiro, dueDate: Date) {
@@ -39,9 +53,10 @@ export async function updatePayable(id: number, input: UpdatePayableInput) {
             pedido_compra_id: true,
         },
     })
-    if (!payable) throw new Error("Conta a pagar nÃ£o encontrada")
+
+    if (!payable) throw new Error("Conta a pagar nao encontrada")
     if (payable.status === StatusFinanceiro.PAGO || payable.status === StatusFinanceiro.CANCELADO) {
-        throw new Error("Essa conta nÃ£o pode mais ser editada")
+        throw new Error("Essa conta nao pode mais ser editada")
     }
 
     await validateExpenseCategory(input.categoria_id)
