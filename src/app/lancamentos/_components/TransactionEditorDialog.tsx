@@ -11,6 +11,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MoneyInput } from "@/components/ui/money-input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import {
+    operationalListControlClass,
+    operationalListGhostButtonClass,
+    operationalListIconButtonClass,
+    operationalListMutedButtonClass,
+    operationalListPrimaryButtonClass,
+    operationalListShellClass,
+    operationalListSubtlePanelClass,
+} from "@/components/ui/operational-list-styles"
 import { Textarea } from "@/components/ui/textarea"
 import { isTransactionSelectableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { formatCurrency, formatDateBR } from "@/lib/financeiro-utils"
@@ -36,12 +45,10 @@ interface Props {
     onSuccess: () => Promise<void> | void
 }
 
-const shellClassName =
-    "sm:max-w-[760px] border border-[#e8e1d6] bg-white p-0 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+const shellClassName = cn("sm:max-w-[760px] p-0", operationalListShellClass)
 
-const panelClassName = "rounded-xl border border-[#ece6db] bg-[#faf8f3]"
-const fieldClassName =
-    "h-9 rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] shadow-none focus-visible:ring-[#393316]/15"
+const panelClassName = operationalListSubtlePanelClass
+const fieldClassName = operationalListControlClass
 const labelClassName = "text-sm font-medium text-[#2c201b]"
 
 function toInputDate(value?: string | null) {
@@ -119,7 +126,7 @@ export default function TransactionEditorDialog({
             setTipo(item.tipo)
             setDataLancamento(toInputDate(item.data_lancamento))
             setDataCompetencia(toInputDate(item.data_competencia))
-            setContaBancariaId(String(item.conta_bancaria.id))
+            setContaBancariaId(item.conta_bancaria?.id ? String(item.conta_bancaria.id) : "")
             setCategoriaId(String(item.categoria.id))
             setCentroCustoId(item.centro_custo?.id ? String(item.centro_custo.id) : "none")
             setObservacoes(item.observacoes ?? "")
@@ -167,6 +174,14 @@ export default function TransactionEditorDialog({
     const centroCustoItems = useMemo(
         () => [{ value: "none", label: "Sem centro de custo" }, ...centrosCusto.map((centro) => ({ value: String(centro.id), label: centro.nome }))],
         [centrosCusto]
+    )
+
+    const tipoItems = useMemo(
+        () => [
+            { value: "RECEITA", label: "Receita" },
+            { value: "DESPESA", label: "Despesa" },
+        ],
+        []
     )
 
     const canSubmit = Boolean(
@@ -287,7 +302,7 @@ export default function TransactionEditorDialog({
                             type="button"
                             onClick={() => onOpenChange(false)}
                             aria-label="Fechar modal"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#7b705f] transition-colors hover:border hover:border-[#ddd7cc] hover:bg-[#f4efe4] hover:text-[#2c201b]"
+                            className={operationalListIconButtonClass}
                         >
                             <X className="size-4" />
                         </button>
@@ -296,7 +311,7 @@ export default function TransactionEditorDialog({
                     <div className="space-y-4 overflow-y-auto px-5 py-4">
                         {!isCreateMode && item ? (
                             <div className={cn(panelClassName, "grid gap-3 px-4 py-3 md:grid-cols-4")}>
-                                <SummaryStat label="Conta" value={item.conta_bancaria.nome} />
+                                <SummaryStat label="Conta" value={item.conta_bancaria?.nome ?? "Não definida"} />
                                 <SummaryStat label="Conciliação" value={getConferenceLabel(item)} />
                                 <SummaryStat label="Lançamento" value={formatDateBR(item.data_lancamento)} />
                                 <SummaryStat label="Valor" value={formatCurrency(item.valor)} valueClassName="tabular-nums" />
@@ -372,18 +387,18 @@ export default function TransactionEditorDialog({
 
                             <div className="space-y-1.5">
                                 <Label className={labelClassName}>Tipo</Label>
-                                <select
+                                <SearchableSelect
                                     value={tipo}
-                                    onChange={(event) => {
-                                        setTipo(event.target.value as "RECEITA" | "DESPESA")
+                                    onValueChange={(val) => {
+                                        setTipo(val as "RECEITA" | "DESPESA")
                                         setCategoriaId("")
                                     }}
-                                    className={cn(fieldClassName, "w-full px-3")}
+                                    items={tipoItems}
+                                    placeholder="Selecionar tipo"
+                                    searchPlaceholder="Buscar tipo"
+                                    className={fieldClassName}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
-                                >
-                                    <option value="RECEITA">Receita</option>
-                                    <option value="DESPESA">Despesa</option>
-                                </select>
+                                />
                             </div>
 
                             <div className="space-y-1.5">
@@ -404,7 +419,7 @@ export default function TransactionEditorDialog({
                                     items={accountItems}
                                     placeholder="Selecionar conta"
                                     searchPlaceholder="Buscar conta"
-                                    className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
+                                    className={fieldClassName}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
@@ -417,7 +432,7 @@ export default function TransactionEditorDialog({
                                     items={categoryItems}
                                     placeholder="Selecionar categoria"
                                     searchPlaceholder="Buscar categoria"
-                                    className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
+                                    className={fieldClassName}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
@@ -452,7 +467,7 @@ export default function TransactionEditorDialog({
                                     items={centroCustoItems}
                                     placeholder="Selecionar centro de custo"
                                     searchPlaceholder="Buscar centro de custo"
-                                    className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
+                                    className={fieldClassName}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
@@ -463,7 +478,7 @@ export default function TransactionEditorDialog({
                                     value={observacoes}
                                     onChange={(event) => setObservacoes(event.target.value)}
                                     rows={3}
-                                    className="rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] shadow-none focus-visible:ring-[#393316]/15"
+                                    className={cn("bg-white", fieldClassName, "h-auto")}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
@@ -476,7 +491,7 @@ export default function TransactionEditorDialog({
                                         onChange={(event) => setJustificativa(event.target.value)}
                                         rows={3}
                                         placeholder="Explique por que este lançamento precisa ser ajustado ou estornado."
-                                        className="rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] shadow-none focus-visible:ring-[#393316]/15"
+                                        className={cn("bg-white", fieldClassName, "h-auto")}
                                         disabled={submitting}
                                     />
                                 </div>
@@ -490,7 +505,7 @@ export default function TransactionEditorDialog({
                             variant="ghost"
                             onClick={() => onOpenChange(false)}
                             disabled={submitting}
-                            className="h-9 rounded-lg px-3 text-[#6f6556] shadow-none hover:bg-[#f3efe6] hover:text-[#2c201b]"
+                            className={operationalListGhostButtonClass}
                         >
                             {conferenceMode ? "Voltar para a conferência" : "Fechar"}
                         </Button>
@@ -501,7 +516,7 @@ export default function TransactionEditorDialog({
                                 variant="outline"
                                 onClick={handleReverse}
                                 disabled={submitting}
-                                className="h-9 rounded-lg border border-[#d9c7c4] bg-white px-3 text-[#8f3f37] hover:bg-[#faf4f3]"
+                                className={operationalListMutedButtonClass}
                             >
                                 {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                                 Estornar
@@ -513,7 +528,7 @@ export default function TransactionEditorDialog({
                                 type="button"
                                 onClick={handleSave}
                                 disabled={!canSubmit || submitting}
-                                className="h-10 rounded-lg bg-[#393316] px-4 text-sm text-[#faf3e0] hover:bg-[#2f2a13] focus-visible:ring-[#393316]/20"
+                                className={cn("h-10", operationalListPrimaryButtonClass)}
                             >
                                 {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                                 {isCreateMode ? "Incluir transação" : canAdjust ? "Salvar ajuste" : "Salvar alteração"}

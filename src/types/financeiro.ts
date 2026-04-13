@@ -14,7 +14,7 @@ export interface TransactionListItem {
     pendencia_motivo: string | null
     conferencia_sessao_id: number | null
     observacoes: string | null
-    conta_bancaria: { id: number; nome: string; banco: string | null; cor: string | null }
+    conta_bancaria: { id: number; nome: string; banco: string | null; cor: string | null } | null
     categoria: { id: number; nome: string; cor: string | null; icone: string | null; tipo: string }
     centro_custo: { id: number; nome: string } | null
     conta_pagar: { id: number; descricao: string; fornecedor: { nome: string } | null } | null
