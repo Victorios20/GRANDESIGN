@@ -1,5 +1,6 @@
 import { addDays, startOfDay } from "date-fns"
 import { ssrJSON } from "@/lib/ssrFetch"
+import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import ContasPagarPageClient from "./_components/ContasPagarPageClient"
 import type {
     BankOption,
@@ -73,7 +74,7 @@ export default async function ContasPagarPage({ searchParams }: PageProps) {
             initialData={listData}
             initialSummary={summary}
             banks={banks}
-            categories={categories.filter((category) => category.tipo === "DESPESA")}
+            categories={categories.filter(isPayableCategory)}
             centrosCusto={centrosCusto}
             suppliers={suppliers}
             initialFilters={{

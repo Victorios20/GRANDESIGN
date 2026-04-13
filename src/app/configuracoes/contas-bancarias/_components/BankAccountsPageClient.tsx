@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ComponentType } from "react"
+import { useMemo, useState } from "react"
 import type { TipoContaBancaria } from "@prisma/client"
 import {
     AlertTriangle,
@@ -12,7 +12,7 @@ import {
     PiggyBank,
     Plus,
     Search,
-    Wallet,
+    X,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
     Dialog,
     DialogContent,
@@ -53,13 +52,16 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table"
+    operationalListControlClass,
+    operationalListGhostButtonClass,
+    operationalListPrimaryButtonClass,
+    operationalListSearchInputClass,
+    operationalListShellClass,
+    operationalListTableHeadCellClass,
+    operationalListTableHeadClass,
+    operationalListTableHeadRowClass,
+    operationalListTableRowClass,
+} from "@/components/ui/operational-list-styles"
 import { cn } from "@/lib/utils"
 import type { BankOption } from "@/types/financeiro"
 
@@ -77,12 +79,6 @@ type BankFormState = {
     conta: string
     cor: string
     saldo_inicial: string
-}
-
-type BankSummaryCardProps = {
-    label: string
-    value: string
-    icon: ComponentType<{ className?: string }>
 }
 
 const BANK_TYPE_OPTIONS: Array<{ value: TipoContaBancaria; label: string }> = [
@@ -158,31 +154,10 @@ function getAccountDescription(bank: BankOption) {
     return parts.join(" / ")
 }
 
-function BankSummaryCard({ label, value, icon: Icon }: BankSummaryCardProps) {
-    return (
-        <Card className="border border-[rgba(44,32,27,0.08)] bg-[#FFFCF7]">
-            <CardContent className="p-4">
-                <div className="flex items-center justify-between gap-3">
-                    <div className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/45">
-                            {label}
-                        </p>
-                        <p className="text-lg font-semibold text-[#2C201B]">{value}</p>
-                    </div>
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#2C201B]/8 bg-[#FAF3E0]">
-                        <Icon className="size-5 text-[#393316]" />
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    )
-}
-
 export default function BankAccountsPageClient({ initialBanks }: Props) {
     const [banks, setBanks] = useState(initialBanks)
     const [search, setSearch] = useState("")
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all")
-    const [isFetching, setIsFetching] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [formOpen, setFormOpen] = useState(false)
     const [balanceDialogOpen, setBalanceDialogOpen] = useState(false)
@@ -194,7 +169,6 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
 
     async function refreshBanks() {
         try {
-            setIsFetching(true)
             const response = await fetch("/api/financeiro/bancos?active=false", {
                 cache: "no-store",
             })
@@ -207,8 +181,6 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
             setBanks((await response.json()) as BankOption[])
         } catch (error) {
             toast.error((error as Error).message)
-        } finally {
-            setIsFetching(false)
         }
     }
 
@@ -268,24 +240,6 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
             ].some((value) => value.toLowerCase().includes(term))
         })
     }, [banks, search, statusFilter])
-
-    const summary = useMemo(() => {
-        return visibleBanks.reduce(
-            (accumulator, bank) => {
-                accumulator.total += 1
-                accumulator.active += bank.ativo ? 1 : 0
-                accumulator.openingBalance += Number(bank.saldo_inicial ?? 0)
-                accumulator.currentBalance += Number(bank.saldo_atual ?? 0)
-                return accumulator
-            },
-            {
-                total: 0,
-                active: 0,
-                openingBalance: 0,
-                currentBalance: 0,
-            }
-        )
-    }, [visibleBanks])
 
     async function handleSubmitForm() {
         try {
@@ -393,61 +347,41 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-2">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-[#2C201B]/10 bg-[#FFFCF7] px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-[#2C201B]/52">
-                        <Landmark className="size-3.5" />
-                        Configurações Financeiras
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-semibold tracking-tight text-[#2C201B]">
-                            Contas Bancárias
-                        </h1>
-                        <p className="mt-1 text-sm text-[#2C201B]/62">
-                            Gerencie contas, ajuste saldo inicial com recálculo automático e controle quais contas seguem ativas na operação.
-                        </p>
-                    </div>
+        <div className="space-y-4">
+            <section className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1">
+                    <h1 className="text-xl font-bold tracking-tight text-[#393316] md:text-2xl">Contas Bancárias</h1>
+                    <p className="text-sm text-[#6f6556]">
+                        {visibleBanks.length} conta{visibleBanks.length === 1 ? "" : "s"} na visualização atual
+                    </p>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button variant="outline" onClick={refreshBanks} disabled={isFetching}>
-                        {isFetching ? <Loader2 className="size-4 animate-spin" /> : null}
-                        Atualizar
-                    </Button>
-                    <Button onClick={openCreateDialog}>
-                        <Plus className="size-4" />
-                        Nova Conta
-                    </Button>
-                </div>
-            </div>
+                <Button
+                    type="button"
+                    onClick={openCreateDialog}
+                    className={cn(operationalListPrimaryButtonClass, "h-10 rounded-lg px-4 text-sm")}
+                >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nova Conta
+                </Button>
+            </section>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <BankSummaryCard label="Total de contas" value={String(summary.total)} icon={Wallet} />
-                <BankSummaryCard label="Contas ativas" value={String(summary.active)} icon={CheckCircle2} />
-                <BankSummaryCard label="Saldo inicial" value={formatCurrency(summary.openingBalance)} icon={PiggyBank} />
-                <BankSummaryCard label="Saldo atual" value={formatCurrency(summary.currentBalance)} icon={Landmark} />
-            </div>
+            <section className={cn(operationalListShellClass, "space-y-3 px-4 py-4 md:px-5")}>
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="relative min-w-0 flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
+                        <Input
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Buscar por nome, banco, agência ou conta"
+                            className={operationalListSearchInputClass}
+                        />
+                    </div>
 
-            <Card className="border border-[rgba(44,32,27,0.08)] bg-[#FFFCF7]">
-                <CardHeader className="pb-4">
-                    <CardTitle className="text-base font-semibold text-[#2C201B]">Filtros</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                    <div className="flex flex-col gap-3 lg:flex-row">
-                        <div className="relative flex-1">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#2C201B]/35" />
-                            <Input
-                                value={search}
-                                onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Buscar por nome, banco, agência ou conta"
-                                className="h-11 border-[#2C201B]/10 bg-white pl-9"
-                            />
-                        </div>
-
-                        <div className="w-full lg:w-56">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <div className="min-w-[170px]">
                             <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
-                                <SelectTrigger className="h-11 border-[#2C201B]/10 bg-white">
+                                <SelectTrigger className={operationalListControlClass}>
                                     <SelectValue placeholder="Status" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -457,29 +391,44 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                                 </SelectContent>
                             </Select>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
 
-            <Card className="overflow-hidden border border-[rgba(44,32,27,0.08)] bg-[#FFFCF7]">
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="border-[#2C201B]/8 hover:bg-transparent">
-                                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Nome</TableHead>
-                                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Tipo</TableHead>
-                                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Banco</TableHead>
-                                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Agência / Conta</TableHead>
-                                <TableHead className="h-12 px-4 text-right text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Saldo Inicial</TableHead>
-                                <TableHead className="h-12 px-4 text-right text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Saldo Atual</TableHead>
-                                <TableHead className="h-12 px-4 text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Status</TableHead>
-                                <TableHead className="h-12 px-4 text-right text-xs font-semibold uppercase tracking-[0.2em] text-[#2C201B]/48">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                        {(search || statusFilter !== "all") ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                    setSearch("")
+                                    setStatusFilter("all")
+                                }}
+                                className={cn("px-3 text-sm", operationalListGhostButtonClass)}
+                            >
+                                <X className="mr-1 size-4" />
+                                Limpar filtros
+                            </Button>
+                        ) : null}
+                    </div>
+                </div>
+            </section>
+
+            <section className={cn(operationalListShellClass)}>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className={operationalListTableHeadClass}>
+                            <tr className={operationalListTableHeadRowClass}>
+                                <th className={operationalListTableHeadCellClass}>Nome</th>
+                                <th className={operationalListTableHeadCellClass}>Tipo</th>
+                                <th className={operationalListTableHeadCellClass}>Banco</th>
+                                <th className={operationalListTableHeadCellClass}>Agência / Conta</th>
+                                <th className={cn(operationalListTableHeadCellClass, "text-right")}>Saldo Inicial</th>
+                                <th className={cn(operationalListTableHeadCellClass, "text-right")}>Saldo Atual</th>
+                                <th className={operationalListTableHeadCellClass}>Status</th>
+                                <th className={cn(operationalListTableHeadCellClass, "text-right")}>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#EFE8DC]">
                             {visibleBanks.length === 0 ? (
-                                <TableRow className="hover:bg-transparent">
-                                    <TableCell colSpan={8} className="px-4 py-14 text-center">
+                                <tr>
+                                    <td colSpan={8} className="px-4 py-14 text-center">
                                         <div className="flex flex-col items-center gap-3 text-[#2C201B]/50">
                                             <Landmark className="size-10" />
                                             <div className="space-y-1">
@@ -487,12 +436,12 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                                                 <p className="text-sm">Ajuste os filtros ou cadastre uma nova conta bancária.</p>
                                             </div>
                                         </div>
-                                    </TableCell>
-                                </TableRow>
+                                    </td>
+                                </tr>
                             ) : (
                                 visibleBanks.map((bank) => (
-                                    <TableRow key={bank.id} className="border-[#2C201B]/6 bg-white/70 hover:bg-[#FAF3E0]/35">
-                                        <TableCell className="px-4 py-3">
+                                    <tr key={bank.id} className={operationalListTableRowClass}>
+                                        <td className="px-4 py-3">
                                             <div className="flex items-start gap-3">
                                                 <span
                                                     className="mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 rounded-full border border-[#2C201B]/8"
@@ -506,27 +455,21 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                                                     </p>
                                                 </div>
                                             </div>
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-[#2C201B]/72">
-                                            {formatBankType(bank.tipo)}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-[#2C201B]/72">
-                                            {bank.banco || "—"}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-[#2C201B]/72">
-                                            {getAccountDescription(bank)}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-right font-medium text-[#2C201B]">
+                                        </td>
+                                        <td className="px-4 py-3 text-[#2C201B]/72">{formatBankType(bank.tipo)}</td>
+                                        <td className="px-4 py-3 text-[#2C201B]/72">{bank.banco || "—"}</td>
+                                        <td className="px-4 py-3 text-[#2C201B]/72">{getAccountDescription(bank)}</td>
+                                        <td className="px-4 py-3 text-right font-medium text-[#2C201B]">
                                             {formatCurrency(bank.saldo_inicial ?? 0)}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-right font-medium text-[#393316]">
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-[#393316]">
                                             {formatCurrency(bank.saldo_atual)}
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3">
+                                        </td>
+                                        <td className="px-4 py-3">
                                             <Badge
                                                 variant="outline"
                                                 className={cn(
-                                                    "rounded-full border px-2.5 py-1 text-xs font-medium",
+                                                    "rounded-full border px-2.5 py-1 text-[11px] font-medium",
                                                     bank.ativo
                                                         ? "border-[#393316]/16 bg-[#F2F5E7] text-[#393316]"
                                                         : "border-[#2C201B]/12 bg-[#F5F1E8] text-[#2C201B]/62"
@@ -534,8 +477,8 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                                             >
                                                 {getStatusLabel(bank.ativo)}
                                             </Badge>
-                                        </TableCell>
-                                        <TableCell className="px-4 py-3 text-right">
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="text-[#2C201B]/62 hover:bg-[#FAF3E0] hover:text-[#2C201B]">
@@ -562,14 +505,14 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
+                                        </td>
+                                    </tr>
                                 ))
                             )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
 
             <Dialog open={formOpen} onOpenChange={setFormOpen}>
                 <DialogContent className="border-[#2C201B]/10 bg-[#FFFCF7] sm:max-w-[560px]">
@@ -683,7 +626,7 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                         <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button type="button" onClick={handleSubmitForm} disabled={isSubmitting}>
+                        <Button type="button" onClick={handleSubmitForm} disabled={isSubmitting} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                             {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
                             {editingBank ? "Salvar alterações" : "Criar conta"}
                         </Button>
@@ -727,7 +670,7 @@ export default function BankAccountsPageClient({ initialBanks }: Props) {
                         <Button type="button" variant="outline" onClick={() => setBalanceDialogOpen(false)}>
                             Cancelar
                         </Button>
-                        <Button type="button" onClick={handleUpdateInitialBalance} disabled={isSubmitting}>
+                        <Button type="button" onClick={handleUpdateInitialBalance} disabled={isSubmitting} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                             {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : null}
                             Salvar saldo inicial
                         </Button>

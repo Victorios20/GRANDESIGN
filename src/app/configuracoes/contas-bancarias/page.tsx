@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 
-import { PageLayout } from "@/components/ui/pageLayout"
-import BankAccountsPageClient from "./_components/BankAccountsPageClient"
 import { authOptions } from "@/lib/auth"
 import { ssrJSON } from "@/lib/ssrFetch"
 import type { BankOption } from "@/types/financeiro"
+import { PageLayout } from "@/components/ui/pageLayout"
+import { operationalListPageBackgroundClass } from "@/components/ui/operational-list-styles"
+import BankAccountsPageClient from "./_components/BankAccountsPageClient"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -28,7 +29,7 @@ export default async function ContasBancariasPage() {
     const banks = await ssrJSON<BankOption[]>("/api/financeiro/bancos?active=false")
 
     return (
-        <PageLayout title="Contas Bancárias">
+        <PageLayout title="Contas Bancárias" pageBackground={operationalListPageBackgroundClass}>
             <BankAccountsPageClient initialBanks={banks} />
         </PageLayout>
     )

@@ -5,13 +5,14 @@ import { cn } from "@/lib/utils"
 import { Button } from "./button"
 import { Popover, PopoverContent, PopoverTrigger } from "./popover"
 import { Calendar } from "./calendar"
+import { getRestartedRangeSelection } from "./calendar-range-utils"
 import { DateRange } from "react-day-picker"
 import {
-  datePickerCalendarPanelClass,
-  datePickerPopoverClass,
-  datePickerTriggerClass,
-  datePickerTriggerIconWrapClass,
+  getDatePickerCalendarPanelClass,
   getDatePickerChevronClass,
+  getDatePickerPopoverClass,
+  getDatePickerTriggerClass,
+  getDatePickerTriggerIconWrapClass,
 } from "./date-picker-styles"
 
 interface Props {
@@ -37,13 +38,13 @@ export function DateRangePicker({ range, onChange, className, compact }: Props) 
           id="date"
           variant="secondary"
           className={cn(
-            datePickerTriggerClass,
+            getDatePickerTriggerClass("default"),
             compact ? "h-10 w-[220px]" : "w-[240px]",
             className
           )}
         >
           <span className="flex min-w-0 items-center gap-2.5">
-            <span className={datePickerTriggerIconWrapClass}>
+            <span className={getDatePickerTriggerIconWrapClass("default")}>
               <CalendarIcon className="size-3.5" />
             </span>
             <span className={cn("truncate", !range?.from && "text-[#8A7F70]")}>
@@ -54,15 +55,17 @@ export function DateRangePicker({ range, onChange, className, compact }: Props) 
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className={cn(datePickerPopoverClass, "w-auto max-w-[calc(100vw-1.5rem)] p-2.5")}
+        className={cn(getDatePickerPopoverClass("default"), "w-auto max-w-[calc(100vw-1.5rem)] p-2.5")}
         align="start"
       >
-        <div className={datePickerCalendarPanelClass}>
+        <div className={getDatePickerCalendarPanelClass("default")}>
           <Calendar
             initialFocus
             mode="range"
             selected={range}
-            onSelect={onChange}
+            onSelect={(nextRange, selectedDay) =>
+              onChange(getRestartedRangeSelection(range, nextRange || undefined, selectedDay))
+            }
             numberOfMonths={1}
             className="mx-auto"
           />

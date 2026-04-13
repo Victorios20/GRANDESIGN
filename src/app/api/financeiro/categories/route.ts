@@ -130,13 +130,6 @@ export async function PUT(req: Request) {
     try {
         const body = await req.json()
 
-        if (Object.prototype.hasOwnProperty.call(body, "tipo")) {
-            return NextResponse.json(
-                { error: "O tipo da categoria não pode ser alterado após a criação" },
-                { status: 400 },
-            )
-        }
-
         const category = await updateCategory(body)
         return NextResponse.json(serializeCategory(category))
     } catch (error) {

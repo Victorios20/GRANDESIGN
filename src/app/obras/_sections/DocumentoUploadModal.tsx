@@ -137,12 +137,12 @@ export default function DocumentoUploadModal({
 
   async function handleSubmit() {
     if (!isFixedLink && !titulo.trim()) {
-      toast.error("TÃ­tulo Ã© obrigatÃ³rio")
+      toast.error("Título é obrigatório")
       return
     }
 
     if (inputMode === "link" && !link.trim()) {
-      toast.error("Link Ã© obrigatÃ³rio")
+      toast.error("Link é obrigatório")
       return
     }
 
@@ -180,7 +180,7 @@ export default function DocumentoUploadModal({
         if (fixedLinkKey && onFixedLinkSave) {
           const finalUrl = inputMode === "arquivo" ? fileUrl : link.trim()
           if (!finalUrl) {
-            toast.error("Ã‰ necessÃ¡rio selecionar um arquivo ou inserir um link")
+            toast.error("É necessário selecionar um arquivo ou inserir um link")
             setIsUploading(false)
             return
           }
@@ -280,13 +280,13 @@ export default function DocumentoUploadModal({
 
           <div className="grid gap-2">
             <Label htmlFor="titulo" className="text-sm font-medium text-gray-700">
-              TÃ­tulo do documento {!isFixedLink && <span className="text-red-500">*</span>}
+              Título do documento {!isFixedLink && <span className="text-red-500">*</span>}
             </Label>
             <Input
               id="titulo"
               value={titulo}
               onChange={(event) => setTitulo(event.target.value)}
-              placeholder="Ex: Contrato de PrestaÃ§Ã£o de ServiÃ§o"
+              placeholder="Ex: Contrato de Prestação de Serviço"
               disabled={isLoading}
               className="focus-visible:ring-green"
             />
@@ -295,7 +295,7 @@ export default function DocumentoUploadModal({
           {inputMode === "arquivo" && (
             <div className="grid gap-2">
               <Label className="text-sm font-medium text-gray-700">
-                Arquivo (atÃ© 20MB) <span className="text-red-500">*</span>
+                Arquivo (até 20MB) <span className="text-red-500">*</span>
               </Label>
               <input
                 ref={fileInputRef}

@@ -378,10 +378,11 @@ export default function ContasPagarPageClient({
                             </div>
 
                             <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-center">
-                                <div className={cn("min-w-[200px] h-10", operationalListControlClass)}>
+                                <div className="min-w-[200px] h-10">
                                     <SmartDateRangePicker
                                         range={dateRange}
                                         onChange={(range) => setDateRange(range ?? undefined)}
+                                        variant="operational"
                                         className="h-full w-full"
                                     />
                                 </div>

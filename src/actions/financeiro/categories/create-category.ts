@@ -1,52 +1,69 @@
 import { prisma } from "@/lib/prisma"
-import { createCategorySchema, CreateCategoryInput } from "./schema"
+import { getFixedFinancialGroup } from "@/lib/financial/fixed-category-taxonomy"
+import { createCategorySchema, type CreateCategoryInput } from "./schema"
+import { syncFixedFinancialCategoryTaxonomy } from "./sync-fixed-taxonomy"
 
 export async function createCategory(input: CreateCategoryInput) {
-    const data = createCategorySchema.parse(input)
+  const data = createCategorySchema.parse(input)
 
-    // Validate Parent
-    if (data.categoria_pai_id) {
-        const parent = await prisma.categoria.findUnique({
-            where: { id: data.categoria_pai_id },
-        })
+  await syncFixedFinancialCategoryTaxonomy()
 
-        if (!parent) {
-            throw new Error("Categoria pai não encontrada")
-        }
+  if (!data.categoria_pai_id) {
+    throw new Error("A categoria deve ser vinculada a um grupo fixo")
+  }
 
-        if (parent.categoria_pai_id) {
-            throw new Error("Não é permitido criar subcategoria de terceiro nível")
-        }
+  const parent = await prisma.categoria.findUnique({
+    where: { id: data.categoria_pai_id },
+  })
 
-        if (parent.tipo !== data.tipo) {
-            throw new Error("Subcategoria deve ter o mesmo tipo da categoria pai")
-        }
-    }
+  if (!parent) {
+    throw new Error("Grupo nao encontrado")
+  }
 
-    return await prisma.categoria.create({
-        data: {
-            nome: data.nome,
-            tipo: data.tipo,
-            cor: data.cor,
-            icone: data.icone,
-            categoria_pai_id: data.categoria_pai_id,
-            ativo: true,
+  if (parent.categoria_pai_id || !getFixedFinancialGroup(parent.nome)) {
+    throw new Error("A categoria deve ser vinculada a um grupo fixo valido")
+  }
+
+  const normalizedName = data.nome.trim()
+
+  const duplicate = await prisma.categoria.findFirst({
+    where: {
+      categoria_pai_id: parent.id,
+      nome: {
+        equals: normalizedName,
+        mode: "insensitive",
+      },
+    },
+  })
+
+  if (duplicate) {
+    throw new Error("Ja existe uma categoria com essa descricao neste grupo")
+  }
+
+  return prisma.categoria.create({
+    data: {
+      nome: normalizedName,
+      tipo: parent.tipo,
+      cor: data.cor,
+      icone: data.icone,
+      categoria_pai_id: parent.id,
+      ativo: true,
+    },
+    include: {
+      categoria_pai: {
+        select: {
+          id: true,
+          nome: true,
         },
-        include: {
-            categoria_pai: {
-                select: {
-                    id: true,
-                    nome: true,
-                },
-            },
-            _count: {
-                select: {
-                    subcategorias: true,
-                    lancamentos: true,
-                    contas_pagar: true,
-                    contas_receber: true,
-                },
-            },
+      },
+      _count: {
+        select: {
+          subcategorias: true,
+          lancamentos: true,
+          contas_pagar: true,
+          contas_receber: true,
         },
-    })
+      },
+    },
+  })
 }

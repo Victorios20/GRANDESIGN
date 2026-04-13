@@ -180,7 +180,7 @@ export default function ContratoUpload({
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground leading-relaxed">
-              FaÃ§a upload do contrato assinado para registrar a data de inÃ­cio da obra.
+              Faça upload do contrato assinado para registrar a data de início da obra.
             </p>
             <Button
               variant="default"

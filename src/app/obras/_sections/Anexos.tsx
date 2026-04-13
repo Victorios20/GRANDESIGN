@@ -112,7 +112,7 @@ function LinkField({
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
       ) : (
-        <span className="text-black/40 text-sm shrink-0">NÃ£o vinculado</span>
+        <span className="text-black/40 text-sm shrink-0">Não vinculado</span>
       )}
 
       {showEditDelete && (
@@ -266,7 +266,7 @@ export default function Anexos({
     startTransition(async () => {
       const result = await excluirDocumento(docId)
       if (result.success) {
-        toast.success("Documento excluÃ­do")
+        toast.success("Documento excluído")
         setDocumentos((prev) => prev.filter((doc) => doc.id !== docId))
       } else {
         toast.error(result.error || "Erro ao excluir")
@@ -320,7 +320,7 @@ export default function Anexos({
     titulo: string | null
   ): Promise<{ success: boolean; error?: string }> {
     if (!obraId) {
-      return { success: false, error: "Obra ID nÃ£o encontrado" }
+      return { success: false, error: "Obra ID não encontrado" }
     }
 
     const result = await atualizarLinkObra(obraId, key, url || null, titulo)

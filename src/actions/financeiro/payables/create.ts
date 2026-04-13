@@ -1,9 +1,9 @@
-import { prisma } from "@/lib/prisma"
-import { StatusFinanceiro, FrequenciaRecorrencia, TipoCategoria } from "@prisma/client"
-import { calculateInstallments } from "@/lib/financial/installments"
+import { FrequenciaRecorrencia, StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
-// --- Schemas ---
+import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { calculateInstallments } from "@/lib/financial/installments"
+import { prisma } from "@/lib/prisma"
 
 export const createPayableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -33,22 +33,32 @@ export const createPayableInstallmentSchema = z.object({
 export type CreatePayableInput = z.infer<typeof createPayableSchema>
 export type CreatePayableInstallmentInput = z.infer<typeof createPayableInstallmentSchema>
 
-// --- Services ---
-
 async function validateCategory(id: number) {
-    const category = await prisma.categoria.findUnique({ where: { id } })
-    if (!category) throw new Error("Categoria não encontrada")
+    const category = await prisma.categoria.findUnique({
+        where: { id },
+        include: {
+            categoria_pai: {
+                select: {
+                    nome: true,
+                },
+            },
+        },
+    })
+
+    if (!category) throw new Error("Categoria nao encontrada")
     if (!category.ativo) throw new Error("Categoria inativa")
-    if (category.tipo !== TipoCategoria.DESPESA) throw new Error("Categoria deve ser de Despesa")
+    if (!isPayableCategory(category)) {
+        throw new Error("Categoria deve ser operacional de custo ou despesa")
+    }
 }
 
 export async function createPayable(input: CreatePayableInput, userId?: number) {
     await validateCategory(input.categoria_id)
 
-    return await prisma.contaPagar.create({
+    return prisma.contaPagar.create({
         data: {
             descricao: input.descricao,
-            valor_total: input.valor, // Map input.valor to db.valor_total
+            valor_total: input.valor,
             data_emissao: input.data_emissao,
             data_vencimento: input.data_vencimento,
             fornecedor_id: input.fornecedor_id,
@@ -61,21 +71,24 @@ export async function createPayable(input: CreatePayableInput, userId?: number) 
             status: StatusFinanceiro.PENDENTE,
             parcela_atual: 1,
             total_parcelas: 1,
-            created_by: userId
-        }
+            created_by: userId,
+        },
     })
 }
 
-export async function createPayableInstallments(input: CreatePayableInstallmentInput, userId?: number) {
+export async function createPayableInstallments(
+    input: CreatePayableInstallmentInput,
+    userId?: number,
+) {
     await validateCategory(input.categoria_id)
 
     const installments = calculateInstallments(
         input.valor_total,
         input.total_parcelas,
-        input.primeiro_vencimento
+        input.primeiro_vencimento,
     )
 
-    return await prisma.$transaction(
+    return prisma.$transaction(
         installments.map((inst) =>
             prisma.contaPagar.create({
                 data: {
@@ -91,9 +104,9 @@ export async function createPayableInstallments(input: CreatePayableInstallmentI
                     observacoes: input.observacoes,
                     parcela_atual: inst.parcela,
                     total_parcelas: input.total_parcelas,
-                    created_by: userId
-                }
-            })
-        )
+                    created_by: userId,
+                },
+            }),
+        ),
     )
 }
