@@ -27,10 +27,12 @@ export async function revertPayable(lancamento_id: number) {
 
     await prisma.$transaction(async (tx) => {
         // 1. Devolver saldo para o banco
-        await tx.contasBancaria.update({
-            where: { id: lancamento.conta_bancaria_id },
-            data: { saldo_atual: { increment: lancamento.valor } }
-        })
+        if (lancamento.conta_bancaria_id) {
+            await tx.contasBancaria.update({
+                where: { id: lancamento.conta_bancaria_id },
+                data: { saldo_atual: { increment: lancamento.valor } }
+            })
+        }
 
         // 2. Reduzir amortização
         const amortizado = Number(lancamento.valor) + Number(lancamento.valor_desconto) - Number(lancamento.valor_juros)

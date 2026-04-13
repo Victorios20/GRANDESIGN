@@ -177,7 +177,9 @@ async function buildCleanupPlan() {
   }
 
   for (const lancamento of lancamentos) {
-    bankIds.add(lancamento.conta_bancaria_id)
+    if (lancamento.conta_bancaria_id) {
+      bankIds.add(lancamento.conta_bancaria_id)
+    }
 
     if (lancamento.transferencia_id) {
       transferIds.add(lancamento.transferencia_id)

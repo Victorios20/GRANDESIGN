@@ -486,7 +486,7 @@ async function createReverseLancamentos(tx: Tx, pedidoId: number, contaPagarId: 
       },
     })
 
-    if (lancamento.tipo === TipoLancamento.DESPESA) {
+    if (lancamento.tipo === TipoLancamento.DESPESA && lancamento.conta_bancaria_id) {
       await tx.contasBancaria.update({
         where: { id: lancamento.conta_bancaria_id },
         data: { saldo_atual: { increment: valor } },
@@ -494,10 +494,12 @@ async function createReverseLancamentos(tx: Tx, pedidoId: number, contaPagarId: 
       continue
     }
 
-    await tx.contasBancaria.update({
-      where: { id: lancamento.conta_bancaria_id },
-      data: { saldo_atual: { decrement: valor } },
-    })
+    if (lancamento.conta_bancaria_id) {
+      await tx.contasBancaria.update({
+        where: { id: lancamento.conta_bancaria_id },
+        data: { saldo_atual: { decrement: valor } },
+      })
+    }
   }
 
   return payable.lancamentos.length

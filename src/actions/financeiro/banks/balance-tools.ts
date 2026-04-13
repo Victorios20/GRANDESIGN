@@ -56,6 +56,8 @@ export async function getBankBalanceSnapshots(
     const totalsByBank = new Map<number, { receitas: Prisma.Decimal; despesas: Prisma.Decimal }>()
 
     for (const row of groupedTransactions) {
+        if (!row.conta_bancaria_id) continue
+
         const current = totalsByBank.get(row.conta_bancaria_id) ?? {
             receitas: new Prisma.Decimal(0),
             despesas: new Prisma.Decimal(0),

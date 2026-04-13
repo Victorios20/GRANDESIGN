@@ -155,7 +155,7 @@ async function buildCleanupPlan() {
       const bankName = lancamento.conta_bancaria?.nome ?? ""
 
       return (
-        bankIds.includes(lancamento.conta_bancaria_id) ||
+        (lancamento.conta_bancaria_id != null && bankIds.includes(lancamento.conta_bancaria_id)) ||
         (lancamento.conta_pagar_id != null && payableIds.includes(lancamento.conta_pagar_id)) ||
         (lancamento.conta_receber_id != null &&
           receivableIds.includes(lancamento.conta_receber_id)) ||

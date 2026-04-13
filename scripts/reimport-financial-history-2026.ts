@@ -47,7 +47,7 @@ interface ParsedRow {
   status: StatusRaw
   direction: DirectionRaw
   amount: number
-  bankName: string
+  bankName: string | null
   subcategory: string | null
   groupHint: string | null
   supplier: string | null
@@ -685,6 +685,10 @@ async function main() {
       centroCustoLinkedCount: await tx.lancamento.count({
         where: { centro_custo_id: { not: null } },
       }),
+      missingBankCount: await tx.lancamento.count({
+        where: { conta_bancaria_id: null },
+      }),
+      missingCategoryCount: 0,
     }
   }, { timeout: 60000 })
 

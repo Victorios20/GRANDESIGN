@@ -26,10 +26,12 @@ export async function revertReceivable(lancamento_id: number) {
 
     await prisma.$transaction(async (tx) => {
         // 1. Tirar saldo do banco
-        await tx.contasBancaria.update({
-            where: { id: lancamento.conta_bancaria_id },
-            data: { saldo_atual: { decrement: lancamento.valor } }
-        })
+        if (lancamento.conta_bancaria_id) {
+            await tx.contasBancaria.update({
+                where: { id: lancamento.conta_bancaria_id },
+                data: { saldo_atual: { decrement: lancamento.valor } }
+            })
+        }
 
         // 2. Reduzir amortização
         const amortizado = Number(lancamento.valor) + Number(lancamento.valor_desconto) - Number(lancamento.valor_juros)

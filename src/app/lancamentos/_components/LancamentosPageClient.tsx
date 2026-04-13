@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -392,7 +392,7 @@ export default function LancamentosPageClient({
             .map((item, index) => {
                 const isSessionItem = item.conferencia_sessao_id === activeSession.id
                 const isNewAfterOpen =
-                    item.conta_bancaria.id === selectedBankId &&
+                    item.conta_bancaria?.id === selectedBankId &&
                     item.status_conferencia !== "CONFERIDO" &&
                     item.conferencia_sessao_id !== activeSession.id &&
                     new Date(item.created_at).getTime() > openedAt
@@ -1021,7 +1021,7 @@ export default function LancamentosPageClient({
                                         const isSessionItem = activeSession ? item.conferencia_sessao_id === activeSession.id : false
                                         const isNewAfterOpen =
                                             Boolean(activeSession) &&
-                                            item.conta_bancaria.id === Number(contaBancariaId) &&
+                                            item.conta_bancaria?.id === Number(contaBancariaId) &&
                                             item.status_conferencia !== "CONFERIDO" &&
                                             item.conferencia_sessao_id !== activeSession?.id &&
                                             new Date(item.created_at).getTime() > new Date(activeSession!.criada_em).getTime()
@@ -1086,7 +1086,7 @@ export default function LancamentosPageClient({
                                                     ) : null}
                                                 </td>
                                                 <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
-                                                    {item.conta_bancaria.nome}
+                                                    {item.conta_bancaria?.nome ?? "Não definida"}
                                                 </td>
                                                 <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
                                                     {item.centro_custo?.nome ?? "â€”"}

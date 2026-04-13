@@ -56,10 +56,10 @@ function getAccountBacklogWhere(contaBancariaId: number): Prisma.LancamentoWhere
 
 async function applyAccountDelta(
     tx: Prisma.TransactionClient,
-    contaBancariaId: number,
+    contaBancariaId: number | null,
     delta: number
 ) {
-    if (delta === 0) return
+    if (delta === 0 || !contaBancariaId) return
 
     await tx.contasBancaria.update({
         where: { id: contaBancariaId },

@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
             id: t.id,
             data: t.data_competencia, // Preferred per spec
             descricao: t.descricao,
-            conta: t.conta_bancaria.nome,
+            conta: t.conta_bancaria?.nome ?? "Não definida",
             valor: Number(t.valor),
             fornecedor: t.conta_pagar?.fornecedor?.nome || "—",
             categoriaOriginal: t.categoria.nome,
