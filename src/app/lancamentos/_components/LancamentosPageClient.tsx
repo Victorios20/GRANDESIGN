@@ -1089,7 +1089,7 @@ export default function LancamentosPageClient({
                                                     {item.conta_bancaria?.nome ?? "Não definida"}
                                                 </td>
                                                 <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
-                                                    {item.centro_custo?.nome ?? "â€”"}
+                                                    {item.centro_custo?.nome ?? "—"}
                                                 </td>
                                                 <td className={cn("px-3 py-3.5 whitespace-nowrap font-semibold", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>
                                                     {isReceita ? "+" : "-"} {formatCurrency(item.valor)}

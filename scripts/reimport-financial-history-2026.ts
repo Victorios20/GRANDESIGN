@@ -16,24 +16,30 @@ const prisma = new PrismaClient()
 
 const DEFAULT_CSV_PATH =
   "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (3).csv"
-const REQUIRED_BANK_NAMES = ["Inter empresa", "Inter pessoal"] as const
+
+/**
+ * The only allowed bank names in the CSV (column 9 "Conta").
+ * Transactions with status "Previsto" always enter WITHOUT a bank account (null).
+ * Any other bank name found in "Efetivado" rows will throw an error.
+ */
+const REQUIRED_BANK_NAMES = ["Inter empresa", "Inter pessoal", "caixinha"] as const
+
 const IMPORT_SOURCE = "financial-history-2026"
 const FALLBACK_CATEGORY_NAME = "Sem classificação"
-const HEADER_ROW = [
-  "Mês",
-  "Data",
-  "Status",
-  "Id do cliente",
-  "Valor",
-  "Sub-categoria",
-  "Tipo",
-  "Fornecedor",
-  "Observações",
-  "Conta",
-  "Conta destino",
-  "Categoria",
-  "Categoria",
-]
+
+// Col indices — Mês(0), Data(1), Status(2), Id do cliente(3), Valor(4),
+//               Sub-categoria(5), Tipo(6), Fornecedor(7), Observações(8),
+//               Conta(9), Conta destino(10), Categoria(11)
+const COL_MES = 0
+const COL_DATA = 1
+const COL_STATUS = 2
+const COL_VALOR = 4
+const COL_SUBCATEGORIA = 5
+const COL_TIPO = 6
+const COL_FORNECEDOR = 7
+const COL_OBSERVACOES = 8
+const COL_CONTA = 9
+const COL_CATEGORIA = 11
 
 type StatusRaw = "EFETIVADO" | "PREVISTO"
 type DirectionRaw = "ENTRADA" | "SAIDA"
@@ -47,6 +53,7 @@ interface ParsedRow {
   status: StatusRaw
   direction: DirectionRaw
   amount: number
+  /** Only set for Efetivado rows where Conta column is non-empty. */
   bankName: string | null
   subcategory: string | null
   groupHint: string | null
@@ -73,6 +80,11 @@ interface BankCacheEntry {
   ativo: boolean
 }
 
+interface CentroCustoCacheEntry {
+  id: number
+  nome: string
+}
+
 interface CategoryCache {
   byExactKey: Map<string, CategoryCacheEntry>
   byLooseKey: Map<string, CategoryCacheEntry>
@@ -85,6 +97,7 @@ interface ImportSummary {
   importedRows: number
   createdBanks: number
   createdCategories: number
+  createdCentrosCusto: number
   deletedLancamentos: number
   affectedBankNames: string[]
   validation: {
@@ -94,6 +107,10 @@ interface ImportSummary {
     missingCategoryCount: number
   }
 }
+
+// ---------------------------------------------------------------------------
+// String utils
+// ---------------------------------------------------------------------------
 
 function normalizeKey(value: string | null | undefined) {
   return (value ?? "")
@@ -106,13 +123,8 @@ function normalizeKey(value: string | null | undefined) {
 
 function repairMojibake(value: string | null | undefined) {
   const sanitized = (value ?? "").trim()
-  if (!sanitized) {
-    return sanitized
-  }
-
-  if (!/[ÃƒÃ‚]/.test(sanitized)) {
-    return sanitized
-  }
+  if (!sanitized) return sanitized
+  if (!/[ÃƒÃ‚]/.test(sanitized)) return sanitized
 
   try {
     const repaired = Buffer.from(sanitized, "latin1").toString("utf8").trim()
@@ -128,23 +140,19 @@ function sanitizeText(value: string | null | undefined) {
 }
 
 function truncate(value: string, maxLength: number) {
-  if (value.length <= maxLength) {
-    return value
-  }
-
-  return `${value.slice(0, maxLength - 3)}...`
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 3)}...`
 }
+
+// ---------------------------------------------------------------------------
+// Parsing
+// ---------------------------------------------------------------------------
 
 function parseDate(value: string) {
   const [dayText, monthText, yearText] = value.split("/")
   const day = Number(dayText)
   const month = Number(monthText)
   const year = Number(yearText)
-
-  if (!day || !month || !year) {
-    throw new Error(`Data inválida: ${value}`)
-  }
-
+  if (!day || !month || !year) throw new Error(`Data inválida: ${value}`)
   return new Date(year, month - 1, day)
 }
 
@@ -154,12 +162,8 @@ function parseCurrency(value: string) {
     .replace(/\./g, "")
     .replace(",", ".")
     .trim()
-
   const amount = Number(normalized)
-  if (!Number.isFinite(amount)) {
-    throw new Error(`Valor inválido: ${value}`)
-  }
-
+  if (!Number.isFinite(amount)) throw new Error(`Valor inválido: ${value}`)
   return Number(amount.toFixed(2))
 }
 
@@ -178,7 +182,6 @@ function parseCsvLine(line: string) {
         index += 1
         continue
       }
-
       inQuotes = !inQuotes
       continue
     }
@@ -188,7 +191,6 @@ function parseCsvLine(line: string) {
       current = ""
       continue
     }
-
     current += char
   }
 
@@ -205,21 +207,12 @@ function isRepeatedHeaderRow(fields: CsvFields) {
 }
 
 function readCsvRows(filePath: string) {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Arquivo CSV não encontrado: ${filePath}`)
-  }
+  if (!fs.existsSync(filePath)) throw new Error(`Arquivo CSV não encontrado: ${filePath}`)
 
   const content = decodeCsvBuffer(fs.readFileSync(filePath))
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0)
 
-  if (lines.length < 2) {
-    throw new Error("CSV vazio ou sem linhas de dados.")
-  }
-
-  const headerColumns = parseCsvLine(lines[0])
-  if (headerColumns.length < HEADER_ROW.length) {
-    throw new Error("CSV com cabeçalho incompleto.")
-  }
+  if (lines.length < 2) throw new Error("CSV vazio ou sem linhas de dados.")
 
   const rows: CsvFields[] = []
   let repeatedHeaderRows = 0
@@ -230,7 +223,6 @@ function readCsvRows(filePath: string) {
       repeatedHeaderRows += 1
       continue
     }
-
     rows.push(fields)
   }
 
@@ -242,21 +234,18 @@ function getValue(fields: CsvFields, index: number) {
 }
 
 function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
-  const month = getValue(fields, 0)
-  const dateText = getValue(fields, 1)
-  const statusText = normalizeKey(fields[2])
-  const amountText = fields[4] ?? ""
-  const subcategory = getValue(fields, 5)
-  const directionText = normalizeKey(fields[6])
-  const supplier = getValue(fields, 7)
-  const notes = getValue(fields, 8)
-  const bankName = getValue(fields, 9)
-  const groupHint = getValue(fields, 11)
+  const month = getValue(fields, COL_MES)
+  const dateText = getValue(fields, COL_DATA)
+  const statusText = normalizeKey(fields[COL_STATUS])
+  const amountText = fields[COL_VALOR] ?? ""
+  const subcategory = getValue(fields, COL_SUBCATEGORIA)
+  const directionText = normalizeKey(fields[COL_TIPO])
+  const supplier = getValue(fields, COL_FORNECEDOR)
+  const notes = getValue(fields, COL_OBSERVACOES)
+  const rawBankCol = getValue(fields, COL_CONTA)
+  const groupHint = getValue(fields, COL_CATEGORIA)
 
-  if (!dateText) {
-    throw new Error(`Linha ${rowNumber} sem data preenchida.`)
-  }
-
+  if (!dateText) throw new Error(`Linha ${rowNumber} sem data preenchida.`)
 
   const status: StatusRaw =
     statusText === "efetivado"
@@ -264,7 +253,7 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
       : statusText === "previsto"
         ? "PREVISTO"
         : (() => {
-            throw new Error(`Status desconhecido na linha ${rowNumber}: ${fields[2] ?? ""}`)
+            throw new Error(`Status desconhecido na linha ${rowNumber}: ${fields[COL_STATUS] ?? ""}`)
           })()
 
   const direction: DirectionRaw =
@@ -273,15 +262,19 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
       : directionText === "saida"
         ? "SAIDA"
         : (() => {
-            throw new Error(`Tipo desconhecido na linha ${rowNumber}: ${fields[6] ?? ""}`)
+            throw new Error(`Tipo desconhecido na linha ${rowNumber}: ${fields[COL_TIPO] ?? ""}`)
           })()
 
-  const categoryParentName = subcategory ? groupHint ?? resolveFallbackGroup(direction) : resolveFallbackGroup(direction)
+  // Rule: "Previsto" rows always enter WITHOUT a bank account.
+  // "Efetivado" rows use the Conta column only.
+  const bankName = status === "EFETIVADO" ? rawBankCol : null
+
+  const categoryParentName = subcategory
+    ? groupHint ?? resolveFallbackGroup(direction)
+    : resolveFallbackGroup(direction)
   const categoryType = resolveCategoryType(categoryParentName, direction)
   const description = truncate(
-    [subcategory ?? FALLBACK_CATEGORY_NAME, notes]
-      .filter(Boolean)
-      .join(" - "),
+    [subcategory ?? FALLBACK_CATEGORY_NAME, notes].filter(Boolean).join(" - "),
     255,
   )
 
@@ -303,6 +296,10 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Category helpers
+// ---------------------------------------------------------------------------
+
 function resolveFallbackGroup(direction: DirectionRaw) {
   return direction === "ENTRADA" ? "Receita de Ajuste" : "Despesa de ajuste"
 }
@@ -312,11 +309,7 @@ function resolveCategoryType(groupName: string, direction: DirectionRaw) {
   const fixedGroup = getFixedFinancialGroups().find(
     (group) => normalizeKey(group.name) === normalizedGroup,
   )
-
-  if (fixedGroup) {
-    return fixedGroup.tipo
-  }
-
+  if (fixedGroup) return fixedGroup.tipo
   return direction === "ENTRADA" ? TipoCategoria.RECEITA : TipoCategoria.DESPESA
 }
 
@@ -328,14 +321,13 @@ function buildLooseCategoryKey(name: string, type: TipoCategoria) {
   return `${type}|${normalizeKey(name)}`
 }
 
+// ---------------------------------------------------------------------------
+// Cache loaders
+// ---------------------------------------------------------------------------
+
 async function loadCategoryCache(tx: PrismaClient | Prisma.TransactionClient): Promise<CategoryCache> {
   const categories = await tx.categoria.findMany({
-    select: {
-      id: true,
-      nome: true,
-      tipo: true,
-      categoria_pai_id: true,
-    },
+    select: { id: true, nome: true, tipo: true, categoria_pai_id: true },
     orderBy: [{ id: "asc" }],
   })
 
@@ -345,14 +337,8 @@ async function loadCategoryCache(tx: PrismaClient | Prisma.TransactionClient): P
   for (const category of categories) {
     const exactKey = buildCategoryKey(category.nome, category.tipo, category.categoria_pai_id)
     const looseKey = buildLooseCategoryKey(category.nome, category.tipo)
-
-    if (!byExactKey.has(exactKey)) {
-      byExactKey.set(exactKey, category)
-    }
-
-    if (!byLooseKey.has(looseKey)) {
-      byLooseKey.set(looseKey, category)
-    }
+    if (!byExactKey.has(exactKey)) byExactKey.set(exactKey, category)
+    if (!byLooseKey.has(looseKey)) byLooseKey.set(looseKey, category)
   }
 
   return { byExactKey, byLooseKey }
@@ -360,32 +346,38 @@ async function loadCategoryCache(tx: PrismaClient | Prisma.TransactionClient): P
 
 async function loadBankCache(tx: PrismaClient | Prisma.TransactionClient) {
   const banks = await tx.contasBancaria.findMany({
-    select: {
-      id: true,
-      nome: true,
-      tipo: true,
-      saldo_inicial: true,
-      saldo_atual: true,
-      ativo: true,
-    },
+    select: { id: true, nome: true, tipo: true, saldo_inicial: true, saldo_atual: true, ativo: true },
     orderBy: [{ id: "asc" }],
   })
 
   const byName = new Map<string, BankCacheEntry>()
   for (const bank of banks) {
     const key = normalizeKey(bank.nome)
-    if (!byName.has(key)) {
-      byName.set(key, bank)
-    }
+    if (!byName.has(key)) byName.set(key, bank)
   }
-
   return byName
 }
 
-function ensureMapValue<T>(map: Map<string, T>, key: string, value: T) {
-  if (!map.has(key)) {
-    map.set(key, value)
+async function loadCentroCustoCache(tx: PrismaClient | Prisma.TransactionClient) {
+  const items = await tx.centroCusto.findMany({
+    select: { id: true, nome: true },
+    orderBy: [{ id: "asc" }],
+  })
+
+  const byName = new Map<string, CentroCustoCacheEntry>()
+  for (const item of items) {
+    const key = normalizeKey(item.nome)
+    if (!byName.has(key)) byName.set(key, item)
   }
+  return byName
+}
+
+// ---------------------------------------------------------------------------
+// Ensure helpers (upsert via cache)
+// ---------------------------------------------------------------------------
+
+function ensureMapValue<T>(map: Map<string, T>, key: string, value: T) {
+  if (!map.has(key)) map.set(key, value)
 }
 
 async function ensureBank(
@@ -396,9 +388,7 @@ async function ensureBank(
 ) {
   const key = normalizeKey(bankName)
   const existing = bankCache.get(key)
-  if (existing) {
-    return existing
-  }
+  if (existing) return existing
 
   const created = await tx.contasBancaria.create({
     data: {
@@ -408,14 +398,7 @@ async function ensureBank(
       saldo_atual: new Prisma.Decimal(0),
       ativo: true,
     },
-    select: {
-      id: true,
-      nome: true,
-      tipo: true,
-      saldo_inicial: true,
-      saldo_atual: true,
-      ativo: true,
-    },
+    select: { id: true, nome: true, tipo: true, saldo_inicial: true, saldo_atual: true, ativo: true },
   })
 
   bankCache.set(key, created)
@@ -435,9 +418,7 @@ async function ensureCategory(
   const looseKey = buildLooseCategoryKey(name, type)
 
   const existingExact = categoryCache.byExactKey.get(exactKey)
-  if (existingExact) {
-    return existingExact
-  }
+  if (existingExact) return existingExact
 
   const existingLoose = categoryCache.byLooseKey.get(looseKey)
   if (existingLoose) {
@@ -446,18 +427,8 @@ async function ensureCategory(
   }
 
   const created = await tx.categoria.create({
-    data: {
-      nome: name,
-      tipo: type,
-      ativo: true,
-      categoria_pai_id: parentId ?? undefined,
-    },
-    select: {
-      id: true,
-      nome: true,
-      tipo: true,
-      categoria_pai_id: true,
-    },
+    data: { nome: name, tipo: type, ativo: true, categoria_pai_id: parentId ?? undefined },
+    select: { id: true, nome: true, tipo: true, categoria_pai_id: true },
   })
 
   ensureMapValue(categoryCache.byExactKey, exactKey, created)
@@ -466,14 +437,29 @@ async function ensureCategory(
   return created
 }
 
-function getTopLevelGroupsToSeed() {
-  const groups = getFixedFinancialGroups().map((group) => group.name)
-  return new Set([
-    ...groups,
-    "Sem classificação",
-    "Transferência",
-  ])
+async function ensureCentroCusto(
+  tx: PrismaClient | Prisma.TransactionClient,
+  cache: Map<string, CentroCustoCacheEntry>,
+  name: string,
+  summary: ImportSummary,
+) {
+  const key = normalizeKey(name)
+  const existing = cache.get(key)
+  if (existing) return existing
+
+  const created = await tx.centroCusto.create({
+    data: { nome: name, ativo: true },
+    select: { id: true, nome: true },
+  })
+
+  cache.set(key, created)
+  summary.createdCentrosCusto += 1
+  return created
 }
+
+// ---------------------------------------------------------------------------
+// Taxonomy seed
+// ---------------------------------------------------------------------------
 
 async function seedFixedTaxonomy(
   tx: PrismaClient | Prisma.TransactionClient,
@@ -483,15 +469,7 @@ async function seedFixedTaxonomy(
   const groups = getFixedFinancialGroups()
 
   for (const group of groups) {
-    const parent = await ensureCategory(
-      tx,
-      categoryCache,
-      group.name,
-      group.tipo,
-      null,
-      summary,
-    )
-
+    const parent = await ensureCategory(tx, categoryCache, group.name, group.tipo, null, summary)
     for (const childName of group.defaultChildren) {
       await ensureCategory(tx, categoryCache, childName, group.tipo, parent.id, summary)
     }
@@ -532,17 +510,12 @@ async function seedFixedTaxonomy(
   )
 }
 
-function buildCategorySelection(row: ParsedRow) {
-  return {
-    parentName: row.categoryParentName,
-    leafName: row.subcategory ?? FALLBACK_CATEGORY_NAME,
-    type: row.categoryType,
-  }
-}
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
 
 function parseArgs() {
   const argv = process.argv.slice(2)
-
   return {
     apply: argv.includes("--apply"),
     preflight: argv.includes("--preflight") || !argv.includes("--apply"),
@@ -553,6 +526,10 @@ function parseArgs() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   const args = parseArgs()
   const summary: ImportSummary = {
@@ -562,6 +539,7 @@ async function main() {
     importedRows: 0,
     createdBanks: 0,
     createdCategories: 0,
+    createdCentrosCusto: 0,
     deletedLancamentos: 0,
     affectedBankNames: [],
     validation: {
@@ -574,9 +552,13 @@ async function main() {
 
   const { rows: rawRows, repeatedHeaderRows } = readCsvRows(args.filePath)
   const parsedRows = rawRows.map((fields, index) => parseFinancialRow(fields, index + 2))
+
+  // Collect unique bank names found in Efetivado rows only
   const csvBankNames = Array.from(
     new Set(parsedRows.map((row) => row.bankName).filter((b): b is string => !!b)),
   ).sort((left, right) => left.localeCompare(right, "pt-BR"))
+
+  // Strict validation: no unknown banks allowed
   const unexpectedBankNames = csvBankNames.filter(
     (bankName) =>
       !REQUIRED_BANK_NAMES.some(
@@ -586,7 +568,7 @@ async function main() {
 
   if (unexpectedBankNames.length > 0) {
     throw new Error(
-      `Encontradas contas bancárias inesperadas no CSV: ${unexpectedBankNames.join(", ")}`,
+      `Encontradas contas bancárias inesperadas no CSV (apenas Efetivados): ${unexpectedBankNames.join(", ")}`,
     )
   }
 
@@ -619,78 +601,107 @@ async function main() {
     )
   }
 
-  if (!args.apply) {
-    return
-  }
+  if (!args.apply) return
 
-  await prisma.$transaction(async (tx) => {
-    const bankCache = await loadBankCache(tx)
-    const categoryCache = await loadCategoryCache(tx)
+  await prisma.$transaction(
+    async (tx) => {
+      const bankCache = await loadBankCache(tx)
+      const categoryCache = await loadCategoryCache(tx)
+      const centroCustoCache = await loadCentroCustoCache(tx)
 
-    await tx.lancamento.deleteMany({})
-    summary.deletedLancamentos = await tx.lancamento.count()
+      // Wipe all existing lancamentos
+      await tx.lancamento.deleteMany({})
+      summary.deletedLancamentos = 0 // count after delete is 0
 
-    for (const bankName of REQUIRED_BANK_NAMES) {
-      await ensureBank(tx, bankCache, bankName, summary)
-    }
+      // Ensure required banks exist in DB
+      for (const bankName of REQUIRED_BANK_NAMES) {
+        await ensureBank(tx, bankCache, bankName, summary)
+      }
 
-    await seedFixedTaxonomy(tx, categoryCache, summary)
+      await seedFixedTaxonomy(tx, categoryCache, summary)
 
-    const launchRows = []
+      const launchRows = []
 
-    for (const row of parsedRows) {
-      const { parentName, leafName, type } = buildCategorySelection(row)
-      const parent = await ensureCategory(tx, categoryCache, parentName, type, null, summary)
-      const leaf = await ensureCategory(tx, categoryCache, leafName, type, parent.id, summary)
+      for (const row of parsedRows) {
+        // Resolve category
+        const parent = await ensureCategory(
+          tx,
+          categoryCache,
+          row.categoryParentName,
+          row.categoryType,
+          null,
+          summary,
+        )
+        const leaf = await ensureCategory(
+          tx,
+          categoryCache,
+          row.subcategory ?? FALLBACK_CATEGORY_NAME,
+          row.categoryType,
+          parent.id,
+          summary,
+        )
 
-      launchRows.push({
-        tipo: row.direction === "ENTRADA" ? TipoLancamento.RECEITA : TipoLancamento.DESPESA,
-        descricao: row.description,
-        valor: new Prisma.Decimal(row.amount.toFixed(2)),
-        data_lancamento: row.date,
-        data_competencia: row.date,
-        observacoes: row.notes,
-        status_conferencia:
-          row.status === "EFETIVADO"
-            ? StatusConferencia.CONFERIDO
-            : StatusConferencia.PENDENTE,
-        conferido_em: row.status === "EFETIVADO" ? row.date : null,
-        conta_bancaria_id: row.bankName ? (bankCache.get(normalizeKey(row.bankName))?.id ?? null) : null,
-        categoria_id: leaf.id,
-        centro_custo_id: null,
+        // Resolve bank account: null for Previsto, lookup by name for Efetivado
+        let contaBancariaId: number | null = null
+        if (row.bankName) {
+          contaBancariaId = bankCache.get(normalizeKey(row.bankName))?.id ?? null
+        }
+
+        // Resolve cost center from Categoria column (groupHint), create if needed
+        let centroCustoId: number | null = null
+        if (row.groupHint) {
+          const cc = await ensureCentroCusto(tx, centroCustoCache, row.groupHint, summary)
+          centroCustoId = cc.id
+        }
+
+        launchRows.push({
+          tipo: row.direction === "ENTRADA" ? TipoLancamento.RECEITA : TipoLancamento.DESPESA,
+          descricao: row.description,
+          valor: new Prisma.Decimal(row.amount.toFixed(2)),
+          data_lancamento: row.date,
+          data_competencia: row.date,
+          observacoes: row.notes,
+          status_conferencia:
+            row.status === "EFETIVADO"
+              ? StatusConferencia.CONFERIDO
+              : StatusConferencia.PENDENTE,
+          conferido_em: row.status === "EFETIVADO" ? row.date : null,
+          conta_bancaria_id: contaBancariaId,
+          categoria_id: leaf.id,
+          centro_custo_id: centroCustoId,
+        })
+      }
+
+      const result = await tx.lancamento.createMany({
+        data: launchRows,
       })
-    }
 
+      summary.importedRows = result.count
 
+      // Rebuild balances only for assigned banks
+      const affectedBankIds = Array.from(
+        new Set(
+          parsedRows
+            .map((row) => (row.bankName ? bankCache.get(normalizeKey(row.bankName))?.id : undefined))
+            .filter((value): value is number => typeof value === "number"),
+        ),
+      )
 
-    const result = await tx.lancamento.createMany({
-      data: launchRows.map((launch) => ({
-        ...launch,
-        conta_bancaria_id: launch.conta_bancaria_id as number | null,
-      })),
-    })
+      await rebuildBankCurrentBalances(tx, affectedBankIds)
 
-    summary.importedRows = result.count
-
-    const affectedBankIds = Array.from(
-      new Set(
-        parsedRows.map((row) => bankCache.get(normalizeKey(row.bankName))?.id).filter((value): value is number => typeof value === "number"),
-      ),
-    )
-
-    await rebuildBankCurrentBalances(tx, affectedBankIds)
-
-    summary.validation = {
-      lancamentoCount: await tx.lancamento.count(),
-      centroCustoLinkedCount: await tx.lancamento.count({
-        where: { centro_custo_id: { not: null } },
-      }),
-      missingBankCount: await tx.lancamento.count({
-        where: { conta_bancaria_id: null },
-      }),
-      missingCategoryCount: 0,
-    }
-  }, { timeout: 60000 })
+      summary.validation = {
+        lancamentoCount: await tx.lancamento.count(),
+        centroCustoLinkedCount: await tx.lancamento.count({
+          where: { centro_custo_id: { not: null } },
+        }),
+        missingBankCount: await tx.lancamento.count({
+          where: { conta_bancaria_id: null },
+        }),
+        missingCategoryCount: 0,
+      }
+    },
+    { timeout: 120000 },
+  )
 
   console.log(
     JSON.stringify(
