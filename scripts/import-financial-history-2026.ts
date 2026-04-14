@@ -443,7 +443,7 @@ function splitClientAndWorkHint(value: string | null) {
   const clientName =
     CLIENT_NAME_OVERRIDES[normalizeKey(rawClientName)] ?? sanitizeText(rawClientName)
   const bairroHint = sanitizeText(rawBracketValue)
-  const workName = deriveWorkName(clientName ?? null)
+  const workName = sanitizeText(sanitized)
 
   return {
     clientName: clientName ?? null,
@@ -1771,7 +1771,7 @@ async function processTransferRow(
         : null
   const destinationBankName =
     explicitDestinationBankName ??
-    (destinationRow && sourceRow && destinationRow.key !== row.key
+    (destinationRow && sourceRow
       ? destinationRow.bankName
       : null)
 

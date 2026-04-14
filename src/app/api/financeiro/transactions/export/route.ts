@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getTransactions } from "@/actions/financeiro/transactions/get-transactions"
+import { formatDateOnlyPtBr } from "@/lib/date-only"
 import { TipoLancamento } from "@prisma/client"
 import { format } from "date-fns"
 
@@ -71,7 +72,7 @@ export async function GET(req: Request) {
         const headers = ["Data", "Tipo", "Categoria", "Descrição", "Conta Bancária", "Centro de Custo", "Valor", "Conciliado", "Origem"]
 
         const rows = result.data.map((item) => [
-            format(new Date(item.data_lancamento), "dd/MM/yyyy"),
+            formatDateOnlyPtBr(item.data_lancamento),
             item.tipo === "RECEITA" ? "Receita" : "Despesa",
             item.categoria?.nome ?? "",
             item.descricao,

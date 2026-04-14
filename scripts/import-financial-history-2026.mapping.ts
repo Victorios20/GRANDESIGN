@@ -1,5 +1,5 @@
 export const DEFAULT_CSV_PATH =
-  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (2).csv"
+  "c:\\Users\\kbrit\\Downloads\\[GD] Planilha financeira 2026 - Página28 (3).csv"
 
 export const REQUIRED_BANK_ACCOUNTS = [
   "Inter empresa",

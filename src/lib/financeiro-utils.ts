@@ -1,6 +1,5 @@
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import type { StatusOption } from "@/components/ui/StatusSelect"
+import { formatDateOnlyPtBr } from "@/lib/date-only"
 
 // ── Currency ──
 
@@ -13,8 +12,7 @@ export function formatCurrency(value: number | string | null | undefined): strin
 
 export function formatDateBR(date: string | Date | null | undefined): string {
     if (!date) return "—"
-    const d = typeof date === "string" ? new Date(date) : date
-    return format(d, "dd/MM/yyyy", { locale: ptBR })
+    return formatDateOnlyPtBr(date)
 }
 
 // ── Status ──
