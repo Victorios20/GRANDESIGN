@@ -4,6 +4,7 @@ import {
   Prisma,
   PrismaClient,
   StatusConferencia,
+  StatusFinanceiro,
   TipoCategoria,
   TipoContaBancaria,
   TipoLancamento,
@@ -105,6 +106,8 @@ interface ImportSummary {
     centroCustoLinkedCount: number
     missingBankCount: number
     missingCategoryCount: number
+    createdContasPagar: number
+    createdContasReceber: number
   }
 }
 
@@ -549,6 +552,8 @@ async function main() {
       centroCustoLinkedCount: 0,
       missingBankCount: 0,
       missingCategoryCount: 0,
+      createdContasPagar: 0,
+      createdContasReceber: 0,
     },
   }
 
@@ -613,8 +618,10 @@ async function main() {
       const categoryCache = await loadCategoryCache(tx)
       const centroCustoCache = await loadCentroCustoCache(tx)
 
-      // Wipe all existing lancamentos
+      // Wipe all existing lancamentos, contas pagar e contas receber
       await tx.lancamento.deleteMany({})
+      await tx.contaPagar.deleteMany({})
+      await tx.contaReceber.deleteMany({})
       summary.deletedLancamentos = 0 // count after delete is 0
 
       // Ensure required banks exist in DB
@@ -625,6 +632,8 @@ async function main() {
       await seedFixedTaxonomy(tx, categoryCache, summary)
 
       const launchRows = []
+      const contaPagarRows = []
+      const contaReceberRows = []
 
       for (const row of parsedRows) {
         // Resolve category
@@ -658,29 +667,65 @@ async function main() {
           centroCustoId = cc.id
         }
 
-        launchRows.push({
-          tipo: row.direction === "ENTRADA" ? TipoLancamento.RECEITA : TipoLancamento.DESPESA,
-          descricao: row.description,
-          valor: new Prisma.Decimal(row.amount.toFixed(2)),
-          data_lancamento: row.date,
-          data_competencia: row.date,
-          observacoes: row.notes,
-          status_conferencia:
-            row.status === "EFETIVADO"
-              ? StatusConferencia.CONFERIDO
-              : StatusConferencia.PENDENTE,
-          conferido_em: row.status === "EFETIVADO" ? row.date : null,
-          conta_bancaria_id: contaBancariaId,
-          categoria_id: leaf.id,
-          centro_custo_id: centroCustoId,
-        })
+        if (row.status === "EFETIVADO") {
+          launchRows.push({
+            tipo: row.direction === "ENTRADA" ? TipoLancamento.RECEITA : TipoLancamento.DESPESA,
+            descricao: row.description,
+            valor: new Prisma.Decimal(row.amount.toFixed(2)),
+            data_lancamento: row.date,
+            data_competencia: row.date,
+            observacoes: row.notes,
+            status_conferencia: StatusConferencia.CONFERIDO,
+            conferido_em: row.date,
+            conta_bancaria_id: contaBancariaId,
+            categoria_id: leaf.id,
+            centro_custo_id: centroCustoId,
+          })
+        } else {
+          // PREVISTO
+          if (row.direction === "SAIDA") {
+            contaPagarRows.push({
+              descricao: row.description,
+              valor_total: new Prisma.Decimal(row.amount.toFixed(2)),
+              valor_pago: new Prisma.Decimal(0),
+              data_emissao: row.date,
+              data_vencimento: row.date,
+              observacoes: row.notes,
+              status: StatusFinanceiro.PENDENTE,
+              categoria_id: leaf.id,
+              centro_custo_id: centroCustoId,
+            })
+          } else {
+            contaReceberRows.push({
+              descricao: row.description,
+              valor_total: new Prisma.Decimal(row.amount.toFixed(2)),
+              valor_recebido: new Prisma.Decimal(0),
+              data_emissao: row.date,
+              data_vencimento: row.date,
+              observacoes: row.notes,
+              status: StatusFinanceiro.PENDENTE,
+              categoria_id: leaf.id,
+              centro_custo_id: centroCustoId,
+            })
+          }
+        }
       }
 
       const result = await tx.lancamento.createMany({
         data: launchRows,
       })
 
+      const contasPagarResult = await tx.contaPagar.createMany({
+        data: contaPagarRows,
+      })
+
+      const contasReceberResult = await tx.contaReceber.createMany({
+        data: contaReceberRows,
+      })
+
       summary.importedRows = result.count
+      summary.validation.createdContasPagar = contasPagarResult.count
+      summary.validation.createdContasReceber = contasReceberResult.count
 
       // Rebuild balances only for assigned banks
       const affectedBankIds = Array.from(
@@ -702,6 +747,8 @@ async function main() {
           where: { conta_bancaria_id: null },
         }),
         missingCategoryCount: 0,
+        createdContasPagar: contasPagarResult.count,
+        createdContasReceber: contasReceberResult.count,
       }
     },
     { timeout: 120000 },

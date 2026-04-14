@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { PedidoCategoria } from "@prisma/client"
 import { CategoryMapping, ReportCategoryKey } from "@/services/financial/category-mapping"
+import { isExcludedFinancialCategory } from "@/lib/financial/fixed-category-taxonomy"
 
 export interface RealizedCostData {
     madeira: number
@@ -98,7 +99,13 @@ export class LancamentoStrategy implements RealizedCostStrategy {
                 tipo: "DESPESA",
             },
             include: {
-                categoria: true,
+                categoria: {
+                    include: {
+                        categoria_pai: {
+                            select: { nome: true },
+                        },
+                    },
+                },
             },
         })
 
@@ -115,6 +122,10 @@ export class LancamentoStrategy implements RealizedCostStrategy {
 
         // 3. Map Categories using Helper
         for (const l of lancamentos) {
+            if (isExcludedFinancialCategory(l.categoria)) {
+                continue
+            }
+
             const valor = Number(l.valor)
             const key = CategoryMapping.getKey(l.categoria.nome)
 

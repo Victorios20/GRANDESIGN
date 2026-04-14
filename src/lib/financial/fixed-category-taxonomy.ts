@@ -25,6 +25,7 @@ type CategoryLike = {
   tipo?: string | null
   categoria_pai_id?: number | null
   categoriaPai?: { nome: string } | null
+  categoria_pai?: { nome: string } | null
 }
 
 export const FIXED_FINANCIAL_CATEGORY_GROUPS: FixedFinancialGroupConfig[] = [
@@ -107,6 +108,10 @@ export const FIXED_FINANCIAL_CATEGORY_GROUPS: FixedFinancialGroupConfig[] = [
   },
 ]
 
+export const EXCLUDED_FINANCIAL_GROUP_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "excluded")
+  .map((group) => group.name)
+
 const GROUP_MAP = new Map(
   FIXED_FINANCIAL_CATEGORY_GROUPS.map((group) => [group.name, group]),
 )
@@ -124,7 +129,7 @@ export function isFixedFinancialGroupName(name?: string | null) {
 }
 
 export function resolveFinancialGroupName(category: CategoryLike) {
-  const parentName = category.categoriaPai?.nome ?? null
+  const parentName = category.categoriaPai?.nome ?? category.categoria_pai?.nome ?? null
 
   if (parentName && isFixedFinancialGroupName(parentName)) {
     return parentName as FixedFinancialGroupName
@@ -181,6 +186,10 @@ export function isPayableCategory(category: CategoryLike) {
   }
 
   return group.reportBucket === "cost" || group.reportBucket === "expense" || group.name === "Distribui\u00e7\u00e3o de Lucros"
+}
+
+export function isExcludedFinancialCategory(category: CategoryLike) {
+  return getFinancialGroupConfigForCategory(category)?.reportBucket === "excluded"
 }
 
 export function isTransactionSelectableCategory(

@@ -6,6 +6,7 @@ import { AlertTriangle, Loader2, LockKeyhole, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,6 +43,7 @@ interface Props {
     conferenceMode?: boolean
     closingDate?: CashFlowSettings["closing_date"]
     reopenPeriodHref?: string
+    isAdmin?: boolean
     onSuccess: () => Promise<void> | void
 }
 
@@ -102,6 +104,7 @@ export default function TransactionEditorDialog({
     conferenceMode = false,
     closingDate = null,
     reopenPeriodHref = "/configuracoes/parametrizacoes",
+    isAdmin = false,
     onSuccess,
 }: Props) {
     const isCreateMode = !item
@@ -115,6 +118,7 @@ export default function TransactionEditorDialog({
     const [centroCustoId, setCentroCustoId] = useState("none")
     const [observacoes, setObservacoes] = useState("")
     const [justificativa, setJustificativa] = useState("")
+    const [confirmLinkedDelete, setConfirmLinkedDelete] = useState(false)
     const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
@@ -147,6 +151,7 @@ export default function TransactionEditorDialog({
         setCentroCustoId("none")
         setObservacoes("")
         setJustificativa("")
+        setConfirmLinkedDelete(false)
     }, [banks, item, open])
 
     const originMeta = item ? getOriginMeta(item) : null
@@ -269,6 +274,39 @@ export default function TransactionEditorDialog({
             }
 
             toast.success("Estorno registrado")
+            onOpenChange(false)
+            await onSuccess()
+        } catch (error) {
+            toast.error((error as Error).message)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    async function handleDelete() {
+        if (!item || !isAdmin) return
+
+        if (originMeta && !confirmLinkedDelete) {
+            toast.error("Você precisa confirmar a exclusão de lançamentos vinculados.")
+            return
+        }
+
+        const confirmed = window.confirm("ATENÇÃO: A exclusão de um lançamento é IRREVERSÍVEL. Um snapshot será gerado para auditoria.\n\nTem certeza que deseja excluir?")
+        if (!confirmed) return
+
+        setSubmitting(true)
+
+        try {
+            const response = await fetch(`/api/financeiro/transactions/${item.id}`, {
+                method: "DELETE",
+            })
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}))
+                throw new Error(body.error || "Falha ao excluir lançamento")
+            }
+
+            toast.success("Lançamento excluído com sucesso")
             onOpenChange(false)
             await onSuccess()
         } catch (error) {
@@ -496,6 +534,28 @@ export default function TransactionEditorDialog({
                                     />
                                 </div>
                             ) : null}
+
+                            {!isCreateMode && item && isAdmin && originMeta ? (
+                                <div className="space-y-1.5 md:col-span-2">
+                                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
+                                        <div className="space-y-2 flex-1">
+                                            <p className="font-semibold text-red-900">Atenção: Exclusão de lançamento vinculado</p>
+                                            <p>A exclusão alterará a conta de origem para que seu valor retorne em aberto.</p>
+                                            <div className="flex items-center space-x-2 mt-2">
+                                                <Checkbox
+                                                    id="confirmLinked"
+                                                    checked={confirmLinkedDelete}
+                                                    onCheckedChange={(checked) => setConfirmLinkedDelete(checked as boolean)}
+                                                />
+                                                <Label htmlFor="confirmLinked" className="text-sm font-medium text-red-900">
+                                                    Estou ciente e assumo a responsabilidade pelo impacto desta exclusão.
+                                                </Label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
                     </div>
 
@@ -509,6 +569,19 @@ export default function TransactionEditorDialog({
                         >
                             {conferenceMode ? "Voltar para a conferência" : "Fechar"}
                         </Button>
+
+                        {!isCreateMode && item && isAdmin && !sessionLocked ? (
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                onClick={handleDelete}
+                                disabled={submitting || (originMeta !== null && !confirmLinkedDelete)}
+                                className={cn("h-10 border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700")}
+                            >
+                                {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+                                Excluir (Admin)
+                            </Button>
+                        ) : null}
 
                         {canAdjust ? (
                             <Button

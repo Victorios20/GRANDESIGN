@@ -461,6 +461,103 @@ export async function reverseManualTransaction(
     })
 }
 
+export async function deleteManualTransaction(id: number, userId: number) {
+    const lancamento = await getTransactionForMutation(id)
+    const settings = await getCashFlowSettings()
+
+    // O usuário com role ADMIN vai usar a exclusão direta mesmo para lançamentos vinculados,
+    // mas bloqueamos se as sessões de conferência já não permitirem.
+    ensureSessionEditable(lancamento.conferencia_sessoes)
+    ensureFinancialPeriodEditable(lancamento.data_competencia, settings.closing_date)
+
+    if (lancamento.status_conferencia === StatusConferencia.CONFERIDO) {
+        throw new Error("Lançamento já está conciliado. Faça estorno em vez de excluir direto.")
+    }
+
+    const sessionId = lancamento.conferencia_sessao_id
+
+    return prisma.$transaction(async (tx) => {
+        // Remove balance if applied directly
+        const signedAmount = getSignedAmount(lancamento.tipo, lancamento.valor)
+        await applyAccountDelta(tx, lancamento.conta_bancaria_id, -signedAmount)
+
+        // Se estiver atrelado a ContaPagar, decrementa o valor pago e atualiza o status
+        if (lancamento.conta_pagar_id) {
+            const cp = await tx.contaPagar.findUnique({ where: { id: lancamento.conta_pagar_id } })
+            if (cp) {
+                const newVal = Number(cp.valor_pago) - Number(lancamento.valor)
+                let newStatus = cp.status
+                if (newVal <= 0) newStatus = "PENDENTE"
+                else if (newVal < Number(cp.valor_total)) newStatus = "PARCIAL"
+
+                await tx.contaPagar.update({
+                    where: { id: cp.id },
+                    data: {
+                        valor_pago: Math.max(0, newVal),
+                        status: newStatus !== cp.status ? newStatus : undefined
+                    }
+                })
+            }
+        }
+
+        // Se estiver atrelado a ContaReceber, decrementa o valor recebido e atualiza o status
+        if (lancamento.conta_receber_id) {
+            const cr = await tx.contaReceber.findUnique({ where: { id: lancamento.conta_receber_id } })
+            if (cr) {
+                const newVal = Number(cr.valor_recebido) - Number(lancamento.valor)
+                let newStatus = cr.status
+                if (newVal <= 0) newStatus = "PENDENTE"
+                else if (newVal < Number(cr.valor_total)) newStatus = "PARCIAL"
+
+                await tx.contaReceber.update({
+                    where: { id: cr.id },
+                    data: {
+                        valor_recebido: Math.max(0, newVal),
+                        status: newStatus !== cr.status ? newStatus : undefined
+                    }
+                })
+            }
+        }
+
+        // Create snapshot on IdempotencyLog table
+        await tx.idempotencyLog.create({
+            data: {
+                key: `DELETE_LANCAMENTO_${lancamento.id}_${Date.now()}`,
+                status: "COMPLETED",
+                result: JSON.stringify({
+                    path: `/api/financeiro/transactions/${lancamento.id}`,
+                    snapshot: lancamento,
+                }),
+            }
+        })
+
+        if (userId) {
+            await tx.auditLog.create({
+                data: {
+                    action: "TRANSACTION_DELETED",
+                    entity: "lancamento",
+                    entity_id: lancamento.id,
+                    user_id: userId,
+                    detail: {
+                        original: lancamento
+                    },
+                },
+            })
+        }
+
+        // Update Conference Summary if applicable
+        if (sessionId) {
+            await buildConferenceSessionSummary(tx, sessionId)
+        }
+
+        await tx.lancamento.delete({
+            where: { id }
+        })
+
+        return { deleted: true, id }
+    })
+}
+
 export async function getConferenceAccountContext(contaBancariaId: number) {
     const bank = await prisma.contasBancaria.findUnique({
         where: { id: contaBancariaId },

@@ -20,6 +20,7 @@ import {
   TRANSFER_DESTINATION_BY_ROW_KEY,
 } from "./import-financial-history-2026.mapping"
 import { rebuildBankCurrentBalances, type BankBalanceSnapshot } from "@/actions/financeiro/banks/balance-tools"
+import { getFixedFinancialGroups, type FixedFinancialGroupName } from "@/lib/financial/fixed-category-taxonomy"
 
 const prisma = new PrismaClient()
 
@@ -30,9 +31,16 @@ const IMPORT_COST_CENTER_DESCRIPTION = `${IMPORT_MARKER} Centro de custo criado 
 const OPENING_BALANCE_SUBCATEGORY_KEY = "receita de ajuste"
 const TRANSFER_SUBCATEGORY_KEY = "transferencia"
 const UNCATEGORIZED_LABEL_BY_DIRECTION = {
-  ENTRADA: "Receita sem subcategoria",
-  SAIDA: "Despesa sem subcategoria",
+  ENTRADA: "Receita de Ajuste",
+  SAIDA: "Despesa de Ajuste",
 } as const
+const FIXED_GROUP_BY_CHILD_KEY = new Map<string, FixedFinancialGroupName>()
+
+for (const group of getFixedFinancialGroups()) {
+  for (const childName of group.defaultChildren) {
+    FIXED_GROUP_BY_CHILD_KEY.set(normalizeKey(childName), group.name)
+  }
+}
 
 type CsvRow = Record<string, string>
 
@@ -78,6 +86,7 @@ interface CategoryCacheEntry {
   id: number
   nome: string
   tipo: TipoCategoria
+  categoria_pai_id: number | null
 }
 
 interface ClientCacheEntry {
@@ -109,7 +118,8 @@ interface EnsureResult<T> {
 
 interface ImportCaches {
   banks: Map<string, BankCacheEntry>
-  categories: Map<string, CategoryCacheEntry>
+  categoryRoots: Map<string, CategoryCacheEntry>
+  categoryChildren: Map<string, CategoryCacheEntry>
   clients: Map<string, ClientCacheEntry>
   worksByClient: Map<string, WorkCacheEntry[]>
   suppliers: Map<string, SupplierCacheEntry>
@@ -405,13 +415,34 @@ function getFallbackCategoryLabel(direction: "ENTRADA" | "SAIDA") {
   return UNCATEGORIZED_LABEL_BY_DIRECTION[direction]
 }
 
-function deriveWorkName(clientName: string | null) {
+function resolveFixedGroupName(
+  label: string,
+  direction: "ENTRADA" | "SAIDA",
+): FixedFinancialGroupName {
+  const mappedGroup = FIXED_GROUP_BY_CHILD_KEY.get(normalizeKey(label))
+
+  if (mappedGroup) {
+    return mappedGroup
+  }
+
+  return direction === "ENTRADA" ? "Receita de Ajuste" : "Despesa de ajuste"
+}
+
+function deriveWorkName(clientName: string | null, bairroHint?: string | null) {
   if (!clientName) {
     return null
   }
 
   const override = COST_CENTER_NAME_OVERRIDES[normalizeKey(clientName)]
-  return sanitizeText(override)
+  if (override) {
+    return sanitizeText(override)
+  }
+
+  if (bairroHint) {
+    return truncate(`${clientName} [${bairroHint}]`, 150)
+  }
+
+  return truncate(clientName, 150)
 }
 
 function splitClientAndWorkHint(value: string | null) {
@@ -443,7 +474,7 @@ function splitClientAndWorkHint(value: string | null) {
   const clientName =
     CLIENT_NAME_OVERRIDES[normalizeKey(rawClientName)] ?? sanitizeText(rawClientName)
   const bairroHint = sanitizeText(rawBracketValue)
-  const workName = sanitizeText(sanitized)
+  const workName = deriveWorkName(clientName ?? null, bairroHint)
 
   return {
     clientName: clientName ?? null,
@@ -673,6 +704,14 @@ function collectAffectedBankIds(rows: ParsedRow[], caches: ImportCaches) {
   return Array.from(bankIds)
 }
 
+function getRootCategoryCacheKey(type: TipoCategoria, label: string) {
+  return `${type}:root:${normalizeKey(label)}`
+}
+
+function getChildCategoryCacheKey(parentId: number, label: string) {
+  return `${parentId}:${normalizeKey(label)}`
+}
+
 async function loadCaches(): Promise<ImportCaches> {
   const [banks, categories, clients, works, suppliers, costCenters] = await Promise.all([
     prisma.contasBancaria.findMany({
@@ -686,7 +725,7 @@ async function loadCaches(): Promise<ImportCaches> {
     }),
     prisma.categoria.findMany({
       where: { ativo: true },
-      select: { id: true, nome: true, tipo: true },
+      select: { id: true, nome: true, tipo: true, categoria_pai_id: true },
     }),
     prisma.cliente.findMany({
       select: { id: true, nome: true },
@@ -717,7 +756,8 @@ async function loadCaches(): Promise<ImportCaches> {
     registerWork(
       {
         banks: new Map(),
-        categories: new Map(),
+        categoryRoots: new Map(),
+        categoryChildren: new Map(),
         clients: new Map(),
         worksByClient,
         suppliers: new Map(),
@@ -739,7 +779,8 @@ async function loadCaches(): Promise<ImportCaches> {
     registerCostCenter(
       {
         banks: new Map(),
-        categories: new Map(),
+        categoryRoots: new Map(),
+        categoryChildren: new Map(),
         clients: new Map(),
         worksByClient: new Map(),
         suppliers: new Map(),
@@ -754,11 +795,21 @@ async function loadCaches(): Promise<ImportCaches> {
     banks: new Map(
       banks.map((bank) => [normalizeKey(bank.nome), bank]),
     ),
-    categories: new Map(
-      categories.map((category) => [
-        `${category.tipo}:${normalizeKey(category.nome)}`,
-        category,
-      ]),
+    categoryRoots: new Map(
+      categories
+        .filter((category) => !category.categoria_pai_id)
+        .map((category) => [
+          getRootCategoryCacheKey(category.tipo, category.nome),
+          category,
+        ]),
+    ),
+    categoryChildren: new Map(
+      categories
+        .filter((category) => Boolean(category.categoria_pai_id))
+        .map((category) => [
+          getChildCategoryCacheKey(category.categoria_pai_id!, category.nome),
+          category,
+        ]),
     ),
     clients: new Map(
       clients.map((client) => [normalizeKey(client.nome), client]),
@@ -874,20 +925,15 @@ async function ensureBank(
   return created
 }
 
-async function ensureCategory(
+async function ensureRootCategory(
   caches: ImportCaches,
   summary: Summary,
   label: string,
   type: TipoCategoria,
   apply: boolean,
 ) {
-  const cacheKey = `${type}:${normalizeKey(label)}`
-  const existing = caches.categories.get(cacheKey)
-
-  if (!existing) {
-    pushUniqueValue(summary.missingEntities.categories, label)
-    pushUniqueValue(summary.missingCategoriesCreated, label)
-  }
+  const cacheKey = getRootCategoryCacheKey(type, label)
+  const existing = caches.categoryRoots.get(cacheKey)
 
   if (existing) {
     return existing
@@ -898,9 +944,10 @@ async function ensureCategory(
       id: -2000 - summary.categoriasCriadas,
       nome: label,
       tipo: type,
+      categoria_pai_id: null,
     }
 
-    caches.categories.set(cacheKey, simulated)
+    caches.categoryRoots.set(cacheKey, simulated)
     summary.categoriasCriadas += 1
     return simulated
   }
@@ -913,7 +960,53 @@ async function ensureCategory(
     },
   })
 
-  caches.categories.set(cacheKey, created)
+  caches.categoryRoots.set(cacheKey, created)
+  summary.categoriasCriadas += 1
+  return created
+}
+
+async function ensureChildCategory(
+  caches: ImportCaches,
+  summary: Summary,
+  parent: CategoryCacheEntry,
+  label: string,
+  apply: boolean,
+) {
+  const cacheKey = getChildCategoryCacheKey(parent.id, label)
+  const existing = caches.categoryChildren.get(cacheKey)
+
+  if (!existing) {
+    pushUniqueValue(summary.missingEntities.categories, `${parent.nome} > ${label}`)
+    pushUniqueValue(summary.missingCategoriesCreated, `${parent.nome} > ${label}`)
+  }
+
+  if (existing) {
+    return existing
+  }
+
+  if (!apply) {
+    const simulated: CategoryCacheEntry = {
+      id: -3000 - summary.categoriasCriadas,
+      nome: label,
+      tipo: parent.tipo,
+      categoria_pai_id: parent.id,
+    }
+
+    caches.categoryChildren.set(cacheKey, simulated)
+    summary.categoriasCriadas += 1
+    return simulated
+  }
+
+  const created = await prisma.categoria.create({
+    data: {
+      nome: label,
+      tipo: parent.tipo,
+      ativo: true,
+      categoria_pai_id: parent.id,
+    },
+  })
+
+  caches.categoryChildren.set(cacheKey, created)
   summary.categoriasCriadas += 1
   return created
 }
@@ -1209,7 +1302,11 @@ function buildCanonicalCollections(rows: ParsedRow[]) {
   for (const row of rows) {
     const categoryType =
       row.direction === "ENTRADA" ? TipoCategoria.RECEITA : TipoCategoria.DESPESA
-    categories.set(`${categoryType}:${normalizeKey(row.categoryLabel)}`, row.categoryLabel)
+    const groupName = resolveFixedGroupName(row.categoryLabel, row.direction)
+    categories.set(
+      `${categoryType}:${normalizeKey(groupName)}:${normalizeKey(row.categoryLabel)}`,
+      row.categoryLabel,
+    )
 
     if (row.supplierName) {
       suppliers.set(normalizeKey(row.supplierName), row.supplierName)
@@ -1295,13 +1392,21 @@ async function deduplicateCategories(
       nome: true,
       tipo: true,
       categoria_pai_id: true,
+      categoria_pai: {
+        select: {
+          nome: true,
+        },
+      },
     },
     orderBy: [{ tipo: "asc" }, { id: "asc" }],
   })
 
   const grouped = new Map<string, typeof categories>()
   for (const category of categories) {
-    const key = `${category.tipo}:${normalizeKey(category.nome)}`
+    const parentKey = category.categoria_pai?.nome
+      ? normalizeKey(category.categoria_pai.nome)
+      : "root"
+    const key = `${category.tipo}:${parentKey}:${normalizeKey(category.nome)}`
     const current = grouped.get(key) ?? []
     current.push(category)
     grouped.set(key, current)
@@ -1446,14 +1551,15 @@ async function deduplicateSuppliers(
 }
 
 async function cleanupImportedCostCenters(summary: Summary, apply: boolean) {
+  const reservedCategoryLikeNames = new Set(
+    getFixedFinancialGroups().flatMap((group) => [group.name, ...group.defaultChildren].map(normalizeKey)),
+  )
   const costCenters = await prisma.centroCusto.findMany({
-    where: {
-      descricao: {
-        contains: IMPORT_MARKER,
-      },
-    },
     select: {
       id: true,
+      nome: true,
+      obra_id: true,
+      descricao: true,
       _count: {
         select: {
           lancamentos: true,
@@ -1466,11 +1572,15 @@ async function cleanupImportedCostCenters(summary: Summary, apply: boolean) {
 
   for (const costCenter of costCenters) {
     const isOrphan =
+      costCenter.obra_id == null &&
       costCenter._count.lancamentos === 0 &&
       costCenter._count.contas_pagar === 0 &&
       costCenter._count.contas_receber === 0
+    const isImportLike =
+      costCenter.descricao?.includes(IMPORT_MARKER) ||
+      reservedCategoryLikeNames.has(normalizeKey(costCenter.nome))
 
-    if (!isOrphan) {
+    if (!isOrphan || !isImportLike) {
       continue
     }
 
@@ -1543,9 +1653,39 @@ async function ensureBaselineCategories(
   summary: Summary,
   apply: boolean,
 ) {
-  await ensureCategory(caches, summary, "Receita de Ajuste", TipoCategoria.RECEITA, apply)
-  await ensureCategory(caches, summary, "Transferência", TipoCategoria.RECEITA, apply)
-  await ensureCategory(caches, summary, "Transferência", TipoCategoria.DESPESA, apply)
+  await ensureFixedTaxonomy(caches, summary, apply)
+}
+
+async function ensureFixedTaxonomy(
+  caches: ImportCaches,
+  summary: Summary,
+  apply: boolean,
+) {
+  for (const group of getFixedFinancialGroups()) {
+    const parent = await ensureRootCategory(caches, summary, group.name, group.tipo, apply)
+
+    for (const childName of group.defaultChildren) {
+      await ensureChildCategory(caches, summary, parent, childName, apply)
+    }
+  }
+}
+
+async function ensureMappedCategory(
+  caches: ImportCaches,
+  summary: Summary,
+  label: string,
+  direction: "ENTRADA" | "SAIDA",
+  apply: boolean,
+) {
+  const groupName = resolveFixedGroupName(label, direction)
+  const group = getFixedFinancialGroups().find((entry) => entry.name === groupName)
+
+  if (!group) {
+    throw new Error(`Grupo fixo não encontrado para categoria: ${label}`)
+  }
+
+  const parent = await ensureRootCategory(caches, summary, group.name, group.tipo, apply)
+  return ensureChildCategory(caches, summary, parent, label, apply)
 }
 
 function buildEntityDescription(row: ParsedRow) {
@@ -1799,18 +1939,11 @@ async function processTransferRow(
 
   const sourceBank = await ensureBank(caches, summary, sourceRow.bankName, apply)
   const destinationBank = await ensureBank(caches, summary, destinationBankName, apply)
-  const revenueCategory = await ensureCategory(
+  const transferCategory = await ensureMappedCategory(
     caches,
     summary,
-    "Transferências (Entrada)",
-    TipoCategoria.RECEITA,
-    apply,
-  )
-  const expenseCategory = await ensureCategory(
-    caches,
-    summary,
-    "Transferências (Saída)",
-    TipoCategoria.DESPESA,
+    "Transferência",
+    "SAIDA",
     apply,
   )
 
@@ -1865,7 +1998,7 @@ async function processTransferRow(
             status_conferencia: StatusConferencia.CONFERIDO,
             conferido_em: eventDate,
             conta_bancaria_id: sourceBank.id,
-            categoria_id: expenseCategory.id,
+            categoria_id: transferCategory.id,
             transferencia_id: transfer.id,
             created_by: createdBy,
           },
@@ -1879,7 +2012,7 @@ async function processTransferRow(
             status_conferencia: StatusConferencia.CONFERIDO,
             conferido_em: eventDate,
             conta_bancaria_id: destinationBank.id,
-            categoria_id: revenueCategory.id,
+            categoria_id: transferCategory.id,
             transferencia_id: transfer.id,
             created_by: createdBy,
           },
@@ -1958,11 +2091,11 @@ async function processFinancialRow(
 
   const bank =
     row.bankName != null ? await ensureBank(caches, summary, row.bankName, apply) : null
-  const category = await ensureCategory(
+  const category = await ensureMappedCategory(
     caches,
     summary,
     row.categoryLabel,
-    row.direction === "ENTRADA" ? TipoCategoria.RECEITA : TipoCategoria.DESPESA,
+    row.direction,
     apply,
   )
   const client = row.clientName
@@ -2231,7 +2364,7 @@ async function main() {
   if (args.preflight) {
     await sanitizeImportedEntities(summary, parsedRows, false)
     const preflightCaches = await loadCaches()
-    await ensureBaselineCategories(preflightCaches, summary, false)
+    await ensureFixedTaxonomy(preflightCaches, summary, false)
     const createdBy = await getImporterUserId()
 
     await applyOpeningBalances(openingBalances, preflightCaches, summary, false)
@@ -2258,7 +2391,7 @@ async function main() {
     const caches = await loadCaches()
     const createdBy = await getImporterUserId()
 
-    await ensureBaselineCategories(caches, summary, true)
+    await ensureFixedTaxonomy(caches, summary, true)
     await applyOpeningBalances(openingBalances, caches, summary, true)
 
     for (const row of actionableRows) {

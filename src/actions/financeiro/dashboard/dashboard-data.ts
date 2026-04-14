@@ -29,6 +29,7 @@ import {
 } from "@/types/financeiro"
 import { getDashboardChartWindowRange } from "@/lib/financeiro-dashboard"
 import { prisma } from "@/lib/prisma"
+import { EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
 
 const ACTIVE_STATUSES: StatusFinanceiro[] = ["PENDENTE", "PARCIAL", "ATRASADO"]
 const ACTIVE_STATUS_DB_VALUES: Record<StatusFinanceiro, string> = {
@@ -145,6 +146,21 @@ function getAccountFilterClause(accountIds: number[]) {
 
 function getExpenseScopeClause(scope: DashboardExpenseScope) {
     return scope === "cost" ? Prisma.sql`AND l.centro_custo_id IS NOT NULL` : Prisma.sql`AND l.centro_custo_id IS NULL`
+}
+
+function getExcludedExpenseCategoryClause(alias: string) {
+    return Prisma.sql`
+        AND NOT EXISTS (
+            SELECT 1
+            FROM categorias child
+            LEFT JOIN categorias parent ON parent.id = child.categoria_pai_id
+            WHERE child.id = ${Prisma.raw(`${alias}.categoria_id`)}
+              AND (
+                child.nome IN (${Prisma.join(EXCLUDED_FINANCIAL_GROUP_NAMES)})
+                OR parent.nome IN (${Prisma.join(EXCLUDED_FINANCIAL_GROUP_NAMES)})
+              )
+        )
+    `
 }
 
 function buildTransactionHref({
@@ -551,6 +567,7 @@ async function getRealizedExpenseCategories(
           AND l.data_competencia <= ${range.end}
           ${getAccountFilterClause(accountIds)}
           ${getExpenseScopeClause(scope)}
+          ${getExcludedExpenseCategoryClause("l")}
         GROUP BY l.categoria_id, c.nome, c.cor
         ORDER BY total DESC, lancamentos_count DESC, c.nome ASC
     `)
@@ -986,6 +1003,7 @@ async function getCategorySupplierBreakdown(
           AND l.data_competencia <= ${range.end}
           ${getAccountFilterClause(filters.account_ids)}
           ${getExpenseScopeClause(scope)}
+          ${getExcludedExpenseCategoryClause("l")}
         GROUP BY f.id, f.nome
     `)
 
@@ -1028,6 +1046,12 @@ async function getCategoryLatestItems(
                 tipo: TipoLancamento.DESPESA,
                 data_competencia: { gte: range.start, lte: range.end },
                 ...(scope === "cost" ? { centro_custo_id: { not: null } } : { centro_custo_id: null }),
+                NOT: {
+                    OR: [
+                        { categoria: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } },
+                        { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
+                    ],
+                },
                 ...(filters.account_ids.length > 0 ? { conta_bancaria_id: { in: filters.account_ids } } : {}),
             },
             select: {

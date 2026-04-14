@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
+import { EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
 
 export interface GetTransactionsOptions {
     page?: number
@@ -45,6 +46,14 @@ function buildTransactionsWhere({
     conciliado,
 }: Omit<GetTransactionsOptions, "page" | "limit" | "orderBy" | "orderDir"> = {}) {
     const where: Prisma.LancamentoWhereInput = {}
+    const nonDreExpenseFilter: Prisma.LancamentoWhereInput = {
+        NOT: {
+            OR: [
+                { categoria: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } },
+                { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
+            ],
+        },
+    }
 
     if (startDate || endDate) {
         const dateField = dateType === "competencia" ? "data_competencia" : "data_lancamento"
@@ -65,8 +74,10 @@ function buildTransactionsWhere({
     if (categoria_id) where.categoria_id = categoria_id
     if (cost_scope === "cost") {
         where.centro_custo_id = { not: null }
+        where.AND = [nonDreExpenseFilter]
     } else if (cost_scope === "expense") {
         where.centro_custo_id = null
+        where.AND = [nonDreExpenseFilter]
     } else if (centro_custo_id) {
         where.centro_custo_id = centro_custo_id
     }
