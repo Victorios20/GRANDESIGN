@@ -28,6 +28,7 @@ import {
     type UpcomingItem,
 } from "@/types/financeiro"
 import { getDashboardChartWindowRange } from "@/lib/financeiro-dashboard"
+import { parseDateOnlyInput } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 import { EXCLUDED_FINANCIAL_CATEGORY_NAMES, EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
 
@@ -84,7 +85,9 @@ function roundMoney(value: number) {
 }
 
 function parseFilterDate(value: string, end = false) {
-    return end ? endOfDay(new Date(`${value}T00:00:00`)) : new Date(`${value}T00:00:00`)
+    const parsed = parseDateOnlyInput(value)
+    if (!parsed) throw new Error(`Invalid dashboard date filter: ${value}`)
+    return end ? endOfDay(parsed) : startOfDay(parsed)
 }
 
 function getPeriodRange(filters: DashboardAppliedFilters) {

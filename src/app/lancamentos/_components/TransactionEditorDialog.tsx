@@ -24,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { isTransactionSelectableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { formatCurrency, formatDateBR } from "@/lib/financeiro-utils"
+import { getTodayDateOnly, parseDateOnlyInput, toDateOnlyValue } from "@/lib/date-only"
 import { cn } from "@/lib/utils"
 import type {
     BankOption,
@@ -54,13 +55,15 @@ const fieldClassName = operationalListControlClass
 const labelClassName = "text-sm font-medium text-[#2c201b]"
 
 function toInputDate(value?: string | null) {
-    if (!value) return new Date().toISOString().split("T")[0]
-    return new Date(value).toISOString().split("T")[0]
+    return toDateOnlyValue(value) ?? getTodayDateOnly()
 }
 
 function isClosedByFinancialPeriod(dateValue: string, closingDate?: string | null) {
     if (!dateValue || !closingDate) return false
-    return new Date(dateValue) <= new Date(closingDate)
+    const date = parseDateOnlyInput(dateValue)
+    const closing = parseDateOnlyInput(closingDate)
+    if (!date || !closing) return false
+    return date.getTime() <= closing.getTime()
 }
 
 function getConferenceLabel(item: TransactionListItem) {

@@ -37,6 +37,7 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
 import { Textarea } from "@/components/ui/textarea"
+import { parseDateOnlyInput, toDateOnlyValue } from "@/lib/date-only"
 import {
     operationalListChipClass,
     operationalListChipRemoveButtonClass,
@@ -223,11 +224,13 @@ export default function LancamentosPageClient({
     const [dateType, setDateType] = useState<"lancamento" | "competencia">(
         initialFilters?.dateType === "competencia" ? "competencia" : "lancamento"
     )
+    const initialStartDate = initialFilters?.startDate ? parseDateOnlyInput(initialFilters.startDate) : null
+    const initialEndDate = initialFilters?.endDate ? parseDateOnlyInput(initialFilters.endDate) : null
     const [dateRange, setDateRange] = useState<DateRange | undefined>(
-        initialFilters?.startDate
+        initialStartDate
             ? {
-                from: new Date(initialFilters.startDate),
-                to: initialFilters.endDate ? new Date(initialFilters.endDate) : new Date(initialFilters.startDate),
+                from: initialStartDate,
+                to: initialEndDate ?? initialStartDate,
             }
             : undefined
     )
@@ -275,8 +278,14 @@ export default function LancamentosPageClient({
             if (conciliadoFilter === "true") params.set("conciliado", "true")
             if (conciliadoFilter === "false") params.set("conciliado", "false")
             if (dateType !== "lancamento") params.set("dateType", dateType)
-            if (dateRange?.from) params.set("startDate", dateRange.from.toISOString())
-            if (dateRange?.to) params.set("endDate", dateRange.to.toISOString())
+            if (dateRange?.from) {
+                const startDate = toDateOnlyValue(dateRange.from)
+                if (startDate) params.set("startDate", startDate)
+            }
+            if (dateRange?.to) {
+                const endDate = toDateOnlyValue(dateRange.to)
+                if (endDate) params.set("endDate", endDate)
+            }
             params.set("orderBy", sortBy)
             params.set("orderDir", sortOrder)
             return params

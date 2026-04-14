@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { createTransaction } from "@/actions/financeiro/transactions/create-transaction"
 import { transactionSchema } from "@/lib/validators/financial"
 import { ZodError } from "zod"
+import { parseDateOnlyInput } from "@/lib/date-only"
 
 import { getTransactions, type TransactionOrderBy } from "@/actions/financeiro/transactions/get-transactions"
 import { TipoLancamento } from "@prisma/client"
@@ -41,8 +42,8 @@ export async function GET(req: Request) {
         const page = Number(searchParams.get("page")) || 1
         const limit = Number(searchParams.get("limit")) || 20
         const search = searchParams.get("search") ?? undefined
-        const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
-        const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
+        const startDate = searchParams.get("startDate") ? parseDateOnlyInput(searchParams.get("startDate")) ?? undefined : undefined
+        const endDate = searchParams.get("endDate") ? parseDateOnlyInput(searchParams.get("endDate")) ?? undefined : undefined
         const dateType = (searchParams.get("dateType") as "lancamento" | "competencia") || "lancamento"
 
         const conta_bancaria_id = searchParams.get("conta_bancaria_id") ? Number(searchParams.get("conta_bancaria_id")) : undefined

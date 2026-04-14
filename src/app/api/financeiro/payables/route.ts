@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getPayables, type PayableOrderBy } from "@/actions/financeiro/payables/get"
 import { StatusFinanceiro } from "@prisma/client"
+import { parseDateOnlyInput } from "@/lib/date-only"
 
 const PAYABLE_ORDER_FIELDS = new Set(["data_vencimento", "fornecedor", "descricao", "categoria", "valor_total", "status", "created_at"])
 
@@ -13,8 +14,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const page = Number(searchParams.get("page")) || 1
     const limit = Number(searchParams.get("limit")) || 20
-    const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
-    const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
+    const startDate = searchParams.get("startDate") ? parseDateOnlyInput(searchParams.get("startDate")) ?? undefined : undefined
+    const endDate = searchParams.get("endDate") ? parseDateOnlyInput(searchParams.get("endDate")) ?? undefined : undefined
     const fornecedor_id = searchParams.get("fornecedor_id") ? Number(searchParams.get("fornecedor_id")) : undefined
     const categoria_id = searchParams.get("categoria_id") ? Number(searchParams.get("categoria_id")) : undefined
     const centro_custo_id = searchParams.get("centro_custo_id") ? Number(searchParams.get("centro_custo_id")) : undefined

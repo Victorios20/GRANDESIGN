@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn } from "@/lib/utils"
 import { formatCurrency, remaining } from "@/lib/financeiro-utils"
+import { getTodayDateOnly } from "@/lib/date-only"
 import { formatPedidoId } from "@/lib/pedido-compra-utils"
 import type { BankOption, PayableListItem } from "@/types/financeiro"
 
@@ -23,7 +24,7 @@ interface Props {
 }
 
 function getTodayValue() {
-    return new Date().toISOString().split("T")[0]
+    return getTodayDateOnly()
 }
 
 export default function PaymentModal({ open, onOpenChange, item, banks, onSuccess }: Props) {
@@ -75,7 +76,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     conta_pagar_id: item.id,
                     conta_bancaria_id: Number(contaBancariaId),
                     valor: valorFinal,
-                    data_pagamento: new Date(dataPagamento),
+                    data_pagamento: dataPagamento,
                     idempotencyKey,
                 }),
             })

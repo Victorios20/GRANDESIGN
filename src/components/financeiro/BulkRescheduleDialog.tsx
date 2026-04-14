@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getTodayDateOnly } from "@/lib/date-only"
 
 interface Props {
     open: boolean
@@ -23,7 +24,7 @@ interface Props {
 }
 
 function getTodayValue() {
-    return new Date().toISOString().split("T")[0]
+    return getTodayDateOnly()
 }
 
 export default function BulkRescheduleDialog({

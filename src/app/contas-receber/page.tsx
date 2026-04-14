@@ -1,5 +1,6 @@
 import { addDays, startOfDay } from "date-fns"
 import { ssrJSON } from "@/lib/ssrFetch"
+import { toDateOnlyValue } from "@/lib/date-only"
 import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import ContasReceberPageClient from "./_components/ContasReceberPageClient"
 import type {
@@ -43,12 +44,17 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     const today = startOfDay(new Date())
     if (scope === "overdue" && !status) query.set("status", "ATRASADO")
     if (scope === "today") {
-        query.set("startDate", today.toISOString())
-        query.set("endDate", addDays(today, 1).toISOString())
+        const date = toDateOnlyValue(today)
+        if (date) {
+            query.set("startDate", date)
+            query.set("endDate", date)
+        }
     }
     if (scope === "next7") {
-        query.set("startDate", today.toISOString())
-        query.set("endDate", addDays(today, 7).toISOString())
+        const startDate = toDateOnlyValue(today)
+        const endDate = toDateOnlyValue(addDays(today, 6))
+        if (startDate) query.set("startDate", startDate)
+        if (endDate) query.set("endDate", endDate)
     }
 
     return query

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { formatCurrency } from "@/lib/financeiro-utils"
+import { getTodayDateOnly } from "@/lib/date-only"
 import type { BankOption } from "@/types/financeiro"
 
 interface Props {
@@ -22,7 +23,7 @@ interface Props {
 
 export default function BulkReceiveDialog({ open, onOpenChange, banks, selectedIds, selectedTotal, onSuccess }: Props) {
     const [contaBancariaId, setContaBancariaId] = useState("")
-    const [dataRecebimento, setDataRecebimento] = useState(() => new Date().toISOString().split("T")[0])
+    const [dataRecebimento, setDataRecebimento] = useState(() => getTodayDateOnly())
     const [submitting, setSubmitting] = useState(false)
 
     const canSubmit = useMemo(

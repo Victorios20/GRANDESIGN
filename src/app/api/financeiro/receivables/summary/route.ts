@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { parseDateOnlyInput } from "@/lib/date-only"
 import { getReceivablesSummary, type GetReceivablesOptions } from "@/actions/financeiro/receivables/service"
 import { StatusFinanceiro } from "@prisma/client"
 
@@ -15,8 +16,8 @@ export async function GET(req: Request) {
 
         const startDate = searchParams.get("startDate")
         const endDate = searchParams.get("endDate")
-        if (startDate) filters.startDate = new Date(startDate)
-        if (endDate) filters.endDate = new Date(endDate)
+        if (startDate) filters.startDate = parseDateOnlyInput(startDate) ?? undefined
+        if (endDate) filters.endDate = parseDateOnlyInput(endDate) ?? undefined
 
         const statusParam = searchParams.get("status")
         if (statusParam) {

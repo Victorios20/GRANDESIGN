@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { getTransactions } from "@/actions/financeiro/transactions/get-transactions"
-import { formatDateOnlyPtBr } from "@/lib/date-only"
+import { formatDateOnlyPtBr, parseDateOnlyInput } from "@/lib/date-only"
 import { TipoLancamento } from "@prisma/client"
 import { format } from "date-fns"
 
@@ -41,8 +41,8 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url)
 
         const search = searchParams.get("search") ?? undefined
-        const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined
-        const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined
+        const startDate = searchParams.get("startDate") ? parseDateOnlyInput(searchParams.get("startDate")) ?? undefined : undefined
+        const endDate = searchParams.get("endDate") ? parseDateOnlyInput(searchParams.get("endDate")) ?? undefined : undefined
         const dateType = (searchParams.get("dateType") as "lancamento" | "competencia") || "lancamento"
         const conta_bancaria_id = searchParams.get("conta_bancaria_id") ? Number(searchParams.get("conta_bancaria_id")) : undefined
         const conta_bancaria_ids = parseBankIds(searchParams.get("conta_bancaria_ids"))

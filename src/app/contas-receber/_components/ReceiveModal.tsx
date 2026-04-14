@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn } from "@/lib/utils"
 import { formatCurrency, remaining } from "@/lib/financeiro-utils"
+import { getTodayDateOnly } from "@/lib/date-only"
 import type { BankOption, ReceivableListItem } from "@/types/financeiro"
 
 interface Props {
@@ -21,7 +22,7 @@ interface Props {
 }
 
 function getTodayValue() {
-    return new Date().toISOString().split("T")[0]
+    return getTodayDateOnly()
 }
 
 export default function ReceiveModal({ open, onOpenChange, item, banks, onSuccess }: Props) {
@@ -73,7 +74,7 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
                     conta_receber_id: item.id,
                     conta_bancaria_id: Number(contaBancariaId),
                     valor: valorFinal,
-                    data_recebimento: new Date(dataRecebimento),
+                    data_recebimento: dataRecebimento,
                     idempotencyKey,
                 }),
             })

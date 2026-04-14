@@ -23,6 +23,7 @@ import { ListSummaryBar } from "@/components/financeiro/ListSummaryBar"
 import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { StatusTabs } from "@/components/financeiro/StatusTabs"
 import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, remaining } from "@/lib/financeiro-utils"
+import { toDateOnlyValue } from "@/lib/date-only"
 import type {
     BankOption,
     CategoryOption,
@@ -102,7 +103,7 @@ interface Props {
 function getInitialDateRange(scope: string): DateRange | undefined {
     const today = startOfDay(new Date())
     if (scope === "today") return { from: today, to: today }
-    if (scope === "next7") return { from: today, to: addDays(today, 7) }
+    if (scope === "next7") return { from: today, to: addDays(today, 6) }
     return undefined
 }
 
@@ -158,8 +159,14 @@ export default function ContasReceberPageClient({
             if (statusFilter !== "todos") params.set("status", statusFilter)
             if (categoriaId !== "all") params.set("categoria_id", categoriaId)
             if (centroCustoId !== "all") params.set("centro_custo_id", centroCustoId)
-            if (dateRange?.from) params.set("startDate", dateRange.from.toISOString())
-            if (dateRange?.to) params.set("endDate", dateRange.to.toISOString())
+            if (dateRange?.from) {
+                const startDate = toDateOnlyValue(dateRange.from)
+                if (startDate) params.set("startDate", startDate)
+            }
+            if (dateRange?.to) {
+                const endDate = toDateOnlyValue(dateRange.to)
+                if (endDate) params.set("endDate", endDate)
+            }
             params.set("orderBy", sortBy)
             params.set("orderDir", sortOrder)
 

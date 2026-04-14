@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { canEdit, canPay, formatCurrency, formatDateBR, getStatusColor, getStatusLabel, remaining } from "@/lib/financeiro-utils"
+import { getTodayDateOnly, toDateOnlyValue } from "@/lib/date-only"
 import { cn } from "@/lib/utils"
 import type { CategoryOption, CentroCustoOption, ClientOption, ReceivableListItem } from "@/types/financeiro"
 
@@ -45,8 +46,7 @@ const fieldClassName =
 const labelClassName = "text-sm font-medium text-[#2c201b]"
 
 function toInputDate(value?: string | null) {
-    if (!value) return new Date().toISOString().split("T")[0]
-    return new Date(value).toISOString().split("T")[0]
+    return toDateOnlyValue(value) ?? getTodayDateOnly()
 }
 
 function SummaryStat({
