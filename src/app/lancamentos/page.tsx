@@ -1,3 +1,5 @@
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 import { ssrJSON } from "@/lib/ssrFetch"
 import { isOperationalFinancialCategory } from "@/lib/financial/fixed-category-taxonomy"
 import LancamentosPageClient from "./_components/LancamentosPageClient"
@@ -99,8 +101,12 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
         ssrJSON<CashFlowSettings>("/api/financeiro/settings/cash-flow"),
     ])
 
+    const session = await getServerSession(authOptions)
+    const isAdmin = Boolean(session?.user?.roles?.includes("ADMIN"))
+
     return (
         <LancamentosPageClient
+            isAdmin={isAdmin}
             initialData={listData}
             banks={banks}
             categories={categories.filter(isOperationalFinancialCategory)}
@@ -124,3 +130,6 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
         />
     )
 }
+
+
+

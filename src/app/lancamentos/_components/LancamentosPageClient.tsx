@@ -96,6 +96,7 @@ interface Props {
         orderBy?: TransactionSortBy
         orderDir?: SortDirection
     }
+    isAdmin?: boolean
 }
 
 const PAGE_SIZE_OPTIONS = ["25", "50", "100"] as const
@@ -196,6 +197,7 @@ export default function LancamentosPageClient({
     centrosCusto,
     closingDate = null,
     initialFilters,
+    isAdmin = false,
 }: Props) {
     const inheritedBankFilterIds =
         initialFilters?.contaBancariaIds?.filter((value) => value && value !== "all") ??
@@ -1294,6 +1296,7 @@ export default function LancamentosPageClient({
                 centrosCusto={centrosCusto}
                 conferenceMode={Boolean(activeSession)}
                 closingDate={closingDate}
+                isAdmin={isAdmin}
                 reopenPeriodHref="/configuracoes/parametrizacoes"
                 onSuccess={() => refreshCurrentView(page, limit)}
             />
