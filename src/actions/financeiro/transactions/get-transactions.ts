@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
-import { EXCLUDED_FINANCIAL_CATEGORY_NAMES, EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
+import {
+    EXCLUDED_FINANCIAL_CATEGORY_NAMES,
+    EXCLUDED_FINANCIAL_GROUP_NAMES,
+    FINANCIAL_COST_CATEGORY_NAMES,
+    FINANCIAL_COST_GROUP_NAMES,
+    FINANCIAL_EXPENSE_CATEGORY_NAMES,
+    FINANCIAL_EXPENSE_GROUP_NAMES,
+} from "@/lib/financial/fixed-category-taxonomy"
 
 export interface GetTransactionsOptions {
     page?: number
@@ -72,12 +79,27 @@ function buildTransactionsWhere({
         where.conta_bancaria_id = conta_bancaria_id
     }
     if (categoria_id) where.categoria_id = categoria_id
+
     if (cost_scope === "cost") {
-        where.centro_custo_id = { not: null }
-        where.AND = [nonDreExpenseFilter]
+        where.AND = [
+            nonDreExpenseFilter,
+            {
+                OR: [
+                    { categoria: { categoria_pai: { nome: { in: FINANCIAL_COST_GROUP_NAMES } } } },
+                    { categoria: { nome: { in: FINANCIAL_COST_CATEGORY_NAMES } } },
+                ],
+            },
+        ]
     } else if (cost_scope === "expense") {
-        where.centro_custo_id = null
-        where.AND = [nonDreExpenseFilter]
+        where.AND = [
+            nonDreExpenseFilter,
+            {
+                OR: [
+                    { categoria: { categoria_pai: { nome: { in: FINANCIAL_EXPENSE_GROUP_NAMES } } } },
+                    { categoria: { nome: { in: FINANCIAL_EXPENSE_CATEGORY_NAMES } } },
+                ],
+            },
+        ]
     } else if (centro_custo_id) {
         where.centro_custo_id = centro_custo_id
     }

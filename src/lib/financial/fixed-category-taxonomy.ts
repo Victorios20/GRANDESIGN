@@ -116,6 +116,22 @@ export const EXCLUDED_FINANCIAL_CATEGORY_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
   .filter((group) => group.reportBucket === "excluded")
   .flatMap((group) => [group.name, ...group.defaultChildren])
 
+export const FINANCIAL_COST_GROUP_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "cost")
+  .map((group) => group.name)
+
+export const FINANCIAL_COST_CATEGORY_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "cost")
+  .flatMap((group) => group.defaultChildren)
+
+export const FINANCIAL_EXPENSE_GROUP_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "expense")
+  .map((group) => group.name)
+
+export const FINANCIAL_EXPENSE_CATEGORY_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "expense")
+  .flatMap((group) => group.defaultChildren)
+
 const GROUP_MAP = new Map(
   FIXED_FINANCIAL_CATEGORY_GROUPS.map((group) => [group.name, group]),
 )

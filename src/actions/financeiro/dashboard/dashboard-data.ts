@@ -30,7 +30,14 @@ import {
 import { getDashboardChartWindowRange } from "@/lib/financeiro-dashboard"
 import { parseDateOnlyInput } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
-import { EXCLUDED_FINANCIAL_CATEGORY_NAMES, EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
+import {
+    EXCLUDED_FINANCIAL_CATEGORY_NAMES,
+    EXCLUDED_FINANCIAL_GROUP_NAMES,
+    FINANCIAL_COST_CATEGORY_NAMES,
+    FINANCIAL_COST_GROUP_NAMES,
+    FINANCIAL_EXPENSE_CATEGORY_NAMES,
+    FINANCIAL_EXPENSE_GROUP_NAMES,
+} from "@/lib/financial/fixed-category-taxonomy"
 
 const ACTIVE_STATUSES: StatusFinanceiro[] = ["PENDENTE", "PARCIAL", "ATRASADO"]
 const ACTIVE_STATUS_DB_VALUES: Record<StatusFinanceiro, string> = {
@@ -148,7 +155,21 @@ function getAccountFilterClause(accountIds: number[]) {
 }
 
 function getExpenseScopeClause(scope: DashboardExpenseScope) {
-    return scope === "cost" ? Prisma.sql`AND l.centro_custo_id IS NOT NULL` : Prisma.sql`AND l.centro_custo_id IS NULL`
+    const groupNames = scope === "cost" ? FINANCIAL_COST_GROUP_NAMES : FINANCIAL_EXPENSE_GROUP_NAMES
+    const categoryNames = scope === "cost" ? FINANCIAL_COST_CATEGORY_NAMES : FINANCIAL_EXPENSE_CATEGORY_NAMES
+
+    return Prisma.sql`
+        AND EXISTS (
+            SELECT 1
+            FROM categorias scope_cat
+            LEFT JOIN categorias scope_parent ON scope_parent.id = scope_cat.categoria_pai_id
+            WHERE scope_cat.id = l.categoria_id
+              AND (
+                scope_parent.nome IN (${Prisma.join(groupNames)})
+                OR scope_cat.nome IN (${Prisma.join(categoryNames)})
+              )
+        )
+    `
 }
 
 function getExcludedExpenseCategoryClause(alias: string) {
@@ -1057,6 +1078,8 @@ async function getCategoryLatestItems(
 ) {
     const range = getPeriodRange(filters)
     const items: DashboardDetailListItem[] = []
+    const groupNames = scope === "cost" ? FINANCIAL_COST_GROUP_NAMES : FINANCIAL_EXPENSE_GROUP_NAMES
+    const categoryNames = scope === "cost" ? FINANCIAL_COST_CATEGORY_NAMES : FINANCIAL_EXPENSE_CATEGORY_NAMES
 
     if (filters.analysis_status === "realizado" || filters.analysis_status === "previsto" || filters.analysis_status === "ambos") {
         const realized = await prisma.lancamento.findMany({
@@ -1064,7 +1087,10 @@ async function getCategoryLatestItems(
                 categoria_id: categoriaId,
                 tipo: TipoLancamento.DESPESA,
                 data_competencia: { gte: range.start, lte: range.end },
-                ...(scope === "cost" ? { centro_custo_id: { not: null } } : { centro_custo_id: null }),
+                OR: [
+                    { categoria: { categoria_pai: { nome: { in: groupNames } } } },
+                    { categoria: { nome: { in: categoryNames } } },
+                ],
                 NOT: {
                     OR: [
                         { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
@@ -1171,8 +1197,8 @@ export async function getDashboardTopExpensesData(
         title: "Maiores despesas do período",
         subtitle:
             scope === "cost"
-                ? "Custos realizados por categoria com centro de custo."
-                : "Despesas realizadas por categoria no período.",
+                ? "Custos realizados por categoria direta."
+                : "Despesas realizadas por categoria operacional.",
         scope,
         total_despesas: totalDespesas,
         items,
@@ -1398,8 +1424,8 @@ export async function getDashboardExpenseCategoryDetailData(
         title: scope === "cost" ? "Custos realizados" : "Despesas realizadas",
         subtitle:
             scope === "cost"
-                ? "Base realizada da categoria com centro de custo."
-                : "Base realizada da categoria no periodo.",
+                ? "Base realizada da categoria classificada como custo."
+                : "Base realizada da categoria classificada como despesa.",
         scope,
         category: {
             categoria_id: category.categoria_id,
