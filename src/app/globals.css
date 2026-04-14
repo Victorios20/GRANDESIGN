@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ================================================
+   GRANDESIGN — Design System Tokens
+   Fonte de verdade: .agent/docs/guia-de-estilo/brand.md
+   NUNCA criar cores fora daqui.
+   ================================================ */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -44,72 +50,116 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ── Paleta Grandesign (núcleo) ── */
+  --brand-primary:   #2c201b;  /* texto forte, títulos, ícones */
+  --brand-secondary: #393316;  /* botão primário, heading, CTA */
+  --brand-accent:    #f5d193;  /* destaques, badges suaves */
+  --brand-bg:        #FAF3E0;  /* fundo geral de páginas */
+
+  /* ── Superfícies (derivadas) ── */
+  --surface-page:      #F7F4EE;  /* fundo de páginas operacionais */
+  --surface-white:     #ffffff;  /* cards, tabelas */
+  --surface-header:    #faf8f3;  /* cabeçalho de tabela */
+  --surface-subtle:    #faf8f4;  /* hover linha padrão */
+  --surface-selection: #f6f2e7;  /* linha selecionada */
+  --surface-hover-sel: #f3ecdc;  /* hover de linha selecionada */
+  --surface-panel:     #f7f4ed;  /* toolbar, painel de seleção */
+
+  /* ── Bordas ── */
+  --border-shell:   #e8e1d6;  /* cards, shells principais */
+  --border-th:      #e7e0d4;  /* cabeçalho de tabela */
+  --border-row:     #efe8dc;  /* linhas de tabela */
+  --border-control: #d9d3c8;  /* inputs, botões outline */
+  --border-badge:   #ddd7cc;  /* badges, chips */
+
+  /* ── Texto ── */
+  --text-primary:   #2c201b;  /* texto padrão */
+  --text-secondary: #6f6556;  /* subtítulos */
+  --text-muted:     #7b705f;  /* placeholder, ícones */
+  --text-faint:     #9a8f7c;  /* texto muito mudo */
+  --text-date:      #5b5347;  /* datas, entregas */
+
+  /* ── Gráficos Recharts (paleta terrosa) ── */
+  --chart-1: #8B5E3C;  /* marrom */
+  --chart-2: #D9A84E;  /* dourado */
+  --chart-3: #376139;  /* verde */
+  --chart-4: #3D5A7E;  /* azul acinzentado */
+  --chart-5: #8F3F37;  /* vermelho terra */
+
+  /* ── Shadcn tokens → mapeados para paleta Grandesign ── */
+  --radius: 0.5rem;  /* base = rounded-lg (8px) */
+
+  --background:         var(--surface-page);
+  --foreground:         var(--text-primary);
+
+  --card:               var(--surface-white);
+  --card-foreground:    var(--text-primary);
+
+  --popover:            var(--surface-white);
+  --popover-foreground: var(--text-primary);
+
+  --primary:            var(--brand-secondary);
+  --primary-foreground: var(--brand-bg);
+
+  --secondary:          var(--surface-panel);
+  --secondary-foreground: var(--text-primary);
+
+  --muted:              var(--surface-panel);
+  --muted-foreground:   var(--text-muted);
+
+  --accent:             var(--surface-subtle);
+  --accent-foreground:  var(--text-primary);
+
+  --destructive: #8F3F37;
+
+  --border: var(--border-shell);
+  --input:  var(--border-control);
+  --ring:   rgba(57, 51, 22, 0.15);
+
+  /* ── Sidebar tokens ── */
+  --sidebar:                    #FFFCF7;
+  --sidebar-foreground:         var(--text-primary);
+  --sidebar-primary:            var(--brand-secondary);
+  --sidebar-primary-foreground: var(--brand-bg);
+  --sidebar-accent:             #F8EFD9;
+  --sidebar-accent-foreground:  var(--text-primary);
+  --sidebar-border:             rgba(44, 32, 27, 0.08);
+  --sidebar-ring:               rgba(245, 209, 147, 0.72);
 }
 
+/* Dark mode — mantido genérico por enquanto */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --background:         oklch(0.145 0 0);
+  --foreground:         oklch(0.985 0 0);
+  --card:               oklch(0.205 0 0);
+  --card-foreground:    oklch(0.985 0 0);
+  --popover:            oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary:            oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary:          oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --muted:              oklch(0.269 0 0);
+  --muted-foreground:   oklch(0.708 0 0);
+  --accent:             oklch(0.269 0 0);
+  --accent-foreground:  oklch(0.985 0 0);
+  --destructive:        oklch(0.704 0.191 22.216);
+  --border:             oklch(1 0 0 / 10%);
+  --input:              oklch(1 0 0 / 15%);
+  --ring:               oklch(0.556 0 0);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar:                    oklch(0.205 0 0);
+  --sidebar-foreground:         oklch(0.985 0 0);
+  --sidebar-primary:            oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-accent:             oklch(0.269 0 0);
+  --sidebar-accent-foreground:  oklch(0.985 0 0);
+  --sidebar-border:             oklch(1 0 0 / 10%);
+  --sidebar-ring:               oklch(0.556 0 0);
 }
 
 @layer base {
@@ -120,3 +170,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Utilitários de página (compatibilidade com código legado) ── */
+.bg-bege-pagina { background-color: var(--surface-page); }
+.bg-brand        { background-color: var(--brand-bg); }
+.bg-brand-primary  { background-color: var(--brand-primary); }
+.bg-brand-accent   { background-color: var(--brand-accent); }
+.text-brand        { color: var(--brand-primary); }
+.text-brand-secondary { color: var(--brand-secondary); }
+.text-brand-accent { color: var(--brand-accent); }

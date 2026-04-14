@@ -5,10 +5,12 @@ import type { CheckedState } from "@radix-ui/react-checkbox"
 import { Calendar, MoreVertical, TrendingDown, TrendingUp } from "lucide-react"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
+import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { canIntegratePedido, canReversePedidoIntegration, getPedidoFinanceBadgeClass, getPedidoFinanceLabel } from "@/lib/pedido-compra-finance"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { StatusSlug } from "@/lib/pedido-compra-theme"
 import { calcVariancePercent, formatMoney, fromSlugStatus } from "@/lib/pedido-compra-utils"
@@ -25,8 +27,14 @@ type Props = {
   onToggleOrderSelection: (orderId: string, checked: boolean) => void
   onOrderClick: (order: PurchaseOrder) => void
   onViewOrder: (order: PurchaseOrder) => void
+  onOpenFinanceAction: (kind: "integrate" | "reverse", ids: Array<string | number>) => void
   onDeleteOrder: (order: PurchaseOrder) => void
+  sortBy: PedidoCompraSortBy
+  sortOrder: "asc" | "desc"
+  onSortChange: (column: PedidoCompraSortBy) => void
 }
+
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
 
 function formatSafeDate(dateValue: string | null | undefined) {
   if (!dateValue) return "Sem data"
@@ -41,7 +49,11 @@ export function PedidoCompraListTable({
   onToggleOrderSelection,
   onOrderClick,
   onViewOrder,
+  onOpenFinanceAction,
   onDeleteOrder,
+  sortBy,
+  sortOrder,
+  onSortChange,
 }: Props) {
   return (
     <section className={cn(listShellClass, "overflow-hidden")}>
@@ -55,14 +67,30 @@ export function PedidoCompraListTable({
                 aria-label="Selecionar pedidos visíveis"
               />
             </TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Número</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Descrição</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Status</TableHead>
-            <TableHead className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Valor previsto</TableHead>
-            <TableHead className="px-3 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Valor realizado</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Entrega</TableHead>
-            <TableHead className="px-3 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Integração</TableHead>
+            <SortableHeader column="number" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Número
+            </SortableHeader>
+            <SortableHeader column="description" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Descrição
+            </SortableHeader>
+            <SortableHeader column="category" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Categoria
+            </SortableHeader>
+            <SortableHeader column="status" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Status
+            </SortableHeader>
+            <SortableHeader column="value" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
+              Valor previsto
+            </SortableHeader>
+            <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
+              Valor realizado
+            </SortableHeader>
+            <SortableHeader column="delivery" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Entrega
+            </SortableHeader>
+            <SortableHeader column="integration" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+              Integração
+            </SortableHeader>
             <TableHead className="w-14 px-3 py-3" />
           </TableRow>
         </TableHeader>
@@ -151,7 +179,9 @@ export function PedidoCompraListTable({
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">
-                  <span className={listIntegrationBadgeClass}>Não integrado</span>
+                  <span className={`${listIntegrationBadgeClass} ${getPedidoFinanceBadgeClass(order.financeiroIntegracaoStatus)}`}>
+                    {getPedidoFinanceLabel(order.financeiroIntegracaoStatus)}
+                  </span>
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">
@@ -166,14 +196,24 @@ export function PedidoCompraListTable({
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#ddd7cc]">
+                      <DropdownMenuContent align="end" className="w-48 rounded-xl border-[#ddd7cc]">
                       <DropdownMenuItem onClick={() => onViewOrder(order)}>Visualizar pedido</DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem className="text-[#8f3f37]" onClick={() => onDeleteOrder(order)}>
-                        Excluir pedido
-                      </DropdownMenuItem>
+                      {!order.integrated ? (
+                        <DropdownMenuItem asChild>
+                          <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
+                        </DropdownMenuItem>
+                      ) : null}
+                      {canIntegratePedido(order.financeiroIntegracaoStatus) ? (
+                        <DropdownMenuItem onClick={() => onOpenFinanceAction("integrate", [order.id])}>Integrar financeiro</DropdownMenuItem>
+                      ) : null}
+                      {canReversePedidoIntegration(order.financeiroIntegracaoStatus) ? (
+                        <DropdownMenuItem onClick={() => onOpenFinanceAction("reverse", [order.id])}>Estornar integração financeira</DropdownMenuItem>
+                      ) : null}
+                      {!order.integrated ? (
+                        <DropdownMenuItem className="text-[#8f3f37]" onClick={() => onDeleteOrder(order)}>
+                          Excluir pedido
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

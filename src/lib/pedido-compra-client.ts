@@ -92,3 +92,55 @@ export async function deletePedidoCompraBulkRequest(ids: Array<string | number>)
 
   return body?.data
 }
+
+export async function integratePedidoCompraRequest(pedidoId: string | number) {
+  const response = await fetch(`/api/pedido_compra/integrar/${pedidoId}`, { method: "POST" })
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(body, "Falha ao integrar pedido ao financeiro"))
+  }
+
+  return body?.data
+}
+
+export async function integratePedidoCompraBulkRequest(ids: Array<string | number>) {
+  const response = await fetch("/api/pedido_compra/integrar/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  })
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(body, "Falha ao integrar pedidos ao financeiro"))
+  }
+
+  return body?.data
+}
+
+export async function reversePedidoCompraIntegrationRequest(pedidoId: string | number) {
+  const response = await fetch(`/api/pedido_compra/estornar/${pedidoId}`, { method: "POST" })
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(body, "Falha ao estornar integração financeira"))
+  }
+
+  return body?.data
+}
+
+export async function reversePedidoCompraIntegrationBulkRequest(ids: Array<string | number>) {
+  const response = await fetch("/api/pedido_compra/estornar/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  })
+  const body = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(body, "Falha ao estornar integrações financeiras"))
+  }
+
+  return body?.data
+}

@@ -66,6 +66,28 @@ import {
   getComponentes, createComponente, updateComponente, deleteComponente,
   FornecedorDTO, MaterialDTO, ComponenteDTO
 } from "@/services/api/cadastros"
+import { ConfigurationPageIntro } from "@/components/configuracoes/ConfigurationChrome"
+import {
+  operationalListPageBackgroundClass,
+  operationalListPrimaryButtonClass,
+  operationalListShellClass,
+} from "@/components/ui/operational-list-styles"
+
+type CadastrosItem = {
+  id: number
+  nome?: string
+  descricao?: string
+  tipo?: string | null
+  preco_unitario?: number
+  cor?: string | null
+}
+
+type MaterialPayload = {
+  descricao: string
+  preco_unitario: number
+  fornecedorId?: number
+  tipo: "geral" | "madeira" | "telha" | "andaime"
+}
 
 export default function CadastrosPage() {
   // Navigation state
@@ -90,9 +112,9 @@ export default function CadastrosPage() {
   // Modal states
   const [modalOpen, setModalOpen] = useState(false)
   const [modalType, setModalType] = useState<"material" | "componente" | "fornecedor" | "madeira" | "telha" | "andaime" | "equipe" | "cidade">("material")
-  const [editingItem, setEditingItem] = useState<any>(null)
+  const [editingItem, setEditingItem] = useState<CadastrosItem | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [itemToDelete, setItemToDelete] = useState<{ type: string; item: any } | null>(null)
+  const [itemToDelete, setItemToDelete] = useState<{ type: string; item: CadastrosItem } | null>(null)
 
   // Form state
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -103,7 +125,7 @@ export default function CadastrosPage() {
       setLoading(true)
       const data = await getFornecedores()
       setFornecedores(data)
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar fornecedores")
     } finally {
       setLoading(false)
@@ -115,7 +137,7 @@ export default function CadastrosPage() {
       setLoading(true)
       const data = await getMateriais()
       setMateriais(data)
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar materiais")
     } finally {
       setLoading(false)
@@ -127,7 +149,7 @@ export default function CadastrosPage() {
       setLoading(true)
       const data = await getComponentes()
       setComponentes(data)
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar componentes")
     } finally {
       setLoading(false)
@@ -141,7 +163,7 @@ export default function CadastrosPage() {
       if (!res.ok) throw new Error("Falha ao buscar equipes")
       const json = await res.json()
       setEquipes(json.data || [])
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar equipes")
     } finally {
       setLoading(false)
@@ -155,7 +177,7 @@ export default function CadastrosPage() {
       if (!res.ok) throw new Error("Falha ao buscar cidades")
       const json = await res.json()
       setCidades(json || [])
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar cidades")
     } finally {
       setLoading(false)
@@ -244,7 +266,7 @@ export default function CadastrosPage() {
     setModalOpen(true)
   }
 
-  const openEditModal = (type: typeof modalType, item: any) => {
+  const openEditModal = (type: typeof modalType, item: CadastrosItem) => {
     setModalType(type)
     setEditingItem(item)
 
@@ -252,15 +274,15 @@ export default function CadastrosPage() {
     if (type === "fornecedor") {
       // Normalize tipo to lowercase since DB stores in uppercase
       const tipoNormalized = item.tipo?.toLowerCase() || "material"
-      setFormData({ nome: item.nome, tipo: tipoNormalized })
+      setFormData({ nome: item.nome || "", tipo: tipoNormalized })
     } else if (type === "material" || type === "madeira" || type === "telha" || type === "andaime") {
-      setFormData({ nome: item.descricao, preco: String(item.preco_unitario) })
+      setFormData({ nome: item.descricao || "", preco: String(item.preco_unitario ?? "") })
     } else if (type === "componente") {
-      setFormData({ nome: item.nome })
+      setFormData({ nome: item.nome || "" })
     } else if (type === "equipe") {
-      setFormData({ nome: item.nome, cor: item.cor || "" })
+      setFormData({ nome: item.nome || "", cor: item.cor || "" })
     } else if (type === "cidade") {
-      setFormData({ nome: item.nome, cor: item.cor || "" })
+      setFormData({ nome: item.nome || "", cor: item.cor || "" })
     }
 
     setModalOpen(true)
@@ -296,16 +318,15 @@ export default function CadastrosPage() {
         }
         await loadFornecedores()
       } else if (modalType === "material" || modalType === "madeira" || modalType === "telha" || modalType === "andaime") {
-        const payload: any = {
+        const payload: MaterialPayload = {
           descricao: formData.nome,
-          preco_unitario: parseFloat(formData.preco) || 0
+          preco_unitario: parseFloat(formData.preco) || 0,
+          tipo: "geral",
         }
 
         if (modalType === "madeira" || modalType === "telha" || modalType === "andaime") {
           payload.fornecedorId = selectedFornecedor?.id
           payload.tipo = modalType
-        } else {
-          payload.tipo = "geral"
         }
 
         if (editingItem) {
@@ -375,14 +396,14 @@ export default function CadastrosPage() {
       setModalOpen(false)
       setFormData({})
       setEditingItem(null)
-    } catch (error) {
+    } catch {
       toast.error("Erro ao salvar")
     } finally {
       setProcessing(false)
     }
   }
 
-  const openDeleteDialog = (type: string, item: any) => {
+  const openDeleteDialog = (type: string, item: CadastrosItem) => {
     setItemToDelete({ type, item })
     setDeleteDialogOpen(true)
   }
@@ -419,7 +440,7 @@ export default function CadastrosPage() {
 
       setDeleteDialogOpen(false)
       setItemToDelete(null)
-    } catch (error) {
+    } catch {
       toast.error("Erro ao excluir")
     } finally {
       setProcessing(false)
@@ -464,14 +485,20 @@ export default function CadastrosPage() {
   }
 
   const filteredData = getFilteredData()
-
   return (
     <PageLayout
-      pageBackground="bg-bege-pagina"
+      pageBackground={operationalListPageBackgroundClass}
     >
       <Toaster richColors />
 
       <div className="space-y-6">
+        <ConfigurationPageIntro
+          eyebrow="Cadastro operacional"
+          title="Cadastros"
+          description="Fornecedores, materiais, componentes, equipes e cidades no mesmo shell visual do restante do sistema."
+        />
+
+
         {selectedFornecedor ? (
           // Fornecedor Detail View
           <Card className="bg-card border-border">
@@ -500,7 +527,7 @@ export default function CadastrosPage() {
                 </div>
                 <Button
                   onClick={() => openAddModal(getAddButtonType())}
-                  className="bg-marromEscuro text-bege hover:bg-marromEscuro/90"
+                  className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Adicionar {selectedFornecedor.tipo?.toLowerCase() === "madeira" ? "Madeira" : selectedFornecedor.tipo?.toLowerCase() === "andaime" ? "Andaime" : "Telha"}
@@ -591,7 +618,7 @@ export default function CadastrosPage() {
         ) : (
           // Main Tabs View
           <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as Category)}>
-            <TabsList className="grid w-full grid-cols-6 h-auto p-1">
+            <TabsList className={cn(operationalListShellClass, "grid w-full grid-cols-6 h-auto gap-1 p-1")}>
               <TabsTrigger value="fornecedores" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Truck className="w-4 h-4" />
                 <span className="hidden lg:inline">Fornecedores</span>
@@ -644,7 +671,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('fornecedor')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('fornecedor')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Fornecedor
                     </Button>
@@ -768,7 +795,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('material')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('material')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Material
                     </Button>
@@ -849,7 +876,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('telha')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('telha')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Nova Telha
                     </Button>
@@ -932,7 +959,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('componente')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('componente')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Novo Componente
                     </Button>
@@ -1013,7 +1040,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('equipe')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('equipe')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Nova Equipe
                     </Button>
@@ -1104,7 +1131,7 @@ export default function CadastrosPage() {
                         className="pl-10"
                       />
                     </div>
-                    <Button onClick={() => openAddModal('cidade')} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+                    <Button onClick={() => openAddModal('cidade')} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
                       <Plus className="w-4 h-4 mr-2" />
                       Nova Cidade
                     </Button>
@@ -1298,7 +1325,7 @@ export default function CadastrosPage() {
             <Button variant="outline" onClick={() => setModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSubmit} disabled={processing} className="bg-marromEscuro text-bege hover:bg-marromEscuro/90">
+            <Button onClick={handleSubmit} disabled={processing} className={cn(operationalListPrimaryButtonClass, "h-10 px-4")}>
               {processing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {editingItem ? "Salvar" : "Adicionar"}
             </Button>

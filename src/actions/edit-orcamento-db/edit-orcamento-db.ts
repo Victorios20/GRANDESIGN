@@ -451,7 +451,6 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
             /** NOVO: atualiza id_fornecedor e observações */
             id_fornecedor: resolvedFornecedorId,
             observacoes: cleanTextOrNull(input.observacoes),
-            cor_stain: cleanTextOrNull(input.cor_stain),
             totais_madeiras_preco: nonNeg(input.totais.madeiras),
             totais_materiais_preco: nonNeg(input.totais.materiais),
             totais_comissao_preco: nonNeg(input.totais.comissao),

@@ -18,11 +18,24 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { editableStatusList, statusConfig } from "@/lib/pedido-compra-theme"
-import { updatePedidoCompraStatusRequest } from "@/lib/pedido-compra-client"
+import {
+  integratePedidoCompraRequest,
+  reversePedidoCompraIntegrationRequest,
+  updatePedidoCompraStatusRequest,
+} from "@/lib/pedido-compra-client"
+import {
+  canIntegratePedido,
+  canReversePedidoIntegration,
+  getPayableStatusLabel,
+  getPedidoFinanceBadgeClass,
+  getPedidoFinanceLabel,
+  isPedidoIntegrated,
+} from "@/lib/pedido-compra-finance"
 import { formatDateLongBR, formatMoney, normalizeStatus, formatPedidoId, calcVariance } from "@/lib/pedido-compra-utils"
 import type {
   PedidoCompraDetalhadoSnake,
   PedidoCompraSummaryInitialData,
+  PedidoFinanceIntegrationStatus,
   PedidoStatus,
 } from "@/types/pedido-compra"
 
@@ -54,6 +67,9 @@ function buildFallbackData(
     valorOrcado: initialData?.valorOrcado ?? null,
     valorRealizado: initialData?.valorRealizado ?? null,
     dataEntrega: initialData?.dataEntrega ?? null,
+    integracaoFinanceiraStatus: initialData?.integracaoFinanceiraStatus ?? (initialData?.integrado ? "INTEGRADO" : "NAO_INTEGRADO"),
+    financeiroContaPagarId: initialData?.financeiroContaPagarId ?? null,
+    financeiroContaPagarStatus: initialData?.financeiroContaPagarStatus ?? null,
   } satisfies PedidoCompraSummaryInitialData
 }
 
@@ -69,6 +85,9 @@ function buildFallbackFromDetails(details: PedidoCompraDetalhadoSnake): PedidoCo
     valorOrcado: details.valor_orcado ?? null,
     valorRealizado: details.valor_realizado ?? null,
     dataEntrega: details.data_entrega ?? null,
+    integracaoFinanceiraStatus: details.financeiro_integracao_status,
+    financeiroContaPagarId: details.financeiro_conta_pagar_id,
+    financeiroContaPagarStatus: details.financeiro_conta_pagar_status,
   }
 }
 
@@ -126,6 +145,7 @@ export function PedidoCompraSummaryModal({
   const [statusEditorOpen, setStatusEditorOpen] = React.useState(false)
   const [statusDraft, setStatusDraft] = React.useState<PedidoStatus>("RASCUNHO")
   const [statusSaving, setStatusSaving] = React.useState(false)
+  const [financeActionSaving, setFinanceActionSaving] = React.useState(false)
   type DisplayData = PedidoCompraSummaryInitialData & Partial<PedidoCompraDetalhadoSnake>
 
   React.useEffect(() => {
@@ -172,6 +192,13 @@ export function PedidoCompraSummaryModal({
   const displayPrevisto = details?.valor_orcado ?? data?.valorOrcado ?? null
   const displayRealizado = details?.valor_realizado ?? data?.valorRealizado ?? null
   const currentStatus = normalizeStatus(String(details?.status ?? data?.status ?? "RASCUNHO"))
+  const integrationStatus =
+    (details?.financeiro_integracao_status ??
+      data?.integracaoFinanceiraStatus ??
+      (data?.integrado ? "INTEGRADO" : "NAO_INTEGRADO")) as PedidoFinanceIntegrationStatus
+  const linkedPayableId = details?.financeiro_conta_pagar_id ?? data?.financeiroContaPagarId ?? null
+  const linkedPayableStatus = details?.financeiro_conta_pagar_status ?? data?.financeiroContaPagarStatus ?? null
+  const integrated = isPedidoIntegrated(integrationStatus)
 
   React.useEffect(() => {
     setStatusDraft(currentStatus)
@@ -208,6 +235,32 @@ export function PedidoCompraSummaryModal({
       toast.error(error instanceof Error ? error.message : "Falha ao atualizar status")
     } finally {
       setStatusSaving(false)
+    }
+  }
+
+  const handleFinanceAction = async (kind: "integrate" | "reverse") => {
+    if (!pedidoId) return
+
+    setFinanceActionSaving(true)
+    setError(null)
+
+    try {
+      if (kind === "integrate") {
+        await integratePedidoCompraRequest(pedidoId)
+        toast.success("Pedido integrado ao financeiro")
+      } else {
+        await reversePedidoCompraIntegrationRequest(pedidoId)
+        toast.success("Integração financeira estornada")
+      }
+
+      await refreshDetails({ silent: true })
+      await onMutationComplete?.()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Falha ao executar ação financeira"
+      setError(message)
+      toast.error(message)
+    } finally {
+      setFinanceActionSaving(false)
     }
   }
 
@@ -362,6 +415,36 @@ export function PedidoCompraSummaryModal({
               </div>
             </div>
 
+            <div className="grid gap-4 rounded-lg border bg-white p-4 sm:grid-cols-3">
+              <div>
+                <span className="block text-xs text-muted-foreground">Integração financeira</span>
+                <span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getPedidoFinanceBadgeClass(integrationStatus)}`}>
+                  {getPedidoFinanceLabel(integrationStatus)}
+                </span>
+              </div>
+
+              <div>
+                <span className="block text-xs text-muted-foreground">Conta a pagar vinculada</span>
+                {linkedPayableId ? (
+                  <a
+                    href={`/contas-pagar?highlight=${linkedPayableId}`}
+                    onClick={() => onOpenChange(false)}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-[#393316] underline-offset-2 hover:underline"
+                  >
+                    #{linkedPayableId}
+                    <ExternalLink className="h-3 w-3 opacity-60" />
+                  </a>
+                ) : (
+                  <span className="text-sm font-medium">—</span>
+                )}
+              </div>
+
+              <div>
+                <span className="block text-xs text-muted-foreground">Status financeiro</span>
+                <span className="text-sm font-medium">{getPayableStatusLabel(linkedPayableStatus)}</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold uppercase tracking-wider">Itens do pedido</h3>
@@ -413,7 +496,17 @@ export function PedidoCompraSummaryModal({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
-          {pedidoId && onEdit ? <Button onClick={() => onEdit(pedidoId)}>Editar pedido</Button> : null}
+          {pedidoId && canIntegratePedido(integrationStatus) ? (
+            <Button variant="outline" onClick={() => void handleFinanceAction("integrate")} disabled={financeActionSaving}>
+              {financeActionSaving ? "Integrando..." : "Integrar financeiro"}
+            </Button>
+          ) : null}
+          {pedidoId && canReversePedidoIntegration(integrationStatus) ? (
+            <Button variant="outline" onClick={() => void handleFinanceAction("reverse")} disabled={financeActionSaving}>
+              {financeActionSaving ? "Estornando..." : "Estornar integração"}
+            </Button>
+          ) : null}
+          {pedidoId && onEdit && !integrated ? <Button onClick={() => onEdit(pedidoId)}>Editar pedido</Button> : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

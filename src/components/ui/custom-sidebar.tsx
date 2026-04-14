@@ -1,81 +1,156 @@
 "use client"
 
+import * as React from "react"
+import Image from "next/image"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { signOut, useSession } from "next-auth/react"
 import {
+  ArrowRightToLine,
+  ChevronDown,
+  Loader2,
+  type LucideIcon,
+} from "lucide-react"
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
+  SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar"
-
 import {
-  HomeIcon,
-  PlusIcon,
-  LogOutIcon,
-  ClockIcon,
-  Loader2,
-  Users2,
-  HardHat,
-  ShoppingCart,
-  CalendarDays,
-  Settings as SettingsIcon,
-  Contact,
-} from "lucide-react"
-
-import Link from "next/link"
-import Image from "next/image"
-import { usePathname } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
+  SIDEBAR_NAVIGATION,
+  type SidebarChildItem,
+  type SidebarGroupItem,
+  type SidebarLinkItem,
+  type SidebarNavigationItem,
+  filterSidebarNavigation,
+  getActiveGroupIds,
+  isActivePath,
+  isSidebarGroupItem,
+  isSidebarLinkItem,
+} from "@/components/ui/sidebar-navigation"
 import { cn } from "@/lib/utils"
-import { motion, AnimatePresence } from "framer-motion"
-import { TooltipProvider } from "@/components/ui/tooltip"
-import { useSidebar } from "@/components/ui/sidebar"
-import { signOut, useSession } from "next-auth/react"
-import versionInfo from "@/../version.json"
 
-function formatPtBR(dateIso: string) {
-  try {
-    const d = new Date(dateIso)
-    return new Intl.DateTimeFormat("pt-BR").format(d)
-  } catch {
-    return "-"
+const SIDEBAR_THEME = {
+  "--sidebar": "#FFFCF7",
+  "--sidebar-foreground": "#2C201B",
+  "--sidebar-accent": "#F8EFD9",
+  "--sidebar-accent-foreground": "#2C201B",
+  "--sidebar-border": "rgba(44, 32, 27, 0.08)",
+  "--sidebar-ring": "rgba(245, 209, 147, 0.72)",
+} as React.CSSProperties
+
+const focusRingClass =
+  "focus-visible:ring-2 focus-visible:ring-[#F5D193]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFCF7] outline-none"
+
+type SidebarNavIconProps = {
+  icon?: LucideIcon
+  active?: boolean
+  compact?: boolean
+}
+
+function SidebarNavIcon({
+  icon: Icon,
+  active = false,
+  compact = false,
+}: SidebarNavIconProps) {
+  if (!Icon) {
+    return null
   }
+
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex shrink-0 items-center justify-center border transition-[background-color,border-color,color] duration-150 ease-out",
+        "size-7 rounded-[10px]",
+        compact && "size-8 rounded-[12px]",
+        active
+          ? "border-[#393316]/16 bg-[#393316]/8 text-[#393316]"
+          : "border-[#2C201B]/8 bg-white/35 text-[#2C201B]/58 group-hover/sidebar-link:border-[#2C201B]/14 group-hover/sidebar-link:bg-white/70 group-hover/sidebar-link:text-[#2C201B]/88"
+      )}
+    >
+      <Icon
+        className={cn(
+          "shrink-0",
+          compact ? "size-[17.5px]" : "size-[16.5px]"
+        )}
+        strokeWidth={1.95}
+      />
+    </span>
+  )
+}
+
+function getUserInitials(name?: string | null, email?: string | null) {
+  const source = name?.trim() || email?.trim() || "Grandesign"
+  const parts = source.split(/\s+/).filter(Boolean)
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+
+  return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase()
 }
 
 export function CustomSidebar() {
-  const { open: isOpen } = useSidebar()
-  const { data: session, status } = useSession()
-
   const pathname = usePathname()
-  const [loggingOut, setLoggingOut] = useState(false)
+  const { data: session } = useSession()
+  const { state, isMobile } = useSidebar()
+  const [loggingOut, setLoggingOut] = React.useState(false)
+  const [openGroupIds, setOpenGroupIds] = React.useState<string[]>(() =>
+    getActiveGroupIds(pathname, SIDEBAR_NAVIGATION)
+  )
+  const sessionUser = session?.user as
+    | {
+        name?: string | null
+        email?: string | null
+        image?: string | null
+        roles?: unknown[]
+      }
+    | undefined
 
-  const isActive = (href: string) => pathname.startsWith(href)
+  const isCollapsed = !isMobile && state === "collapsed"
 
-  const iconClass = (active: boolean) =>
-    cn("size-5 transition-all duration-300", active && "text-primary scale-110")
+  const rolesUpper = React.useMemo(() => {
+    const roles = sessionUser?.roles ?? []
+    return Array.isArray(roles) ? roles.map((role) => String(role).toUpperCase()) : []
+  }, [sessionUser])
 
-  const menuItemVariants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: (i: number) => ({
-      opacity: 1,
-      x: 0,
-      transition: { delay: i * 0.05, duration: 0.3 },
-    }),
-  }
+  const navigationItems = React.useMemo(
+    () => filterSidebarNavigation(SIDEBAR_NAVIGATION, rolesUpper),
+    [rolesUpper]
+  )
+  const activeGroupIds = React.useMemo(
+    () => getActiveGroupIds(pathname, navigationItems),
+    [navigationItems, pathname]
+  )
 
-  const submenuVariants = {
-    hidden: { opacity: 0, height: 0 },
-    visible: {
-      opacity: 1,
-      height: "auto",
-      transition: { duration: 0.3, when: "beforeChildren", staggerChildren: 0.05 },
-    },
-    exit: { opacity: 0, height: 0, transition: { duration: 0.2 } },
-  }
+  React.useEffect(() => {
+    if (activeGroupIds.length === 0) {
+      return
+    }
+
+    setOpenGroupIds(activeGroupIds)
+  }, [activeGroupIds])
+
+  const toggleGroup = React.useCallback((groupId: string) => {
+    setOpenGroupIds((current) =>
+      current.includes(groupId)
+        ? []
+        : [groupId]
+    )
+  }, [])
 
   async function handleLogout() {
     try {
@@ -86,333 +161,292 @@ export function CustomSidebar() {
     }
   }
 
-  const rolesUpper = useMemo(() => {
-    const rs = (session?.user as any)?.roles ?? []
-    return Array.isArray(rs) ? rs.map((r: any) => String(r).toUpperCase()) : []
-  }, [session])
+  const renderLinkItem = React.useCallback(
+    ({
+      item,
+      nested = false,
+      compact = false,
+    }: {
+      item: SidebarLinkItem | SidebarChildItem
+      nested?: boolean
+      compact?: boolean
+    }) => {
+      const active = isActivePath(pathname, item.href)
 
-  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
-  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
+      return (
+        <SidebarMenuItem key={item.href}>
+          <SidebarMenuButton
+            asChild
+            isActive={active}
+            tooltip={isCollapsed && !nested ? item.label : undefined}
+            className={cn(
+              "group/sidebar-link transition-[background-color,border-color,color] duration-150 ease-out",
+              focusRingClass,
+              nested
+                ? "relative flex h-[34px] w-full items-center rounded-none -ml-[1px] border-l-[2px] border-transparent bg-transparent pl-4 text-[13px] font-medium text-[#2C201B]/60 hover:bg-transparent hover:text-[#2C201B] data-[active=true]:border-[#393316] data-[active=true]:bg-transparent data-[active=true]:font-semibold data-[active=true]:text-[#2C201B]"
+                : "flex items-center gap-3 px-3 h-[44px] rounded-[14px] text-sm font-semibold text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316] shadow-[inset_0_0_0_1px_rgba(44,32,27,0)]",
+              compact && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]",
+              isCollapsed && !nested && "h-[44px] w-[44px] justify-center px-0 rounded-[14px]"
+            )}
+          >
+            <Link href={item.href} aria-current={active ? "page" : undefined}>
+              {!nested ? (
+                <SidebarNavIcon
+                  icon={item.icon}
+                  active={active}
+                  compact={compact || isCollapsed}
+                />
+              ) : null}
+              {!compact ? <span className="truncate">{item.label}</span> : <span className="sr-only">{item.label}</span>}
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      )
+    },
+    [isCollapsed, pathname]
+  )
+
+  const renderCollapsedGroup = React.useCallback(
+    (group: SidebarGroupItem) => {
+      const groupActive = group.children.some((item) => isActivePath(pathname, item.href))
+
+      return (
+        <SidebarMenuItem key={group.id}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <SidebarMenuButton
+                type="button"
+                isActive={groupActive}
+                tooltip={group.label}
+                className={cn(
+                  "group/sidebar-link h-[44px] w-[44px] justify-center rounded-[14px] p-0 text-[#2C201B]/84 transition-[background-color,color] duration-150 ease-out",
+                  "hover:bg-[#F7F0E1] hover:text-[#2C201B] data-[active=true]:bg-[#FAF3E0] data-[active=true]:text-[#393316]",
+                  focusRingClass
+                )}
+              >
+                <SidebarNavIcon icon={group.icon} active={groupActive} compact />
+                <span className="sr-only">{group.label}</span>
+              </SidebarMenuButton>
+            </PopoverTrigger>
+            <PopoverContent
+              side="right"
+              align="start"
+              sideOffset={14}
+              className="w-[248px] rounded-[18px] border border-[#2C201B]/10 bg-[#FFFCF7] p-2 shadow-[0_12px_30px_rgba(44,32,27,0.08)]"
+            >
+              <div className="px-2 pb-2 pt-1 text-[10.5px] font-semibold uppercase tracking-[0.24em] text-[#2C201B]/44">
+                {group.label}
+              </div>
+              <div className="ml-2 border-l border-[#2C201B]/10 py-1">
+                <SidebarMenu className="gap-0">
+                  {group.children.map((child) =>
+                    renderLinkItem({ item: child, nested: true, compact: false })
+                  )}
+                </SidebarMenu>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </SidebarMenuItem>
+      )
+    },
+    [pathname, renderLinkItem]
+  )
+
+  const renderExpandedGroup = React.useCallback(
+    (group: SidebarGroupItem) => {
+      const isOpen = openGroupIds.includes(group.id)
+      const groupActive = group.children.some((item) => isActivePath(pathname, item.href))
+      const contentId = `sidebar-group-${group.id}`
+
+      return (
+        <SidebarGroup key={group.id} className="gap-0 p-0">
+          <button
+            type="button"
+            onClick={() => toggleGroup(group.id)}
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            className={cn(
+              "group/sidebar-link flex h-[44px] w-full items-center justify-between rounded-[14px] px-3 text-left text-sm font-semibold transition-[background-color,color] duration-150 ease-out",
+              focusRingClass,
+              groupActive
+                ? "bg-[#FAF3E0] text-[#393316]"
+                : isOpen
+                  ? "bg-[#F8F0E1] text-[#2C201B]"
+                  : "text-[#2C201B]/84 hover:bg-[#F7F0E1] hover:text-[#2C201B]"
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <SidebarNavIcon icon={group.icon} active={groupActive || isOpen} />
+              <span className="truncate">{group.label}</span>
+            </div>
+            <ChevronDown
+              className={cn(
+                "size-[17px] shrink-0 text-[#2C201B]/42 transition-transform duration-200 ease-out",
+                isOpen && "rotate-180"
+              )}
+              strokeWidth={1.9}
+            />
+          </button>
+
+          <div
+            className={cn(
+              "grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-200 ease-out",
+              isOpen ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+            )}
+          >
+            <SidebarGroupContent id={contentId} className="overflow-hidden pl-4 pr-1">
+              <div className="relative mt-1 ml-4 border-l border-[#2C201B]/10 py-1">
+                <SidebarMenu className="gap-0">
+                  {group.children.map((child) =>
+                    renderLinkItem({ item: child, nested: true, compact: false })
+                  )}
+                </SidebarMenu>
+              </div>
+            </SidebarGroupContent>
+          </div>
+        </SidebarGroup>
+      )
+    },
+    [openGroupIds, pathname, renderLinkItem, toggleGroup]
+  )
+
+  const renderNavigationItem = React.useCallback(
+    (item: SidebarNavigationItem, index: number) => {
+      if (item.type === "section") {
+        if (isCollapsed) {
+          return null
+        }
+
+        return (
+          <div
+            key={`${item.label}-${index}`}
+            className={cn(
+              "px-2 pb-2 pt-6 text-[10.5px] font-semibold uppercase tracking-[0.28em] text-[#2C201B]/42",
+              index > 0 && "mt-2"
+            )}
+          >
+            {item.label}
+          </div>
+        )
+      }
+
+      if (isSidebarLinkItem(item)) {
+        return (
+          <SidebarMenu key={item.href} className="gap-0">
+            {renderLinkItem({ item, compact: isCollapsed })}
+          </SidebarMenu>
+        )
+      }
+
+      if (isSidebarGroupItem(item)) {
+        return isCollapsed ? (
+          <SidebarMenu key={item.id} className="gap-0">
+            {renderCollapsedGroup(item)}
+          </SidebarMenu>
+        ) : (
+          renderExpandedGroup(item)
+        )
+      }
+
+      return null
+    },
+    [isCollapsed, renderCollapsedGroup, renderExpandedGroup, renderLinkItem]
+  )
+
+  const primaryIdentity = sessionUser?.name?.trim() || sessionUser?.email?.trim() || "Arthur"
+  const secondaryIdentity =
+    sessionUser?.name?.trim() && sessionUser.email?.trim()
+      ? sessionUser.email.trim()
+      : "Conta ativa"
+  const userImage = sessionUser?.image || undefined
+  const userInitials = getUserInitials(sessionUser?.name, sessionUser?.email)
 
   return (
-    <motion.aside
-      initial={{ width: isOpen ? 240 : 80 }}
-      animate={{ width: isOpen ? 240 : 80 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-      className={cn("h-screen bg-sidebar border-r border-zinc-200 transition-all flex flex-col")}
+    <Sidebar
+      variant="inset"
+      collapsible="icon"
+      className="border-r-0"
+      style={SIDEBAR_THEME}
     >
-      <SidebarHeader className="justify-center px-4 py-4">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center"
-        >
-          <Image
-            src="/favicon.ico"
-            alt="Logo"
-            width={32}
-            height={32}
-            className="transition-transform duration-300 hover:scale-110"
-          />
-          {isOpen && (
-            <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.3, delay: 0.1 }}
-              className="ml-2 font-bold text-marromEscuro"
-            >
-              GRANDESIGN
-            </motion.span>
-          )}
-        </motion.div>
+      <SidebarHeader className="border-b border-[#2C201B]/8 px-4 py-5">
+        <div className={cn("flex items-center gap-3.5", isCollapsed && "justify-center")}>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[#2C201B]/6 bg-[#FAF3E0]/80">
+            <Image
+              src="/images/logo.png"
+              alt="Logo da GRANDESIGN"
+              width={34}
+              height={34}
+              className="h-8 w-8 object-contain"
+            />
+          </div>
+          {!isCollapsed ? (
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-semibold tracking-[0.04em] text-[#2C201B]">
+                GRANDESIGN
+              </p>
+            </div>
+          ) : null}
+        </div>
       </SidebarHeader>
 
-      <SidebarContent className="flex-1 overflow-y-hidden">
-        <SidebarMenu>
-          <TooltipProvider delayDuration={300}>
-            <AnimatePresence>
-              {/* Home */}
-              <motion.div custom={0} initial="hidden" animate="visible" variants={menuItemVariants}>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    tooltip="Home"
-                    isActive={pathname === "/"}
-                    className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                  >
-                    <Link href="/">
-                      <HomeIcon className={iconClass(isActive("/"))} />
-                      {isOpen && (
-                        <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                          Home
-                        </motion.span>
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </motion.div>
-            </AnimatePresence>
-          </TooltipProvider>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.2 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: GERAR */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Gerar
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={1} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Novo Orçamento"
-                        isActive={isActive("/orcamento/new")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/orcamento/new">
-                          <PlusIcon className={iconClass(isActive("/orcamento/new"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Novo Orçamento
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.3 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-
-          {/* GRUPO: GERENCIAR */}
-          <SidebarGroup>
-            {isOpen && (
-              <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                Gerenciar
-              </SidebarGroupLabel>
-            )}
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <TooltipProvider delayDuration={300}>
-                  <motion.div custom={2} initial="hidden" animate="visible" variants={menuItemVariants}>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        asChild
-                        tooltip="Orçamentos"
-                        isActive={isActive("/orcamento") && !isActive("/orcamento/new")}
-                        className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                      >
-                        <Link href="/orcamento">
-                          <ClockIcon className={iconClass(isActive("/orcamento"))} />
-                          {isOpen && (
-                            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                              Orçamentos
-                            </motion.span>
-                          )}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </motion.div>
-
-                  {!isVendedor && (
-                    <motion.div custom={3} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip="Clientes"
-                          isActive={isActive("/clientes")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <Link href="/clientes">
-                            <Contact className={iconClass(isActive("/clientes"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Clientes
-                              </motion.span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  )}
-
-                  {!isVendedor && (
-                    <motion.div custom={4} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip="Obras"
-                          isActive={isActive("/obras")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <Link href="/obras">
-                            <HardHat className={iconClass(isActive("/obras"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Obras
-                              </motion.span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  )}
-
-                  {!isVendedor && (
-                    <motion.div custom={5} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip="Calendário"
-                          isActive={isActive("/calendario")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <Link href="/calendario">
-                            <CalendarDays className={iconClass(isActive("/calendario"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Calendário
-                              </motion.span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  )}
-
-                  {!isVendedor && (
-                    <motion.div custom={6} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip="Pedidos de Compra"
-                          isActive={isActive("/pedido_compra")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <Link href="/pedido_compra">
-                            <ShoppingCart className={iconClass(isActive("/pedido_compra"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Pedidos de Compra
-                              </motion.span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-                  )}
-                </TooltipProvider>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-
-          {!isVendedor && (
-            <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="h-px w-full bg-black opacity-10 my-2 origin-left" />
-          )}
-
-          {/* GRUPO: CONFIGURAÇÕES */}
-          {!isVendedor && (
-            <SidebarGroup>
-              {isOpen && (
-                <SidebarGroupLabel className="text-xs font-semibold text-marromEscuro/60 uppercase tracking-wider px-3 py-2">
-                  Configurações
-                </SidebarGroupLabel>
-              )}
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <TooltipProvider delayDuration={300}>
-                    <motion.div custom={7} initial="hidden" animate="visible" variants={menuItemVariants}>
-                      <SidebarMenuItem>
-                        <SidebarMenuButton
-                          asChild
-                          tooltip="Cadastros"
-                          isActive={isActive("/cadastros")}
-                          className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                        >
-                          <Link href="/cadastros">
-                            <SettingsIcon className={iconClass(isActive("/cadastros"))} />
-                            {isOpen && (
-                              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                Cadastros
-                              </motion.span>
-                            )}
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    </motion.div>
-
-                    {canSeeAdmin && (
-                      <motion.div custom={8} initial="hidden" animate="visible" variants={menuItemVariants}>
-                        <SidebarMenuItem>
-                          <SidebarMenuButton
-                            asChild
-                            tooltip="Usuários"
-                            isActive={isActive("/admin/users")}
-                            className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-black/5 transition-all duration-200")}
-                          >
-                            <Link href="/admin/users">
-                              <Users2 className={iconClass(isActive("/admin/users"))} />
-                              {isOpen && (
-                                <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                                  Usuários
-                                </motion.span>
-                              )}
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      </motion.div>
-                    )}
-                  </TooltipProvider>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-
-        </SidebarMenu>
+      <SidebarContent className="px-3 py-4">
+        <div className="flex flex-col gap-1">
+          {navigationItems.map((item, index) => renderNavigationItem(item, index))}
+        </div>
       </SidebarContent>
 
-      <SidebarFooter className="p-2 hover:bg-transparent">
-        <SidebarMenu>
-          <TooltipProvider delayDuration={300}>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                onClick={handleLogout}
-                disabled={loggingOut}
-                aria-busy={loggingOut}
-                tooltip={loggingOut ? "Saindo..." : "Sair"}
-                className={cn(isOpen ? "justify-start" : "justify-center", "hover:bg-transparent transition-all duration-200")}
-              >
-                {loggingOut ? (
-                  <Loader2 className="size-5 animate-spin" />
-                ) : (
-                  <LogOutIcon className="size-5 transition-all duration-300 hover:rotate-12" />
-                )}
-                {isOpen && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="ml-2">
-                    {loggingOut ? "Saindo..." : "Sair"}
-                  </motion.span>
-                )}
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </TooltipProvider>
-        </SidebarMenu>
+      <SidebarSeparator className="bg-[#2C201B]/8" />
 
-        <div className="w-full flex items-center justify-center pt-2 mt-1 border-t border-marromClaro/20">
-          <span className="text-marromEscuro text-xs font-medium select-none">
-            Versão {versionInfo.version} | {formatPtBR(versionInfo.releasedAt)}
-          </span>
+      <SidebarFooter className="px-3 py-4">
+        <div className={cn("rounded-[18px] border border-[#2C201B]/10 bg-[#FCF8EF] p-3", isCollapsed && "p-2.5")}>
+          <div className={cn("flex items-center gap-3", isCollapsed && "justify-center")}>
+            <Avatar className="size-11 border border-[#2C201B]/8 bg-white/70">
+              <AvatarImage src={userImage} alt={primaryIdentity} className="object-cover" />
+              <AvatarFallback className="bg-[#FAF3E0] text-xs font-semibold text-[#2C201B]">
+                {userInitials}
+              </AvatarFallback>
+            </Avatar>
+            {!isCollapsed ? (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#2C201B]">{primaryIdentity}</p>
+                <p className="truncate text-xs font-medium text-[#2C201B]/52">{secondaryIdentity}</p>
+              </div>
+            ) : null}
+          </div>
+
+          <div className={cn("mt-3 border-t border-[#2C201B]/8 pt-2", isCollapsed && "mt-2")}>
+            <SidebarMenu className="gap-0">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  type="button"
+                  tooltip={isCollapsed ? "Sair" : undefined}
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className={cn(
+                    "h-[38px] rounded-[12px] px-2.5 text-[13.5px] font-medium text-[#2C201B]/62 transition-[background-color,color] duration-150 ease-out",
+                    "hover:bg-white/80 hover:text-[#2C201B]",
+                    focusRingClass,
+                    isCollapsed && "h-[40px] w-full justify-center rounded-[14px] p-0"
+                  )}
+                >
+                  {loggingOut ? (
+                    <Loader2 className="size-4 animate-spin" strokeWidth={1.9} />
+                  ) : (
+                    <ArrowRightToLine className="size-4" strokeWidth={1.9} />
+                  )}
+                  {!isCollapsed ? (
+                    <span>{loggingOut ? "Saindo..." : "Sair"}</span>
+                  ) : (
+                    <span className="sr-only">Sair</span>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </div>
         </div>
       </SidebarFooter>
-    </motion.aside>
+
+      <SidebarRail />
+    </Sidebar>
   )
 }

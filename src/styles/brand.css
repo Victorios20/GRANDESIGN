@@ -1,0 +1,95 @@
+/* ==============================================
+   BRAND.CSS – Grandesign
+   Fonte: Inter | Paleta fechada | Sem extras
+   ============================================== */
+
+
+/* ── Variáveis ── */
+:root {
+    --brand-accent: #f5d193;
+    --brand-primary: #2c201b;
+    --brand-bg: #FAF3E0;
+    --brand-secondary: #393316;
+}
+
+/* ── Classes utilitárias ── */
+
+.bg-brand {
+    background-color: var(--brand-bg);
+}
+
+.text-brand {
+    color: var(--brand-primary);
+}
+
+.text-brand-secondary {
+    color: var(--brand-secondary);
+}
+
+.text-brand-accent {
+    color: var(--brand-accent);
+}
+
+.bg-brand-accent {
+    background-color: var(--brand-accent);
+}
+
+.bg-brand-primary {
+    background-color: var(--brand-primary);
+}
+
+/* ── Botões ── */
+
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-radius: 0.5rem;
+    border: none;
+    cursor: pointer;
+    background-color: var(--brand-primary);
+    color: var(--brand-bg);
+    transition: background-color 150ms ease;
+}
+
+.btn-primary:hover {
+    background-color: #231a15;
+}
+
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1.25rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 700;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    background-color: transparent;
+    color: var(--brand-primary);
+    border: 1px solid var(--brand-primary);
+    transition: background-color 150ms ease;
+}
+
+.btn-secondary:hover {
+    background-color: rgba(44, 32, 27, 0.05);
+}
+
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

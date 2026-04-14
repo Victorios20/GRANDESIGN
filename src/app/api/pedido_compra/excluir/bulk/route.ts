@@ -48,6 +48,7 @@ export async function DELETE(req: NextRequest) {
       const statusMap: Record<string, number> = {
         PAYLOAD_INVALIDO: 400,
         PEDIDO_NAO_ENCONTRADO: 404,
+        PEDIDO_INTEGRADO_FINANCEIRO: 409,
         ITENS_DELETE_FAILED: 500,
         PEDIDO_DELETE_FAILED: 500,
         AUDIT_FAILED: 500,

@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, Prisma } from "@prisma/client"
 
 export type PedidoCompraDeleteErrorCode =
   | "PAYLOAD_INVALIDO"
   | "PEDIDO_NAO_ENCONTRADO"
+  | "PEDIDO_INTEGRADO_FINANCEIRO"
   | "ITENS_DELETE_FAILED"
   | "PEDIDO_DELETE_FAILED"
   | "AUDIT_FAILED"
@@ -56,13 +57,22 @@ async function excluirPedidoCompraInTx(
 
   const existing = await tx.pedido_compra.findUnique({
     where: { id: Number(pedidoCompraId) },
-    select: { id: true },
+    select: { id: true, financeiro_integracao_status: true },
   })
 
   if (!existing) {
     throw new PedidoCompraDeleteError("PEDIDO_NAO_ENCONTRADO", "Pedido de compra não encontrado.", "load-pedido", {
       pedidoCompraId,
     })
+  }
+
+  if (existing.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
+    throw new PedidoCompraDeleteError(
+      "PEDIDO_INTEGRADO_FINANCEIRO",
+      "Estorne a integração financeira antes de excluir o pedido.",
+      "validate-financial-lock",
+      { pedidoCompraId }
+    )
   }
 
   let itensRemovidos = 0
@@ -124,7 +134,7 @@ export async function excluirPedidosCompra(
     async (tx) => {
       const existing = await tx.pedido_compra.findMany({
         where: { id: { in: ids } },
-        select: { id: true },
+        select: { id: true, financeiro_integracao_status: true },
       })
 
       const existingIds = new Set(existing.map((item) => item.id))
@@ -138,6 +148,19 @@ export async function excluirPedidosCompra(
             : "Um ou mais pedidos de compra não foram encontrados.",
           "load-pedidos",
           { missingIds }
+        )
+      }
+
+      const integratedIds = existing
+        .filter((item) => item.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO)
+        .map((item) => item.id)
+
+      if (integratedIds.length > 0) {
+        throw new PedidoCompraDeleteError(
+          "PEDIDO_INTEGRADO_FINANCEIRO",
+          "Estorne a integração financeira antes de excluir pedidos integrados.",
+          "validate-financial-lock",
+          { integratedIds }
         )
       }
 

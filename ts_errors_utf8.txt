@@ -1,0 +1,21 @@
+﻿src/app/api/financeiro/bancos/route.ts(32,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/bancos/route.ts(48,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/categories/route.ts(36,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/categories/route.ts(52,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/payables/create-installments/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/payables/create/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/payables/pay/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/receivables/create-installments/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/receivables/create/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/receivables/receive/route.ts(18,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/api/financeiro/transfers/route.ts(36,82): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/app/relatorios/fluxo-caixa/_components/FluxoCaixaClient.tsx(209,37): error TS2322: Type '(val: number) => string' is not assignable to type 'Formatter<ValueType, NameType> & ((value: ValueType, name: NameType, item: TooltipPayloadEntry, index: number, payload: TooltipPayload) => ReactNode | [...])'.
+  Type '(val: number) => string' is not assignable to type 'Formatter<ValueType, NameType>'.
+    Types of parameters 'val' and 'value' are incompatible.
+      Type 'ValueType | undefined' is not assignable to type 'number'.
+        Type 'undefined' is not assignable to type 'number'.
+src/services/financial/orcado-realizado.service.ts(104,36): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null'.
+src/services/financial/orcado-realizado.service.ts(107,36): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null'.
+src/services/financial/orcado-realizado.service.ts(108,34): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null'.
+src/services/financial/orcado-realizado.service.ts(109,32): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null'.
+src/services/financial/orcado-realizado.service.ts(110,34): error TS2345: Argument of type 'Decimal' is not assignable to parameter of type 'string | number | null'.

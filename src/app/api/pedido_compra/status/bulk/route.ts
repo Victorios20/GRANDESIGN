@@ -50,6 +50,7 @@ export async function PATCH(req: NextRequest) {
         STATUS_INVALIDO: 400,
         PEDIDO_NAO_ENCONTRADO: 404,
         PEDIDOS_NAO_ENCONTRADOS: 404,
+        PEDIDO_INTEGRADO_FINANCEIRO: 409,
         STATUS_UPDATE_FAILED: 500,
       }
 

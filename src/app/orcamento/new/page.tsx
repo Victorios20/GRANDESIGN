@@ -7,14 +7,16 @@ import { listarTiposObra } from "@/actions/tipo-obra-db/tipo-obra-db"
 import { getCidadesDB } from "@/actions/cidades-db/cidades-db"
 import { listarComponentesDB } from "@/actions/componentes-db/componentes-db"
 import { listarMateriaisGerais, listarTelhas } from "@/actions/materiais-db/materiais-db"
+import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
 
 export default async function Page() {
-  const [tiposObra, cidades, componentes, geraisDB, telhasDB] = await Promise.all([
+  const [tiposObra, cidades, componentes, geraisDB, telhasDB, cashSettings] = await Promise.all([
     listarTiposObra(),
     getCidadesDB(),
     listarComponentesDB(),
     listarMateriaisGerais(),
     listarTelhas(),
+    getCashFlowSettings()
   ])
 
   const catalogo = {
@@ -29,6 +31,7 @@ export default async function Page() {
       componentes={componentes}
       tiposObra={tiposObra}
       cidades={cidades}
+      margemPadrao={cashSettings.margem_padrao_obras ?? 15}
     />
   )
 }

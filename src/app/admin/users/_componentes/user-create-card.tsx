@@ -1,115 +1,145 @@
-"use client";
+"use client"
 
-import * as React from "react";
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast, Toaster } from "sonner";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff } from "lucide-react";
+import * as React from "react"
+import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { Eye, EyeOff } from "lucide-react"
+import { toast, Toaster } from "sonner"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
+import {
+  operationalListControlClass,
+  operationalListPrimaryButtonClass,
+  operationalListShellClass,
+} from "@/components/ui/operational-list-styles"
 
 type RoleItem = {
-  id: number;
-  name: "ADMIN" | "DEV" | "VENDEDOR" | "VISITANTE" | (string & {});
-  label: string;
-};
-
-type Props = {
-  allRoles: RoleItem[];
-  onCreated?: () => void; // para fechar o modal lá no users-table
-};
-
-export default function UserCreateCard({ allRoles, onCreated }: Props) {
-  const router = useRouter();
-
-  const defaultRole = useMemo(() => {
-    const v = allRoles.find((r) => r.name === "VISITANTE");
-    return v?.name ?? (allRoles[0]?.name || "");
-  }, [allRoles]);
-
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<string>(defaultRole);
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [showPwdConf, setShowPwdConf] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [errMsg, setErrMsg] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-  e.preventDefault();
-  setErrMsg(null);
-
-  const n = name.trim();
-  const m = email.trim().toLowerCase();
-  const p = password;
-
-  if (!n || !m || !p || !confirm) { setErrMsg("Preencha todos os campos."); toast.error("Preencha todos os campos."); return; }
-  if (p !== confirm) { setErrMsg("As senhas não conferem."); toast.error("As senhas não conferem."); return; }
-  if (p.length < 8) { setErrMsg("A senha deve ter pelo menos 8 caracteres."); toast.error("A senha deve ter pelo menos 8 caracteres."); return; }
-  if (!role) { setErrMsg("Selecione uma role."); toast.error("Selecione uma role."); return; }
-
-  setBusy(true);
-  try {
-    // Agora enviando role no POST
-    const resp = await fetch("/api/users", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: n, email: m, password: p, role }),
-    });
-
-    const data = await resp.json().catch(() => null);
-
-    if (!resp.ok) {
-      const msg =
-        (resp.status === 401 && "Cadastro público está bloqueado. Verifique suas permissões.") ||
-        (resp.status === 409 && "Já existe uma conta com este e-mail.") ||
-        (resp.status === 422 && (data?.error || "Role informada é inválida.")) ||
-        (resp.status === 400 && (data?.error || "Dados inválidos. Corrija e tente novamente.")) ||
-        data?.error || "Não foi possível criar o usuário.";
-      setErrMsg(msg);
-      toast.error(msg);
-      return;
-    }
-
-    const createdId: number | null = data?.id ?? data?.user?.id ?? null;
-    const applied = (data?.role_aplicada as string | null) ?? null;
-
-    // Fallback: se backend não aplicou a role solicitada, força via endpoint de roles
-    if (createdId && (!applied || applied !== role)) {
-      const r = await fetch(`/api/admin/users/${createdId}/roles`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roles: [role] }),
-      });
-      if (!r.ok) {
-        toast.warning("Usuário criado, mas não foi possível aplicar a role automaticamente.");
-      }
-    }
-
-    toast.success(`Usuário cadastrado${role ? ` como ${role}` : ""}.`);
-    setName(""); setEmail(""); setPassword(""); setConfirm(""); setRole(defaultRole);
-    router.refresh();
-    onCreated?.();
-  } catch {
-    setErrMsg("Falha ao cadastrar usuário.");
-    toast.error("Falha ao cadastrar usuário.");
-  } finally {
-    setBusy(false);
-  }
+  id: number
+  name: "ADMIN" | "DEV" | "VENDEDOR" | "VISITANTE" | (string & {})
+  label: string
 }
 
+type Props = {
+  allRoles: RoleItem[]
+  onCreated?: () => void
+}
+
+export default function UserCreateCard({ allRoles, onCreated }: Props) {
+  const router = useRouter()
+
+  const defaultRole = useMemo(() => {
+    const preferred = allRoles.find((role) => role.name === "VISITANTE")
+    return preferred?.name ?? allRoles[0]?.name ?? ""
+  }, [allRoles])
+
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [role, setRole] = useState<string>(defaultRole)
+  const [password, setPassword] = useState("")
+  const [confirm, setConfirm] = useState("")
+  const [showPwd, setShowPwd] = useState(false)
+  const [showPwdConf, setShowPwdConf] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [errMsg, setErrMsg] = useState<string | null>(null)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setErrMsg(null)
+
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim().toLowerCase()
+
+    if (!trimmedName || !trimmedEmail || !password || !confirm) {
+      setErrMsg("Preencha todos os campos.")
+      toast.error("Preencha todos os campos.")
+      return
+    }
+
+    if (password !== confirm) {
+      setErrMsg("As senhas não conferem.")
+      toast.error("As senhas não conferem.")
+      return
+    }
+
+    if (password.length < 8) {
+      setErrMsg("A senha deve ter pelo menos 8 caracteres.")
+      toast.error("A senha deve ter pelo menos 8 caracteres.")
+      return
+    }
+
+    if (!role) {
+      setErrMsg("Selecione uma role.")
+      toast.error("Selecione uma role.")
+      return
+    }
+
+    setBusy(true)
+
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmedName, email: trimmedEmail, password, role }),
+      })
+
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const message =
+          (response.status === 401 && "Cadastro público está bloqueado. Verifique suas permissões.") ||
+          (response.status === 409 && "Já existe uma conta com este e-mail.") ||
+          (response.status === 422 && (data?.error || "Role informada é inválida.")) ||
+          (response.status === 400 && (data?.error || "Dados inválidos. Corrija e tente novamente.")) ||
+          data?.error ||
+          "Não foi possível criar o usuário."
+
+        setErrMsg(message)
+        toast.error(message)
+        return
+      }
+
+      const createdId: number | null = data?.id ?? data?.user?.id ?? null
+      const applied = (data?.role_aplicada as string | null) ?? null
+
+      if (createdId && (!applied || applied !== role)) {
+        const roleResponse = await fetch(`/api/admin/users/${createdId}/roles`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ roles: [role] }),
+        })
+
+        if (!roleResponse.ok) {
+          toast.warning("Usuário criado, mas não foi possível aplicar a role automaticamente.")
+        }
+      }
+
+      toast.success(`Usuário cadastrado${role ? ` como ${role}` : ""}.`)
+      setName("")
+      setEmail("")
+      setPassword("")
+      setConfirm("")
+      setRole(defaultRole)
+      router.refresh()
+      onCreated?.()
+    } catch {
+      setErrMsg("Falha ao cadastrar usuário.")
+      toast.error("Falha ao cadastrar usuário.")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
-    <Card className="mx-auto w-full max-w-md border-border shadow-lg">
+    <Card className={cn(operationalListShellClass, "mx-auto w-full max-w-md overflow-hidden")}>
       <Toaster richColors position="top-right" />
       <CardHeader className="space-y-2">
-        <CardTitle className="text-2xl font-bold text-balance text-marromEscuro">Cadastrar novo usuário</CardTitle>
-        <CardDescription className="text-base text-pretty text-marromClaro">
+        <CardTitle className="text-balance text-2xl font-bold text-[#2c201b]">Cadastrar novo usuário</CardTitle>
+        <CardDescription className="text-pretty text-base text-[#6f6556]">
           Crie usuários internos e defina a permissão no ato do cadastro.
         </CardDescription>
       </CardHeader>
@@ -117,30 +147,49 @@ export default function UserCreateCard({ allRoles, onCreated }: Props) {
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
             <Label htmlFor="name">Nome</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome completo" className="h-11" disabled={busy} />
+            <Input
+              id="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Seu nome completo"
+              className={cn(operationalListControlClass, "h-11")}
+              disabled={busy}
+            />
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" className="h-11" autoComplete="email" disabled={busy} />
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="seu@email.com"
+              className={cn(operationalListControlClass, "h-11")}
+              autoComplete="email"
+              disabled={busy}
+            />
           </div>
+
           <div className="space-y-2">
             <Label>Role</Label>
             <Select value={role} onValueChange={setRole} disabled={busy}>
-              <SelectTrigger className="h-11 border-marromClaro text-marromEscuro">
+              <SelectTrigger className={cn(operationalListControlClass, "h-11")}>
                 <SelectValue placeholder="Selecionar role" />
               </SelectTrigger>
               <SelectContent>
-                {allRoles.map((r) => (
-                  <SelectItem key={r.id} value={r.name}>
-                    <div className="flex items-center justify-between w-full gap-3">
-                      <span className="text-marromEscuro">{r.label}</span>
-                      <span className="text-xs text-marromClaro">{r.name}</span>
+                {allRoles.map((item) => (
+                  <SelectItem key={item.id} value={item.name}>
+                    <div className="flex w-full items-center justify-between gap-3">
+                      <span className="text-[#2c201b]">{item.label}</span>
+                      <span className="text-xs text-[#7b705f]">{item.name}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="password">Senha</Label>
             <div className="relative">
@@ -148,9 +197,9 @@ export default function UserCreateCard({ allRoles, onCreated }: Props) {
                 id="password"
                 type={showPwd ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
-                className="h-11 pr-10"
+                className={cn(operationalListControlClass, "h-11 pr-10")}
                 autoComplete="new-password"
                 disabled={busy}
               />
@@ -158,13 +207,14 @@ export default function UserCreateCard({ allRoles, onCreated }: Props) {
                 type="button"
                 aria-label={showPwd ? "Ocultar senha" : "Mostrar senha"}
                 aria-pressed={showPwd}
-                onClick={() => setShowPwd((v) => !v)}
-                className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
+                onClick={() => setShowPwd((value) => !value)}
+                className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="confirm">Confirmar senha</Label>
             <div className="relative">
@@ -172,9 +222,9 @@ export default function UserCreateCard({ allRoles, onCreated }: Props) {
                 id="confirm"
                 type={showPwdConf ? "text" : "password"}
                 value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
+                onChange={(event) => setConfirm(event.target.value)}
                 placeholder="••••••••"
-                className="h-11 pr-10"
+                className={cn(operationalListControlClass, "h-11 pr-10")}
                 autoComplete="new-password"
                 disabled={busy}
               />
@@ -182,24 +232,26 @@ export default function UserCreateCard({ allRoles, onCreated }: Props) {
                 type="button"
                 aria-label={showPwdConf ? "Ocultar senha" : "Mostrar senha"}
                 aria-pressed={showPwdConf}
-                onClick={() => setShowPwdConf((v) => !v)}
-                className="absolute inset-y-0 right-2 flex items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
+                onClick={() => setShowPwdConf((value) => !value)}
+                className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md px-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {showPwdConf ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </div>
+
           {errMsg ? <p className="text-sm text-red-600">{errMsg}</p> : null}
-          <Button type="submit" className="w-full h-11 text-base font-medium" disabled={busy} variant="success">
+
+          <Button type="submit" className={cn(operationalListPrimaryButtonClass, "h-11 w-full text-base font-medium")} disabled={busy}>
             {busy ? "Cadastrando..." : "Cadastrar"}
           </Button>
         </form>
       </CardContent>
       <CardFooter>
-        <p className="text-xs text-center text-muted-foreground leading-relaxed w-full">
+        <p className="w-full text-center text-xs leading-relaxed text-[#6f6556]">
           O usuário será criado e terá a role selecionada aplicada automaticamente (se você for ADMIN).
         </p>
       </CardFooter>
     </Card>
-  );
+  )
 }

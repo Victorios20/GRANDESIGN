@@ -682,7 +682,7 @@ export default function ObrasPage({
       toast.error("Orçamento de origem não encontrado nesta obra.")
       return
     }
-    router.push(`/orcamento/detalhes/${orcamentoId}`)
+    window.open(`/orcamento/detalhes/${orcamentoId}`, "_blank", "noopener,noreferrer")
   }
 
   async function onGerarContrato() {

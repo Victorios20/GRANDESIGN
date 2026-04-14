@@ -79,6 +79,9 @@ export type CriarPedidoCompraInput = {
   descricao?: string | null
   observacoes?: string | null
 
+  nao_previsto?: boolean
+  motivo_extra?: string | null
+
   fornecedor_id?: number | null
 
   data_entrega?: string | Date | null
@@ -160,6 +163,9 @@ export async function criarPedidoCompraComItens(input: CriarPedidoCompraInput): 
 
             descricao: (input.descricao ?? "") || null,
             observacoes: (input.observacoes ?? "") || null,
+
+            nao_previsto: input.nao_previsto ?? false,
+            motivo_extra: (input.motivo_extra ?? "") || null,
 
             ...(input.fornecedor_id != null ? { fornecedor: { connect: { id: Number(input.fornecedor_id) } } } : {}),
 

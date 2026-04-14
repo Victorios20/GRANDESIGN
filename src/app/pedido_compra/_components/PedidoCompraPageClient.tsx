@@ -47,10 +47,20 @@ import {
   deletePedidoCompraBulkRequest,
   deletePedidoCompraRequest,
   fetchPedidoCompraList,
+  integratePedidoCompraBulkRequest,
+  integratePedidoCompraRequest,
+  reversePedidoCompraIntegrationBulkRequest,
+  reversePedidoCompraIntegrationRequest,
   updatePedidoCompraStatusBulkRequest,
   updatePedidoCompraStatusRequest,
 } from "@/lib/pedido-compra-client"
 import { formatDateOnlyPtBr, fromDateOnlyDb } from "@/lib/date-only"
+import {
+  canIntegratePedido,
+  canReversePedidoIntegration,
+  getPedidoFinanceBadgeClass,
+  getPedidoFinanceLabel,
+} from "@/lib/pedido-compra-finance"
 import {
   asNumber,
   formatMoney,
@@ -77,6 +87,8 @@ type Props = {
   initialObrasById: Record<number, ObraSearchItem>
 }
 
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
+
 type PedidoCompraUIState = {
   viewMode: "list" | "kanban"
   kanbanGroupBy: "category" | "status"
@@ -87,7 +99,7 @@ type PedidoCompraUIState = {
   selectedCategory: PurchaseOrderCategoryLabel | "todas"
   selectedSupplierId: number | "all"
   selectedProjectId: number | null
-  sortBy: "date" | "value" | "delivery" | "status"
+  sortBy: PedidoCompraSortBy
   sortOrder: "asc" | "desc"
 }
 
@@ -160,7 +172,11 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
       actualValue: item.valor_realizado == null ? undefined : asNumber(item.valor_realizado),
       deliveryDate: fromDateOnlyDb(item.data_entrega),
       status: toSlugStatus(item.status),
-      integrated: false,
+      integrated: item.financeiro_integracao_status === "INTEGRADO",
+      financeiroIntegracaoStatus: item.financeiro_integracao_status,
+      financeiroContaPagarId: item.financeiro_conta_pagar_id,
+      financeiroContaPagarStatus: item.financeiro_conta_pagar_status,
+      integratedCode: item.financeiro_conta_pagar_id == null ? undefined : `CP #${item.financeiro_conta_pagar_id}`,
       viewed: true,
       createdAt: item.created_at ? String(item.created_at) : new Date().toISOString(),
     }
@@ -180,6 +196,9 @@ function mapOrderToSummaryInitialData(order: PurchaseOrder): PedidoCompraSummary
     valorRealizado: order.actualValue ?? null,
     dataEntrega: order.deliveryDate,
     integrado: order.integrated,
+    integracaoFinanceiraStatus: order.financeiroIntegracaoStatus,
+    financeiroContaPagarId: order.financeiroContaPagarId ?? null,
+    financeiroContaPagarStatus: order.financeiroContaPagarStatus ?? null,
   }
 }
 
@@ -243,7 +262,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const [kanbanGroupBy, setKanbanGroupBy] = React.useState<"category" | "status">(persisted?.kanbanGroupBy ?? "status")
   const [showEmptyColumns, setShowEmptyColumns] = React.useState(persisted?.showEmptyColumns ?? true)
   const [onlyActiveObras, setOnlyActiveObras] = React.useState(persisted?.onlyActiveObras ?? true)
-  const [sortBy, setSortBy] = React.useState<"date" | "value" | "delivery" | "status">(persisted?.sortBy ?? "date")
+  const [sortBy, setSortBy] = React.useState<PedidoCompraSortBy>(persisted?.sortBy ?? "date")
   const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">(persisted?.sortOrder ?? "desc")
   const [fornecedores, setFornecedores] = React.useState<FornecedorOption[]>(initialFornecedores ?? [])
   const [obrasById, setObrasById] = React.useState<Record<number, ObraSearchItem>>(initialObrasById ?? {})
@@ -254,9 +273,13 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   const [selectedIds, setSelectedIds] = React.useState<string[]>([])
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = React.useState(false)
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = React.useState(false)
+  const [financeActionDialogOpen, setFinanceActionDialogOpen] = React.useState(false)
   const [bulkStatusDraft, setBulkStatusDraft] = React.useState<PedidoStatus>("RASCUNHO")
   const [bulkStatusSaving, setBulkStatusSaving] = React.useState(false)
   const [bulkDeleteSaving, setBulkDeleteSaving] = React.useState(false)
+  const [financeActionSaving, setFinanceActionSaving] = React.useState(false)
+  const [financeActionKind, setFinanceActionKind] = React.useState<"integrate" | "reverse">("integrate")
+  const [financeActionTargetIds, setFinanceActionTargetIds] = React.useState<string[]>([])
   const [obraOpen, setObraOpen] = React.useState(false)
   const [obraQuery, setObraQuery] = React.useState("")
   const [obraLoading, setObraLoading] = React.useState(false)
@@ -416,12 +439,17 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     next.sort((a, b) => {
       let comparison = 0
       if (sortBy === "date") comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      if (sortBy === "number") comparison = Number(a.id) - Number(b.id)
+      if (sortBy === "description") comparison = a.description.localeCompare(b.description, "pt-BR")
+      if (sortBy === "category") comparison = a.category.localeCompare(b.category, "pt-BR")
       if (sortBy === "value") comparison = a.expectedValue - b.expectedValue
+      if (sortBy === "actualValue") comparison = (a.actualValue ?? -Infinity) - (b.actualValue ?? -Infinity)
       if (sortBy === "delivery") comparison = (a.deliveryDate ?? "9999-12-31").localeCompare(b.deliveryDate ?? "9999-12-31")
       if (sortBy === "status") {
         const order = ["todos", "rascunho", "aprovado", "em-compra", "aguardando-pagamento", "aguardando-entrega", "entregue"]
         comparison = order.indexOf(a.status) - order.indexOf(b.status)
       }
+      if (sortBy === "integration") comparison = a.financeiroIntegracaoStatus.localeCompare(b.financeiroIntegracaoStatus, "pt-BR")
       return sortOrder === "asc" ? comparison : -comparison
     })
     return next
@@ -508,6 +536,18 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
     if (key === "active-obras") setOnlyActiveObras(false)
   }, [])
 
+  const handleSortChange = React.useCallback((column: PedidoCompraSortBy) => {
+    setSortBy((current) => {
+      if (current === column) {
+        setSortOrder((direction) => direction === "asc" ? "desc" : "asc")
+        return current
+      }
+
+      setSortOrder(["date", "value", "actualValue", "delivery"].includes(column) ? "desc" : "asc")
+      return column
+    })
+  }, [])
+
   const handleRecarregar = React.useCallback(async () => {
     try {
       const list = await fetchPedidoCompraList({})
@@ -586,6 +626,10 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
   }, [])
 
   const handleExcluir = React.useCallback(async (order: PurchaseOrder) => {
+    if (order.integrated) {
+      toast.error("Estorne a integração financeira antes de excluir o pedido.")
+      return
+    }
     const confirmed = window.confirm(`Excluir o pedido ${order.number}? Esta acao nao pode ser desfeita.`)
     if (!confirmed) return
     try {
@@ -600,6 +644,57 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       toast.error(getErrorMessage(error, "Falha ao excluir pedido"))
     }
   }, [handleRecarregar, selectedOrderId])
+
+  const openFinanceActionDialog = React.useCallback((kind: "integrate" | "reverse", ids: Array<string | number>) => {
+    const normalized = Array.from(new Set(ids.map((id) => String(id)).filter(Boolean)))
+    if (normalized.length === 0) return
+    setFinanceActionKind(kind)
+    setFinanceActionTargetIds(normalized)
+    setFinanceActionDialogOpen(true)
+  }, [])
+
+  const handleFinanceActionApply = React.useCallback(async () => {
+    if (financeActionTargetIds.length === 0) return
+
+    setFinanceActionSaving(true)
+    try {
+      const isBulk = financeActionTargetIds.length > 1
+      const response =
+        financeActionKind === "integrate"
+          ? isBulk
+            ? await integratePedidoCompraBulkRequest(financeActionTargetIds)
+            : await integratePedidoCompraRequest(financeActionTargetIds[0])
+          : isBulk
+            ? await reversePedidoCompraIntegrationBulkRequest(financeActionTargetIds)
+            : await reversePedidoCompraIntegrationRequest(financeActionTargetIds[0])
+
+      if (isBulk) {
+        const processed = Array.isArray(response?.processed) ? response.processed.length : 0
+        const failed = Array.isArray(response?.failed) ? response.failed : []
+        if (processed > 0) {
+          toast.success(
+            financeActionKind === "integrate"
+              ? `${processed} pedido(s) integrado(s) ao financeiro.`
+              : `${processed} integração(ões) financeira(s) estornada(s).`
+          )
+        }
+        if (failed.length > 0) {
+          toast.error(failed.map((item: { pedidoId: number; message: string }) => `#${item.pedidoId}: ${item.message}`).slice(0, 3).join(" | "))
+        }
+      } else {
+        toast.success(response?.message ?? (financeActionKind === "integrate" ? "Pedido integrado ao financeiro." : "Integração financeira estornada."))
+      }
+
+      setFinanceActionDialogOpen(false)
+      setFinanceActionTargetIds([])
+      setSelectedIds([])
+      await handleRecarregar()
+    } catch (error) {
+      toast.error(getErrorMessage(error, financeActionKind === "integrate" ? "Falha ao integrar pedido ao financeiro" : "Falha ao estornar integração financeira"))
+    } finally {
+      setFinanceActionSaving(false)
+    }
+  }, [financeActionKind, financeActionTargetIds, handleRecarregar])
 
   const handleBulkStatusApply = React.useCallback(async () => {
     if (selectedIds.length === 0) return
@@ -811,6 +906,8 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 onToggleVisibleSelection={toggleVisibleSelection}
                 onClearSelection={() => setSelectedIds([])}
                 onOpenBulkStatus={() => setBulkStatusDialogOpen(true)}
+                onOpenBulkIntegrate={() => openFinanceActionDialog("integrate", selectedIds)}
+                onOpenBulkReverse={() => openFinanceActionDialog("reverse", selectedIds)}
                 onExport={handleBulkExport}
                 onOpenBulkDelete={() => setBulkDeleteDialogOpen(true)}
               />
@@ -837,7 +934,11 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                 onToggleOrderSelection={toggleOrderSelection}
                 onOrderClick={handleOrderClick}
                 onViewOrder={(order) => router.push(`/pedido_compra/ver/${order.id}`)}
+                onOpenFinanceAction={openFinanceActionDialog}
                 onDeleteOrder={handleExcluir}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSortChange={handleSortChange}
               />
             ) : (
               <div className="space-y-6">
@@ -941,12 +1042,26 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                           Visualizar obra
                                         </Link>
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem asChild>
-                                        <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
-                                        Excluir pedido
-                                      </DropdownMenuItem>
+                                      {!order.integrated ? (
+                                        <DropdownMenuItem asChild>
+                                          <Link href={`/pedido_compra/edit/${order.id}`}>Editar pedido</Link>
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {canIntegratePedido(order.financeiroIntegracaoStatus) ? (
+                                        <DropdownMenuItem onClick={() => openFinanceActionDialog("integrate", [order.id])}>
+                                          Integrar financeiro
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {canReversePedidoIntegration(order.financeiroIntegracaoStatus) ? (
+                                        <DropdownMenuItem onClick={() => openFinanceActionDialog("reverse", [order.id])}>
+                                          Estornar integração financeira
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                      {!order.integrated ? (
+                                        <DropdownMenuItem className="text-red-600" onClick={() => handleExcluir(order)}>
+                                          Excluir pedido
+                                        </DropdownMenuItem>
+                                      ) : null}
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
@@ -1017,8 +1132,8 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                   </div>
                                 ) : null}
 
-                                <Badge variant="outline" className="w-full justify-center rounded-full border-[#ece4d6] bg-[#fcfaf6] text-xs text-[#9a8f7c]">
-                                  Não integrado
+                                <Badge variant="outline" className={`w-full justify-center rounded-full text-xs ${getPedidoFinanceBadgeClass(order.financeiroIntegracaoStatus)}`}>
+                                  {getPedidoFinanceLabel(order.financeiroIntegracaoStatus)}
                                 </Badge>
                               </div>
                             )
@@ -1063,6 +1178,46 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
             onEdit={(pedidoId) => router.push(`/pedido_compra/edit/${pedidoId}`)}
             onMutationComplete={handleRecarregar}
           />
+
+          <Dialog
+            open={financeActionDialogOpen}
+            onOpenChange={(open) => {
+              setFinanceActionDialogOpen(open)
+              if (!open && !financeActionSaving) setFinanceActionTargetIds([])
+            }}
+          >
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>{financeActionKind === "integrate" ? "Integrar financeiro" : "Estornar integração financeira"}</DialogTitle>
+                <DialogDescription>
+                  {financeActionKind === "integrate"
+                    ? `A ação vai criar a conta a pagar vinculada para ${financeActionTargetIds.length} pedido(s).`
+                    : `A ação vai cancelar ou estornar a obrigação financeira de ${financeActionTargetIds.length} pedido(s), conforme o histórico de pagamento.`}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                {financeActionKind === "integrate"
+                  ? "Pedidos integrados ficam bloqueados para edição até o estorno da integração."
+                  : "Sem pagamento: cancelamento operacional. Com pagamento: reversão financeira por lançamentos reversos."}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setFinanceActionDialogOpen(false)} disabled={financeActionSaving}>
+                  Cancelar
+                </Button>
+                <Button onClick={() => void handleFinanceActionApply()} disabled={financeActionSaving || financeActionTargetIds.length === 0}>
+                  {financeActionSaving
+                    ? financeActionKind === "integrate"
+                      ? "Integrando..."
+                      : "Estornando..."
+                    : financeActionKind === "integrate"
+                      ? "Confirmar integração"
+                      : "Confirmar estorno"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Dialog open={bulkStatusDialogOpen} onOpenChange={setBulkStatusDialogOpen}>
             <DialogContent className="max-w-sm">

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus, Bell } from "lucide-react"
 import {
@@ -53,7 +54,9 @@ export function DashboardTopbar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem>Meu Perfil</DropdownMenuItem>
-              <DropdownMenuItem>Configurações</DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/configuracoes">Configurações</Link>
+              </DropdownMenuItem>
               <DropdownMenuItem className="text-destructive">Sair</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

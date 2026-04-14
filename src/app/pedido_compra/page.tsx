@@ -10,11 +10,17 @@ import {
 } from "@/types/pedido-compra"
 import { ssrJSON } from "@/lib/ssrFetch"
 
-function normalizeFornecedores(body: any): FornecedorOption[] {
-  const arr: any[] = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : []
+function normalizeFornecedores(body: unknown): FornecedorOption[] {
+  const arr = Array.isArray(body) ? body : Array.isArray((body as { data?: unknown[] } | null)?.data) ? (body as { data: unknown[] }).data : []
   return arr
-    .map((f) => ({ id: Number(f?.id), nome: String(f?.nome ?? "") }))
-    .filter((x) => Number.isFinite(x.id) && x.id > 0)
+    .map((fornecedor) => {
+      if (typeof fornecedor !== "object" || fornecedor === null) return null
+      const record = fornecedor as Record<string, unknown>
+      const id = Number(record.id)
+      if (!Number.isFinite(id) || id <= 0) return null
+      return { id, nome: String(record.nome ?? "") }
+    })
+    .filter((item): item is FornecedorOption => item !== null)
 }
 
 export default async function Page() {
@@ -26,49 +32,54 @@ export default async function Page() {
   const initialList: ListarResult =
     (listBody?.data as ListarResult) ?? { items: [], page: 1, pageSize: 100, total: 0, totalPages: 1 }
 
-  const initialFornecedores: FornecedorOption[] = normalizeFornecedores(fornBody)
+  const initialFornecedores = normalizeFornecedores(fornBody)
 
   const obraIds = Array.from(
     new Set(
       (initialList.items ?? [])
-        .map((x) => Number(x?.obra_id))
-        .filter((n) => Number.isFinite(n) && n > 0)
+        .map((item) => Number(item?.obra_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
     )
   )
 
   const obraResults = await Promise.all(
     obraIds.map(async (id) => {
-      const b = await ssrJSON<any>(`/api/obras/pesquisar?q=${encodeURIComponent(String(id))}`)
+      const body = await ssrJSON<unknown>(`/api/obras/pesquisar?q=${encodeURIComponent(String(id))}`)
+      const arr = typeof body === "object" && body !== null && Array.isArray((body as { data?: unknown[] }).data)
+        ? (body as { data: unknown[] }).data
+        : Array.isArray(body)
+          ? body
+          : []
 
-      const arr: any[] = Array.isArray(b?.data) ? b.data : Array.isArray(b) ? b : []
-      const first = arr?.[0]
-      if (!first) return null
+      const first = arr[0]
+      if (typeof first !== "object" || first === null) return null
 
-      const mapped: ObraSearchItem = {
-        id: Number(first?.id),
-        titulo: first?.titulo == null ? null : String(first.titulo),
-        nomeReceptor: first?.nomeReceptor == null ? null : String(first.nomeReceptor),
-        telefoneReceptor: first?.telefoneReceptor == null ? null : String(first.telefoneReceptor),
-        enderecoEntrega: first?.enderecoEntrega == null ? null : String(first.enderecoEntrega),
-        linkMaps: first?.linkMaps == null ? null : String(first.linkMaps),
+      const record = first as Record<string, unknown>
+      const obra: ObraSearchItem = {
+        id: Number(record.id),
+        titulo: record.titulo == null ? null : String(record.titulo),
+        nomeReceptor: record.nomeReceptor == null ? null : String(record.nomeReceptor),
+        telefoneReceptor: record.telefoneReceptor == null ? null : String(record.telefoneReceptor),
+        enderecoEntrega: record.enderecoEntrega == null ? null : String(record.enderecoEntrega),
+        linkMaps: record.linkMaps == null ? null : String(record.linkMaps),
       }
 
-      return Number.isFinite(mapped.id) && mapped.id > 0 ? mapped : null
+      return Number.isFinite(obra.id) && obra.id > 0 ? obra : null
     })
   )
 
-  const obraById = obraResults
-    .filter(Boolean)
-    .reduce((acc, o) => {
-      acc[(o as ObraSearchItem).id] = o as ObraSearchItem
+  const initialObrasById = obraResults
+    .filter((obra): obra is ObraSearchItem => obra !== null)
+    .reduce<Record<number, ObraSearchItem>>((acc, obra) => {
+      acc[obra.id] = obra
       return acc
-    }, {} as Record<number, ObraSearchItem>)
+    }, {})
 
   return (
     <PedidoCompraPageClient
       initialList={initialList}
       initialFornecedores={initialFornecedores}
-      initialObrasById={obraById}
+      initialObrasById={initialObrasById}
     />
   )
 }
