@@ -53,6 +53,7 @@ interface ParsedRow {
   date: Date
   status: StatusRaw
   direction: DirectionRaw
+  clienteText: string | null
   amount: number
   /** Only set for Efetivado rows where Conta column is non-empty. */
   bankName: string | null
@@ -240,6 +241,7 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow | nu
   const month = getValue(fields, COL_MES)
   const dateText = getValue(fields, COL_DATA)
   const statusText = normalizeKey(fields[COL_STATUS])
+  const clienteText = getValue(fields, 3) // COL_CLIENTE = 3
   const amountText = fields[COL_VALOR] ?? ""
   const subcategory = getValue(fields, COL_SUBCATEGORIA)
   const directionText = normalizeKey(fields[COL_TIPO])
@@ -289,6 +291,7 @@ function parseFinancialRow(fields: CsvFields, rowNumber: number): ParsedRow | nu
     date: parseDate(dateText),
     status,
     direction,
+    clienteText,
     amount: parseCurrency(amountText),
     bankName,
     subcategory,
@@ -631,6 +634,23 @@ async function main() {
 
       await seedFixedTaxonomy(tx, categoryCache, summary)
 
+      // Ensure that ALL OBRAS have a linked Centro de Custo
+      const todasObras = await tx.obras.findMany({ select: { id: true, titulo: true, cliente: { select: { nome: true } } } })
+      
+      const obraToCentroCusto = new Map<number, number>()
+      for (const obra of todasObras) {
+        const ccName = obra.titulo ?? obra.cliente.nome + " [Obra Sem Titulo]"
+        const cc = await ensureCentroCusto(tx, centroCustoCache, ccName, summary)
+        
+        // Link to Obra if not linked already
+        await tx.centroCusto.update({
+          where: { id: cc.id },
+          data: { obra_id: obra.id }
+        })
+        
+        obraToCentroCusto.set(obra.id, cc.id)
+      }
+
       const launchRows = []
       const contaPagarRows = []
       const contaReceberRows = []
@@ -660,11 +680,30 @@ async function main() {
           contaBancariaId = bankCache.get(normalizeKey(row.bankName))?.id ?? null
         }
 
-        // Resolve cost center from Categoria column (groupHint), create if needed
+        // Resolve cost center from "Id do cliente" (clienteText) mapped against Obras
         let centroCustoId: number | null = null
-        if (row.groupHint) {
-          const cc = await ensureCentroCusto(tx, centroCustoCache, row.groupHint, summary)
-          centroCustoId = cc.id
+
+        if (row.clienteText) {
+          const searchString = normalizeKey(row.clienteText)
+          let matchedObraId: number | null = null
+          
+          for (const obra of todasObras) {
+            if (!obra.titulo) continue
+            // Pega as palavras maiores que 3 chars pra dar match (ex: "Deiziany", "Ancuri")
+            const parts = obra.titulo.replace(/[\[\]]/g, "").split(" ").map(p => normalizeKey(p)).filter(p => p.length > 3)
+            let score = 0
+            for(const part of parts) {
+              if (searchString.includes(part)) score++
+            }
+            if (score > 0) {
+              matchedObraId = obra.id
+              break
+            }
+          }
+
+          if (matchedObraId) {
+            centroCustoId = obraToCentroCusto.get(matchedObraId) ?? null
+          }
         }
 
         if (row.status === "EFETIVADO") {

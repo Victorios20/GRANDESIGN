@@ -490,7 +490,7 @@ export default function ContasReceberPageClient({
 
                 <section className={cn(operationalListShellClass, "overflow-hidden")}>
                     <div className="overflow-x-auto">
-                        <table className="w-full min-w-[980px] text-sm">
+                        <table className="w-full min-w-[1100px] text-sm">
                             <thead className={operationalListTableHeadClass}>
                                 <tr className={operationalListTableHeadRowClass}>
                                     <th className={cn(operationalListTableHeadCellClass, "w-12")}>
@@ -512,6 +512,7 @@ export default function ContasReceberPageClient({
                                     <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
                                         Categoria
                                     </SortableHeader>
+                                    <th className={operationalListTableHeadCellClass}>Centro de custo</th>
                                     <SortableHeader column="valor_total" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} align="right">
                                         Valor total
                                     </SortableHeader>
@@ -524,15 +525,15 @@ export default function ContasReceberPageClient({
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-10 text-center text-[#2C201B]/55">Carregando contas...</td>
+                                        <td colSpan={9} className="px-4 py-10 text-center text-[#2C201B]/55">Carregando contas...</td>
                                     </tr>
                                 ) : error ? (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-10 text-center text-[#B42318]">{error}</td>
+                                        <td colSpan={9} className="px-4 py-10 text-center text-[#B42318]">{error}</td>
                                     </tr>
                                 ) : data.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-4 py-12 text-center text-[#2C201B]/55">Nenhuma conta para este recorte.</td>
+                                        <td colSpan={9} className="px-4 py-12 text-center text-[#2C201B]/55">Nenhuma conta para este recorte.</td>
                                     </tr>
                                 ) : (
                                     data.map((item) => {
@@ -567,6 +568,15 @@ export default function ContasReceberPageClient({
                                                     <p className="text-xs text-[#2C201B]/50">Saldo {formatCurrency(saldo)}</p>
                                                 </td>
                                                 <td className="px-3 py-3.5 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
+                                                <td className="px-3 py-3.5">
+                                                    {item.centro_custo ? (
+                                                        <span className="inline-flex items-center rounded-md bg-[#f0ece4] px-2 py-0.5 text-[11px] font-medium text-[#6e6050]">
+                                                            {item.centro_custo.nome}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[#2C201B]/35 text-xs">—</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-3.5 text-[#2C201B]">
                                                     <p className="font-semibold">{formatCurrency(item.valor_total)}</p>
                                                     {item.valor_recebido > 0 ? <p className="text-xs text-[#2C201B]/50">Recebido {formatCurrency(item.valor_recebido)}</p> : null}
