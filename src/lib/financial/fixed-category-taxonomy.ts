@@ -112,6 +112,10 @@ export const EXCLUDED_FINANCIAL_GROUP_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
   .filter((group) => group.reportBucket === "excluded")
   .map((group) => group.name)
 
+export const EXCLUDED_FINANCIAL_CATEGORY_NAMES = FIXED_FINANCIAL_CATEGORY_GROUPS
+  .filter((group) => group.reportBucket === "excluded")
+  .flatMap((group) => [group.name, ...group.defaultChildren])
+
 const GROUP_MAP = new Map(
   FIXED_FINANCIAL_CATEGORY_GROUPS.map((group) => [group.name, group]),
 )

@@ -29,7 +29,7 @@ import {
 } from "@/types/financeiro"
 import { getDashboardChartWindowRange } from "@/lib/financeiro-dashboard"
 import { prisma } from "@/lib/prisma"
-import { EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
+import { EXCLUDED_FINANCIAL_CATEGORY_NAMES, EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
 
 const ACTIVE_STATUSES: StatusFinanceiro[] = ["PENDENTE", "PARCIAL", "ATRASADO"]
 const ACTIVE_STATUS_DB_VALUES: Record<StatusFinanceiro, string> = {
@@ -156,7 +156,7 @@ function getExcludedExpenseCategoryClause(alias: string) {
             LEFT JOIN categorias parent ON parent.id = child.categoria_pai_id
             WHERE child.id = ${Prisma.raw(`${alias}.categoria_id`)}
               AND (
-                child.nome IN (${Prisma.join(EXCLUDED_FINANCIAL_GROUP_NAMES)})
+                child.nome IN (${Prisma.join(EXCLUDED_FINANCIAL_CATEGORY_NAMES)})
                 OR parent.nome IN (${Prisma.join(EXCLUDED_FINANCIAL_GROUP_NAMES)})
               )
         )
@@ -329,6 +329,7 @@ async function getRealizedTotals(range: { start: Date; end: Date }, accountIds: 
         WHERE l.data_competencia >= ${range.start}
           AND l.data_competencia <= ${range.end}
           ${getAccountFilterClause(accountIds)}
+          ${getExcludedExpenseCategoryClause("l")}
         GROUP BY l.tipo
     `)
 
@@ -410,6 +411,7 @@ async function getRealizedMovementRows(
         WHERE l.data_competencia >= ${range.start}
           AND l.data_competencia <= ${range.end}
           ${getAccountFilterClause(accountIds)}
+          ${getExcludedExpenseCategoryClause("l")}
         GROUP BY bucket, l.tipo
         ORDER BY bucket ASC
     `)
@@ -797,7 +799,15 @@ async function getCashComposition(accountIds: number[]) {
 
 async function getCashMovementDetailItems(accountIds: number[]) {
     const rows = await prisma.lancamento.findMany({
-        where: accountIds.length > 0 ? { conta_bancaria_id: { in: accountIds } } : {},
+        where: {
+            ...(accountIds.length > 0 ? { conta_bancaria_id: { in: accountIds } } : {}),
+            NOT: {
+                OR: [
+                    { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
+                    { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
+                ],
+            },
+        },
         select: {
             id: true,
             descricao: true,
@@ -857,6 +867,12 @@ async function getRealizedDetailItems(filters: DashboardAppliedFilters, range: {
         where: {
             data_competencia: { gte: range.start, lte: range.end },
             ...(filters.account_ids.length > 0 ? { conta_bancaria_id: { in: filters.account_ids } } : {}),
+            NOT: {
+                OR: [
+                    { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
+                    { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
+                ],
+            },
         },
         select: {
             id: true,
@@ -1048,7 +1064,7 @@ async function getCategoryLatestItems(
                 ...(scope === "cost" ? { centro_custo_id: { not: null } } : { centro_custo_id: null }),
                 NOT: {
                     OR: [
-                        { categoria: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } },
+                        { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
                         { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
                     ],
                 },

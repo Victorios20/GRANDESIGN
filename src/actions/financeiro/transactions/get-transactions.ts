@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
-import { EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
+import { EXCLUDED_FINANCIAL_CATEGORY_NAMES, EXCLUDED_FINANCIAL_GROUP_NAMES } from "@/lib/financial/fixed-category-taxonomy"
 
 export interface GetTransactionsOptions {
     page?: number
@@ -49,7 +49,7 @@ function buildTransactionsWhere({
     const nonDreExpenseFilter: Prisma.LancamentoWhereInput = {
         NOT: {
             OR: [
-                { categoria: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } },
+                { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
                 { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
             ],
         },
