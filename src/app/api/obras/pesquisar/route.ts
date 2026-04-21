@@ -31,6 +31,22 @@ export async function GET(req: Request) {
             mode: "insensitive",
           },
         },
+        {
+          endereco_obra: {
+            contains: q,
+            mode: "insensitive",
+          },
+        },
+        {
+          cliente: {
+            is: {
+              nome: {
+                contains: q,
+                mode: "insensitive",
+              },
+            },
+          },
+        },
       ],
     },
     take: 10,
@@ -40,19 +56,23 @@ export async function GET(req: Request) {
       titulo: true,
       endereco_obra: true,
       maps_url: true,
-      cliente: true,
+      cliente: {
+        select: {
+          nome: true,
+          telefone: true,
+        },
+      },
     },
   })
 
   const items = obras.map((o) => {
-    const clienteAny = o.cliente as any
     return {
       id: o.id,
       titulo: o.titulo ?? null,
 
       // dados pra preencher a seção "Endereço de Entrega"
-      nomeReceptor: clienteAny?.nome ?? null,
-      telefoneReceptor: clienteAny?.telefone ?? clienteAny?.celular ?? null,
+      nomeReceptor: o.cliente?.nome ?? null,
+      telefoneReceptor: o.cliente?.telefone ?? null,
       enderecoEntrega: o.endereco_obra ?? null,
       linkMaps: o.maps_url ?? null,
     }

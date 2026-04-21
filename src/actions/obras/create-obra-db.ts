@@ -3,7 +3,8 @@
 
 import { prisma } from "@/lib/prisma"
 import { Prisma, ObraStatus, PagamentoStatus, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
-import { formatObraTitle, formatClientName, formatLocation } from "@/utils/name-formatter"
+import { formatObraTitle } from "@/utils/name-formatter"
+import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -37,17 +38,8 @@ const d = (v: Decimalish): Prisma.Decimal => {
   return new Prisma.Decimal(s || "0")
 }
 
-function onlyDigits(s?: string | null) {
-  return (s || "").replace(/\D/g, "")
-}
 function normalizeStr(s: string) {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
-}
-function parseDateLoose(v?: string | Date | null): Date | null {
-  if (!v) return null
-  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v : null
-  const d2 = new Date(v)
-  return Number.isFinite(d2.getTime()) ? d2 : null
 }
 
 function mapObraStatus(raw?: string | ObraStatus | null): ObraStatus | undefined {
@@ -70,33 +62,6 @@ function mapPagamentoStatus(raw?: string | PagamentoStatus | null): PagamentoSta
   const n = normalizeStr(String(raw))
   if (n === "pendente") return PagamentoStatus.PENDENTE
   if (n === "efetuado") return PagamentoStatus.EFETUADO
-  return undefined
-}
-
-function mapPedidoCategoria(raw?: string | PedidoCategoria | null): PedidoCategoria | undefined {
-  if (!raw) return undefined
-  if (Object.values(PedidoCategoria).includes(raw as PedidoCategoria)) return raw as PedidoCategoria
-  const n = normalizeStr(String(raw))
-  if (n === "telha") return PedidoCategoria.TELHA
-  if (n === "madeira") return PedidoCategoria.MADEIRA
-  if (n === "materiais" || n === "material") return PedidoCategoria.MATERIAIS
-  if (n === "andaimes" || n === "andaime") return PedidoCategoria.ANDAIMES
-  return undefined
-}
-
-function mapPedidoCompraStatus(raw?: string | PedidoCompraStatus | null): PedidoCompraStatus | undefined {
-  if (!raw) return undefined
-  if (Object.values(PedidoCompraStatus).includes(raw as PedidoCompraStatus)) return raw as PedidoCompraStatus
-
-  const n = normalizeStr(String(raw))
-  if (n === "rascunho") return PedidoCompraStatus.RASCUNHO
-  if (n === "pendente") return PedidoCompraStatus.PENDENTE
-  if (n === "aprovado") return PedidoCompraStatus.APROVADO
-  if (n === "em compra" || n === "em_compra" || n === "emcompra") return PedidoCompraStatus.EM_COMPRA
-  if (n === "aguardando pagamento" || n === "aguardando_pagamento") return PedidoCompraStatus.AGUARDANDO_PAGAMENTO
-  if (n === "aguardando entrega" || n === "aguardando_entrega") return PedidoCompraStatus.AGUARDANDO_ENTREGA
-  if (n === "entregue") return PedidoCompraStatus.ENTREGUE
-  if (n === "cancelado") return PedidoCompraStatus.CANCELADO
   return undefined
 }
 
@@ -177,6 +142,7 @@ export type CriarObraInput = {
 export type CriarObraResult = {
   obraId: number
   orcamentoId: number
+  centroCustoId: number
   pedidoCompraId: number | null
   pedidos: Partial<Record<PedidoCategoria, number>>
 }
@@ -223,7 +189,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           comprimento_menor: input.comprimento_menor != null ? d(input.comprimento_menor) : null,
           is_l_shape: !!input.is_l_shape,
           telha_escolhida: input.telha_escolhida,
-          // @ts-ignore - Aguardando prisma generate (arquivo bloqueado pelo dev server)
           cor_stain: input.cor_stain ?? orc.cor_stain,
           valor_obra: d(input.valor_obra),
           valor_mao_de_obra: d(input.valor_mao_de_obra),
@@ -244,11 +209,10 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
           data_inicio_obra: new Date(), // Auto-fill Início with today's date
 
         },
-        select: { id: true },
+        select: { id: true, titulo: true },
       })
 
-      const inicio = parseDateLoose(input.data_prev_inicio)
-      const conclusao = parseDateLoose(input.data_prev_conclusao)
+      const centroCusto = await getOrCreateActiveCostCenterForWork(tx, obra.id)
 
       // REMOVED: User requested NO automatic scheduling segments upon creation.
       // if (input.equipe_id && inicio && conclusao) {
@@ -310,7 +274,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       const telhaEscolhidaNorm = normalizeStr(input.telha_escolhida || "")
 
       // Find the budget item that matches the chosen tile
-      let telhaBudgetItem: any = undefined
+      let telhaBudgetItem: (typeof orc.orcamento_material)[number] | undefined = undefined
       if (telhaEscolhidaNorm) {
         telhaBudgetItem = orc.orcamento_material?.find((m) => {
           const d = normalizeStr(m.descricao || "")
@@ -345,11 +309,6 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       }
 
       // Auto-Fill Data
-      const clienteName = formatClientName(orc.cliente.nome || "Cliente")
-      // const cidadeName = orc.cliente.cidades?.nome || ""
-      // const bairroName = orc.cliente.bairro || ""
-      const locationSuffix = formatLocation(orc.cliente.bairro || "", orc.cliente.cidades?.nome || "")
-
       const finalObraTitle = input.titulo && input.titulo.trim() !== ""
         ? input.titulo.trim()
         : formatObraTitle(orc.cliente.nome || "Cliente", orc.cliente.bairro || "", orc.cliente.cidades?.nome || "");
@@ -450,7 +409,13 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         data: { lancado_obra: true, lancado_obra_em: new Date(), updatedBy: { connect: { id: input.actorUserId } } },
       })
 
-      return { obraId: obra.id, orcamentoId: input.orcamentoId, pedidoCompraId: primeiroPedidoId, pedidos }
+      return {
+        obraId: obra.id,
+        orcamentoId: input.orcamentoId,
+        centroCustoId: centroCusto.id,
+        pedidoCompraId: primeiroPedidoId,
+        pedidos,
+      }
     },
     { maxWait: 20000, timeout: 60000 }
   )

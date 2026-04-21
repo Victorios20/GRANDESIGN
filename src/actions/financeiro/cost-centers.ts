@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
 const createCostCenterSchema = z.object({
@@ -31,6 +32,13 @@ const costCenterInclude = {
         },
     },
 } as const
+
+type Tx = Prisma.TransactionClient
+
+function buildAutomaticCostCenterName(obra: { id: number; titulo: string | null }) {
+    const title = obra.titulo?.trim()
+    return title || `Obra #${obra.id}`
+}
 
 async function ensureWorkExists(obraId: number | null | undefined) {
     if (!obraId) {
@@ -106,6 +114,43 @@ export async function createCostCenter(input: z.infer<typeof createCostCenterSch
             ativo: true,
         },
         include: costCenterInclude,
+    })
+}
+
+export async function getOrCreateActiveCostCenterForWork(tx: Tx, obraId: number) {
+    const existing = await tx.centroCusto.findFirst({
+        where: {
+            obra_id: obraId,
+            ativo: true,
+        },
+        orderBy: { id: "asc" },
+        select: { id: true },
+    })
+
+    if (existing) {
+        return existing
+    }
+
+    const obra = await tx.obras.findUnique({
+        where: { id: obraId },
+        select: {
+            id: true,
+            titulo: true,
+        },
+    })
+
+    if (!obra) {
+        throw new Error("Obra nao encontrada")
+    }
+
+    return tx.centroCusto.create({
+        data: {
+            nome: buildAutomaticCostCenterName(obra),
+            descricao: "Centro de custo criado automaticamente a partir da obra.",
+            obra_id: obra.id,
+            ativo: true,
+        },
+        select: { id: true },
     })
 }
 

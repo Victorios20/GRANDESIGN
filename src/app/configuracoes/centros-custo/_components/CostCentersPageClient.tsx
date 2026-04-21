@@ -111,6 +111,21 @@ function getWorkSearchLabel(work: WorkSearchItem | null) {
     return title ? `Obra #${work.id} - ${title}` : `Obra #${work.id}`
 }
 
+function buildWorkSearchItem(costCenter: CentroCustoOption): WorkSearchItem | null {
+    if (!costCenter.obra_id) {
+        return null
+    }
+
+    return {
+        id: costCenter.obra_id,
+        titulo: costCenter.obra?.titulo ?? null,
+        nomeReceptor: null,
+        telefoneReceptor: null,
+        enderecoEntrega: costCenter.obra?.endereco_obra ?? null,
+        linkMaps: null,
+    }
+}
+
 function getUsageLabel(costCenter: CentroCustoOption) {
     const items = [
         `${costCenter.lancamentosCount ?? 0} lanç.`,
@@ -180,29 +195,24 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
     function openCreateDialog() {
         setEditingCostCenter(null)
         setFormState(EMPTY_FORM)
+        setSelectedWork(null)
+        setWorkResults([])
+        setWorkQuery("")
         setFormOpen(true)
     }
 
     function openEditDialog(costCenter: CentroCustoOption) {
         setEditingCostCenter(costCenter)
         setFormState(buildFormState(costCenter))
+        setSelectedWork(buildWorkSearchItem(costCenter))
+        setWorkResults([])
+        setWorkQuery("")
         setFormOpen(true)
     }
 
     function openWorkDialog(costCenter: CentroCustoOption) {
         setSelectedCostCenter(costCenter)
-        setSelectedWork(
-            costCenter.obra_id
-                ? {
-                      id: costCenter.obra_id,
-                      titulo: costCenter.obra?.titulo ?? null,
-                      nomeReceptor: null,
-                      telefoneReceptor: null,
-                      enderecoEntrega: costCenter.obra?.endereco_obra ?? null,
-                      linkMaps: null,
-                  }
-                : null
-        )
+        setSelectedWork(buildWorkSearchItem(costCenter))
         setWorkResults([])
         setWorkQuery("")
         setWorkDialogOpen(true)
@@ -281,7 +291,7 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
     }
 
     useEffect(() => {
-        if (!workDialogOpen) {
+        if (!workDialogOpen && !formOpen) {
             return
         }
 
@@ -342,7 +352,7 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
             cancelled = true
             clearTimeout(timer)
         }
-    }, [workDialogOpen, workQuery])
+    }, [formOpen, workDialogOpen, workQuery])
 
     async function handleSubmitForm() {
         try {
@@ -351,6 +361,7 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
             const payload = {
                 nome: formState.nome.trim(),
                 descricao: formState.descricao.trim() || undefined,
+                obra_id: selectedWork?.id ?? null,
                 ...(editingCostCenter ? { id: editingCostCenter.id } : {}),
             }
 
@@ -677,13 +688,13 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
             </section>
 
             <Dialog open={formOpen} onOpenChange={setFormOpen}>
-                <DialogContent className="border-[#2C201B]/10 bg-[#FFFCF7] sm:max-w-[560px]">
+                <DialogContent className="border-[#2C201B]/10 bg-[#FFFCF7] sm:max-w-[620px]">
                     <DialogHeader>
                         <DialogTitle>{editingCostCenter ? "Editar Centro de Custo" : "Novo Centro de Custo"}</DialogTitle>
                         <DialogDescription>
                             {editingCostCenter
-                                ? "Atualize os dados do centro de custo. O vínculo com obra é gerenciado em uma ação separada."
-                                : "Crie um centro de custo para uso operacional ou associação posterior a uma obra."}
+                                ? "Atualize os dados e o vínculo com obra usado em pedidos, contas e relatórios financeiros."
+                                : "Crie um centro de custo e, se aplicável, vincule uma obra para alimentar o financeiro automaticamente."}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -708,6 +719,96 @@ export default function CostCentersPageClient({ initialCostCenters }: Props) {
                                 placeholder="Contexto adicional para identificação interna."
                                 className="min-h-28 border-[#2C201B]/10 bg-white"
                             />
+                        </div>
+
+                        <div className="space-y-3 rounded-2xl border border-[#2C201B]/8 bg-white p-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="cost-center-work-search">Obra vinculada</Label>
+                                <p className="text-xs text-[#2C201B]/58">
+                                    O vínculo conecta pedidos de compra, contas, lançamentos e relatórios financeiros à obra.
+                                </p>
+                            </div>
+
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#2C201B]/35" />
+                                <Input
+                                    id="cost-center-work-search"
+                                    value={workQuery}
+                                    onChange={(event) => setWorkQuery(event.target.value)}
+                                    placeholder="Pesquisar obra por ID, título, cliente ou endereço"
+                                    className="border-[#2C201B]/10 bg-[#FFFCF7] pl-9"
+                                />
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0 flex-1 rounded-2xl border border-[#F5D193]/55 bg-[#FAF3E0] px-4 py-3 text-sm text-[#2C201B]/78">
+                                    <p className="font-medium text-[#2C201B]">{getWorkSearchLabel(selectedWork)}</p>
+                                    {selectedWork?.enderecoEntrega ? (
+                                        <p className="mt-1 line-clamp-2">{selectedWork.enderecoEntrega}</p>
+                                    ) : null}
+                                </div>
+                                {selectedWork ? (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedWork(null)}
+                                        className="shrink-0 px-2 text-[#2C201B]/62 hover:bg-[#FAF3E0] hover:text-[#2C201B]"
+                                    >
+                                        Remover
+                                    </Button>
+                                ) : null}
+                            </div>
+
+                            <div className="max-h-56 space-y-2 overflow-y-auto rounded-2xl border border-[#2C201B]/8 bg-[#FFFCF7] p-2">
+                                {workLoading ? (
+                                    <div className="flex items-center justify-center gap-2 py-6 text-sm text-[#2C201B]/55">
+                                        <Loader2 className="size-4 animate-spin" />
+                                        Buscando obras...
+                                    </div>
+                                ) : workQuery.trim().length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-[#2C201B]/55">
+                                        Digite para pesquisar e vincular uma obra.
+                                    </div>
+                                ) : workResults.length === 0 ? (
+                                    <div className="py-6 text-center text-sm text-[#2C201B]/55">
+                                        Nenhuma obra encontrada para essa busca.
+                                    </div>
+                                ) : (
+                                    workResults.map((work) => {
+                                        const isSelected = selectedWork?.id === work.id
+
+                                        return (
+                                            <button
+                                                key={work.id}
+                                                type="button"
+                                                onClick={() => setSelectedWork(work)}
+                                                className={cn(
+                                                    "w-full rounded-2xl border px-4 py-3 text-left transition-colors",
+                                                    isSelected
+                                                        ? "border-[#393316]/18 bg-[#F2F5E7]"
+                                                        : "border-[#2C201B]/8 bg-white hover:bg-[#FAF3E0]/45"
+                                                )}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="space-y-1">
+                                                        <p className="font-medium text-[#2C201B]">{getWorkSearchLabel(work)}</p>
+                                                        {work.nomeReceptor ? (
+                                                            <p className="text-sm text-[#2C201B]/62">Cliente: {work.nomeReceptor}</p>
+                                                        ) : null}
+                                                        {work.enderecoEntrega ? (
+                                                            <p className="text-sm text-[#2C201B]/56">{work.enderecoEntrega}</p>
+                                                        ) : null}
+                                                    </div>
+                                                    {isSelected ? (
+                                                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#393316]" />
+                                                    ) : null}
+                                                </div>
+                                            </button>
+                                        )
+                                    })
+                                )}
+                            </div>
                         </div>
                     </div>
 

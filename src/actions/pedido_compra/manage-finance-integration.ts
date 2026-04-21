@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 import {
   IntegracaoFinanceiraStatus,
   PedidoCompraStatus,
@@ -331,11 +332,7 @@ export async function integrarPedidoCompraAoFinanceiro(
 
       try {
         const categoriaId = await resolveExpenseCategoryId(tx)
-        const centroCusto = await tx.centroCusto.findFirst({
-          where: { obra_id: pedido.obra_id, ativo: true },
-          orderBy: { id: "asc" },
-          select: { id: true },
-        })
+        const centroCusto = await getOrCreateActiveCostCenterForWork(tx, pedido.obra_id)
 
         const now = new Date()
         const descricao = truncate(
