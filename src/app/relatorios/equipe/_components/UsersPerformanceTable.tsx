@@ -42,42 +42,54 @@ export default function UsersPerformanceTable({ users, onUserClick }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#efe8dc]">
-              {users.map((user) => (
-                <tr 
-                  key={user.userId} 
-                  onClick={() => onUserClick(user.userId)}
-                  className="cursor-pointer bg-white transition-colors hover:bg-[#f3ecdc]"
-                >
-                  <td className="px-4 py-3.5">
-                    <div className="font-medium text-[#2c201b]">{user.userName}</div>
-                    <div className="text-xs text-[#7b705f] mt-0.5">{user.email}</div>
-                  </td>
-                  <td className="px-4 py-3.5 text-[#6f6556]">
-                    {formatLastLogin(user.lastLoginAt)}
-                  </td>
-                  <td className="px-4 py-3.5 text-right font-semibold text-[#2c201b]">
-                    {user.orcamentosCriados}
-                  </td>
-                  <td className="px-4 py-3.5 text-right">
-                    {user.orcamentosConvertidos > 0 ? (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-[#cce8d6] bg-[#e6f3eb] text-[11px] font-semibold text-[#2f7a52]">
-                        {user.orcamentosConvertidos} obras
-                      </span>
-                    ) : (
-                      <span className="text-[#9a8f7c]">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-[#6f6556]">
-                    {user.taxaConversao.toFixed(1)}%
-                  </td>
-                  <td className="px-4 py-3.5 text-right font-medium text-[#2f7a52]">
-                    {fmtMonetario(user.valorConvertido)}
-                  </td>
-                  <td className="px-4 py-3.5 text-right text-[#6f6556]">
-                    {fmtMonetario(user.ticketMedio)}
-                  </td>
-                </tr>
-              ))}
+              {users.map((user) => {
+                const canOpenObras = user.convertedObras.length > 0
+
+                return (
+                  <tr
+                    key={user.userId}
+                    onClick={() => canOpenObras && onUserClick(user.userId)}
+                    onKeyDown={(event) => {
+                      if (!canOpenObras) return
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        onUserClick(user.userId)
+                      }
+                    }}
+                    tabIndex={canOpenObras ? 0 : undefined}
+                    className={`bg-white transition-colors ${canOpenObras ? "cursor-pointer hover:bg-[#f3ecdc] focus-visible:bg-[#f3ecdc] focus-visible:outline-none" : ""}`}
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="font-medium text-[#2c201b]">{user.userName}</div>
+                      <div className="text-xs text-[#7b705f] mt-0.5">{user.email}</div>
+                    </td>
+                    <td className="px-4 py-3.5 text-[#6f6556]">
+                      {formatLastLogin(user.lastLoginAt)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-semibold text-[#2c201b]">
+                      {user.orcamentosCriados}
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      {user.orcamentosConvertidos > 0 ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-[#cce8d6] bg-[#e6f3eb] text-[11px] font-semibold text-[#2f7a52]">
+                          {user.orcamentosConvertidos} obras
+                        </span>
+                      ) : (
+                        <span className="text-[#9a8f7c]">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-[#6f6556]">
+                      {user.taxaConversao.toFixed(1)}%
+                    </td>
+                    <td className="px-4 py-3.5 text-right font-medium text-[#2f7a52]">
+                      {fmtMonetario(user.valorConvertido)}
+                    </td>
+                    <td className="px-4 py-3.5 text-right text-[#6f6556]">
+                      {fmtMonetario(user.ticketMedio)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         ) : (

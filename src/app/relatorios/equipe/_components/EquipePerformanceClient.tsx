@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { type TeamPerformanceResult, getTeamPerformance } from "@/actions/performance/get-team-performance"
 import DailyBudgetsChart from "./DailyBudgetsChart"
 import UsersPerformanceTable from "./UsersPerformanceTable"
-import UserTimelineDrawer from "./UserTimelineDrawer"
+import UserConvertedObrasDrawer from "./UserConvertedObrasDrawer"
 import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -59,6 +59,7 @@ export default function EquipePerformanceClient({ initialData }: Props) {
   }
 
   const { totalOrcamentos, totalConvertidos, taxaConversaoGlobal, faturamentoTotal, ticketMedioGlobal } = data.globalSummary
+  const selectedUser = selectedUserId ? data.usersPerformance.find(u => u.userId === selectedUserId) : null
 
   // --- Utility CSS Classes (from brand.md) ---
   const shellClass = "bg-[#ffffff] border border-[#e8e1d6] shadow-[0_1px_2px_rgba(16,24,40,0.04)] rounded-2xl"
@@ -178,13 +179,12 @@ export default function EquipePerformanceClient({ initialData }: Props) {
 
         </div>
 
-        {/* Viewer do Detalhe (Timeline) */}
-        {selectedUserId && (
-          <UserTimelineDrawer 
-            userId={selectedUserId} 
-            open={!!selectedUserId} 
+        {selectedUser && selectedUser.convertedObras.length > 0 && (
+          <UserConvertedObrasDrawer
+            open={!!selectedUserId}
             onOpenChange={(open: boolean) => !open && setSelectedUserId(null)}
-            userName={data.usersPerformance.find(u => u.userId === selectedUserId)?.userName || ""}
+            userName={selectedUser.userName}
+            obras={selectedUser.convertedObras}
           />
         )}
 

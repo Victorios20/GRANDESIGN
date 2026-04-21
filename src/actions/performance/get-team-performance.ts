@@ -3,6 +3,17 @@
 import { prisma } from "@/lib/prisma"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns"
 
+export type ConvertedObraDTO = {
+  obraId: number
+  orcamentoId: number
+  titulo: string
+  cliente: string
+  valorObra: number
+  status: string
+  dataFechamento: string | null
+  obraUrl: string
+}
+
 export type UserPerformanceDTO = {
   userId: number
   userName: string
@@ -13,6 +24,7 @@ export type UserPerformanceDTO = {
   taxaConversao: number // 0 a 100
   valorConvertido: number
   ticketMedio: number
+  convertedObras: ConvertedObraDTO[]
 }
 
 export type GlobalPerformanceSummary = {
@@ -96,18 +108,51 @@ export async function getTeamPerformance(
         excluido: false,
         data_criacao: { gte: startParam, lte: endParam }
       },
-      select: { id: true, lancado_obra: true, cliente_id: true }
+      select: {
+        id: true,
+        titulo: true,
+        lancado_obra: true,
+        lancado_obra_em: true,
+        cliente_id: true,
+        cliente: {
+          select: {
+            nome: true
+          }
+        },
+        obra: {
+          select: {
+            id: true,
+            titulo: true,
+            valor_obra: true,
+            status: true,
+            data_criacao: true,
+            cliente: {
+              select: {
+                nome: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: [
+        { data_criacao: "asc" },
+        { id: "asc" }
+      ]
     })
 
     let filteredOrcamentos = orcamentosRaw
     if (uniquePerClient) {
-      const clientMap = new Map()
+      const clientMap = new Map<number, (typeof orcamentosRaw)[number]>()
       for (const o of orcamentosRaw) {
         if (!clientMap.has(o.cliente_id)) {
           clientMap.set(o.cliente_id, o)
         } else {
           // Se o atual foi convertido, e o do mapa não, substitui pra ganhar a conversão
-          if (o.lancado_obra && !clientMap.get(o.cliente_id).lancado_obra) {
+          const current = clientMap.get(o.cliente_id)
+          const currentConverted = Boolean(current?.obra || current?.lancado_obra)
+          const nextConverted = Boolean(o.obra || o.lancado_obra)
+
+          if (nextConverted && !currentConverted) {
             clientMap.set(o.cliente_id, o)
           }
         }
@@ -116,22 +161,23 @@ export async function getTeamPerformance(
     }
 
     const orcamentosCriados = filteredOrcamentos.length
-    const orcamentosConvertidos = filteredOrcamentos.filter(o => o.lancado_obra).length
+    const convertedObras = filteredOrcamentos
+      .filter(o => o.obra)
+      .map((o) => ({
+        obraId: o.obra!.id,
+        orcamentoId: o.id,
+        titulo: o.obra!.titulo || o.titulo || `Obra #${o.obra!.id}`,
+        cliente: o.obra!.cliente?.nome || o.cliente?.nome || "Cliente não informado",
+        valorObra: Number(o.obra!.valor_obra || 0),
+        status: o.obra!.status,
+        dataFechamento: (o.lancado_obra_em || o.obra!.data_criacao)?.toISOString() ?? null,
+        obraUrl: `/obras/${o.obra!.id}`
+      }))
+    const orcamentosConvertidos = convertedObras.length
     const taxaConversao = orcamentosCriados > 0 ? (orcamentosConvertidos / orcamentosCriados) * 100 : 0
 
-    // 3.3 Converted Value (Baseado nas obras criadas pelo usuário. A obra pode ter vários orçamentos, mas a obra é única)
-    const valorConvertidoRaw = await prisma.obras.aggregate({
-      where: {
-        created_by: user.id,
-        data_criacao: { gte: startParam, lte: endParam },
-        status: { not: "FINALIZADO" } 
-      },
-      _sum: {
-        valor_obra: true
-      }
-    })
-
-    const valorConvertido = Number(valorConvertidoRaw._sum?.valor_obra || 0)
+    // 3.3 Converted Value (baseado nas obras originadas pelos orçamentos do usuário)
+    const valorConvertido = convertedObras.reduce((total, obra) => total + obra.valorObra, 0)
     const ticketMedio = orcamentosConvertidos > 0 ? valorConvertido / orcamentosConvertidos : 0
 
     // Agrega ao global
@@ -148,7 +194,8 @@ export async function getTeamPerformance(
       orcamentosConvertidos,
       taxaConversao,
       valorConvertido,
-      ticketMedio
+      ticketMedio,
+      convertedObras
     })
   }
 
