@@ -44,6 +44,21 @@ for (const group of getFixedFinancialGroups()) {
 
 type CsvRow = Record<string, string>
 
+const CSV_HEADERS = [
+  "M\u00EAs",
+  "Data",
+  "Status",
+  "Id do cliente",
+  "Valor",
+  "Sub-categoria",
+  "Tipo",
+  "Fornecedor",
+  "Observa\u00E7\u00F5es",
+  "Conta",
+  "Conta destino",
+  "Categoria",
+]
+
 interface ParsedRow {
   rowNumber: number
   key: string
@@ -72,6 +87,8 @@ interface ParsedArgs {
   apply: boolean
   filePath: string
   verbose: boolean
+  defaultMissingDateToday: boolean
+  skipExistingOpenByContent: boolean
 }
 
 interface BankCacheEntry {
@@ -200,6 +217,8 @@ function parseArgs(): ParsedArgs {
   const purge2026 = args.includes("--purge-2026")
   const apply = args.includes("--apply")
   const verbose = args.includes("--verbose")
+  const defaultMissingDateToday = args.includes("--default-missing-date-today")
+  const skipExistingOpenByContent = args.includes("--skip-existing-open-by-content")
   const fileFlagIndex = args.findIndex((arg) => arg === "--file")
   const filePath =
     fileFlagIndex >= 0 && args[fileFlagIndex + 1]
@@ -212,6 +231,8 @@ function parseArgs(): ParsedArgs {
     apply,
     filePath,
     verbose,
+    defaultMissingDateToday,
+    skipExistingOpenByContent,
   }
 }
 
@@ -332,6 +353,11 @@ function parseOptionalDate(value: string | null | undefined) {
   return parseDate(sanitized)
 }
 
+function getTodayDateOnly() {
+  const today = new Date()
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate())
+}
+
 function parseCurrency(value: string) {
   const normalized = value
     .replace(/[R$\s]/g, "")
@@ -380,6 +406,14 @@ function parseCsvLine(line: string) {
   return columns
 }
 
+function isHeaderRow(headers: string[]) {
+  return (
+    normalizeKey(headers[1]) === "data" &&
+    normalizeKey(headers[2]) === "status" &&
+    normalizeKey(headers[4]) === "valor"
+  )
+}
+
 function readCsvRows(
   filePath: string,
   repairs: Map<string, EncodingRepairEntry>,
@@ -387,13 +421,16 @@ function readCsvRows(
   const content = decodeCsvBuffer(fs.readFileSync(filePath))
   const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0)
 
-  if (lines.length < 2) {
+  if (lines.length < 1) {
     throw new Error("CSV vazio ou sem linhas de dados.")
   }
 
-  const headers = parseCsvLine(lines[0]).map((header) => sanitizeCsvCell(header, repairs))
+  const firstLine = parseCsvLine(lines[0]).map((header) => sanitizeCsvCell(header, repairs))
+  const hasHeaders = isHeaderRow(firstLine)
+  const headers = hasHeaders ? firstLine : CSV_HEADERS
+  const dataLines = hasHeaders ? lines.slice(1) : lines
 
-  return lines.slice(1).map((line) => {
+  return dataLines.map((line) => {
     const values = parseCsvLine(line).map((value) => sanitizeCsvCell(value, repairs))
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))
   })
@@ -504,7 +541,11 @@ function getImportKey(row: CsvRow, rowNumber: number) {
   return crypto.createHash("sha1").update(payload).digest("hex")
 }
 
-function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
+function parseRow(
+  row: CsvRow,
+  rowNumber: number,
+  defaultMissingDateToday = false,
+): ParsedRow {
   const statusKey = normalizeKey(row.Status)
   const key = getImportKey(row, rowNumber)
   const canonicalCategoryLabel = getCanonicalLabel(row["Sub-categoria"], key)
@@ -574,7 +615,7 @@ function parseRow(row: CsvRow, rowNumber: number): ParsedRow {
   return {
     rowNumber,
     key,
-    date: parseOptionalDate(row.Data),
+    date: parseOptionalDate(row.Data) ?? (defaultMissingDateToday ? getTodayDateOnly() : null),
     status,
     direction,
     amount: parseCurrency(row.Valor),
@@ -1743,6 +1784,35 @@ function getOpenStatus(date: Date) {
   return date < today ? StatusFinanceiro.ATRASADO : StatusFinanceiro.PENDENTE
 }
 
+async function findExistingOpenFinancialRow(row: ParsedRow) {
+  if (!row.date) {
+    return null
+  }
+
+  const where = {
+    valor_total: new Prisma.Decimal(row.amount.toFixed(2)),
+    data_vencimento: row.date,
+    status: { not: StatusFinanceiro.CANCELADO },
+    categoria: {
+      nome: row.categoryLabel,
+    },
+  }
+
+  if (row.direction === "ENTRADA") {
+    return prisma.contaReceber.findFirst({
+      where,
+      select: { id: true, descricao: true },
+      orderBy: { id: "desc" },
+    })
+  }
+
+  return prisma.contaPagar.findFirst({
+    where,
+    select: { id: true, descricao: true },
+    orderBy: { id: "desc" },
+  })
+}
+
 async function applyOpeningBalances(
   openingBalances: Map<string, number>,
   caches: ImportCaches,
@@ -1849,6 +1919,7 @@ async function processTransferRow(
   summary: Summary,
   apply: boolean,
   createdBy: number | null,
+  skipExistingOpenByContent: boolean,
 ) {
   if (!row.date) {
     summary.blockedRows.push(
@@ -1931,6 +2002,7 @@ async function processTransferRow(
       summary,
       apply,
       createdBy,
+      skipExistingOpenByContent,
     )
     return
   }
@@ -2061,7 +2133,27 @@ async function processFinancialRow(
   summary: Summary,
   apply: boolean,
   createdBy: number | null,
+  skipExistingOpenByContent: boolean,
 ) {
+  if (row.isTransfer && row.status === "PREVISTO") {
+    await processFinancialRow(
+      {
+        ...row,
+        isTransfer: false,
+        categoryLabel: "Transfer\u00EAncia",
+        categoryKey: TRANSFER_SUBCATEGORY_KEY,
+      },
+      allRows,
+      processedTransferPairs,
+      caches,
+      summary,
+      apply,
+      createdBy,
+      skipExistingOpenByContent,
+    )
+    return
+  }
+
   if (row.isTransfer) {
     await processTransferRow(
       row,
@@ -2071,6 +2163,7 @@ async function processFinancialRow(
       summary,
       apply,
       createdBy,
+      skipExistingOpenByContent,
     )
     return
   }
@@ -2087,6 +2180,20 @@ async function processFinancialRow(
       createBlockedRow(row, "Linha efetivada sem conta bancária de origem."),
     )
     return
+  }
+
+  if (skipExistingOpenByContent) {
+    const existingRow = await findExistingOpenFinancialRow(row)
+
+    if (existingRow) {
+      summary.skippedRows.push(
+        createBlockedRow(
+          row,
+          `Poss\u00EDvel duplicado existente: ${row.direction === "ENTRADA" ? "conta a receber" : "conta a pagar"} #${existingRow.id} (${existingRow.descricao}).`,
+        ),
+      )
+      return
+    }
   }
 
   const bank =
@@ -2342,7 +2449,9 @@ async function main() {
   const summary = createSummary(args)
   const encodingRepairs = new Map<string, EncodingRepairEntry>()
   const rawRows = readCsvRows(args.filePath, encodingRepairs)
-  const parsedRows = rawRows.map((row, index) => parseRow(row, index + 2))
+  const parsedRows = rawRows.map((row, index) =>
+    parseRow(row, index + 2, args.defaultMissingDateToday),
+  )
   const actionableRows = parsedRows.filter((row) => !row.isOpeningBalance)
   const openingBalances = collectOpeningBalances(parsedRows)
   const processedTransferPairs = new Set<string>()
@@ -2378,6 +2487,7 @@ async function main() {
         summary,
         false,
         createdBy,
+        args.skipExistingOpenByContent,
       )
     }
   }
@@ -2403,6 +2513,7 @@ async function main() {
         summary,
         true,
         createdBy,
+        args.skipExistingOpenByContent,
       )
     }
 
