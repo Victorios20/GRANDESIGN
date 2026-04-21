@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import type { CheckedState } from "@radix-ui/react-checkbox"
-import { Calendar, MoreVertical, TrendingDown, TrendingUp } from "lucide-react"
+import { Calendar, CheckCircle2, MoreVertical, TrendingDown, TrendingUp } from "lucide-react"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { SortableHeader } from "@/components/financeiro/SortableHeader"
@@ -80,7 +80,7 @@ export function PedidoCompraListTable({
               Status
             </SortableHeader>
             <SortableHeader column="value" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
-              Valor previsto
+              Valor do pedido
             </SortableHeader>
             <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
               Valor realizado
@@ -99,6 +99,7 @@ export function PedidoCompraListTable({
           {orders.map((order) => {
             const isSelected = selectedIds.includes(order.id)
             const variance = calcVariancePercent(order.expectedValue, order.actualValue)
+            const isIntegrated = order.financeiroIntegracaoStatus === "INTEGRADO"
 
             return (
               <TableRow
@@ -179,9 +180,20 @@ export function PedidoCompraListTable({
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">
-                  <span className={`${listIntegrationBadgeClass} ${getPedidoFinanceBadgeClass(order.financeiroIntegracaoStatus)}`}>
+                  <span
+                    className={cn(
+                      listIntegrationBadgeClass,
+                      getPedidoFinanceBadgeClass(order.financeiroIntegracaoStatus),
+                      isIntegrated && "border-emerald-500 bg-emerald-100 text-emerald-800 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.18)]"
+                    )}
+                    aria-label={`Integração financeira: ${getPedidoFinanceLabel(order.financeiroIntegracaoStatus)}`}
+                  >
+                    {isIntegrated ? <CheckCircle2 className="h-3.5 w-3.5" /> : null}
                     {getPedidoFinanceLabel(order.financeiroIntegracaoStatus)}
                   </span>
+                  {isIntegrated && order.integratedCode ? (
+                    <div className="mt-1 text-xs font-medium text-emerald-700">{order.integratedCode}</div>
+                  ) : null}
                 </TableCell>
 
                 <TableCell className="px-3 py-3.5 align-top">

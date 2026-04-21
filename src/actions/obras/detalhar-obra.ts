@@ -196,38 +196,8 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
       observacoes: obra.observacoes ?? null,
     },
 
-    pedidosCompra: (obra.pedidos_compra || []).map((p: any) => ({
-      id: p.id,
-      obraId: p.obra_id,
-      categoria: p.categoria,
-      status: p.status,
-      fornecedorId: p.fornecedor_id ?? null,
-      fornecedor: p.fornecedor ? { id: p.fornecedor.id, nome: p.fornecedor.nome } : null,
-      valorOrcado: n(p.valor_orcado),
-      valorRealizado: n(p.valor_realizado),
-      frete: n(p.frete),
-      descricao: p.descricao ?? null,
-      observacoes: p.observacoes ?? null,
-      dataEntrega: fromDateOnlyDb(p.data_entrega),
-      enderecoEntrega: p.endereco_entrega ?? null,
-      nomeReceptor: p.nome_receptor ?? null,
-      telefoneReceptor: p.telefone_receptor ?? null,
-      linkMaps: p.link_maps ?? null,
-      createdAt: iso(p.created_at || p.data_criacao),
-      updatedAt: iso(p.updated_at || p.data_ultima_alteracao),
-      valores: {
-        orcado: n(p.valor_orcado),
-        realizado: n(p.valor_realizado),
-        frete: n(p.frete),
-      },
-      entrega: {
-        data: fromDateOnlyDb(p.data_entrega),
-        endereco: p.endereco_entrega ?? null,
-        receptor: p.nome_receptor ?? null,
-        telefone: p.telefone_receptor ?? null,
-        maps: p.link_maps ?? null,
-      },
-      itens: (p.itens || []).map((i: any) => ({
+    pedidosCompra: (obra.pedidos_compra || []).map((p: any) => {
+      const itens = (p.itens || []).map((i: any) => ({
         id: i.id,
         pedidoCompraId: i.pedido_compra_id,
         descricao: i.descricao,
@@ -237,8 +207,45 @@ export async function detalharObraDB(obraId: number): Promise<ObraDetalheDTO> {
         total: n(i.total)!,
         createdAt: iso(i.created_at || i.data_criacao),
         updatedAt: iso(i.updated_at || i.data_ultima_alteracao),
-      })),
-    })),
+      }))
+      const valorPedido = itens.reduce((acc: number, item: any) => acc + Number(item.total ?? 0), Number(p.frete ?? 0))
+
+      return {
+        id: p.id,
+        obraId: p.obra_id,
+        categoria: p.categoria,
+        status: p.status,
+        fornecedorId: p.fornecedor_id ?? null,
+        fornecedor: p.fornecedor ? { id: p.fornecedor.id, nome: p.fornecedor.nome } : null,
+        valorOrcado: n(p.valor_orcado),
+        valorPedido,
+        valorRealizado: n(p.valor_realizado),
+        frete: n(p.frete),
+        descricao: p.descricao ?? null,
+        observacoes: p.observacoes ?? null,
+        dataEntrega: fromDateOnlyDb(p.data_entrega),
+        enderecoEntrega: p.endereco_entrega ?? null,
+        nomeReceptor: p.nome_receptor ?? null,
+        telefoneReceptor: p.telefone_receptor ?? null,
+        linkMaps: p.link_maps ?? null,
+        createdAt: iso(p.created_at || p.data_criacao),
+        updatedAt: iso(p.updated_at || p.data_ultima_alteracao),
+        valores: {
+          orcado: n(p.valor_orcado),
+          pedido: valorPedido,
+          realizado: n(p.valor_realizado),
+          frete: n(p.frete),
+        },
+        entrega: {
+          data: fromDateOnlyDb(p.data_entrega),
+          endereco: p.endereco_entrega ?? null,
+          receptor: p.nome_receptor ?? null,
+          telefone: p.telefone_receptor ?? null,
+          maps: p.link_maps ?? null,
+        },
+        itens,
+      }
+    }),
 
     ordemServico: obra.ordem_servico
       ? {

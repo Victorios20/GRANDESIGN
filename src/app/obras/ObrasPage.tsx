@@ -5,10 +5,11 @@ import { useSession } from "next-auth/react"
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Save, Pencil, X, Copy, MoreHorizontal, FileText, FileSignature, ScrollText, Trash2 } from "lucide-react"
+import { Save, Pencil, X, Copy, MoreHorizontal, FileText, FileSignature, ScrollText, Trash2, Calculator } from "lucide-react"
 
 import { PageLayout } from "@/components/ui/pageLayout"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 import AgendaObra from "./_sections/AgendaObra"
 import Anexos from "./_sections/Anexos"
@@ -52,6 +55,14 @@ type Catalogo = {
 }
 type Componente = { id?: number; nome: string; categoria?: string } | any
 type Cidade = { id: number; nome: string }
+type BudgetForecastValues = {
+  receita_orcada: number
+  mao_de_obra_orcada: number
+  madeira_previsto: number
+  telha_previsto: number
+  andaime_previsto: number
+  materiais_previsto: number
+}
 
 type PedidoCompraDTO = {
   id: number
@@ -60,6 +71,7 @@ type PedidoCompraDTO = {
   fornecedor: { id: number; nome: string } | null
   valores: {
     orcado: number | null
+    pedido?: number | null
     realizado: number | null
     frete: number | null
   }
@@ -120,6 +132,24 @@ type Props = {
 const toNum = (v: any) => {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
+}
+
+const emptyForecastValues: BudgetForecastValues = {
+  receita_orcada: 0,
+  mao_de_obra_orcada: 0,
+  madeira_previsto: 0,
+  telha_previsto: 0,
+  andaime_previsto: 0,
+  materiais_previsto: 0,
+}
+
+function calculatePedidoVMAmount(pedido: Partial<PedidoCompraVM> | null | undefined) {
+  if (!pedido) return 0
+  const explicit = toNum((pedido as any)?.valorPedido ?? (pedido as any)?.valor_pedido ?? 0)
+  if (explicit > 0) return explicit
+  const itens = Array.isArray((pedido as any)?.itens) ? (pedido as any).itens : []
+  const itensTotal = itens.reduce((acc: number, item: any) => acc + toNum(item?.total ?? 0), 0)
+  return itensTotal + toNum((pedido as any)?.frete ?? (pedido as any)?.valores?.frete ?? 0)
 }
 
 function normalizeNullableDimension(value: unknown) {
@@ -349,6 +379,16 @@ function resolveClienteIdFromInitial(initial: any): number | undefined {
 function dtoToPedidoVM(p: PedidoCompraDTO): PedidoCompraVM {
   const categoria = normCategoria(p.categoria) as any
   const status = String(p.status ?? "PENDENTE").toUpperCase() as any
+  const itens = (p.itens ?? []).map((i) => ({
+    id: i.id,
+    descricao: String(i.descricao ?? "").trim(),
+    quantidade: Number(i.quantidade ?? 0),
+    tamanho: i.tamanho ?? null,
+    precoUnitario: Number(i.precoUnitario ?? 0),
+    total: Number(i.total ?? 0),
+    componente: i.componente ?? null,
+  }))
+  const valorPedido = toNum(p.valores?.pedido ?? 0) || itens.reduce((acc, item) => acc + toNum(item.total), 0) + toNum(p.valores?.frete ?? 0)
 
   return {
     id: p.id,
@@ -358,18 +398,11 @@ function dtoToPedidoVM(p: PedidoCompraDTO): PedidoCompraVM {
     fornecedorNome: p.fornecedor?.nome ?? null,
     fornecedorId: p.fornecedor?.id ?? null,
     valorOrcado: Number(p.valores?.orcado ?? 0),
+    valorPedido: Number(valorPedido.toFixed(2)),
     valorRealizado: p.valores?.realizado ?? null,
     frete: p.valores?.frete ?? null,
     dataEntrega: p.entrega?.data ?? null,
-    itens: (p.itens ?? []).map((i) => ({
-      id: i.id,
-      descricao: String(i.descricao ?? "").trim(),
-      quantidade: Number(i.quantidade ?? 0),
-      tamanho: i.tamanho ?? null,
-      precoUnitario: Number(i.precoUnitario ?? 0),
-      total: Number(i.total ?? 0),
-      componente: i.componente ?? null,
-    })),
+    itens,
   }
 }
 
@@ -381,13 +414,13 @@ function isMeaningfulPedidoVM(p: Partial<PedidoCompraVM> | null | undefined) {
   const desc = String((p as any)?.descricao ?? "").trim()
   const fornecedorId = Number((p as any)?.fornecedorId ?? 0)
   const dataEntrega = String((p as any)?.dataEntrega ?? "").trim()
-  const valorOrcado = toNum((p as any)?.valorOrcado ?? 0)
+  const valorPedido = calculatePedidoVMAmount(p)
   const valorRealizado = (p as any)?.valorRealizado
   const frete = (p as any)?.frete
   const itens = Array.isArray((p as any)?.itens) ? (p as any).itens : []
 
   const hasMoney =
-    (Number.isFinite(valorOrcado) && valorOrcado > 0) ||
+    (Number.isFinite(valorPedido) && valorPedido > 0) ||
     (valorRealizado != null && String(valorRealizado) !== "" && Number(valorRealizado) !== 0) ||
     (frete != null && String(frete) !== "" && Number(frete) !== 0)
 
@@ -435,7 +468,8 @@ function buildDefaultAndaimesPedidoVM(): PedidoCompraVM {
     status: "PENDENTE" as any,
     fornecedorNome: null,
     fornecedorId: null,
-    valorOrcado: Number(valorOrcado.toFixed(2)),
+    valorOrcado: null,
+    valorPedido: Number(valorOrcado.toFixed(2)),
     valorRealizado: null,
     frete: null,
     dataEntrega: null,
@@ -452,6 +486,17 @@ function pedidoInitToPedidosVM(pedidoInit: any, telhaEscolhida?: string): Pedido
   const pushIf = (cat: "TELHA" | "MADEIRA" | "MATERIAIS" | "ANDAIMES", raw: any) => {
     if (!raw) return
 
+    const itens = Array.isArray(raw?.itens)
+      ? raw.itens.map((it: any, idx: number) => ({
+        id: Number(it?.id ?? idx),
+        descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
+        quantidade: toNum(it?.quantidade ?? 0),
+        tamanho: it?.tamanho ?? null,
+        precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
+        total: toNum(it?.total ?? 0),
+      }))
+      : []
+
     const p: PedidoCompraVM = {
       id: Number(raw?.id ?? 0) || undefined,
       descricao: String(raw?.descricao ?? raw?.observacoes ?? "").trim(),
@@ -460,19 +505,11 @@ function pedidoInitToPedidosVM(pedidoInit: any, telhaEscolhida?: string): Pedido
       fornecedorNome: raw?.fornecedorNome ?? null,
       fornecedorId: raw?.fornecedorId ?? null,
       valorOrcado: toNum(raw?.orcamento ?? raw?.valorOrcado ?? raw?.valor_orcado ?? raw?.valores?.orcado ?? 0),
+      valorPedido: Number((itens.reduce((acc: number, it: any) => acc + toNum(it.total), 0) + toNum(raw?.frete ?? raw?.valores?.frete ?? 0)).toFixed(2)),
       valorRealizado: raw?.valorRealizado ?? raw?.valor_realizado ?? raw?.valores?.realizado ?? null,
       frete: raw?.frete ?? raw?.valores?.frete ?? null,
       dataEntrega: raw?.previsao ?? raw?.dataEntrega ?? raw?.data_entrega ?? raw?.entrega?.data ?? null,
-      itens: Array.isArray(raw?.itens)
-        ? raw.itens.map((it: any, idx: number) => ({
-          id: Number(it?.id ?? idx),
-          descricao: String(it?.descricao ?? it?.madeiraNome ?? "").trim(),
-          quantidade: toNum(it?.quantidade ?? 0),
-          tamanho: it?.tamanho ?? null,
-          precoUnitario: toNum(it?.precoUnitario ?? it?.preco_unitario ?? 0),
-          total: toNum(it?.total ?? 0),
-        }))
-        : [],
+      itens,
     }
 
     if (isMeaningfulPedidoVM(p)) out.push(p)
@@ -555,6 +592,10 @@ export default function ObrasPage({
   const [agendaError, setAgendaError] = useState<string | null>(null)
   const [agendaHasDraft, setAgendaHasDraft] = useState(false)
   const [agendaEditorVersion, setAgendaEditorVersion] = useState(0)
+  const [forecastDialogOpen, setForecastDialogOpen] = useState(false)
+  const [forecastLoading, setForecastLoading] = useState(false)
+  const [forecastSaving, setForecastSaving] = useState(false)
+  const [forecastValues, setForecastValues] = useState<BudgetForecastValues>(emptyForecastValues)
   const initialAgendaSerialized = useMemo(
     () => serializeAgendaSegments(Array.isArray(agendaInit) ? agendaInit : []),
     [agendaInit]
@@ -783,6 +824,63 @@ export default function ObrasPage({
     }
   }
 
+  async function openForecastDialog() {
+    if (!obraId) return
+
+    setForecastDialogOpen(true)
+    setForecastLoading(true)
+
+    try {
+      const res = await fetch(`/api/obras/${obraId}/valores-previstos`, { cache: "no-store" })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao carregar valores previstos")
+
+      setForecastValues({ ...emptyForecastValues, ...(body?.data ?? {}) })
+    } catch (error: any) {
+      toast.error(error?.message || "Falha ao carregar valores previstos")
+      setForecastValues(emptyForecastValues)
+    } finally {
+      setForecastLoading(false)
+    }
+  }
+
+  async function saveForecastValues() {
+    if (!obraId || forecastSaving) return
+
+    setForecastSaving(true)
+    try {
+      const res = await fetch(`/api/obras/${obraId}/valores-previstos`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(forecastValues),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || body?.message || "Falha ao salvar valores previstos")
+
+      const next = { ...emptyForecastValues, ...(body?.data ?? {}) }
+      setForecastValues(next)
+      setFin((current) => ({
+        ...current,
+        valorObra: next.receita_orcada,
+        maoDeObra: next.mao_de_obra_orcada,
+      }))
+      setForecastDialogOpen(false)
+      toast.success("Valores previstos atualizados")
+      router.refresh()
+    } catch (error: any) {
+      toast.error(error?.message || "Falha ao salvar valores previstos")
+    } finally {
+      setForecastSaving(false)
+    }
+  }
+
+  function patchForecastValue(field: keyof BudgetForecastValues, value: string) {
+    setForecastValues((current) => ({
+      ...current,
+      [field]: toNum(value),
+    }))
+  }
+
   function validateAndFocus(): boolean {
     if (isEmpty(vm.tipoObra)) {
       toast.error("Tipo de obra é obrigatório.")
@@ -964,7 +1062,7 @@ export default function ObrasPage({
       .map((p) => ({
         categoria: normCategoria((p as any)?.categoria ?? "MATERIAIS"),
         status: (p as any)?.status ?? null,
-        valor_orcado: Number((p as any)?.valorOrcado ?? 0),
+        valor_orcado: (p as any)?.valorOrcado ?? null,
         valor_realizado: (p as any)?.valorRealizado ?? null,
         frete: (p as any)?.frete ?? null,
         descricao: String((p as any)?.descricao ?? "").trim() || null,
@@ -1190,7 +1288,8 @@ export default function ObrasPage({
         status: (draft as any)?.status ?? ("PENDENTE" as any),
         fornecedorNome: (draft as any)?.fornecedorNome ?? null,
         fornecedorId: (draft as any)?.fornecedorId ?? null,
-        valorOrcado: Number((draft as any)?.valorOrcado ?? 0),
+        valorOrcado: (draft as any)?.valorOrcado ?? null,
+        valorPedido: Number((draft as any)?.valorPedido ?? calculatePedidoVMAmount(draft as any)),
         valorRealizado: (draft as any)?.valorRealizado ?? null,
         frete: (draft as any)?.frete ?? null,
         dataEntrega: (draft as any)?.dataEntrega ?? null,
@@ -1303,6 +1402,11 @@ export default function ObrasPage({
 
                 <DropdownMenuSeparator />
 
+                <DropdownMenuItem onClick={openForecastDialog} disabled={!obraId}>
+                  <Calculator className="h-4 w-4 mr-2" />
+                  Editar valores previstos
+                </DropdownMenuItem>
+
                 <DropdownMenuItem onClick={() => setIsEditing(true)}>
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
@@ -1351,6 +1455,47 @@ export default function ObrasPage({
         onClose={() => setClienteModalOpen(false)}
         onSaved={onClienteSaved}
       />
+
+      <Dialog open={forecastDialogOpen} onOpenChange={setForecastDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar valores previstos</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              ["receita_orcada", "Receita prevista"],
+              ["mao_de_obra_orcada", "Mao de obra"],
+              ["madeira_previsto", "Madeira"],
+              ["telha_previsto", "Telha"],
+              ["andaime_previsto", "Andaime"],
+              ["materiais_previsto", "Materiais"],
+            ].map(([field, label]) => (
+              <div key={field} className="space-y-2">
+                <Label htmlFor={`forecast-${field}`}>{label}</Label>
+                <Input
+                  id={`forecast-${field}`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={String(forecastValues[field as keyof BudgetForecastValues] ?? 0)}
+                  onChange={(event) => patchForecastValue(field as keyof BudgetForecastValues, event.target.value)}
+                  disabled={forecastLoading || forecastSaving}
+                />
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setForecastDialogOpen(false)} disabled={forecastSaving}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={saveForecastValues} disabled={forecastLoading || forecastSaving}>
+              {forecastSaving ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <InfosGerais
         value={vm}

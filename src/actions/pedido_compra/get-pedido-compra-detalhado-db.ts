@@ -40,6 +40,7 @@ export type PedidoCompraDetalhadoDTO = {
   status: any
 
   valor_orcado: any | null
+  valor_pedido: any | null
   valor_realizado: any | null
   frete: any | null
 
@@ -115,6 +116,7 @@ export async function getPedidoCompraDetalhado(pedidoCompraId: number): Promise<
 
     return {
       ...(pedido as any),
+      valor_pedido: (pedido.itens ?? []).reduce((acc, item) => acc + Number(item.total ?? 0), Number(pedido.frete ?? 0)),
       financeiro_conta_pagar_id: (pedido as any).contas_pagar?.[0]?.id ?? null,
       financeiro_conta_pagar_status: (pedido as any).contas_pagar?.[0]?.status ?? null,
       financeiro_conta_pagar_valor_total: (pedido as any).contas_pagar?.[0]?.valor_total ?? null,

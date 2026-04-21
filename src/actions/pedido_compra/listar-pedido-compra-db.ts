@@ -35,6 +35,7 @@ export type PedidoCompraListItem = {
   categoria: PedidoCategoria
   status: PedidoCompraStatus
   valor_orcado: Prisma.Decimal | null
+  valor_pedido: Prisma.Decimal | null
   valor_realizado: Prisma.Decimal | null
   data_entrega: string | null
   fornecedor: { id: number; nome: string } | null
@@ -46,6 +47,29 @@ export type PedidoCompraListItem = {
   financeiro_integracao_status: IntegracaoFinanceiraStatus
   financeiro_conta_pagar_id: number | null
   financeiro_conta_pagar_status: StatusFinanceiro | null
+  financeiro_conta_pagar_valor_total: Prisma.Decimal | null
+  financeiro_conta_pagar_valor_pago: Prisma.Decimal | null
+}
+
+type PedidoCompraListRow = {
+  id: number | bigint
+  descricao: string | null
+  categoria: string
+  status: string
+  valor_orcado: Prisma.Decimal | null
+  valor_pedido: Prisma.Decimal | null
+  valor_realizado: Prisma.Decimal | null
+  data_entrega: Date | string | null
+  fornecedor_id: number | bigint | null
+  fornecedor_nome: string | null
+  obra_id: number | bigint
+  obra_status: string | null
+  obra_titulo: string | null
+  obra_cidade: string | null
+  created_at: Date | string
+  financeiro_integracao_status: string | IntegracaoFinanceiraStatus | null
+  financeiro_conta_pagar_id: number | bigint | null
+  financeiro_conta_pagar_status: string | StatusFinanceiro | null
   financeiro_conta_pagar_valor_total: Prisma.Decimal | null
   financeiro_conta_pagar_valor_pago: Prisma.Decimal | null
 }
@@ -101,6 +125,18 @@ function mapCategoria(raw?: string | PedidoCategoria | null): PedidoCategoria | 
   if (n === "materiais" || n === "material") return PedidoCategoria.MATERIAIS
   if (n === "andaimes" || n === "andaime") return PedidoCategoria.ANDAIMES
   return undefined
+}
+
+function mapIntegracaoFinanceiraStatus(raw?: string | IntegracaoFinanceiraStatus | null): IntegracaoFinanceiraStatus {
+  if (!raw) return IntegracaoFinanceiraStatus.NAO_INTEGRADO
+  if (Object.values(IntegracaoFinanceiraStatus).includes(raw as IntegracaoFinanceiraStatus)) {
+    return raw as IntegracaoFinanceiraStatus
+  }
+
+  const n = normalizeStr(String(raw))
+  if (n === "integrado") return IntegracaoFinanceiraStatus.INTEGRADO
+  if (n === "estornado") return IntegracaoFinanceiraStatus.ESTORNADO
+  return IntegracaoFinanceiraStatus.NAO_INTEGRADO
 }
 
 function emptyCounts(total: number): ListarPedidoCompraCounts {
@@ -168,6 +204,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
       pc.categoria,
       pc.status,
       pc.valor_orcado,
+      (COALESCE(pi.total_itens, 0) + COALESCE(pc.frete, 0)) as valor_pedido,
       pc.valor_realizado,
       pc.financeiro_integracao_status,
       pc.data_entrega,
@@ -188,6 +225,11 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     LEFT JOIN cliente cl ON cl.id = o.cliente_id
     LEFT JOIN cidades ci ON ci.id = cl.cidade_id
     LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(pi.total), 0) as total_itens
+      FROM pedido_itens pi
+      WHERE pi.pedido_compra_id = pc.id
+    ) pi ON true
+    LEFT JOIN LATERAL (
       SELECT id, status, valor_total, valor_pago
       FROM contas_pagar cp
       WHERE cp.pedido_compra_id = pc.id
@@ -197,13 +239,12 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
   `
 
   const whereParts: Prisma.Sql[] = []
-  const params: any[] = []
 
   if (baseWhere.obra_id != null) {
     whereParts.push(Prisma.sql`pc.obra_id = ${baseWhere.obra_id}`)
   }
-  if ((baseWhere as any).fornecedor_id != null) {
-    whereParts.push(Prisma.sql`pc.fornecedor_id = ${(baseWhere as any).fornecedor_id}`)
+  if (baseWhere.fornecedor_id != null) {
+    whereParts.push(Prisma.sql`pc.fornecedor_id = ${baseWhere.fornecedor_id}`)
   }
   if (baseWhere.categoria != null) {
     whereParts.push(Prisma.sql`pc.categoria = ${baseWhere.categoria}`)
@@ -246,7 +287,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
       : orderBy === "data_entrega"
         ? Prisma.sql`ORDER BY COALESCE(pc.data_entrega, ${nullDateSql}) ${dirSql}, pc.id ASC`
         : orderBy === "valor_orcado"
-          ? Prisma.sql`ORDER BY pc.valor_orcado ${dirSql} NULLS LAST, pc.id ASC`
+          ? Prisma.sql`ORDER BY (COALESCE(pi.total_itens, 0) + COALESCE(pc.frete, 0)) ${dirSql} NULLS LAST, pc.id ASC`
           : orderBy === "valor_realizado"
             ? Prisma.sql`ORDER BY pc.valor_realizado ${dirSql} NULLS LAST, pc.id ASC`
             : orderBy === "descricao"
@@ -266,7 +307,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
 
   const [countRows, rows] = await prisma.$transaction([
     prisma.$queryRaw<{ total: number }[]>(Prisma.sql`${countSql}`),
-    prisma.$queryRaw<any[]>(Prisma.sql`${selectSql} ${whereSql} ${orderSql} ${limitSql}`),
+    prisma.$queryRaw<PedidoCompraListRow[]>(Prisma.sql`${selectSql} ${whereSql} ${orderSql} ${limitSql}`),
   ])
 
   const total = Number(countRows?.[0]?.total ?? 0)
@@ -277,19 +318,20 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
     descricao: r.descricao == null ? null : String(r.descricao),
     categoria: r.categoria as PedidoCategoria,
     status: r.status as PedidoCompraStatus,
-    valor_orcado: r.valor_orcado as any,
-    valor_realizado: r.valor_realizado as any,
+    valor_orcado: r.valor_orcado,
+    valor_pedido: r.valor_pedido,
+    valor_realizado: r.valor_realizado,
     data_entrega: fromDateOnlyDb(r.data_entrega),
     obra_id: Number(r.obra_id),
     obra_status: r.obra_status == null ? null : String(r.obra_status),
     obra_titulo: r.obra_titulo == null ? null : String(r.obra_titulo),
     obra_cidade: r.obra_cidade == null ? null : String(r.obra_cidade),
     created_at: new Date(r.created_at),
-    financeiro_integracao_status: r.financeiro_integracao_status as IntegracaoFinanceiraStatus,
+    financeiro_integracao_status: mapIntegracaoFinanceiraStatus(r.financeiro_integracao_status),
     financeiro_conta_pagar_id: r.financeiro_conta_pagar_id == null ? null : Number(r.financeiro_conta_pagar_id),
     financeiro_conta_pagar_status: r.financeiro_conta_pagar_status as StatusFinanceiro | null,
-    financeiro_conta_pagar_valor_total: r.financeiro_conta_pagar_valor_total as any,
-    financeiro_conta_pagar_valor_pago: r.financeiro_conta_pagar_valor_pago as any,
+    financeiro_conta_pagar_valor_total: r.financeiro_conta_pagar_valor_total,
+    financeiro_conta_pagar_valor_pago: r.financeiro_conta_pagar_valor_pago,
     fornecedor:
       r.fornecedor_id == null
         ? null
@@ -301,7 +343,7 @@ export async function listarPedidosCompra(input: ListarPedidoCompraInput): Promi
   if (input.includeCounts) {
     const countBaseWhereParts: Prisma.Sql[] = []
     if (baseWhere.obra_id != null) countBaseWhereParts.push(Prisma.sql`pc.obra_id = ${baseWhere.obra_id}`)
-    if ((baseWhere as any).fornecedor_id != null) countBaseWhereParts.push(Prisma.sql`pc.fornecedor_id = ${(baseWhere as any).fornecedor_id}`)
+    if (baseWhere.fornecedor_id != null) countBaseWhereParts.push(Prisma.sql`pc.fornecedor_id = ${baseWhere.fornecedor_id}`)
     if (baseWhere.categoria != null) countBaseWhereParts.push(Prisma.sql`pc.categoria = ${baseWhere.categoria}`)
 
     if (q) {

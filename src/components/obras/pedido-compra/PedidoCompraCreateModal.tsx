@@ -434,7 +434,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
   const handleCreate = () => {
     if (!hasValidItem) return
 
-    const valorOrcado = items.reduce((acc, x) => acc + itemTotal(x), 0) + (Number(frete) || 0)
+    const valorPedido = items.reduce((acc, x) => acc + itemTotal(x), 0) + (Number(frete) || 0)
 
     onCreate({
       obraId: obraId ?? undefined,
@@ -446,7 +446,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
 
       dataEntrega: dataEntrega ? dataEntrega : null,
       frete: Number(frete) || 0,
-      valorOrcado,
+      valorPedido,
 
       nomeReceptor: nomeReceptor.trim() || null,
       telefoneReceptor: telefoneReceptor.trim() || null,
@@ -692,7 +692,7 @@ export function PedidoCompraCreateModal({ open, onOpenChange, obraId, onCreate }
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className="flex items-end">
                 <div className="w-full rounded-lg border border-border bg-muted/50 p-3">
-                  <div className="text-sm text-muted-foreground">Subtotal (itens + frete)</div>
+                  <div className="text-sm text-muted-foreground">Valor do pedido (itens + frete)</div>
                   <div className="font-mono text-2xl font-semibold">R$ {moneyBRL(subtotal)}</div>
                 </div>
               </div>

@@ -63,6 +63,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     categoria: pedido.categoria,
     status: pedido.status,
     valor_orcado: pedido.valor_orcado?.toString?.() ?? null,
+    valor_pedido: (
+      (pedido.itens ?? []).reduce((acc, item) => acc + Number(item.total ?? 0), 0) + Number(pedido.frete ?? 0)
+    ).toFixed(2),
     valor_realizado: pedido.valor_realizado?.toString?.() ?? null,
     frete: pedido.frete?.toString?.() ?? null,
     descricao: pedido.descricao ?? null,

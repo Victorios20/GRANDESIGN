@@ -78,7 +78,7 @@ export function PedidoCompraListToolbar({
               <SelectItem value="number">Número</SelectItem>
               <SelectItem value="description">Descrição</SelectItem>
               <SelectItem value="category">Categoria</SelectItem>
-              <SelectItem value="value">Valor previsto</SelectItem>
+              <SelectItem value="value">Valor do pedido</SelectItem>
               <SelectItem value="actualValue">Valor realizado</SelectItem>
               <SelectItem value="delivery">Entrega</SelectItem>
               <SelectItem value="status">Status</SelectItem>

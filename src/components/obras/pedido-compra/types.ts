@@ -33,6 +33,7 @@ export type PedidoCompraVM = {
   fornecedorNome?: string | null
 
   valorOrcado?: number | null
+  valorPedido?: number | null
   valorRealizado?: number | null
   frete?: number | null
 
@@ -69,6 +70,21 @@ export function formatDateShort(dateString: string) {
 
 export function sumItensTotal(itens: { total: number }[]) {
   return (itens ?? []).reduce((acc, i) => acc + Number(i?.total || 0), 0)
+}
+
+export function getPedidoCompraValorPedido(pedido: {
+  valorPedido?: number | string | null
+  valor_pedido?: number | string | null
+  frete?: number | string | null
+  itens?: Array<{ total?: number | string | null }>
+}) {
+  const explicit = Number(pedido.valorPedido ?? pedido.valor_pedido)
+  if (Number.isFinite(explicit) && explicit > 0) return explicit
+
+  const itensTotal = (pedido.itens ?? []).reduce((acc, item) => acc + Number(item?.total ?? 0), 0)
+  const frete = Number(pedido.frete ?? 0)
+
+  return itensTotal + (Number.isFinite(frete) ? frete : 0)
 }
 
 export function normalizeStatus(s?: string | null): PedidoCompraStatus {

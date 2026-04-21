@@ -2,7 +2,7 @@
 
 import { PedidoCompraSummaryModal } from "@/components/pedido-compra/PedidoCompraSummaryModal"
 
-import type { PedidoCompraVM } from "./types"
+import { getPedidoCompraValorPedido, type PedidoCompraVM } from "./types"
 
 type Props = {
   pedido: PedidoCompraVM
@@ -21,6 +21,7 @@ function mapInitialData(pedido: PedidoCompraVM, obraId: number | null) {
     status: pedido.status,
     fornecedorNome: pedido.fornecedorNome ?? null,
     valorOrcado: pedido.valorOrcado ?? null,
+    valorPedido: getPedidoCompraValorPedido(pedido),
     valorRealizado: pedido.valorRealizado ?? null,
     dataEntrega: pedido.dataEntrega ?? null,
     integrado: pedido.integrado ?? false,

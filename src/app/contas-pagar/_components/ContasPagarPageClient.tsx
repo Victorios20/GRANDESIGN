@@ -10,7 +10,7 @@ import { PageLayout } from "@/components/ui/pageLayout"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SmartDateRangePicker } from "@/components/ui/SmartDateRangePicker"
@@ -150,6 +150,15 @@ export default function ContasPagarPageClient({
     const composeHandled = useRef(false)
 
     const searchTimeout = useRef<NodeJS.Timeout | null>(null)
+
+    const categoryFilterItems = useMemo(
+        () => [{ value: "all", label: "Todas as categorias" }, ...categories.map((category) => ({ value: String(category.id), label: category.nome }))],
+        [categories]
+    )
+    const costCenterFilterItems = useMemo(
+        () => [{ value: "all", label: "Todos os centros" }, ...centrosCusto.map((centro) => ({ value: String(centro.id), label: centro.nome }))],
+        [centrosCusto]
+    )
 
     const fetchData = useCallback(async (targetPage = page) => {
         setLoading(true)
@@ -455,31 +464,27 @@ export default function ContasPagarPageClient({
                             <div className={cn(operationalListSubtlePanelClass, "grid gap-3 px-3 py-3 lg:grid-cols-2 lg:items-end")}>
                                 <div className="space-y-1.5">
                                     <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Categoria financeira</label>
-                                    <Select value={categoriaId} onValueChange={setCategoriaId}>
-                                        <SelectTrigger className={operationalListControlClass}>
-                                            <SelectValue placeholder="Todas as categorias" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todas as categorias</SelectItem>
-                                            {categories.map((category) => (
-                                                <SelectItem key={category.id} value={String(category.id)}>{category.nome}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        value={categoriaId}
+                                        onValueChange={setCategoriaId}
+                                        items={categoryFilterItems}
+                                        placeholder="Todas as categorias"
+                                        searchPlaceholder="Buscar categoria"
+                                        emptyMessage="Nenhuma categoria encontrada."
+                                        className={cn(operationalListControlClass, "justify-between px-3 shadow-none")}
+                                    />
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7b705f]">Centro de custo</label>
-                                    <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                                        <SelectTrigger className={operationalListControlClass}>
-                                            <SelectValue placeholder="Todos os centros" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos os centros</SelectItem>
-                                            {centrosCusto.map((centro) => (
-                                                <SelectItem key={centro.id} value={String(centro.id)}>{centro.nome}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    <SearchableSelect
+                                        value={centroCustoId}
+                                        onValueChange={setCentroCustoId}
+                                        items={costCenterFilterItems}
+                                        placeholder="Todos os centros"
+                                        searchPlaceholder="Buscar centro de custo"
+                                        emptyMessage="Nenhum centro de custo encontrado."
+                                        className={cn(operationalListControlClass, "justify-between px-3 shadow-none")}
+                                    />
                                 </div>
                             </div>
                         ) : null}

@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-import type { PedidoCompraVM } from "./types"
+import { getPedidoCompraValorPedido, type PedidoCompraVM } from "./types"
 import { PedidoCompraCreateModal } from "./PedidoCompraCreateModal"
 import { PedidoCompraDetailsModal } from "./PedidoCompraDetailsModal"
 
@@ -54,7 +54,11 @@ function isEmptyPedido(p: any) {
   const descricao = String(p?.descricao ?? p?.observacoes ?? "").trim()
   const itens = Array.isArray(p?.itens) ? p.itens : []
 
-  const previsto = p?.valorOrcado ?? p?.valor_orcado ?? p?.valores?.orcado ?? p?.valores?.previsto ?? null
+  const valorPedido = getPedidoCompraValorPedido({
+    valorPedido: p?.valorPedido ?? p?.valor_pedido ?? null,
+    frete: p?.frete ?? p?.valores?.frete ?? null,
+    itens,
+  })
   const realizado = p?.valorRealizado ?? p?.valor_realizado ?? p?.valores?.realizado ?? null
 
   const frete = p?.frete ?? p?.valores?.frete ?? null
@@ -62,12 +66,12 @@ function isEmptyPedido(p: any) {
 
   const fornecedorNome = String(p?.fornecedorNome ?? p?.fornecedor?.nome ?? "").trim()
 
-  const prevNum = Number(previsto ?? 0)
+  const pedidoNum = Number(valorPedido ?? 0)
   const realNum = Number(realizado ?? 0)
   const freteNum = Number(frete ?? 0)
 
   const hasMoney =
-    (Number.isFinite(prevNum) && prevNum > 0) ||
+    (Number.isFinite(pedidoNum) && pedidoNum > 0) ||
     (Number.isFinite(realNum) && realNum > 0) ||
     (Number.isFinite(freteNum) && freteNum > 0)
 
@@ -231,7 +235,7 @@ export function PedidoCompraCardSection({
                   <th className="text-left p-4 font-medium text-sm">Descrição</th>
                   <th className="text-left p-4 font-medium text-sm">Categoria</th>
                   <th className="text-left p-4 font-medium text-sm">Status</th>
-                  <th className="text-left p-4 font-medium text-sm">Valor Previsto</th>
+                  <th className="text-left p-4 font-medium text-sm">Valor do pedido</th>
                   <th className="text-left p-4 font-medium text-sm">Valor Realizado</th>
                   <th className="text-left p-4 font-medium text-sm">Entrega</th>
                   <th className="text-left p-4 font-medium text-sm">Integração</th>
@@ -250,7 +254,7 @@ export function PedidoCompraCardSection({
                   const status = (p as any)?.status ?? "PENDENTE"
                   const statusStr = String(status).toUpperCase()
 
-                  const previsto = (p as any)?.valorOrcado ?? (p as any)?.valor_orcado ?? (p as any)?.valores?.orcado
+                  const valorPedido = getPedidoCompraValorPedido(p as any)
                   const realizado =
                     (p as any)?.valorRealizado ?? (p as any)?.valor_realizado ?? (p as any)?.valores?.realizado
 
@@ -259,7 +263,7 @@ export function PedidoCompraCardSection({
                   const fornecedor =
                     String((p as any)?.fornecedorNome ?? (p as any)?.fornecedor?.nome ?? "—").trim() || "—"
 
-                  const variance = calcVariancePercent(previsto, realizado)
+                  const variance = calcVariancePercent(valorPedido, realizado)
 
                   const integrado =
                     Boolean((p as any)?.integrado) ||
@@ -306,7 +310,7 @@ export function PedidoCompraCardSection({
                       </td>
 
                       <td className="p-4">
-                        <div className="text-sm font-medium">{formatMoney(previsto)}</div>
+                        <div className="text-sm font-medium">{formatMoney(valorPedido)}</div>
                       </td>
 
                       <td className="p-4">

@@ -1,5 +1,54 @@
 import { prisma } from "@/lib/prisma"
-import { PedidoCategoria } from "@prisma/client"
+import { PedidoCategoria, Prisma } from "@prisma/client"
+
+type Decimalish = Prisma.Decimal | number | string | null | undefined
+
+export type BudgetSnapshotUpdateInput = {
+    receita_orcada?: Decimalish
+    mao_de_obra_orcada?: Decimalish
+    madeira_previsto?: Decimalish
+    telha_previsto?: Decimalish
+    andaime_previsto?: Decimalish
+    materiais_previsto?: Decimalish
+}
+
+function asDecimal(value: Decimalish) {
+    if (value instanceof Prisma.Decimal) return value
+    if (value == null || value === "") return new Prisma.Decimal(0)
+    return new Prisma.Decimal(String(value).replace(",", "."))
+}
+
+function calculatePedidoAmount(pedido: {
+    frete?: Decimalish
+    itens?: Array<{ total: Decimalish }>
+}) {
+    const itensTotal = (pedido.itens ?? []).reduce(
+        (sum, item) => sum.plus(asDecimal(item.total)),
+        new Prisma.Decimal(0)
+    )
+
+    return itensTotal.plus(asDecimal(pedido.frete))
+}
+
+function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
+    const data: Partial<Record<keyof BudgetSnapshotUpdateInput, Prisma.Decimal>> = {}
+    const fields: Array<keyof BudgetSnapshotUpdateInput> = [
+        "receita_orcada",
+        "mao_de_obra_orcada",
+        "madeira_previsto",
+        "telha_previsto",
+        "andaime_previsto",
+        "materiais_previsto",
+    ]
+
+    for (const field of fields) {
+        if (Object.prototype.hasOwnProperty.call(input, field)) {
+            data[field] = asDecimal(input[field])
+        }
+    }
+
+    return data
+}
 
 export const BudgetSnapshotService = {
     /**
@@ -65,11 +114,62 @@ export const BudgetSnapshotService = {
         return snapshot
     },
 
+    async updateManualValues(obraId: number, input: BudgetSnapshotUpdateInput, userId?: number) {
+        const data = normalizeSnapshotInput(input)
+        const baseline = await this.calculateBaselineData(obraId)
+
+        return prisma.$transaction(async (tx) => {
+            const obra = await tx.obras.findUnique({
+                where: { id: obraId },
+                select: { id: true },
+            })
+
+            if (!obra) {
+                throw new Error("Obra nao encontrada.")
+            }
+
+            const obraData: Prisma.obrasUpdateInput = {}
+            if (data.receita_orcada != null) obraData.valor_obra = data.receita_orcada
+            if (data.mao_de_obra_orcada != null) obraData.valor_mao_de_obra = data.mao_de_obra_orcada
+
+            if (Object.keys(obraData).length > 0) {
+                await tx.obras.update({
+                    where: { id: obraId },
+                    data: obraData,
+                })
+            }
+
+            const snapshot = await tx.obra_budget_snapshot.upsert({
+                where: { obra_id: obraId },
+                create: {
+                    obra_id: obraId,
+                    ...baseline,
+                    ...data,
+                },
+                update: data,
+            })
+
+            if (userId) {
+                await tx.auditLog.create({
+                    data: {
+                        action: "BUDGET_SNAPSHOT_UPDATED",
+                        entity: "obra_budget_snapshot",
+                        entity_id: snapshot.id,
+                        user_id: userId,
+                        detail: { obra_id: obraId, updated_values: data },
+                    },
+                })
+            }
+
+            return snapshot
+        })
+    },
+
     /**
      * Internal helper to calculate baseline values.
      * Considers:
      * - Obra: valor_obra (Receita), valor_mao_de_obra
-     * - Pedidos: valor_orcado where nao_previsto = FALSE
+     * - Pedidos: itens + frete where nao_previsto = FALSE
      */
     async calculateBaselineData(obraId: number) {
         const obra = await prisma.obras.findUniqueOrThrow({
@@ -85,22 +185,27 @@ export const BudgetSnapshotService = {
             },
             select: {
                 categoria: true,
-                valor_orcado: true,
+                frete: true,
+                itens: {
+                    select: {
+                        total: true,
+                    },
+                },
             },
         })
 
         const sumByCategory = (cat: PedidoCategoria) =>
             pedidosPrevistos
                 .filter((p) => p.categoria === cat)
-                .reduce((acc, curr) => acc + Number(curr.valor_orcado || 0), 0)
+                .reduce((acc, curr) => acc + Number(calculatePedidoAmount(curr).toString()), 0)
 
         return {
             receita_orcada: obra.valor_obra,
             mao_de_obra_orcada: obra.valor_mao_de_obra,
-            madeira_previsto: sumByCategory("MADEIRA"),
-            telha_previsto: sumByCategory("TELHA"),
-            andaime_previsto: sumByCategory("ANDAIMES"),
-            materiais_previsto: sumByCategory("MATERIAIS"),
+            madeira_previsto: sumByCategory(PedidoCategoria.MADEIRA),
+            telha_previsto: sumByCategory(PedidoCategoria.TELHA),
+            andaime_previsto: sumByCategory(PedidoCategoria.ANDAIMES),
+            materiais_previsto: sumByCategory(PedidoCategoria.MATERIAIS),
         }
     },
 
@@ -130,20 +235,25 @@ export const BudgetSnapshotService = {
             },
             select: {
                 categoria: true,
-                valor_orcado: true,
+                frete: true,
+                itens: {
+                    select: {
+                        total: true,
+                    },
+                },
             },
         })
 
         const sumByCategory = (cat: PedidoCategoria) =>
             pedidosExtras
                 .filter((p) => p.categoria === cat)
-                .reduce((acc, curr) => acc + Number(curr.valor_orcado || 0), 0)
+                .reduce((acc, curr) => acc + Number(calculatePedidoAmount(curr).toString()), 0)
 
         return {
-            madeira_extra: sumByCategory("MADEIRA"),
-            telha_extra: sumByCategory("TELHA"),
-            andaime_extra: sumByCategory("ANDAIMES"),
-            materiais_extra: sumByCategory("MATERIAIS"),
+            madeira_extra: sumByCategory(PedidoCategoria.MADEIRA),
+            telha_extra: sumByCategory(PedidoCategoria.TELHA),
+            andaime_extra: sumByCategory(PedidoCategoria.ANDAIMES),
+            materiais_extra: sumByCategory(PedidoCategoria.MATERIAIS),
         }
     },
 }

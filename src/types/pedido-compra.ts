@@ -69,6 +69,7 @@ export interface PedidoCompraListItem {
     categoria: PedidoCategoria
     status: PedidoStatus
     valor_orcado: string | number | null
+    valor_pedido: string | number | null
     valor_realizado: string | number | null
     data_entrega: string | null
     fornecedor: { id: number; nome: string } | null
@@ -109,6 +110,7 @@ export interface PurchaseOrder {
     obraTitulo: string | null
     obraCidade: string | null
     expectedValue: number
+    orderValue?: number
     actualValue?: number
     deliveryDate: string | null
     status: PurchaseOrderStatusSlug
@@ -130,6 +132,7 @@ export interface PedidoCompraSummaryInitialData {
     status?: PedidoStatus | string | null
     fornecedorNome?: string | null
     valorOrcado?: number | string | null
+    valorPedido?: number | string | null
     valorRealizado?: number | string | null
     dataEntrega?: string | null
     integrado?: boolean
@@ -213,6 +216,7 @@ export interface PedidoCompraDetalhadoSnake {
     categoria: PedidoCategoria
     status: PedidoStatus
     valor_orcado: string | null
+    valor_pedido: string | number | null
     valor_realizado: string | null
     frete: string | null
     descricao: string | null

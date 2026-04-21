@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma"
+import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 import {
   IntegracaoFinanceiraStatus,
+  PedidoCategoria,
   PedidoCompraStatus,
   Prisma,
   StatusFinanceiro,
@@ -11,6 +13,15 @@ import {
 
 const OPERATIONAL_CANCELLATION = "DESINTEGRACAO_OPERACIONAL"
 const FINANCIAL_REVERSAL = "ESTORNO_FINANCEIRO"
+const DIRECT_COST_GROUP = "Custos diretos"
+const DEFAULT_PURCHASE_CATEGORY = "Compra de Material"
+
+const PURCHASE_FINANCIAL_CATEGORY_NAMES: Record<PedidoCategoria, string[]> = {
+  [PedidoCategoria.TELHA]: ["Telha", DEFAULT_PURCHASE_CATEGORY],
+  [PedidoCategoria.MADEIRA]: ["Madeira", DEFAULT_PURCHASE_CATEGORY],
+  [PedidoCategoria.MATERIAIS]: [DEFAULT_PURCHASE_CATEGORY],
+  [PedidoCategoria.ANDAIMES]: ["Andaime", DEFAULT_PURCHASE_CATEGORY],
+}
 
 type Tx = Prisma.TransactionClient
 
@@ -84,6 +95,18 @@ function formatDecimal(value: Prisma.Decimal | number | string | null | undefine
   return asDecimal(value).toFixed(2)
 }
 
+function calculatePedidoAmount(pedido: {
+  frete?: Prisma.Decimal | number | string | null
+  itens?: Array<{ total: Prisma.Decimal | number | string | null }>
+}) {
+  const itensTotal = (pedido.itens ?? []).reduce(
+    (sum, item) => sum.plus(asDecimal(item.total)),
+    new Prisma.Decimal(0)
+  )
+
+  return itensTotal.plus(asDecimal(pedido.frete))
+}
+
 function truncate(value: string, max = 255) {
   return value.length > max ? value.slice(0, max) : value
 }
@@ -107,37 +130,42 @@ async function ensurePedidosExist(tx: Tx, ids: number[]) {
   }
 }
 
-async function resolveExpenseCategoryId(tx: Tx) {
-  const supplierSubcategory = await tx.categoria.findFirst({
+async function resolveExpenseCategoryId(tx: Tx, pedidoCategoria: PedidoCategoria) {
+  const categoryNames = PURCHASE_FINANCIAL_CATEGORY_NAMES[pedidoCategoria] ?? [DEFAULT_PURCHASE_CATEGORY]
+  const categories = await tx.categoria.findMany({
     where: {
-      nome: "Matéria Prima",
+      nome: { in: categoryNames },
       tipo: TipoCategoria.DESPESA,
       ativo: true,
       categoria_pai: {
-        nome: "Fornecedores",
+        nome: DIRECT_COST_GROUP,
         tipo: TipoCategoria.DESPESA,
       },
     },
-    select: { id: true },
+    select: { id: true, nome: true },
   })
 
-  if (supplierSubcategory) return supplierSubcategory.id
+  const categoryByName = new Map(categories.map((category) => [category.nome, category.id]))
+  const selectedCategoryId = categoryNames.map((name) => categoryByName.get(name)).find(Boolean)
 
-  const supplierCategory = await tx.categoria.findFirst({
+  if (selectedCategoryId) return selectedCategoryId
+
+  const directCostCategory = await tx.categoria.findFirst({
     where: {
-      nome: "Fornecedores",
+      nome: DIRECT_COST_GROUP,
       tipo: TipoCategoria.DESPESA,
       ativo: true,
     },
     select: { id: true },
   })
 
-  if (supplierCategory) return supplierCategory.id
+  if (directCostCategory) return directCostCategory.id
 
   throw new PedidoCompraFinanceiroError(
     "CATEGORIA_FINANCEIRA_NAO_ENCONTRADA",
-    "Categoria financeira de fornecedores não encontrada.",
-    "resolve-categoria"
+    "Categoria financeira de custos diretos não encontrada.",
+    "resolve-categoria",
+    { grupo: DIRECT_COST_GROUP, categorias: categoryNames }
   )
 }
 
@@ -181,13 +209,20 @@ async function buildPedidoIntegrationSnapshot(tx: Tx, pedidoId: number) {
     select: {
       id: true,
       obra_id: true,
+      categoria: true,
       status: true,
       descricao: true,
       valor_orcado: true,
       valor_realizado: true,
+      frete: true,
       data_entrega: true,
       fornecedor_id: true,
       financeiro_integracao_status: true,
+      itens: {
+        select: {
+          total: true,
+        },
+      },
       contas_pagar: {
         where: { status: { not: StatusFinanceiro.CANCELADO } },
         orderBy: [{ created_at: "desc" }, { id: "desc" }],
@@ -225,7 +260,8 @@ async function buildPedidoIntegrationSnapshot(tx: Tx, pedidoId: number) {
 }
 
 function assertPedidoCanIntegrate(
-  pedido: NonNullable<Awaited<ReturnType<typeof buildPedidoIntegrationSnapshot>>>
+  pedido: NonNullable<Awaited<ReturnType<typeof buildPedidoIntegrationSnapshot>>>,
+  valorPedido: Prisma.Decimal
 ) {
   if (pedido.status === PedidoCompraStatus.CANCELADO) {
     throw new PedidoCompraFinanceiroError("PEDIDO_CANCELADO", "Pedido cancelado não pode ser integrado.", "validate", {
@@ -260,10 +296,10 @@ function assertPedidoCanIntegrate(
     )
   }
 
-  if (Number(pedido.valor_orcado ?? 0) <= 0) {
+  if (valorPedido.lte(0)) {
     throw new PedidoCompraFinanceiroError(
       "PEDIDO_SEM_VALOR",
-      "Informe um valor previsto maior que zero antes de integrar o pedido ao financeiro.",
+      "Informe itens ou frete com valor maior que zero antes de integrar o pedido ao financeiro.",
       "validate",
       { pedidoId: pedido.id }
     )
@@ -319,6 +355,8 @@ export async function integrarPedidoCompraAoFinanceiro(
     throw new PedidoCompraFinanceiroError("PAYLOAD_INVALIDO", "pedidoCompraId inválido.", "validate", { pedidoId })
   }
 
+  await syncFixedFinancialCategoryTaxonomy()
+
   return prisma.$transaction(
     async (tx) => {
       const pedido = await buildPedidoIntegrationSnapshot(tx, id)
@@ -328,10 +366,12 @@ export async function integrarPedidoCompraAoFinanceiro(
         })
       }
 
-      assertPedidoCanIntegrate(pedido)
+      const valorPedido = calculatePedidoAmount(pedido)
+
+      assertPedidoCanIntegrate(pedido, valorPedido)
 
       try {
-        const categoriaId = await resolveExpenseCategoryId(tx)
+        const categoriaId = await resolveExpenseCategoryId(tx, pedido.categoria)
         const centroCusto = await getOrCreateActiveCostCenterForWork(tx, pedido.obra_id)
 
         const now = new Date()
@@ -343,7 +383,7 @@ export async function integrarPedidoCompraAoFinanceiro(
         const contaPagar = await tx.contaPagar.create({
           data: {
             descricao,
-            valor_total: asDecimal(pedido.valor_orcado),
+            valor_total: valorPedido,
             valor_pago: new Prisma.Decimal(0),
             data_emissao: now,
             data_vencimento: pedido.data_entrega ?? now,
@@ -378,6 +418,7 @@ export async function integrarPedidoCompraAoFinanceiro(
         await auditPedidoFinanceiro(tx, userId, pedido.id, "PEDIDO_COMPRA_FINANCEIRO_INTEGRADO", {
           conta_pagar_id: contaPagar.id,
           conta_pagar_status: contaPagar.status,
+          valor_pedido: formatDecimal(valorPedido),
           categoria_id: categoriaId,
           centro_custo_id: centroCusto?.id ?? null,
         })

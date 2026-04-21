@@ -102,6 +102,7 @@ export type PedidoCompraDTO = {
   fornecedor: { id: number; nome: string } | null
 
   valorOrcado: number | null
+  valorPedido: number | null
   valorRealizado: number | null
   frete: number | null
 
@@ -119,6 +120,7 @@ export type PedidoCompraDTO = {
 
   valores: {
     orcado: number | null
+    pedido: number | null
     realizado: number | null
     frete: number | null
   }

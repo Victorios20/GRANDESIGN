@@ -685,7 +685,7 @@ export default function PedidoCompraForm({
         status: formData.status,
         fornecedor_id: formData.fornecedorId ? Number(formData.fornecedorId) : null,
         descricao: formData.descricao?.trim() || null,
-        valor_orcado: asNumberOrNull(formData.valorOrcado),
+        valor_orcado: initialData?.valor_orcado ?? null,
         valor_realizado: asNumberOrNull(formData.valorRealizado),
         frete: asNumberOrNull(formData.frete) ?? 0,
         observacoes: formData.observacoes?.trim() || null,
@@ -1039,18 +1039,10 @@ export default function PedidoCompraForm({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="valorOrcado" className={labelClass}>
-                    Valor previsto
-                  </Label>
-                  <Input
-                    id="valorOrcado"
-                    type="number"
-                    step="0.01"
-                    value={formData.valorOrcado}
-                    onChange={(event) => setFormData((previous) => ({ ...previous, valorOrcado: event.target.value }))}
-                    placeholder="0,00"
-                    className={compactControlClass}
-                  />
+                  <Label className={labelClass}>Valor do pedido</Label>
+                  <div className={cn(compactControlClass, "flex items-center bg-muted/40 px-3 font-medium")}>
+                    {formatMoney(subtotal)}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1152,7 +1144,7 @@ export default function PedidoCompraForm({
           >
             {isView ? (
               <div className={sectionGridClass}>
-                <ReadOnlyField label="Valor previsto" value={formData.valorOrcado ? formatMoney(Number(formData.valorOrcado)) : undefined} highlight />
+                <ReadOnlyField label="Valor do pedido" value={formatMoney(subtotal)} highlight />
                 <ReadOnlyField label="Valor realizado" value={formData.valorRealizado ? formatMoney(Number(formData.valorRealizado)) : undefined} highlight />
                 <ReadOnlyField label="Frete" value={formData.frete ? formatMoney(Number(formData.frete)) : undefined} />
                 <ReadOnlyField label="Data de entrega" value={formData.dataEntrega ? formatDateOnlyLongPtBr(formData.dataEntrega) : undefined} />
@@ -1160,18 +1152,10 @@ export default function PedidoCompraForm({
             ) : (
               <div className={sectionGridClass}>
                 <div className="space-y-2">
-                  <Label htmlFor="valorOrcado" className={labelClass}>
-                    Valor previsto
-                  </Label>
-                  <Input
-                    id="valorOrcado"
-                    type="number"
-                    step="0.01"
-                    value={formData.valorOrcado}
-                    onChange={(event) => setFormData((previous) => ({ ...previous, valorOrcado: event.target.value }))}
-                    placeholder="0,00"
-                    className={compactControlClass}
-                  />
+                  <Label className={labelClass}>Valor do pedido</Label>
+                  <div className={cn(compactControlClass, "flex items-center bg-muted/40 px-3 font-medium")}>
+                    {formatMoney(subtotal)}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -1285,7 +1269,7 @@ export default function PedidoCompraForm({
                 <div className="flex justify-end">
                   <div className={cn(listSubtlePanelClass, "px-4 py-3")}>
                     <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                      Subtotal (itens + frete)
+                      Valor do pedido (itens + frete)
                     </div>
                     <div className="mt-1 text-lg font-semibold text-[#2c201b]">{formatMoney(subtotal)}</div>
                   </div>
@@ -1457,7 +1441,7 @@ export default function PedidoCompraForm({
                 <div className="flex justify-end">
                   <div className={cn(listSubtlePanelClass, "px-4 py-3")}>
                     <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                      Subtotal (itens + frete)
+                      Valor do pedido (itens + frete)
                     </div>
                     <div className="mt-1 text-lg font-semibold text-[#2c201b]">{formatMoney(subtotal)}</div>
                   </div>

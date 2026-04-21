@@ -168,7 +168,8 @@ function mapApiToOrders(list: ListarResult, obrasById: Record<number, ObraSearch
       obraStatus: item.obra_status ?? null,
       obraTitulo: item.obra_titulo ?? null,
       obraCidade: item.obra_cidade ?? null,
-      expectedValue: asNumber(item.valor_orcado),
+      expectedValue: asNumber(item.valor_pedido ?? item.valor_orcado),
+      orderValue: asNumber(item.valor_pedido ?? item.valor_orcado),
       actualValue: item.valor_realizado == null ? undefined : asNumber(item.valor_realizado),
       deliveryDate: fromDateOnlyDb(item.data_entrega),
       status: toSlugStatus(item.status),
@@ -193,6 +194,7 @@ function mapOrderToSummaryInitialData(order: PurchaseOrder): PedidoCompraSummary
     status: fromSlugStatus(order.status as StatusSlug),
     fornecedorNome: order.supplier,
     valorOrcado: order.expectedValue,
+    valorPedido: order.orderValue ?? order.expectedValue,
     valorRealizado: order.actualValue ?? null,
     dataEntrega: order.deliveryDate,
     integrado: order.integrated,
@@ -1105,7 +1107,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
                                 <div className="space-y-2 text-xs">
                                   <div className="flex justify-between">
-                                    <span className="text-[#7b705f]">Previsto:</span>
+                                    <span className="text-[#7b705f]">Valor do pedido:</span>
                                     <span className="font-medium text-[#2c201b]">{formatMoney(order.expectedValue)}</span>
                                   </div>
 

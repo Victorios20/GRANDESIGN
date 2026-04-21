@@ -65,6 +65,7 @@ function buildFallbackData(
     status: initialData?.status ?? "RASCUNHO",
     fornecedorNome: initialData?.fornecedorNome ?? null,
     valorOrcado: initialData?.valorOrcado ?? null,
+    valorPedido: initialData?.valorPedido ?? null,
     valorRealizado: initialData?.valorRealizado ?? null,
     dataEntrega: initialData?.dataEntrega ?? null,
     integracaoFinanceiraStatus: initialData?.integracaoFinanceiraStatus ?? (initialData?.integrado ? "INTEGRADO" : "NAO_INTEGRADO"),
@@ -83,12 +84,25 @@ function buildFallbackFromDetails(details: PedidoCompraDetalhadoSnake): PedidoCo
     status: details.status ?? null,
     fornecedorNome: details.fornecedor?.nome ?? null,
     valorOrcado: details.valor_orcado ?? null,
+    valorPedido: details.valor_pedido ?? null,
     valorRealizado: details.valor_realizado ?? null,
     dataEntrega: details.data_entrega ?? null,
     integracaoFinanceiraStatus: details.financeiro_integracao_status,
     financeiroContaPagarId: details.financeiro_conta_pagar_id,
     financeiroContaPagarStatus: details.financeiro_conta_pagar_status,
   }
+}
+
+function calculateDisplayPedidoValue(
+  details: PedidoCompraDetalhadoSnake | null,
+  data: PedidoCompraSummaryInitialData | null
+) {
+  if (details?.valor_pedido != null) return details.valor_pedido
+  if (data?.valorPedido != null) return data.valorPedido
+  if (!details) return data?.valorOrcado ?? null
+
+  const itensTotal = (details.itens ?? []).reduce((acc, item) => acc + Number(item.total ?? 0), 0)
+  return itensTotal + Number(details.frete ?? 0)
 }
 
 function LoadingState() {
@@ -189,7 +203,7 @@ export function PedidoCompraSummaryModal({
   const display = (details ?? data) as DisplayData | null
   const displayId = details?.id ?? data?.id ?? pedidoId ?? 0
   const displayObraId = details?.obra_id ?? data?.obraId ?? obraId ?? null
-  const displayPrevisto = details?.valor_orcado ?? data?.valorOrcado ?? null
+  const displayValorPedido = calculateDisplayPedidoValue(details, data)
   const displayRealizado = details?.valor_realizado ?? data?.valorRealizado ?? null
   const currentStatus = normalizeStatus(String(details?.status ?? data?.status ?? "RASCUNHO"))
   const integrationStatus =
@@ -206,7 +220,7 @@ export function PedidoCompraSummaryModal({
 
   const loadingInitial = open && loading && !display
   const loadingRefresh = open && loading && Boolean(display)
-  const variance = calcVariance(displayPrevisto, displayRealizado)
+  const variance = calcVariance(displayValorPedido, displayRealizado)
   const itens = Array.isArray(details?.itens) ? details.itens : []
 
   const handleStatusSubmit = async () => {
@@ -393,8 +407,8 @@ export function PedidoCompraSummaryModal({
 
             <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3">
               <div>
-                <span className="block text-xs text-muted-foreground">Valor previsto</span>
-                <span className="text-lg font-semibold">{formatMoney(display.valor_orcado ?? display.valorOrcado)}</span>
+                <span className="block text-xs text-muted-foreground">Valor do pedido</span>
+                <span className="text-lg font-semibold">{formatMoney(displayValorPedido)}</span>
               </div>
 
               <div className="sm:border-l sm:pl-4">

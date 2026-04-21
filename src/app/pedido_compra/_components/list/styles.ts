@@ -38,4 +38,4 @@ export const listCategoryBadgeClass =
   "rounded-md border border-[#ddd7cc] bg-[#f6f4ef] px-2 py-0.5 text-[11px] font-medium tracking-[0.01em] text-[#5f584c]"
 
 export const listIntegrationBadgeClass =
-  "rounded-md border border-[#ebe5da] bg-[#faf8f4] px-2 py-0.5 text-[11px] font-medium text-[#8a7f70]"
+  "inline-flex items-center gap-1 rounded-md border border-[#ebe5da] bg-[#faf8f4] px-2 py-0.5 text-[11px] font-medium text-[#8a7f70] whitespace-nowrap"

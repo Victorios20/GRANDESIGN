@@ -99,11 +99,15 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
     // Recalculate Logic
     async function handleRecalculate() {
         if (!selectedObraId) return
-        if (!confirm("Isso atualizará os valores PREVISTOS (BASELINE) com base no orçamento atual. Deseja continuar?")) return
+        if (!confirm("Isso vai resetar o baseline e sobrescrever os valores previstos editados manualmente. Deseja continuar?")) return
 
         try {
             setRecalculating(true)
-            const res = await fetch(`/api/obras/${selectedObraId}/recalcular-orcado`, { method: "POST" })
+            const res = await fetch(`/api/obras/${selectedObraId}/recalcular-orcado`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ confirm: true }),
+            })
             if (!res.ok) throw new Error("Falha ao recalcular")
 
             toast.success("Baseline atualizada com sucesso!")
