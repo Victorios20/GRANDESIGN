@@ -2,6 +2,7 @@ import { TipoLancamento } from "@prisma/client"
 import { z } from "zod"
 
 import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
+import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
 import { prisma } from "@/lib/prisma"
 
 export const transferSchema = z.object({
@@ -13,13 +14,24 @@ export const transferSchema = z.object({
     data_transferencia: z.coerce.date(),
     conta_origem_id: z.number().int().positive(),
     conta_destino_id: z.number().int().positive(),
+    observacoes: z.string().max(1000).optional(),
 })
 
 export type TransferInput = z.infer<typeof transferSchema>
 
+function isDateClosed(date: Date, closingDateIso?: string | null) {
+    if (!closingDateIso) return false
+    return new Date(date) <= new Date(closingDateIso)
+}
+
 export async function createTransfer(input: TransferInput, userId?: number) {
     if (input.conta_origem_id === input.conta_destino_id) {
         throw new Error("Conta de origem e destino devem ser diferentes")
+    }
+
+    const settings = await getCashFlowSettings()
+    if (isDateClosed(input.data_transferencia, settings.closing_date)) {
+        throw new Error("Período financeiro fechado")
     }
 
     await syncFixedFinancialCategoryTaxonomy()
@@ -85,6 +97,7 @@ export async function createTransfer(input: TransferInput, userId?: number) {
                 conta_bancaria_id: input.conta_origem_id,
                 categoria_id: transferCategory.id,
                 transferencia_id: transferencia.id,
+                observacoes: input.observacoes,
                 created_by: userId,
             },
         })
@@ -99,6 +112,7 @@ export async function createTransfer(input: TransferInput, userId?: number) {
                 conta_bancaria_id: input.conta_destino_id,
                 categoria_id: transferCategory.id,
                 transferencia_id: transferencia.id,
+                observacoes: input.observacoes,
                 created_by: userId,
             },
         })
@@ -112,6 +126,24 @@ export async function createTransfer(input: TransferInput, userId?: number) {
             where: { id: input.conta_destino_id },
             data: { saldo_atual: { increment: input.valor } },
         })
+
+        if (userId) {
+            await tx.auditLog.create({
+                data: {
+                    action: "TRANSFER_CREATED",
+                    entity: "transferencia",
+                    entity_id: transferencia.id,
+                    user_id: userId,
+                    detail: {
+                        descricao: transferencia.descricao,
+                        valor: Number(transferencia.valor),
+                        data_transferencia: transferencia.data_transferencia.toISOString(),
+                        conta_origem_id: transferencia.conta_origem_id,
+                        conta_destino_id: transferencia.conta_destino_id,
+                    },
+                },
+            })
+        }
 
         return {
             transferencia,

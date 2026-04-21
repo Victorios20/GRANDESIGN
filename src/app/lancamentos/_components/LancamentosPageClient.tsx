@@ -1118,7 +1118,7 @@ export default function LancamentosPageClient({
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-3.5 text-[#6f6556]">
-                                                    {originMeta.href ? (
+                                                    {originMeta.href || originMeta.label.startsWith("Transferência") ? (
                                                         <span className="inline-flex items-center rounded-full border border-[#e4ddd0] bg-[#faf8f3] px-2 py-0.5 text-xs font-medium text-[#5f584c]">
                                                             {originMeta.label}
                                                         </span>

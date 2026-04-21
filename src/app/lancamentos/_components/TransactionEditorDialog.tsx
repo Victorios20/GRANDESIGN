@@ -34,6 +34,8 @@ import type {
     TransactionListItem,
 } from "@/types/financeiro"
 
+type TransactionFormMode = "RECEITA" | "DESPESA" | "TRANSFERENCIA"
+
 interface Props {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -113,10 +115,11 @@ export default function TransactionEditorDialog({
     const isCreateMode = !item
     const [descricao, setDescricao] = useState("")
     const [valor, setValor] = useState<number | null>(null)
-    const [tipo, setTipo] = useState<"RECEITA" | "DESPESA">("DESPESA")
+    const [tipo, setTipo] = useState<TransactionFormMode>("DESPESA")
     const [dataLancamento, setDataLancamento] = useState("")
     const [dataCompetencia, setDataCompetencia] = useState("")
     const [contaBancariaId, setContaBancariaId] = useState("")
+    const [contaDestinoId, setContaDestinoId] = useState("")
     const [categoriaId, setCategoriaId] = useState("")
     const [centroCustoId, setCentroCustoId] = useState("none")
     const [observacoes, setObservacoes] = useState("")
@@ -134,6 +137,7 @@ export default function TransactionEditorDialog({
             setDataLancamento(toInputDate(item.data_lancamento))
             setDataCompetencia(toInputDate(item.data_competencia))
             setContaBancariaId(item.conta_bancaria?.id ? String(item.conta_bancaria.id) : "")
+            setContaDestinoId("")
             setCategoriaId(String(item.categoria.id))
             setCentroCustoId(item.centro_custo?.id ? String(item.centro_custo.id) : "none")
             setObservacoes(item.observacoes ?? "")
@@ -150,6 +154,7 @@ export default function TransactionEditorDialog({
         setDataLancamento(defaultDate)
         setDataCompetencia(defaultDate)
         setContaBancariaId(defaultBank ? String(defaultBank.id) : "")
+        setContaDestinoId("")
         setCategoriaId("")
         setCentroCustoId("none")
         setObservacoes("")
@@ -158,8 +163,9 @@ export default function TransactionEditorDialog({
     }, [banks, item, open])
 
     const originMeta = item ? getOriginMeta(item) : null
+    const isTransferMode = isCreateMode && tipo === "TRANSFERENCIA"
     const sessionLocked = item?.conferencia_sessoes?.status === "LOCKED"
-    const effectiveDate = dataCompetencia || dataLancamento
+    const effectiveDate = isTransferMode ? dataLancamento : dataCompetencia || dataLancamento
     const isClosedPeriod = isClosedByFinancialPeriod(effectiveDate, closingDate)
 
     const canEditDirectly = Boolean(item && !originMeta && item.status_conferencia !== "CONFERIDO" && !sessionLocked && !isClosedPeriod)
@@ -174,7 +180,7 @@ export default function TransactionEditorDialog({
     const categoryItems = useMemo(
         () =>
             categories
-                .filter((category) => isTransactionSelectableCategory(category, tipo))
+                .filter((category) => isTransactionSelectableCategory(category, tipo === "TRANSFERENCIA" ? "DESPESA" : tipo))
                 .map((category) => ({ value: String(category.id), label: category.nome })),
         [categories, tipo]
     )
@@ -184,13 +190,18 @@ export default function TransactionEditorDialog({
         [centrosCusto]
     )
 
-    const tipoItems = useMemo(
-        () => [
+    const tipoItems = useMemo(() => {
+        const items = [
             { value: "RECEITA", label: "Receita" },
             { value: "DESPESA", label: "Despesa" },
-        ],
-        []
-    )
+        ]
+
+        if (isCreateMode) {
+            items.push({ value: "TRANSFERENCIA", label: "Transferência" })
+        }
+
+        return items
+    }, [isCreateMode])
 
     const canSubmit = Boolean(
         (canCreate || canEditDirectly || canAdjust) &&
@@ -198,9 +209,10 @@ export default function TransactionEditorDialog({
             valor != null &&
             valor > 0 &&
             dataLancamento &&
-            dataCompetencia &&
             contaBancariaId &&
-            categoriaId
+            (isTransferMode
+                ? contaDestinoId && contaDestinoId !== contaBancariaId
+                : dataCompetencia && categoriaId)
     )
 
     async function handleSave() {
@@ -209,10 +221,19 @@ export default function TransactionEditorDialog({
         setSubmitting(true)
 
         try {
+            const transferPayload = {
+                descricao: descricao.trim(),
+                valor,
+                data_transferencia: dataLancamento,
+                conta_origem_id: Number(contaBancariaId),
+                conta_destino_id: Number(contaDestinoId),
+                observacoes: observacoes.trim() || undefined,
+            }
+
             const payload = {
                 descricao: descricao.trim(),
                 valor,
-                tipo,
+                tipo: tipo === "TRANSFERENCIA" ? "DESPESA" : tipo,
                 data_lancamento: dataLancamento,
                 data_competencia: dataCompetencia,
                 conta_bancaria_id: Number(contaBancariaId),
@@ -222,7 +243,9 @@ export default function TransactionEditorDialog({
                 reason: justificativa.trim() || null,
             }
 
-            const endpoint = isCreateMode
+            const endpoint = isTransferMode
+                ? "/api/financeiro/transfers"
+                : isCreateMode
                 ? "/api/financeiro/transactions"
                 : canAdjust
                     ? `/api/financeiro/transactions/${item!.id}/adjust`
@@ -232,7 +255,7 @@ export default function TransactionEditorDialog({
             const response = await fetch(endpoint, {
                 method,
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(isTransferMode ? transferPayload : payload),
             })
 
             if (!response.ok) {
@@ -241,7 +264,9 @@ export default function TransactionEditorDialog({
             }
 
             toast.success(
-                isCreateMode
+                isTransferMode
+                    ? "Transferência criada com saída e entrada sincronizadas"
+                    : isCreateMode
                     ? "Transação incluída"
                     : canAdjust
                         ? "Ajuste registrado"
@@ -330,7 +355,9 @@ export default function TransactionEditorDialog({
                             </h2>
                             <p className="text-sm text-[#6f6556]">
                                 {isCreateMode
-                                    ? "Registre uma nova movimentação financeira no caixa."
+                                    ? isTransferMode
+                                        ? "Transfira valores entre contas mantendo a saída e a entrada sincronizadas."
+                                        : "Registre uma nova movimentação financeira no caixa."
                                     : canAdjust
                                         ? "Use ajuste ou estorno para corrigir um lançamento já conferido."
                                         : canEditDirectly
@@ -415,6 +442,15 @@ export default function TransactionEditorDialog({
                             </div>
                         ) : null}
 
+                        {isTransferMode ? (
+                            <div className="flex items-start gap-2 rounded-lg border border-[#d9e2d1] bg-[#fbfdf9] px-3 py-2 text-sm text-[#4f6f45]">
+                                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#4f6f45]" />
+                                <p>
+                                    A transferência cria automaticamente duas transações sincronizadas: uma saída na conta de origem e uma entrada na conta de destino.
+                                </p>
+                            </div>
+                        ) : null}
+
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-1.5 md:col-span-2">
                                 <Label className={labelClassName}>Descrição</Label>
@@ -431,8 +467,13 @@ export default function TransactionEditorDialog({
                                 <SearchableSelect
                                     value={tipo}
                                     onValueChange={(val) => {
-                                        setTipo(val as "RECEITA" | "DESPESA")
+                                        const nextTipo = val as TransactionFormMode
+                                        setTipo(nextTipo)
                                         setCategoriaId("")
+                                        if (nextTipo === "TRANSFERENCIA") {
+                                            setCentroCustoId("none")
+                                            setDataCompetencia(dataLancamento)
+                                        }
                                     }}
                                     items={tipoItems}
                                     placeholder="Selecionar tipo"
@@ -453,65 +494,90 @@ export default function TransactionEditorDialog({
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className={labelClassName}>Conta bancária</Label>
+                                <Label className={labelClassName}>{isTransferMode ? "Conta origem" : "Conta bancária"}</Label>
                                 <SearchableSelect
                                     value={contaBancariaId}
                                     onValueChange={setContaBancariaId}
                                     items={accountItems}
-                                    placeholder="Selecionar conta"
+                                    placeholder={isTransferMode ? "Selecionar origem" : "Selecionar conta"}
                                     searchPlaceholder="Buscar conta"
                                     className={fieldClassName}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
 
-                            <div className="space-y-1.5">
-                                <Label className={labelClassName}>Categoria</Label>
-                                <SearchableSelect
-                                    value={categoriaId}
-                                    onValueChange={setCategoriaId}
-                                    items={categoryItems}
-                                    placeholder="Selecionar categoria"
-                                    searchPlaceholder="Buscar categoria"
-                                    className={fieldClassName}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
-                                />
-                            </div>
+                            {isTransferMode ? (
+                                <div className="space-y-1.5">
+                                    <Label className={labelClassName}>Conta destino</Label>
+                                    <SearchableSelect
+                                        value={contaDestinoId}
+                                        onValueChange={setContaDestinoId}
+                                        items={accountItems}
+                                        placeholder="Selecionar destino"
+                                        searchPlaceholder="Buscar conta"
+                                        className={fieldClassName}
+                                        disabled={!canCreate || submitting}
+                                    />
+                                    {contaBancariaId && contaDestinoId && contaBancariaId === contaDestinoId ? (
+                                        <p className="text-xs text-[#B42318]">Origem e destino devem ser diferentes.</p>
+                                    ) : null}
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    <Label className={labelClassName}>Categoria</Label>
+                                    <SearchableSelect
+                                        value={categoriaId}
+                                        onValueChange={setCategoriaId}
+                                        items={categoryItems}
+                                        placeholder="Selecionar categoria"
+                                        searchPlaceholder="Buscar categoria"
+                                        className={fieldClassName}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    />
+                                </div>
+                            )}
 
                             <div className="space-y-1.5">
-                                <Label className={labelClassName}>Data de lançamento</Label>
+                                <Label className={labelClassName}>{isTransferMode ? "Data da transferência" : "Data de lançamento"}</Label>
                                 <Input
                                     type="date"
                                     value={dataLancamento}
-                                    onChange={(event) => setDataLancamento(event.target.value)}
+                                    onChange={(event) => {
+                                        setDataLancamento(event.target.value)
+                                        if (isTransferMode) setDataCompetencia(event.target.value)
+                                    }}
                                     className={cn(fieldClassName, "tabular-nums")}
                                     disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
                                 />
                             </div>
 
-                            <div className="space-y-1.5">
-                                <Label className={labelClassName}>Data de competência</Label>
-                                <Input
-                                    type="date"
-                                    value={dataCompetencia}
-                                    onChange={(event) => setDataCompetencia(event.target.value)}
-                                    className={cn(fieldClassName, "tabular-nums")}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
-                                />
-                            </div>
+                            {!isTransferMode ? (
+                                <div className="space-y-1.5">
+                                    <Label className={labelClassName}>Data de competência</Label>
+                                    <Input
+                                        type="date"
+                                        value={dataCompetencia}
+                                        onChange={(event) => setDataCompetencia(event.target.value)}
+                                        className={cn(fieldClassName, "tabular-nums")}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    />
+                                </div>
+                            ) : null}
 
-                            <div className="space-y-1.5">
-                                <Label className={labelClassName}>Centro de custo</Label>
-                                <SearchableSelect
-                                    value={centroCustoId}
-                                    onValueChange={setCentroCustoId}
-                                    items={centroCustoItems}
-                                    placeholder="Selecionar centro de custo"
-                                    searchPlaceholder="Buscar centro de custo"
-                                    className={fieldClassName}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
-                                />
-                            </div>
+                            {!isTransferMode ? (
+                                <div className="space-y-1.5">
+                                    <Label className={labelClassName}>Centro de custo</Label>
+                                    <SearchableSelect
+                                        value={centroCustoId}
+                                        onValueChange={setCentroCustoId}
+                                        items={centroCustoItems}
+                                        placeholder="Selecionar centro de custo"
+                                        searchPlaceholder="Buscar centro de custo"
+                                        className={fieldClassName}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    />
+                                </div>
+                            ) : null}
 
                             <div className="space-y-1.5 md:col-span-2">
                                 <Label className={labelClassName}>Observações</Label>
@@ -607,7 +673,7 @@ export default function TransactionEditorDialog({
                                 className={cn("h-10", operationalListPrimaryButtonClass)}
                             >
                                 {submitting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-                                {isCreateMode ? "Incluir transação" : canAdjust ? "Salvar ajuste" : "Salvar alteração"}
+                                {isTransferMode ? "Criar transferência" : isCreateMode ? "Incluir transação" : canAdjust ? "Salvar ajuste" : "Salvar alteração"}
                             </Button>
                         ) : null}
                     </div>
