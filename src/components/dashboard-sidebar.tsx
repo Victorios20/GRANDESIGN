@@ -6,35 +6,36 @@ import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings,
 import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import { useMemo } from "react"
+import { isRestrictedVendedor, isVendedorAllowedPage, normalizeRoleList } from "@/lib/vendedor-access"
+
+const LEGACY_NAV_ITEMS = [
+  { href: "/", label: "Home", icon: Home },
+  { href: "/orcamento", label: "Orçamentos", icon: FileText },
+  { href: "/clientes", label: "Clientes", icon: Contact },
+  { href: "/obras", label: "Obras", icon: Building2 },
+  { href: "/calendario", label: "Calendário", icon: CalendarDays },
+  { href: "/pedidos", label: "Compras", icon: ShoppingCart },
+  { href: "/cadastros", label: "Cadastros", icon: Settings },
+  { href: "/usuarios", label: "Usuários", icon: Users },
+]
 
 export function DashboardSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
 
-  const navItems = [
-    { href: "/", label: "Home", icon: Home },
-    { href: "/orcamentos", label: "Orçamentos", icon: FileText },
-    { href: "/clientes", label: "Clientes", icon: Contact },
-    { href: "/obras", label: "Obras", icon: Building2 },
-    { href: "/calendario", label: "Calendário", icon: CalendarDays },
-    { href: "/pedidos", label: "Compras", icon: ShoppingCart },
-    { href: "/cadastros", label: "Cadastros", icon: Settings },
-    { href: "/usuarios", label: "Usuários", icon: Users },
-  ]
-
   const rolesUpper = useMemo(() => {
-    const rs = (session?.user as any)?.roles ?? []
-    return Array.isArray(rs) ? rs.map((r: string) => String(r).toUpperCase()) : []
+    const rs = (session?.user as { roles?: unknown[] } | undefined)?.roles ?? []
+    return normalizeRoleList(rs)
   }, [session])
 
-  const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
-  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
+  const isVendedor = isRestrictedVendedor(rolesUpper)
 
   const allowedNavItems = useMemo(() => {
     if (isVendedor) {
-      return navItems.filter((item) => ["Home", "Orçamentos", "Obras"].includes(item.label))
+      return LEGACY_NAV_ITEMS.filter((item) => isVendedorAllowedPage(item.href))
     }
-    return navItems
+
+    return LEGACY_NAV_ITEMS
   }, [isVendedor])
 
   return (

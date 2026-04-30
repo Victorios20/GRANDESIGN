@@ -28,6 +28,7 @@ import {
   Users2,
   Wrench,
 } from "lucide-react"
+import { isRestrictedVendedor, isVendedorAllowedPage } from "@/lib/vendedor-access"
 
 export type SidebarChildItem = {
   label: string
@@ -251,6 +252,8 @@ export function filterSidebarNavigation(
   items: SidebarNavigationItem[],
   rolesUpper: string[]
 ): SidebarNavigationItem[] {
+  const isVendedor = isRestrictedVendedor(rolesUpper)
+
   return items.reduce<SidebarNavigationItem[]>((result, item) => {
     if (item.type === "section") {
       result.push(item)
@@ -258,15 +261,20 @@ export function filterSidebarNavigation(
     }
 
     if (item.type === "link") {
-      if (hasRequiredRole(item.roles, rolesUpper)) {
+      if (
+        hasRequiredRole(item.roles, rolesUpper) &&
+        (!isVendedor || isVendedorAllowedPage(item.href))
+      ) {
         result.push(item)
       }
 
       return result
     }
 
-    const children = item.children.filter((child) =>
-      hasRequiredRole(child.roles, rolesUpper)
+    const children = item.children.filter(
+      (child) =>
+        hasRequiredRole(child.roles, rolesUpper) &&
+        (!isVendedor || isVendedorAllowedPage(child.href))
     )
 
     if (children.length === 0) {

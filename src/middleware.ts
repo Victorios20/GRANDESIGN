@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
+import { isRestrictedVendedor, isVendedorAllowedPage, normalizeRoleList } from "@/lib/vendedor-access"
 
 const PUBLIC_EXACT = ["/favicon.ico", "/robots.txt", "/sitemap.xml"]
 const PUBLIC_PREFIX = ["/_next", "/assets", "/images", "/public"]
@@ -66,7 +67,7 @@ export async function middleware(req: NextRequest) {
   const isApi = pathname.startsWith("/api/")
   const isPublicAuthPage = PUBLIC_LOGIN_PATHS.includes(pathname)
 
-  if (!token || isExpired((token as any).exp)) {
+  if (!token || isExpired((token as { exp?: number | null }).exp)) {
     if (isApi) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
@@ -86,18 +87,13 @@ export async function middleware(req: NextRequest) {
   }
 
   const roles = (token as { roles?: string[] }).roles ?? []
-  const rolesUpper = roles.map(r => String(r).toUpperCase())
+  const rolesUpper = normalizeRoleList(roles)
   
   const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
-  const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
 
   // Bloquear acesso a páginas diferentes dos módulos permitidos para VENDEDOR
-  if (isVendedor && !isApi) {
-    // Rotas permitidas para UI do vendedor
-    const allowedPrefixes = ["/orcamento", "/obras"]
-    const isAllowed = pathname === "/" || allowedPrefixes.some(prefix => pathname.startsWith(prefix))
-
-    if (!isAllowed) {
+  if (isRestrictedVendedor(rolesUpper) && !isApi) {
+    if (!isVendedorAllowedPage(pathname)) {
       const url = req.nextUrl.clone()
       url.pathname = "/"
       return NextResponse.redirect(url)
