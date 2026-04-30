@@ -91,10 +91,10 @@ export async function middleware(req: NextRequest) {
   const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
   const isVendedor = rolesUpper.includes("VENDEDOR") && !canSeeAdmin
 
-  // Bloquear acesso a páginas diferentes de / e /orcamento... para VENDEDOR
+  // Bloquear acesso a páginas diferentes dos módulos permitidos para VENDEDOR
   if (isVendedor && !isApi) {
     // Rotas permitidas para UI do vendedor
-    const allowedPrefixes = ["/orcamento"]
+    const allowedPrefixes = ["/orcamento", "/obras"]
     const isAllowed = pathname === "/" || allowedPrefixes.some(prefix => pathname.startsWith(prefix))
 
     if (!isAllowed) {

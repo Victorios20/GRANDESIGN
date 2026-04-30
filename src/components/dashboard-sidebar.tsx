@@ -32,7 +32,7 @@ export function DashboardSidebar() {
 
   const allowedNavItems = useMemo(() => {
     if (isVendedor) {
-      return navItems.filter((item) => ["Home", "Orçamentos"].includes(item.label))
+      return navItems.filter((item) => ["Home", "Orçamentos", "Obras"].includes(item.label))
     }
     return navItems
   }, [isVendedor])
