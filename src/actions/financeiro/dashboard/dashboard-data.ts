@@ -157,6 +157,10 @@ function getAccountFilterClause(accountIds: number[]) {
 function getExpenseScopeClause(scope: DashboardExpenseScope) {
     const groupNames = scope === "cost" ? FINANCIAL_COST_GROUP_NAMES : FINANCIAL_EXPENSE_GROUP_NAMES
     const categoryNames = scope === "cost" ? FINANCIAL_COST_CATEGORY_NAMES : FINANCIAL_EXPENSE_CATEGORY_NAMES
+    const expenseScopeExclusion =
+        scope === "expense"
+            ? Prisma.sql`AND scope_cat.nome NOT IN (${Prisma.join(FINANCIAL_COST_CATEGORY_NAMES)})`
+            : Prisma.empty
 
     return Prisma.sql`
         AND EXISTS (
@@ -164,6 +168,7 @@ function getExpenseScopeClause(scope: DashboardExpenseScope) {
             FROM categorias scope_cat
             LEFT JOIN categorias scope_parent ON scope_parent.id = scope_cat.categoria_pai_id
             WHERE scope_cat.id = l.categoria_id
+              ${expenseScopeExclusion}
               AND (
                 scope_parent.nome IN (${Prisma.join(groupNames)})
                 OR scope_cat.nome IN (${Prisma.join(categoryNames)})
@@ -1095,6 +1100,7 @@ async function getCategoryLatestItems(
                     OR: [
                         { categoria: { nome: { in: EXCLUDED_FINANCIAL_CATEGORY_NAMES } } },
                         { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
+                        ...(scope === "expense" ? [{ categoria: { nome: { in: FINANCIAL_COST_CATEGORY_NAMES } } }] : []),
                     ],
                 },
                 ...(filters.account_ids.length > 0 ? { conta_bancaria_id: { in: filters.account_ids } } : {}),

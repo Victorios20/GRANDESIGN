@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -21,6 +21,11 @@ interface Props {
     emptyMessage?: string
     className?: string
     disabled?: boolean
+    searchValue?: string
+    onSearchValueChange?: (value: string) => void
+    shouldFilter?: boolean
+    loading?: boolean
+    loadingMessage?: string
 }
 
 export function SearchableSelect({
@@ -32,6 +37,11 @@ export function SearchableSelect({
     emptyMessage = "Nenhum item encontrado.",
     className,
     disabled = false,
+    searchValue,
+    onSearchValueChange,
+    shouldFilter = true,
+    loading = false,
+    loadingMessage = "Carregando...",
 }: Props) {
     const [open, setOpen] = React.useState(false)
     const selectedItem = items.find((item) => item.value === value)
@@ -56,11 +66,22 @@ export function SearchableSelect({
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[var(--radix-popover-trigger-width)] border-[#d9d3c8] bg-white p-0" align="start">
-                <Command>
-                    <CommandInput placeholder={searchPlaceholder} className="text-sm" />
+                <Command shouldFilter={shouldFilter}>
+                    <CommandInput
+                        value={searchValue}
+                        onValueChange={onSearchValueChange}
+                        placeholder={searchPlaceholder}
+                        className="text-sm"
+                    />
                     <CommandList>
-                        <CommandEmpty>{emptyMessage}</CommandEmpty>
+                        <CommandEmpty>{loading ? loadingMessage : emptyMessage}</CommandEmpty>
                         <CommandGroup>
+                            {loading ? (
+                                <CommandItem disabled value="loading">
+                                    <Loader2 className="mr-2 size-4 animate-spin" />
+                                    <span className="truncate">{loadingMessage}</span>
+                                </CommandItem>
+                            ) : null}
                             {items.map((item) => (
                                 <CommandItem
                                     key={item.value}

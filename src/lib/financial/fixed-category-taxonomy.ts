@@ -56,6 +56,7 @@ export const FIXED_FINANCIAL_CATEGORY_GROUPS: FixedFinancialGroupConfig[] = [
       "Andaime",
       "M\u00e3o de Obra",
       "Estadia",
+      "Comiss\u00e3o",
     ],
   },
   {
@@ -78,7 +79,6 @@ export const FIXED_FINANCIAL_CATEGORY_GROUPS: FixedFinancialGroupConfig[] = [
       "Marketing",
       "Materiais de escrit\u00f3rio",
       "Contabilidade",
-      "Comiss\u00e3o",
       "Fardamento",
       "Folha de Pagamento",
       "Combust\u00edvel",

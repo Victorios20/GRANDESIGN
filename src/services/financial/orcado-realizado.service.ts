@@ -84,8 +84,8 @@ export const OrcadoRealizadoService = {
 
         // 6. Build DTO Helpers
         // "Orçado" shown to user = Baseline + Extra
-        const buildCat = (previsto: any, extra: number, realizado: number): CategoryComparison => {
-            const p = Number(previsto || 0)
+        const buildCat = (previsto: unknown, extra: number, realizado: number): CategoryComparison => {
+            const p = Number(previsto ?? 0)
             const totalOrcado = p + extra // Merged Baseline + Extra
             const diff = realizado - totalOrcado
             const pct = totalOrcado === 0 ? (realizado > 0 ? 100 : 0) : (realizado / totalOrcado) * 100

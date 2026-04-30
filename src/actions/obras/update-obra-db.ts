@@ -1,8 +1,9 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus } from "@prisma/client"
+import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus, Prisma } from "@prisma/client"
 import { parseDateOnlyInput } from "@/lib/date-only"
+import { BudgetSnapshotService } from "@/services/budget-snapshot.service"
 
 type Id = number | string
 
@@ -70,7 +71,7 @@ type UpdateObraResult =
   | { ok: true; status: 200; data: { id: number } }
   | { ok: false; status: number; code: string; message: string }
 
-const n = (v: any) => {
+const n = (v: unknown) => {
   if (v === undefined || v === null || v === "") return undefined
   const num = Number(String(v).replace(",", "."))
   return Number.isFinite(num) ? num : undefined
@@ -106,7 +107,6 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
   const obra = await prisma.obras.findUnique({
     where: { id },
-    // @ts-ignore
     select: { id: true, status: true, data_conclusao: true },
   })
 
@@ -119,12 +119,13 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       /* ================= OBRA ================= */
       console.log("Payload recebido updateObraDB:", JSON.stringify(payload, null, 2))
 
-      const obraData: any = {
+      const obraData: Prisma.obrasUpdateInput = {
         updatedBy: { connect: { id: Number(userId) } },
       }
 
       let shouldClosePedidos = false
       let shouldForceFinalizationStatuses = false
+      let shouldSyncBudgetSnapshot = false
 
       if (payload.obra) {
         obraData.titulo = payload.obra.titulo
@@ -141,6 +142,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           obraData.is_l_shape = payload.obra.is_l_shape
         }
         obraData.telha_escolhida = payload.obra.telha_escolhida
+        if (payload.obra.telha_escolhida !== undefined) shouldSyncBudgetSnapshot = true
         obraData.observacoes = payload.obra.observacoes ?? undefined
         if (payload.obra.status) {
           const s = String(payload.obra.status).trim()
@@ -197,6 +199,9 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       if (payload.financeiro) {
         obraData.valor_obra = n(payload.financeiro.valor_obra)
         obraData.valor_mao_de_obra = n(payload.financeiro.valor_mao_de_obra)
+        if (payload.financeiro.valor_obra !== undefined || payload.financeiro.valor_mao_de_obra !== undefined) {
+          shouldSyncBudgetSnapshot = true
+        }
         obraData.pagamento_entrada = n(payload.financeiro.pagamento_entrada)
         obraData.forma_pagamento_entrada = payload.financeiro.forma_pagamento_entrada
         obraData.pagamento_quitacao = n(payload.financeiro.pagamento_quitacao)
@@ -220,6 +225,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
         where: { id },
         data: obraData,
       })
+
+      if (shouldSyncBudgetSnapshot) {
+        await BudgetSnapshotService.syncDerivedValues(id, Number(userId), tx)
+      }
 
       /* ================= IMAGENS ================= */
       if (payload.imagens && payload.imagens.replace && Array.isArray(payload.imagens.list)) {
@@ -300,7 +309,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
           action: "OBRA_UPDATE",
           entity: "obras",
           entity_id: id,
-          detail: payload as any,
+          detail: JSON.parse(JSON.stringify(payload)) as Prisma.InputJsonValue,
         },
       })
 
@@ -308,10 +317,12 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
     })
 
     return { ok: true, status: 200, data: result }
-  } catch (err: any) {
+  } catch (err: unknown) {
     const message = err instanceof Error && err.message ? err.message : "Erro ao salvar obra."
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorStack = err instanceof Error ? err.stack : ""
 
-    console.error("[updateObraDB] Erro ao salvar obra:", err?.message ?? err, err?.stack ?? "")
+    console.error("[updateObraDB] Erro ao salvar obra:", errorMessage, errorStack)
     return {
       ok: false as const,
       status: 500,

@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
@@ -28,6 +28,8 @@ type ObraOption = {
     titulo: string
 }
 
+const OBRA_OPTIONS_LIMIT = 15
+
 type TransactionItem = {
     id: number
     data: string
@@ -48,17 +50,52 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
 
     // State
     const [selectedObraId, setSelectedObraId] = useState<string>(searchParams.get("obraId") || "")
+    const [obraOptions, setObraOptions] = useState<ObraOption[]>(obras)
+    const [selectedObraOption, setSelectedObraOption] = useState<ObraOption | null>(
+        () => obras.find((obra) => String(obra.id) === (searchParams.get("obraId") || "")) ?? null
+    )
+    const [obraSearch, setObraSearch] = useState("")
+    const [obrasLoading, setObrasLoading] = useState(false)
     const [data, setData] = useState<OrcadoRealizadoDTO | null>(null)
     const [loading, setLoading] = useState(false)
     const [recalculating, setRecalculating] = useState(false)
+    const obraSearchTimeout = useRef<NodeJS.Timeout | null>(null)
 
     // Expansion State
     const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({})
     const [transactions, setTransactions] = useState<Record<string, TransactionItem[]>>({})
     const [loadingCats, setLoadingCats] = useState<Record<string, boolean>>({})
 
+    const obraSelectItems = useMemo(() => {
+        const options = selectedObraOption ? [selectedObraOption, ...obraOptions] : obraOptions
+        const unique = new Map<string, { value: string; label: string }>()
+
+        for (const obra of options) {
+            const value = String(obra.id)
+            if (!unique.has(value)) {
+                unique.set(value, { value, label: obra.titulo || `Obra #${obra.id}` })
+            }
+        }
+
+        return Array.from(unique.values())
+    }, [obraOptions, selectedObraOption])
+
+    const fetchObraOptions = useCallback(async (search: string, signal?: AbortSignal) => {
+        const params = new URLSearchParams()
+        params.set("limit", String(OBRA_OPTIONS_LIMIT))
+        if (search.trim()) params.set("search", search.trim())
+
+        const response = await fetch(`/api/financeiro/reports/orcado-realizado/obras?${params.toString()}`, { signal })
+        if (!response.ok) throw new Error("Falha ao carregar obras")
+        const result = await response.json()
+        return Array.isArray(result.data) ? result.data as ObraOption[] : []
+    }, [])
+
     // Update URL when selection changes
     const handleObraChange = (val: string) => {
+        const selected = obraOptions.find((obra) => String(obra.id) === val)
+        if (selected) setSelectedObraOption(selected)
+        setObraSearch("")
         setSelectedObraId(val)
         const params = new URLSearchParams(searchParams)
         params.set("obraId", val)
@@ -95,6 +132,64 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedObraId])
+
+    useEffect(() => {
+        const controller = new AbortController()
+        let active = true
+
+        if (obraSearchTimeout.current) clearTimeout(obraSearchTimeout.current)
+        obraSearchTimeout.current = setTimeout(async () => {
+            try {
+                setObrasLoading(true)
+                const options = await fetchObraOptions(obraSearch, controller.signal)
+                if (active) setObraOptions(options)
+            } catch (error) {
+                if (active && (error as Error).name !== "AbortError") {
+                    console.error(error)
+                    toast.error("Erro ao buscar obras.")
+                }
+            } finally {
+                if (active) setObrasLoading(false)
+            }
+        }, 250)
+
+        return () => {
+            active = false
+            controller.abort()
+            if (obraSearchTimeout.current) clearTimeout(obraSearchTimeout.current)
+        }
+    }, [fetchObraOptions, obraSearch])
+
+    useEffect(() => {
+        if (!selectedObraId) {
+            setSelectedObraOption(null)
+            return
+        }
+
+        const current = obraOptions.find((obra) => String(obra.id) === selectedObraId)
+        if (current) {
+            setSelectedObraOption(current)
+            return
+        }
+
+        if (selectedObraOption && String(selectedObraOption.id) === selectedObraId) return
+
+        let active = true
+
+        fetchObraOptions(selectedObraId)
+            .then((options) => {
+                if (!active) return
+                const selected = options.find((obra) => String(obra.id) === selectedObraId)
+                if (selected) setSelectedObraOption(selected)
+            })
+            .catch((error) => {
+                console.error(error)
+            })
+
+        return () => {
+            active = false
+        }
+    }, [fetchObraOptions, obraOptions, selectedObraId, selectedObraOption])
 
     // Recalculate Logic
     async function handleRecalculate() {
@@ -153,18 +248,22 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
     // Header Actions (Obra Selector + Logic)
     const HeaderActions = (
         <div className="flex items-center gap-2">
-            <Select value={selectedObraId} onValueChange={handleObraChange}>
-                <SelectTrigger className="w-[200px] md:w-[250px] bg-white">
-                    <SelectValue placeholder="Selecione uma obra" />
-                </SelectTrigger>
-                <SelectContent>
-                    {obras.map(obra => (
-                        <SelectItem key={obra.id} value={String(obra.id)}>
-                            {obra.titulo || `Obra #${obra.id}`}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            <div className="w-[220px] md:w-[300px]">
+                <SearchableSelect
+                    value={selectedObraId}
+                    onValueChange={handleObraChange}
+                    items={obraSelectItems}
+                    placeholder="Selecione uma obra"
+                    searchPlaceholder="Buscar obra"
+                    emptyMessage="Nenhuma obra encontrada."
+                    searchValue={obraSearch}
+                    onSearchValueChange={setObraSearch}
+                    shouldFilter={false}
+                    loading={obrasLoading}
+                    loadingMessage="Carregando obras..."
+                    className="bg-white"
+                />
+            </div>
 
             <Button variant="outline" size="icon" onClick={() => handleRecalculate()} disabled={recalculating || !selectedObraId} title="Recalcular Baseline">
                 <RefreshCcw className={`h-4 w-4 text-marromEscuro ${recalculating ? "animate-spin" : ""}`} />

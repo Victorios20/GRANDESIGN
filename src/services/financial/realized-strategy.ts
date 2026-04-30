@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { PedidoCategoria } from "@prisma/client"
-import { CategoryMapping, ReportCategoryKey } from "@/services/financial/category-mapping"
+import { CategoryMapping } from "@/services/financial/category-mapping"
 import { isExcludedFinancialCategory } from "@/lib/financial/fixed-category-taxonomy"
 
 export interface RealizedCostData {

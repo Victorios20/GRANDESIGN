@@ -48,6 +48,25 @@ export async function syncFixedFinancialCategoryTaxonomy() {
         continue
       }
 
+      const childUnderAnotherGroup = await prisma.categoria.findFirst({
+        where: {
+          nome: childName,
+          categoria_pai_id: { not: null },
+        },
+        orderBy: { id: "asc" },
+      })
+
+      if (childUnderAnotherGroup) {
+        await prisma.categoria.update({
+          where: { id: childUnderAnotherGroup.id },
+          data: {
+            tipo: group.tipo,
+            categoria_pai_id: parent.id,
+          },
+        })
+        continue
+      }
+
       if (!parentWasCreated) {
         continue
       }

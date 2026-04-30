@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { PedidoCategoria, Prisma } from "@prisma/client"
 
 type Decimalish = Prisma.Decimal | number | string | null | undefined
+type BudgetSnapshotClient = Pick<typeof prisma, "auditLog" | "obra_budget_snapshot" | "obras">
 
 export type BudgetSnapshotUpdateInput = {
     receita_orcada?: Decimalish
@@ -18,6 +19,32 @@ function asDecimal(value: Decimalish) {
     return new Prisma.Decimal(String(value).replace(",", "."))
 }
 
+function normalizeStr(value: string | null | undefined) {
+    return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim()
+}
+
+function calculateMaterialAmount(material: {
+    quantidade?: Decimalish
+    preco_unitario?: Decimalish
+    tamanho?: Decimalish
+    frete?: Decimalish
+    total?: Decimalish
+}) {
+    const total = asDecimal(material.total)
+    if (!total.isZero()) return total
+
+    const quantidade = asDecimal(material.quantidade)
+    const preco = asDecimal(material.preco_unitario)
+    const tamanho = asDecimal(material.tamanho)
+    const base = tamanho.gt(0) ? quantidade.mul(preco).mul(tamanho) : quantidade.mul(preco)
+
+    return base.plus(asDecimal(material.frete))
+}
+
 function calculatePedidoAmount(pedido: {
     frete?: Decimalish
     itens?: Array<{ total: Decimalish }>
@@ -28,6 +55,28 @@ function calculatePedidoAmount(pedido: {
     )
 
     return itensTotal.plus(asDecimal(pedido.frete))
+}
+
+function isMadeiraMaterial(material: { tipo: string | null; descricao: string | null; componente: string | null }) {
+    const text = normalizeStr(`${material.tipo ?? ""} ${material.descricao ?? ""} ${material.componente ?? ""}`)
+    return text.includes("madeira") || text.includes("vigamento") || text.includes("ripa") || text.includes("caibro")
+}
+
+function isTelhaMaterial(material: { tipo: string | null; descricao: string | null }) {
+    const text = normalizeStr(`${material.tipo ?? ""} ${material.descricao ?? ""}`)
+    return text.includes("telha")
+}
+
+function isAndaimeMaterial(material: { tipo: string | null; descricao: string | null }) {
+    const text = normalizeStr(`${material.tipo ?? ""} ${material.descricao ?? ""}`)
+    return text.includes("andaime") || text.includes("plataforma")
+}
+
+function matchesSelectedTelha(material: { descricao: string | null }, selectedTelha: string) {
+    const materialName = normalizeStr(material.descricao)
+    const selected = normalizeStr(selectedTelha)
+    if (!selected) return false
+    return materialName.includes(selected) || selected.includes(materialName)
 }
 
 function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
@@ -114,6 +163,33 @@ export const BudgetSnapshotService = {
         return snapshot
     },
 
+    async syncDerivedValues(obraId: number, userId?: number, client: BudgetSnapshotClient = prisma) {
+        const data = await this.calculateBaselineData(obraId, client)
+
+        const snapshot = await client.obra_budget_snapshot.upsert({
+            where: { obra_id: obraId },
+            create: {
+                obra_id: obraId,
+                ...data,
+            },
+            update: data,
+        })
+
+        if (userId) {
+            await client.auditLog.create({
+                data: {
+                    action: "BUDGET_SNAPSHOT_SYNCED",
+                    entity: "obra_budget_snapshot",
+                    entity_id: snapshot.id,
+                    user_id: userId,
+                    detail: { obra_id: obraId, synced_values: data },
+                },
+            })
+        }
+
+        return snapshot
+    },
+
     async updateManualValues(obraId: number, input: BudgetSnapshotUpdateInput, userId?: number) {
         const data = normalizeSnapshotInput(input)
         const baseline = await this.calculateBaselineData(obraId)
@@ -168,44 +244,65 @@ export const BudgetSnapshotService = {
     /**
      * Internal helper to calculate baseline values.
      * Considers:
-     * - Obra: valor_obra (Receita), valor_mao_de_obra
-     * - Pedidos: itens + frete where nao_previsto = FALSE
+     * - Obra: valor_obra (Receita), valor_mao_de_obra, telha_escolhida
+     * - Orçamento vinculado: madeira, telha selecionada, andaime e materiais
      */
-    async calculateBaselineData(obraId: number) {
-        const obra = await prisma.obras.findUniqueOrThrow({
+    async calculateBaselineData(obraId: number, client: BudgetSnapshotClient = prisma) {
+        const obra = await client.obras.findUniqueOrThrow({
             where: { id: obraId },
-            select: { valor_obra: true, valor_mao_de_obra: true },
-        })
-
-        const pedidosPrevistos = await prisma.pedido_compra.findMany({
-            where: {
-                obra_id: obraId,
-                nao_previsto: false,
-                status: { notIn: ["RASCUNHO", "CANCELADO"] },
-            },
             select: {
-                categoria: true,
-                frete: true,
-                itens: {
+                valor_obra: true,
+                valor_mao_de_obra: true,
+                telha_escolhida: true,
+                orcamento: {
                     select: {
-                        total: true,
+                        totais_madeiras_preco: true,
+                        orcamento_material: {
+                            select: {
+                                tipo: true,
+                                descricao: true,
+                                componente: true,
+                                quantidade: true,
+                                preco_unitario: true,
+                                tamanho: true,
+                                frete: true,
+                                total: true,
+                            },
+                        },
                     },
                 },
             },
         })
 
-        const sumByCategory = (cat: PedidoCategoria) =>
-            pedidosPrevistos
-                .filter((p) => p.categoria === cat)
-                .reduce((acc, curr) => acc + Number(calculatePedidoAmount(curr).toString()), 0)
+        const materials = obra.orcamento?.orcamento_material ?? []
+        const selectedTelha = obra.telha_escolhida ?? ""
+        const sumMaterials = (predicate: (material: (typeof materials)[number]) => boolean) =>
+            materials
+                .filter(predicate)
+                .reduce((acc, material) => acc + Number(calculateMaterialAmount(material).toString()), 0)
+
+        const madeiraPrevista = obra.orcamento?.totais_madeiras_preco ?? sumMaterials(isMadeiraMaterial)
+        const telhas = materials.filter(isTelhaMaterial)
+        const telhaSelecionada = selectedTelha
+            ? telhas.filter((material) => matchesSelectedTelha(material, selectedTelha))
+            : []
+        const telhaPrevista = sumMaterials((material) =>
+            telhaSelecionada.length > 0
+                ? isTelhaMaterial(material) && matchesSelectedTelha(material, selectedTelha)
+                : false
+        )
+        const andaimePrevisto = sumMaterials(isAndaimeMaterial)
+        const materiaisPrevisto = sumMaterials(
+            (material) => !isMadeiraMaterial(material) && !isTelhaMaterial(material) && !isAndaimeMaterial(material)
+        )
 
         return {
             receita_orcada: obra.valor_obra,
             mao_de_obra_orcada: obra.valor_mao_de_obra,
-            madeira_previsto: sumByCategory(PedidoCategoria.MADEIRA),
-            telha_previsto: sumByCategory(PedidoCategoria.TELHA),
-            andaime_previsto: sumByCategory(PedidoCategoria.ANDAIMES),
-            materiais_previsto: sumByCategory(PedidoCategoria.MATERIAIS),
+            madeira_previsto: madeiraPrevista,
+            telha_previsto: telhaPrevista,
+            andaime_previsto: andaimePrevisto,
+            materiais_previsto: materiaisPrevisto,
         }
     },
 
