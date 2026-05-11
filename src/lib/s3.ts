@@ -1,18 +1,27 @@
-// src/lib/s3.ts
 import { S3Client } from "@aws-sdk/client-s3"
 
-const endpoint = process.env.S3_ENDPOINT
-const region = process.env.S3_REGION
-const accessKeyId = process.env.S3_ACCESS_KEY_ID
-const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY
+let s3Client: S3Client | null = null
 
-if (!endpoint || !region || !accessKeyId || !secretAccessKey) {
-  throw new Error("S3 env vars ausentes (S3_ENDPOINT/S3_REGION/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY).")
+function getRequiredEnv(name: string) {
+  const value = process.env[name]
+  if (!value) throw new Error(`Missing env: ${name}`)
+  return value
 }
 
-export const s3 = new S3Client({
-  region,
-  endpoint,
-  credentials: { accessKeyId, secretAccessKey },
-  forcePathStyle: true,
-})
+export function getS3Client() {
+  if (s3Client) return s3Client
+
+  const endpoint = getRequiredEnv("S3_ENDPOINT")
+  const region = getRequiredEnv("S3_REGION")
+  const accessKeyId = getRequiredEnv("S3_ACCESS_KEY_ID")
+  const secretAccessKey = getRequiredEnv("S3_SECRET_ACCESS_KEY")
+
+  s3Client = new S3Client({
+    region,
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
+  })
+
+  return s3Client
+}
