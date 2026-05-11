@@ -1,6 +1,6 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { NextRequest, NextResponse } from "next/server"
-import { getS3Client } from "@/lib/s3"
+import { s3 } from "@/lib/s3"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
     const body = Buffer.from(await file.arrayBuffer())
     const key = `contratos/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${extension}`
 
-    await getS3Client().send(
+    await s3.send(
       new PutObjectCommand({
         Bucket: bucket,
         Key: key,

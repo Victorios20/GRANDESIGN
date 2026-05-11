@@ -1,13 +1,13 @@
 // src/app/api/uploads/imagens/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { PutObjectCommand } from "@aws-sdk/client-s3"
-import { getS3Client } from "@/lib/s3"
+import { s3 } from "@/lib/s3"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-function json(body: unknown, status = 200, requestId?: string) {
+function json(body: any, status = 200, requestId?: string) {
   const headers = new Headers({ "Content-Type": "application/json" })
   if (requestId) headers.set("X-Request-Id", requestId)
   return new NextResponse(JSON.stringify(body), { status, headers })
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
 
       const key = `obras/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`
 
-      await getS3Client().send(
+      await s3.send(
         new PutObjectCommand({
           Bucket: bucket,
           Key: key,
@@ -102,9 +102,9 @@ export async function POST(req: NextRequest) {
     }
 
     return json({ ok: true, files: uploaded, urls: uploaded.map((f) => f.url), requestId }, 201, requestId)
-  } catch (err: unknown) {
+  } catch (err: any) {
     return json(
-      { ok: false, error: "UPLOAD_FAILED", message: "Falha ao enviar imagens.", detail: err instanceof Error ? err.message : String(err), requestId },
+      { ok: false, error: "UPLOAD_FAILED", message: "Falha ao enviar imagens.", detail: String(err?.message ?? err), requestId },
       500,
       requestId
     )
