@@ -1,7 +1,9 @@
-import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
+
+import { createCardFeeTransaction, resolveCardFeeAmount } from "@/actions/financeiro/card-fee"
 import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
+import { prisma } from "@/lib/prisma"
 
 export const payBillSchema = z.object({
     conta_pagar_id: z.number().int().positive(),
@@ -10,91 +12,86 @@ export const payBillSchema = z.object({
     data_pagamento: z.coerce.date(),
     juros: z.number().min(0).optional().default(0),
     descontos: z.number().min(0).optional().default(0),
+    taxa_cartao_valor: z.number().min(0).optional(),
+    taxa_cartao_percentual: z.number().min(0).optional(),
     idempotencyKey: z.string().optional(),
 })
 
 export type PayBillInput = z.infer<typeof payBillSchema>
 
 export async function payBill(input: PayBillInput, userId?: number) {
-    // 1. Idempotency Check (Pre-Transaction)
     if (input.idempotencyKey) {
         const existing = await prisma.idempotencyLog.findUnique({ where: { key: input.idempotencyKey } })
         if (existing) {
-            if (existing.status === 'COMPLETED') return JSON.parse(existing.result!)
-            if (existing.status === 'PENDING') throw new Error("Operação em andamento (Idempotency Lock)")
-            // If FAILED, we allow retry (proceed)
+            if (existing.status === "COMPLETED") return JSON.parse(existing.result!)
+            if (existing.status === "PENDING") throw new Error("Operacao em andamento (Idempotency Lock)")
         }
         await prisma.idempotencyLog.create({
-            data: { key: input.idempotencyKey, status: 'PENDING' }
+            data: { key: input.idempotencyKey, status: "PENDING" },
         })
     }
 
     try {
-        // 2. Fetch Bill & Bank Account
         const bill = await prisma.contaPagar.findUnique({
             where: { id: input.conta_pagar_id },
-            include: { categoria: true }
+            include: { categoria: true },
         })
 
-        if (!bill) throw new Error("Conta a pagar não encontrada")
+        if (!bill) throw new Error("Conta a pagar nao encontrada")
 
         const bank = await prisma.contasBancaria.findUnique({
-            where: { id: input.conta_bancaria_id }
+            where: { id: input.conta_bancaria_id },
         })
 
-        if (!bank || !bank.ativo) throw new Error("Conta bancária inválida ou inativa")
+        if (!bank || !bank.ativo) throw new Error("Conta bancaria invalida ou inativa")
 
-        // 3. Validate Status
-        const allowedStatus: StatusFinanceiro[] = [StatusFinanceiro.PENDENTE, StatusFinanceiro.PARCIAL, StatusFinanceiro.ATRASADO]
+        const allowedStatus: StatusFinanceiro[] = [
+            StatusFinanceiro.PENDENTE,
+            StatusFinanceiro.PARCIAL,
+            StatusFinanceiro.ATRASADO,
+        ]
         if (!allowedStatus.includes(bill.status)) {
-            throw new Error(`Status inválido para pagamento: ${bill.status}`)
+            throw new Error(`Status invalido para pagamento: ${bill.status}`)
         }
 
-        // 4. Calculate Remaining & Validate
         const total = Number(bill.valor_total)
         const paid = Number(bill.valor_pago)
         const remaining = total - paid
-        const amortizadoParaContaPagar = input.valor + input.descontos - input.juros
+        const amortized = input.valor + input.descontos - input.juros
+        const cardFee = resolveCardFeeAmount(input, input.valor)
 
-        if (amortizadoParaContaPagar > remaining + 0.01) {
-            throw new Error(`Amortização excedente. Restante: ${remaining.toFixed(2)} (Amortização calculada: ${amortizadoParaContaPagar.toFixed(2)})`)
+        if (amortized > remaining + 0.01) {
+            throw new Error(`Amortizacao excedente. Restante: ${remaining.toFixed(2)} (Amortizacao calculada: ${amortized.toFixed(2)})`)
         }
 
-        // 5. Atomic Transaction with OCC
         const result = await prisma.$transaction(async (tx) => {
-            // A. Optimistic Concurrency Control (Lock & Update)
-            // We explicitly check that `valor_pago` has not changed since our read.
             const updateCheck = await tx.contaPagar.updateMany({
                 where: {
                     id: bill.id,
-                    valor_pago: bill.valor_pago // OCC Version Check
+                    valor_pago: bill.valor_pago,
                 },
                 data: {
-                    valor_pago: { increment: amortizadoParaContaPagar }
-                }
+                    valor_pago: { increment: amortized },
+                },
             })
 
             if (updateCheck.count === 0) {
-                throw new Error("Conflito de concorrência: O registro foi alterado por outra transação. Tente novamente.")
+                throw new Error("Conflito de concorrencia: O registro foi alterado por outra transacao. Tente novamente.")
             }
 
-            // Check new totals to determine status
-            // We can't use `returned` value from updateMany. We calculate based on inputs.
-            const newPaid = paid + amortizadoParaContaPagar
+            const newPaid = paid + amortized
             const isPaid = Math.abs(total - newPaid) < 0.01
             const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
 
-            // Update Status and Data Pagamento
             const updatedBill = await tx.contaPagar.update({
                 where: { id: bill.id },
                 data: {
                     status: newStatus,
-                    data_pagamento: isPaid ? input.data_pagamento : undefined
-                }
+                    data_pagamento: isPaid ? input.data_pagamento : undefined,
+                },
             })
 
-            // B. Create Transaction (Saída)
-            await tx.lancamento.create({
+            const mainTransaction = await tx.lancamento.create({
                 data: {
                     descricao: `Pagamento: ${bill.descricao}`,
                     valor: input.valor,
@@ -108,15 +105,32 @@ export async function payBill(input: PayBillInput, userId?: number) {
                     centro_custo_id: bill.centro_custo_id,
                     observacoes: `Ref: Conta Pagar #${bill.id}`,
                     created_by: userId,
-                    conta_pagar_id: bill.id
-                }
+                    conta_pagar_id: bill.id,
+                },
             })
 
-            // C. Update Bank Balance
             await tx.contasBancaria.update({
                 where: { id: input.conta_bancaria_id },
-                data: { saldo_atual: { decrement: input.valor } }
+                data: { saldo_atual: { decrement: input.valor } },
             })
+
+            if (cardFee > 0) {
+                await createCardFeeTransaction(tx, {
+                    origemLancamentoId: mainTransaction.id,
+                    origemDescricao: bill.descricao,
+                    valor: cardFee,
+                    dataLancamento: input.data_pagamento,
+                    dataCompetencia: bill.data_vencimento,
+                    contaBancariaId: input.conta_bancaria_id,
+                    centroCustoId: bill.centro_custo_id,
+                    userId,
+                })
+
+                await tx.contasBancaria.update({
+                    where: { id: input.conta_bancaria_id },
+                    data: { saldo_atual: { decrement: cardFee } },
+                })
+            }
 
             return updatedBill
         })
@@ -125,25 +139,22 @@ export async function payBill(input: PayBillInput, userId?: number) {
             await syncPedidoCompraValorRealizado(result.pedido_compra_id)
         }
 
-        // 6. Finalize Idempotency
         if (input.idempotencyKey) {
             await prisma.idempotencyLog.update({
                 where: { key: input.idempotencyKey },
-                data: { status: 'COMPLETED', result: JSON.stringify(result) }
+                data: { status: "COMPLETED", result: JSON.stringify(result) },
             })
         }
 
         return result
-
     } catch (error) {
-        // Handle Idempotency Failure
         if (input.idempotencyKey) {
             await prisma.idempotencyLog.update({
                 where: { key: input.idempotencyKey },
                 data: {
-                    status: 'FAILED',
-                    result: (error as Error).message
-                }
+                    status: "FAILED",
+                    result: (error as Error).message,
+                },
             })
         }
         throw error
