@@ -519,7 +519,8 @@ model obras {
   documentos obra_documentos[]
 
   // Financeiro
-  centro_custo CentroCusto[]
+  centro_custo   CentroCusto[]
+  contas_receber ContaReceber[]
 
   // Snapshot Orçamento
   budget_snapshot obra_budget_snapshot?
@@ -541,11 +542,15 @@ model obra_budget_snapshot {
   receita_orcada Decimal @default(0.00) @db.Decimal(15, 2)
 
   // Custos Previstos (Originais do Orçamento)
-  mao_de_obra_orcada Decimal @default(0.00) @db.Decimal(15, 2)
-  materiais_previsto Decimal @default(0.00) @db.Decimal(15, 2)
-  madeira_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
-  telha_previsto     Decimal @default(0.00) @db.Decimal(15, 2)
-  andaime_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+  mao_de_obra_orcada  Decimal @default(0.00) @db.Decimal(15, 2)
+  materiais_previsto  Decimal @default(0.00) @db.Decimal(15, 2)
+  madeira_previsto    Decimal @default(0.00) @db.Decimal(15, 2)
+  telha_previsto      Decimal @default(0.00) @db.Decimal(15, 2)
+  andaime_previsto    Decimal @default(0.00) @db.Decimal(15, 2)
+  comissao_previsto   Decimal @default(0.00) @db.Decimal(15, 2)
+  frete_previsto      Decimal @default(0.00) @db.Decimal(15, 2)
+  empresa_ps_previsto Decimal @default(0.00) @db.Decimal(15, 2)
+  empresa_gd_previsto Decimal @default(0.00) @db.Decimal(15, 2)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -817,6 +822,13 @@ model ContaReceber {
   orcamento_id Int?
   orcamento    orcamento? @relation(fields: [orcamento_id], references: [id], onDelete: SetNull)
 
+  obra_id Int?
+  obra    obras? @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+
+  origem_obra_tipo       String? @db.VarChar(20)
+  auto_gerado            Boolean @default(false)
+  forma_pagamento_origem String? @db.VarChar(30)
+
   categoria_id Int
   categoria    Categoria @relation(fields: [categoria_id], references: [id])
 
@@ -834,9 +846,11 @@ model ContaReceber {
   // Relations
   lancamentos Lancamento[]
 
+  @@unique([obra_id, origem_obra_tipo, parcela_atual, total_parcelas], map: "ux_contas_receber_obra_origem_parcela")
   @@index([status])
   @@index([data_vencimento])
   @@index([cliente_id])
+  @@index([obra_id])
   @@map("contas_receber")
 }
 
@@ -886,6 +900,10 @@ model Lancamento {
   transferencia_id Int?
   transferencia    Transferencia? @relation(fields: [transferencia_id], references: [id], onDelete: Cascade)
 
+  lancamento_origem_id Int?
+  lancamento_origem    Lancamento?  @relation("LancamentoTaxaCartao", fields: [lancamento_origem_id], references: [id], onDelete: SetNull)
+  taxas_cartao         Lancamento[] @relation("LancamentoTaxaCartao")
+
   // Auditoria
   created_by Int?
   createdBy  User? @relation("LancamentoCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
@@ -897,6 +915,7 @@ model Lancamento {
   @@index([data_lancamento])
   @@index([data_competencia])
   @@index([tipo])
+  @@index([lancamento_origem_id])
   @@map("lancamentos")
 }
 

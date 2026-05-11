@@ -1,15 +1,13 @@
-import { prisma } from "@/lib/prisma"
 import { PedidoCategoria } from "@prisma/client"
-import { CategoryMapping } from "@/services/financial/category-mapping"
+
 import { isExcludedFinancialCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { prisma } from "@/lib/prisma"
+import { CategoryMapping, REPORT_CATEGORY_KEYS, type ReportCategoryKey } from "@/services/financial/category-mapping"
+
+export type RealizedByCategory = Record<ReportCategoryKey, number>
 
 export interface RealizedCostData {
-    madeira: number
-    telha: number
-    andaime: number
-    materiais: number
-    mao_de_obra: number
-    outros: number
+    byCategory: RealizedByCategory
     total: number
     warnings: string[]
 }
@@ -19,9 +17,13 @@ export interface RealizedCostStrategy {
     getSourceName(): "pedido_compra" | "lancamentos"
 }
 
-// ---------------------------------------------------------------------------
-// STRATEGY 1: PEDIDO COMPRA (Simple)
-// ---------------------------------------------------------------------------
+function emptyRealizedByCategory(): RealizedByCategory {
+    return REPORT_CATEGORY_KEYS.reduce((acc, key) => {
+        acc[key] = 0
+        return acc
+    }, {} as RealizedByCategory)
+}
+
 export class PedidoCompraStrategy implements RealizedCostStrategy {
     getSourceName(): "pedido_compra" | "lancamentos" {
         return "pedido_compra"
@@ -39,39 +41,31 @@ export class PedidoCompraStrategy implements RealizedCostStrategy {
             },
         })
 
+        const byCategory = emptyRealizedByCategory()
         const sumByCat = (cat: PedidoCategoria) =>
             pedidos
                 .filter((p) => p.categoria === cat)
                 .reduce((acc, curr) => acc + Number(curr.valor_realizado || 0), 0)
 
-        // Note: PedidoCompra doesn't normally track "Mão de Obra". 
-        // Usually Mão de Obra is paid via Financeiro directly or not tracked here.
-        // For this strategy, we assume 0 or maybe try to fetch from somewhere else if needed.
-        // Given the prompt implications, we leave it as 0 for "pedido_compra" source unless generic inputs are used.
+        byCategory.MADEIRAS = sumByCat("MADEIRA")
+        byCategory.TELHAS = sumByCat("TELHA")
+        byCategory.MATERIAIS_GERAIS = sumByCat("MATERIAIS")
+        byCategory.OUTROS = sumByCat("ANDAIMES")
 
         return {
-            madeira: sumByCat("MADEIRA"),
-            telha: sumByCat("TELHA"),
-            andaime: sumByCat("ANDAIMES"),
-            materiais: sumByCat("MATERIAIS"),
-            mao_de_obra: 0,
-            outros: 0,
-            total: pedidos.reduce((acc, curr) => acc + Number(curr.valor_realizado || 0), 0),
-            warnings: ["Mão de Obra não é rastreada via Pedidos de Compra."],
+            byCategory,
+            total: Object.values(byCategory).reduce((acc, value) => acc + value, 0),
+            warnings: ["Empresa PS, Empresa GD, Comissao, Frete e Taxa de Cartao nao sao rastreados via Pedidos de Compra."],
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// STRATEGY 2: LANCAMENTOS (Advanced - Financeiro)
-// ---------------------------------------------------------------------------
 export class LancamentoStrategy implements RealizedCostStrategy {
     getSourceName(): "pedido_compra" | "lancamentos" {
         return "lancamentos"
     }
 
     async getRealizedCosts(obraId: number): Promise<RealizedCostData> {
-        // 1. Find CentroCusto(s) for this Obra
         const centrosCusto = await prisma.centroCusto.findMany({
             where: { obra_id: obraId },
             select: { id: true },
@@ -79,20 +73,13 @@ export class LancamentoStrategy implements RealizedCostStrategy {
 
         if (centrosCusto.length === 0) {
             return {
-                madeira: 0,
-                telha: 0,
-                andaime: 0,
-                materiais: 0,
-                mao_de_obra: 0,
-                outros: 0,
+                byCategory: emptyRealizedByCategory(),
                 total: 0,
                 warnings: ["Nenhum Centro de Custo vinculado a esta obra."],
             }
         }
 
         const ccIds = centrosCusto.map((cc) => cc.id)
-
-        // 2. Fetch Expenses (Despesas)
         const lancamentos = await prisma.lancamento.findMany({
             where: {
                 centro_custo_id: { in: ccIds },
@@ -109,61 +96,30 @@ export class LancamentoStrategy implements RealizedCostStrategy {
             },
         })
 
-        const result: RealizedCostData = {
-            madeira: 0,
-            telha: 0,
-            andaime: 0,
-            materiais: 0,
-            mao_de_obra: 0,
-            outros: 0,
-            total: 0,
-            warnings: [],
-        }
+        const byCategory = emptyRealizedByCategory()
+        let total = 0
 
-        // 3. Map Categories using Helper
-        for (const l of lancamentos) {
-            if (isExcludedFinancialCategory(l.categoria)) {
+        for (const lancamento of lancamentos) {
+            if (isExcludedFinancialCategory(lancamento.categoria)) {
                 continue
             }
 
-            const valor = Number(l.valor)
-            const key = CategoryMapping.getKey(l.categoria.nome)
+            const valor = Number(lancamento.valor)
+            const key = CategoryMapping.getKey(lancamento.categoria.nome)
 
-            result.total += valor
-
-            switch (key) {
-                case "MADEIRA":
-                    result.madeira += valor
-                    break
-                case "TELHA":
-                    result.telha += valor
-                    break
-                case "ANDAIME":
-                    result.andaime += valor
-                    break
-                case "MATERIAIS":
-                    result.materiais += valor
-                    break
-                case "MAO_DE_OBRA":
-                    result.mao_de_obra += valor
-                    break
-                default:
-                    result.outros += valor
-                    break
-            }
+            byCategory[key] += valor
+            total += valor
         }
 
-        if (result.outros > 0) {
-            result.warnings.push(`R$ ${result.outros.toFixed(2)} em categorias não mapeadas (Outros).`)
+        const warnings: string[] = []
+        if (byCategory.OUTROS > 0) {
+            warnings.push(`R$ ${byCategory.OUTROS.toFixed(2)} em categorias nao mapeadas (Outros).`)
         }
 
-        return result
+        return { byCategory, total, warnings }
     }
 }
 
-// ---------------------------------------------------------------------------
-// FACTORY
-// ---------------------------------------------------------------------------
 export const RealizedFactory = {
     getStrategy(): RealizedCostStrategy {
         const source = process.env.FINANCEIRO_REALIZADO_SOURCE
@@ -172,7 +128,6 @@ export const RealizedFactory = {
             return new LancamentoStrategy()
         }
 
-        // Default
         return new PedidoCompraStrategy()
     },
 }
