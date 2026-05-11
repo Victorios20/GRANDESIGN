@@ -1,6 +1,11 @@
 # nixpacks.toml
+providers = []
+
 [variables]
 NIXPACKS_NODE_VERSION = "20"
+NODE_ENV = "production"
+NPM_CONFIG_PRODUCTION = "false"
+CI = "true"
 
 [phases.setup]
 nixPkgs = []
