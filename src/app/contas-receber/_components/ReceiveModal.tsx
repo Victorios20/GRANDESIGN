@@ -31,6 +31,8 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
     const [valor, setValor] = useState(saldo)
     const [juros, setJuros] = useState(0)
     const [descontos, setDescontos] = useState(0)
+    const [taxaCartaoValor, setTaxaCartaoValor] = useState(0)
+    const [taxaCartaoPercentual, setTaxaCartaoPercentual] = useState(0)
     const [dataRecebimento, setDataRecebimento] = useState(getTodayValue)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState("")
@@ -41,11 +43,19 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
         setValor(saldo)
         setJuros(0)
         setDescontos(0)
+        setTaxaCartaoValor(0)
+        setTaxaCartaoPercentual(0)
         setDataRecebimento(getTodayValue())
         setError("")
     }, [open, saldo, item.id])
 
     const valorFinal = useMemo(() => valor + juros - descontos, [valor, juros, descontos])
+    const taxaCartao = useMemo(() => {
+        if (taxaCartaoValor > 0) return taxaCartaoValor
+        if (taxaCartaoPercentual > 0) return Number((valorFinal * (taxaCartaoPercentual / 100)).toFixed(2))
+        return 0
+    }, [taxaCartaoPercentual, taxaCartaoValor, valorFinal])
+    const valorLiquido = useMemo(() => valorFinal - taxaCartao, [taxaCartao, valorFinal])
     const bankItems = useMemo(
         () => banks.map((bank) => ({ value: String(bank.id), label: `${bank.nome} - ${formatCurrency(bank.saldo_atual)}` })),
         [banks]
@@ -56,9 +66,10 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
         if (!contaBancariaId) return false
         if (valorFinal <= 0) return false
         if (valorFinal > saldo + 0.01) return false
+        if (taxaCartao > valorFinal + 0.01) return false
         if (!dataRecebimento) return false
         return true
-    }, [contaBancariaId, dataRecebimento, saldo, valorFinal])
+    }, [contaBancariaId, dataRecebimento, saldo, taxaCartao, valorFinal])
 
     async function handleSubmit() {
         if (!isValid) return
@@ -75,6 +86,8 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
                     conta_bancaria_id: Number(contaBancariaId),
                     valor: valorFinal,
                     data_recebimento: dataRecebimento,
+                    taxa_cartao_valor: taxaCartaoValor,
+                    taxa_cartao_percentual: taxaCartaoPercentual,
                     idempotencyKey,
                 }),
             })
@@ -164,6 +177,17 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
                         </div>
                     </div>
 
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label className="text-[#2C201B]">Taxa de cartao (R$)</Label>
+                            <Input type="number" step="0.01" min="0" value={taxaCartaoValor} onChange={(event) => setTaxaCartaoValor(Number(event.target.value))} />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[#2C201B]">Taxa de cartao (%)</Label>
+                            <Input type="number" step="0.01" min="0" value={taxaCartaoPercentual} onChange={(event) => setTaxaCartaoPercentual(Number(event.target.value))} />
+                        </div>
+                    </div>
+
                     <div className={cn(
                         "rounded-xl border p-4 text-center",
                         valorFinal > saldo + 0.01 ? "border-[#F1B7B0] bg-[#FFF4F2]" : "border-[#E8D9BC] bg-[#FFF9EE]"
@@ -174,6 +198,11 @@ export default function ReceiveModal({ open, onOpenChange, item, banks, onSucces
                         </p>
                         {valorFinal > saldo + 0.01 ? (
                             <p className="mt-2 text-sm text-[#B42318]">O valor final não pode ultrapassar o saldo restante.</p>
+                        ) : null}
+                        {taxaCartao > 0 ? (
+                            <p className="mt-2 text-sm text-[#2C201B]/65">
+                                Taxa: {formatCurrency(taxaCartao)} | Liquido no banco: {formatCurrency(valorLiquido)}
+                            </p>
                         ) : null}
                     </div>
 

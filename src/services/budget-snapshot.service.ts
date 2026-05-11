@@ -11,6 +11,10 @@ export type BudgetSnapshotUpdateInput = {
     telha_previsto?: Decimalish
     andaime_previsto?: Decimalish
     materiais_previsto?: Decimalish
+    comissao_previsto?: Decimalish
+    frete_previsto?: Decimalish
+    empresa_ps_previsto?: Decimalish
+    empresa_gd_previsto?: Decimalish
 }
 
 function asDecimal(value: Decimalish) {
@@ -88,6 +92,10 @@ function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
         "telha_previsto",
         "andaime_previsto",
         "materiais_previsto",
+        "comissao_previsto",
+        "frete_previsto",
+        "empresa_ps_previsto",
+        "empresa_gd_previsto",
     ]
 
     for (const field of fields) {
@@ -257,6 +265,11 @@ export const BudgetSnapshotService = {
                 orcamento: {
                     select: {
                         totais_madeiras_preco: true,
+                        totais_materiais_preco: true,
+                        totais_comissao_preco: true,
+                        totais_empresa_ps_preco: true,
+                        totais_empresa_gd_preco: true,
+                        totais_frete_preco: true,
                         orcamento_material: {
                             select: {
                                 tipo: true,
@@ -292,7 +305,7 @@ export const BudgetSnapshotService = {
                 : false
         )
         const andaimePrevisto = sumMaterials(isAndaimeMaterial)
-        const materiaisPrevisto = sumMaterials(
+        const materiaisPrevisto = obra.orcamento?.totais_materiais_preco ?? sumMaterials(
             (material) => !isMadeiraMaterial(material) && !isTelhaMaterial(material) && !isAndaimeMaterial(material)
         )
 
@@ -303,6 +316,10 @@ export const BudgetSnapshotService = {
             telha_previsto: telhaPrevista,
             andaime_previsto: andaimePrevisto,
             materiais_previsto: materiaisPrevisto,
+            comissao_previsto: obra.orcamento?.totais_comissao_preco ?? 0,
+            frete_previsto: obra.orcamento?.totais_frete_preco ?? 0,
+            empresa_ps_previsto: obra.orcamento?.totais_empresa_ps_preco ?? obra.valor_mao_de_obra,
+            empresa_gd_previsto: obra.orcamento?.totais_empresa_gd_preco ?? 0,
         }
     },
 
@@ -347,10 +364,10 @@ export const BudgetSnapshotService = {
                 .reduce((acc, curr) => acc + Number(calculatePedidoAmount(curr).toString()), 0)
 
         return {
-            madeira_extra: sumByCategory(PedidoCategoria.MADEIRA),
-            telha_extra: sumByCategory(PedidoCategoria.TELHA),
-            andaime_extra: sumByCategory(PedidoCategoria.ANDAIMES),
-            materiais_extra: sumByCategory(PedidoCategoria.MATERIAIS),
+            MADEIRAS: sumByCategory(PedidoCategoria.MADEIRA),
+            TELHAS: sumByCategory(PedidoCategoria.TELHA),
+            MATERIAIS_GERAIS: sumByCategory(PedidoCategoria.MATERIAIS),
+            OUTROS: sumByCategory(PedidoCategoria.ANDAIMES),
         }
     },
 }
