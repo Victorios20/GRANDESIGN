@@ -3,6 +3,12 @@ import { PedidoCategoria, Prisma } from "@prisma/client"
 
 type Decimalish = Prisma.Decimal | number | string | null | undefined
 type BudgetSnapshotClient = Pick<typeof prisma, "auditLog" | "obra_budget_snapshot" | "obras">
+const DERIVED_BUDGET_FIELDS = [
+    "comissao_previsto",
+    "frete_previsto",
+    "empresa_ps_previsto",
+    "empresa_gd_previsto",
+] as const
 
 export type BudgetSnapshotUpdateInput = {
     receita_orcada?: Decimalish
@@ -21,6 +27,31 @@ function asDecimal(value: Decimalish) {
     if (value instanceof Prisma.Decimal) return value
     if (value == null || value === "") return new Prisma.Decimal(0)
     return new Prisma.Decimal(String(value).replace(",", "."))
+}
+
+function isZero(value: Decimalish) {
+    return asDecimal(value).isZero()
+}
+
+function positiveOrFallback(value: Decimalish, fallback: Decimalish) {
+    const decimal = asDecimal(value)
+    return decimal.gt(0) ? decimal : asDecimal(fallback)
+}
+
+function buildMissingDerivedBudgetPatch(
+    snapshot: Record<(typeof DERIVED_BUDGET_FIELDS)[number], Decimalish>,
+    baseline: Record<(typeof DERIVED_BUDGET_FIELDS)[number], Decimalish>
+) {
+    const patch: Partial<Record<(typeof DERIVED_BUDGET_FIELDS)[number], Prisma.Decimal>> = {}
+
+    for (const field of DERIVED_BUDGET_FIELDS) {
+        const baselineValue = asDecimal(baseline[field])
+        if (isZero(snapshot[field]) && baselineValue.gt(0)) {
+            patch[field] = baselineValue
+        }
+    }
+
+    return patch
 }
 
 function normalizeStr(value: string | null | undefined) {
@@ -129,6 +160,18 @@ export const BudgetSnapshotService = {
         })
 
         if (existing) {
+            if (DERIVED_BUDGET_FIELDS.some((field) => isZero(existing[field]))) {
+                const baseline = await this.calculateBaselineData(obraId)
+                const patch = buildMissingDerivedBudgetPatch(existing, baseline)
+
+                if (Object.keys(patch).length > 0) {
+                    return prisma.obra_budget_snapshot.update({
+                        where: { obra_id: obraId },
+                        data: patch,
+                    })
+                }
+            }
+
             return existing
         }
 
@@ -318,7 +361,7 @@ export const BudgetSnapshotService = {
             materiais_previsto: materiaisPrevisto,
             comissao_previsto: obra.orcamento?.totais_comissao_preco ?? 0,
             frete_previsto: obra.orcamento?.totais_frete_preco ?? 0,
-            empresa_ps_previsto: obra.orcamento?.totais_empresa_ps_preco ?? obra.valor_mao_de_obra,
+            empresa_ps_previsto: positiveOrFallback(obra.orcamento?.totais_empresa_ps_preco, obra.valor_mao_de_obra),
             empresa_gd_previsto: obra.orcamento?.totais_empresa_gd_preco ?? 0,
         }
     },

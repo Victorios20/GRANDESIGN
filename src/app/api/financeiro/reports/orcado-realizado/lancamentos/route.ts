@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
             id: transaction.id,
             data: transaction.data_competencia,
             descricao: transaction.descricao,
-            conta: transaction.conta_bancaria?.nome ?? "Nao definida",
+            conta: transaction.conta_bancaria?.nome ?? "Não definida",
             valor: Number(transaction.valor),
             fornecedor: transaction.conta_pagar?.fornecedor?.nome || transaction.conta_receber?.cliente?.nome || "-",
             categoriaOriginal: transaction.categoria.nome,

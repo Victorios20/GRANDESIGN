@@ -18,10 +18,10 @@ export async function GET(request: NextRequest) {
         const report = await OrcadoRealizadoService.getReport(obraId)
 
         return NextResponse.json(report)
-    } catch (error: any) {
+    } catch (error) {
         console.error("Error generating report:", error)
         return NextResponse.json(
-            { error: error?.message || "Internal Server Error" },
+            { error: error instanceof Error ? error.message : "Internal Server Error" },
             { status: 500 }
         )
     }

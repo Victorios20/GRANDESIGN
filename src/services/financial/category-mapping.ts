@@ -28,12 +28,12 @@ export type ReportCategoryDefinition = {
 export const REPORT_CATEGORIES: ReportCategoryDefinition[] = [
     { key: "MADEIRAS", label: "Madeiras", budgetField: "madeira_previsto" },
     { key: "MATERIAIS_GERAIS", label: "Materiais Gerais", budgetField: "materiais_previsto" },
-    { key: "COMISSAO", label: "Comissao", budgetField: "comissao_previsto" },
+    { key: "COMISSAO", label: "Comissão", budgetField: "comissao_previsto" },
     { key: "FRETE", label: "Frete", budgetField: "frete_previsto" },
     { key: "EMPRESA_PS", label: "Empresa PS", budgetField: "empresa_ps_previsto" },
     { key: "EMPRESA_GD", label: "Empresa GD", budgetField: "empresa_gd_previsto" },
     { key: "TELHAS", label: "Telhas", budgetField: "telha_previsto" },
-    { key: "TAXA_CARTAO", label: "Taxa de Cartao", budgetField: null },
+    { key: "TAXA_CARTAO", label: "Taxa de Cartão", budgetField: null },
     { key: "OUTROS", label: "Outros", budgetField: "andaime_previsto" },
 ]
 
