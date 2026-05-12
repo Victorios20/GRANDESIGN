@@ -62,6 +62,10 @@ type BudgetForecastValues = {
   telha_previsto: number
   andaime_previsto: number
   materiais_previsto: number
+  comissao_previsto: number
+  frete_previsto: number
+  empresa_ps_previsto: number
+  empresa_gd_previsto: number
 }
 
 type PedidoCompraDTO = {
@@ -141,6 +145,10 @@ const emptyForecastValues: BudgetForecastValues = {
   telha_previsto: 0,
   andaime_previsto: 0,
   materiais_previsto: 0,
+  comissao_previsto: 0,
+  frete_previsto: 0,
+  empresa_ps_previsto: 0,
+  empresa_gd_previsto: 0,
 }
 
 function calculatePedidoVMAmount(pedido: Partial<PedidoCompraVM> | null | undefined) {
@@ -1465,11 +1473,15 @@ export default function ObrasPage({
           <div className="grid gap-4 sm:grid-cols-2">
             {[
               ["receita_orcada", "Receita prevista"],
-              ["mao_de_obra_orcada", "Mao de obra"],
+              ["mao_de_obra_orcada", "Mão de obra da obra"],
               ["madeira_previsto", "Madeira"],
               ["telha_previsto", "Telha"],
-              ["andaime_previsto", "Andaime"],
               ["materiais_previsto", "Materiais"],
+              ["andaime_previsto", "Andaime / Outros"],
+              ["comissao_previsto", "Comissão"],
+              ["frete_previsto", "Frete"],
+              ["empresa_ps_previsto", "Empresa PS"],
+              ["empresa_gd_previsto", "Empresa GD"],
             ].map(([field, label]) => (
               <div key={field} className="space-y-2">
                 <Label htmlFor={`forecast-${field}`}>{label}</Label>

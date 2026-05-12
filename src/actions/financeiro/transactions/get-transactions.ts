@@ -12,6 +12,7 @@ import {
 export interface GetTransactionsOptions {
     page?: number
     limit?: number
+    transaction_id?: number
     search?: string
     startDate?: Date
     endDate?: Date
@@ -40,6 +41,7 @@ export type TransactionOrderBy =
     | "created_at"
 
 function buildTransactionsWhere({
+    transaction_id,
     search,
     startDate,
     endDate,
@@ -60,6 +62,10 @@ function buildTransactionsWhere({
                 { categoria: { categoria_pai: { nome: { in: EXCLUDED_FINANCIAL_GROUP_NAMES } } } },
             ],
         },
+    }
+
+    if (transaction_id) {
+        where.id = transaction_id
     }
 
     if (startDate || endDate) {
@@ -142,6 +148,7 @@ export async function getTransactions(options: GetTransactionsOptions = {}) {
     const {
         page = 1,
         limit = 20,
+        transaction_id,
         search,
         startDate,
         endDate,
@@ -161,6 +168,7 @@ export async function getTransactions(options: GetTransactionsOptions = {}) {
 
     const where = buildTransactionsWhere({
         search,
+        transaction_id,
         startDate,
         endDate,
         dateType,
