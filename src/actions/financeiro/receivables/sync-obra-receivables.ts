@@ -1,10 +1,9 @@
-import { addMonths } from "date-fns"
+import { addDays } from "date-fns"
 import { Prisma, StatusFinanceiro, TipoCategoria } from "@prisma/client"
-
-import { calculateInstallments } from "@/lib/financial/installments"
 
 type Tx = Prisma.TransactionClient
 type ObraReceivableOrigin = "ENTRADA" | "QUITACAO"
+const ESTIMATED_OBRA_EXECUTION_DAYS = 10
 
 type ReceivablePlanItem = {
     origem: ObraReceivableOrigin
@@ -13,6 +12,7 @@ type ReceivablePlanItem = {
     valor: number
     vencimento: Date
     forma: string | null
+    observacoes?: string | null
 }
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
@@ -26,7 +26,7 @@ function startOfDate(value: Date) {
     return date
 }
 
-function parseInstallmentCount(forma: string | null | undefined) {
+export function parseInstallmentCount(forma: string | null | undefined) {
     const normalized = String(forma ?? "").trim().toLowerCase()
     if (!normalized || normalized === "pix") return 1
 
@@ -37,7 +37,14 @@ function parseInstallmentCount(forma: string | null | undefined) {
     return Number.isFinite(count) && count > 0 ? count : 1
 }
 
-async function getReceivableCategoryId(tx: Tx) {
+export function buildObraReceivableObservation(forma: string | null | undefined) {
+    const totalParcelas = parseInstallmentCount(forma)
+    if (totalParcelas <= 1) return null
+
+    return `Pagamento de quitação em ${totalParcelas}x. Conta consolidada automaticamente pela obra.`
+}
+
+export async function getReceivableCategoryId(tx: Tx) {
     let parent = await tx.categoria.findFirst({
         where: { nome: "Receita", categoria_pai_id: null },
         select: { id: true },
@@ -73,7 +80,7 @@ async function getReceivableCategoryId(tx: Tx) {
     })).id
 }
 
-function buildPlan(obra: {
+export function buildPlan(obra: {
     pagamento_entrada: Prisma.Decimal | null
     forma_pagamento_entrada: string | null
     pagamento_quitacao: Prisma.Decimal | null
@@ -98,18 +105,15 @@ function buildPlan(obra: {
 
     const quitacao = toNumber(obra.pagamento_quitacao)
     if (quitacao > 0) {
-        const totalParcelas = parseInstallmentCount(obra.forma_pagamento_quitacao)
-        const primeiroVencimento = addMonths(baseDate, 1)
-        for (const installment of calculateInstallments(quitacao, totalParcelas, primeiroVencimento)) {
-            plan.push({
-                origem: "QUITACAO",
-                parcela: installment.parcela,
-                totalParcelas,
-                valor: installment.valor,
-                vencimento: startOfDate(installment.data_vencimento),
-                forma: obra.forma_pagamento_quitacao,
-            })
-        }
+        plan.push({
+            origem: "QUITACAO",
+            parcela: 1,
+            totalParcelas: 1,
+            valor: quitacao,
+            vencimento: startOfDate(addDays(baseDate, ESTIMATED_OBRA_EXECUTION_DAYS)),
+            forma: obra.forma_pagamento_quitacao,
+            observacoes: buildObraReceivableObservation(obra.forma_pagamento_quitacao),
+        })
     }
 
     return plan
@@ -171,7 +175,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
             row.total_parcelas === item.totalParcelas
         )
 
-        const descricaoBase = item.origem === "ENTRADA" ? "Entrada" : "Quitacao"
+        const descricaoBase = item.origem === "ENTRADA" ? "Entrada" : "Quitação"
         const descricao = `${descricaoBase} - ${obra.titulo || `Obra #${obra.id}`} (${item.parcela}/${item.totalParcelas})`
 
         if (current) {
@@ -188,6 +192,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
                     categoria_id: categoriaId,
                     centro_custo_id: centroCustoId,
                     forma_pagamento_origem: item.forma,
+                    observacoes: item.observacoes ?? null,
                     updated_by: userId,
                 },
             })
@@ -208,6 +213,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
                 origem_obra_tipo: item.origem,
                 auto_gerado: true,
                 forma_pagamento_origem: item.forma,
+                observacoes: item.observacoes ?? null,
                 categoria_id: categoriaId,
                 centro_custo_id: centroCustoId,
                 parcela_atual: item.parcela,
