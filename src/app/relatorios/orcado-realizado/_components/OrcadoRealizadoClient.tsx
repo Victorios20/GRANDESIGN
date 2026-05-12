@@ -1,6 +1,7 @@
 ﻿"use client"
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -482,6 +483,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                                     <Table>
                                                                         <TableHeader>
                                                                             <TableRow className="h-8 bg-muted/40 hover:bg-muted/40">
+                                                                                <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">ID</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Data</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Fornecedor</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">DescriÃ§Ã£o</TableHead>
@@ -492,6 +494,11 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                                         <TableBody>
                                                                             {items.map(t => (
                                                                                 <TableRow key={t.id} className="h-8 border-b hover:bg-muted/30 text-xs">
+                                                                                    <TableCell className="py-2 font-semibold">
+                                                                                        <Link href={`/lancamentos?transaction_id=${t.id}`} className="text-marromEscuro underline-offset-2 hover:underline">
+                                                                                            #{t.id}
+                                                                                        </Link>
+                                                                                    </TableCell>
                                                                                     <TableCell className="py-2 text-muted-foreground">
                                                                                         {format(new Date(t.data), "dd/MM/yyyy")}
                                                                                     </TableCell>

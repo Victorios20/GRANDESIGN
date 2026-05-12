@@ -82,6 +82,7 @@ interface Props {
     categories: CategoryOption[]
     centrosCusto: CentroCustoOption[]
     closingDate?: CashFlowSettings["closing_date"]
+    initialTransactionId?: number
     initialFilters?: {
         search: string
         contaBancariaId: string
@@ -197,6 +198,7 @@ export default function LancamentosPageClient({
     categories,
     centrosCusto,
     closingDate = null,
+    initialTransactionId,
     initialFilters,
     isAdmin = false,
 }: Props) {
@@ -261,6 +263,8 @@ export default function LancamentosPageClient({
 
     const searchTimeout = useRef<NodeJS.Timeout | null>(null)
     const reviewBarRef = useRef<HTMLDivElement | null>(null)
+    const skippedTransactionInitialRefresh = useRef(false)
+    const openedInitialTransaction = useRef(false)
 
     const buildParams = useCallback(
         (targetPage: number, targetLimit: number, options?: { bankIds?: string[] }) => {
@@ -362,6 +366,11 @@ export default function LancamentosPageClient({
     }, [contaBancariaId])
 
     useEffect(() => {
+        if (initialTransactionId && !skippedTransactionInitialRefresh.current) {
+            skippedTransactionInitialRefresh.current = true
+            return
+        }
+
         if (searchTimeout.current) clearTimeout(searchTimeout.current)
         searchTimeout.current = setTimeout(() => {
             setPage(1)
@@ -371,7 +380,18 @@ export default function LancamentosPageClient({
         return () => {
             if (searchTimeout.current) clearTimeout(searchTimeout.current)
         }
-    }, [search, bankFilterIds, categoriaId, centroCustoId, costScope, tipoFilter, conciliadoFilter, dateType, dateRange, limit, refreshCurrentView])
+    }, [initialTransactionId, search, bankFilterIds, categoriaId, centroCustoId, costScope, tipoFilter, conciliadoFilter, dateType, dateRange, limit, refreshCurrentView])
+
+    useEffect(() => {
+        if (!initialTransactionId || openedInitialTransaction.current) return
+
+        const initialItem = data.find((item) => item.id === initialTransactionId)
+        if (!initialItem) return
+
+        openedInitialTransaction.current = true
+        setSelectedItem(initialItem)
+        setEditorOpen(true)
+    }, [data, initialTransactionId])
 
     const activeSession = reviewContext?.active_session ?? null
     const latestClosedSession = reviewContext?.latest_closed_session ?? null

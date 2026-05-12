@@ -17,6 +17,7 @@ export type ReportBudgetField =
     | "empresa_ps_previsto"
     | "empresa_gd_previsto"
     | "telha_previsto"
+    | "andaime_previsto"
 
 export type ReportCategoryDefinition = {
     key: ReportCategoryKey
@@ -33,7 +34,7 @@ export const REPORT_CATEGORIES: ReportCategoryDefinition[] = [
     { key: "EMPRESA_GD", label: "Empresa GD", budgetField: "empresa_gd_previsto" },
     { key: "TELHAS", label: "Telhas", budgetField: "telha_previsto" },
     { key: "TAXA_CARTAO", label: "Taxa de Cartao", budgetField: null },
-    { key: "OUTROS", label: "Outros", budgetField: null },
+    { key: "OUTROS", label: "Outros", budgetField: "andaime_previsto" },
 ]
 
 export const REPORT_CATEGORY_KEYS = REPORT_CATEGORIES.map((category) => category.key)

@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react"
 import { format } from "date-fns"
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Loader2, RefreshCcw } from "lucide-react"
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -267,6 +268,7 @@ export default function OrcadoRealizadoDashboard() {
                                                                 <Table>
                                                                     <TableHeader>
                                                                         <TableRow className="h-8">
+                                                                            <TableHead className="h-8 text-xs">ID</TableHead>
                                                                             <TableHead className="h-8 text-xs">Data</TableHead>
                                                                             <TableHead className="h-8 text-xs">Fornecedor/Cliente</TableHead>
                                                                             <TableHead className="h-8 text-xs">Descricao</TableHead>
@@ -277,6 +279,11 @@ export default function OrcadoRealizadoDashboard() {
                                                                     <TableBody>
                                                                         {items.map((transaction) => (
                                                                             <TableRow key={transaction.id} className="h-8 hover:bg-muted/50">
+                                                                                <TableCell className="py-1 text-xs font-semibold">
+                                                                                    <Link href={`/lancamentos?transaction_id=${transaction.id}`} className="underline-offset-2 hover:underline">
+                                                                                        #{transaction.id}
+                                                                                    </Link>
+                                                                                </TableCell>
                                                                                 <TableCell className="py-1 text-xs">{format(new Date(transaction.data), "dd/MM/yyyy")}</TableCell>
                                                                                 <TableCell className="py-1 text-xs">{transaction.fornecedor}</TableCell>
                                                                                 <TableCell className="py-1 text-xs text-muted-foreground">
