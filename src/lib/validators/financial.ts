@@ -18,6 +18,8 @@ export const transactionSchema = z.object({
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().optional().nullable(),
     observacoes: z.string().optional(),
+    taxa_cartao_valor: z.number().min(0).optional(),
+    taxa_cartao_percentual: z.number().min(0).optional(),
 })
 
 export type TransactionInput = z.infer<typeof transactionSchema>
