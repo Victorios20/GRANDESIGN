@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { updatePayable, updatePayableSchema } from "@/actions/financeiro/payables/update"
 import { prisma } from "@/lib/prisma"
 import { OPEN_FINANCIAL_STATUSES } from "@/actions/financeiro/shared/open-status"
+import { estornarIntegracaoFinanceiraPedido } from "@/actions/pedido_compra/manage-finance-integration"
 import { ZodError } from "zod"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -71,6 +72,20 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
     if (!payable) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 })
 
+    if (payable.pedido_compra_id !== null) {
+        if (payable.status === "CANCELADO") {
+            return NextResponse.json({ error: "A integração financeira desta conta já está cancelada." }, { status: 400 })
+        }
+
+        const result = await estornarIntegracaoFinanceiraPedido(payable.pedido_compra_id, Number(session.user.id))
+        return NextResponse.json({
+            success: true,
+            mode: "purchase_order_integration_reversed",
+            data: result,
+            message: result.message,
+        })
+    }
+
     if (!OPEN_FINANCIAL_STATUSES.includes(payable.status as any)) {
         return NextResponse.json({ error: "Apenas contas em aberto podem ser excluídas." }, { status: 400 })
     }
@@ -81,10 +96,6 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
 
     if (payable.lancamentos.length > 0) {
         return NextResponse.json({ error: "Conta com lançamentos vinculados não pode ser excluída." }, { status: 400 })
-    }
-
-    if (payable.pedido_compra_id !== null) {
-        return NextResponse.json({ error: "Conta originada de pedido de compra deve ser tratada pelo fluxo do pedido." }, { status: 400 })
     }
 
     await prisma.contaPagar.delete({ where: { id: contaId } })

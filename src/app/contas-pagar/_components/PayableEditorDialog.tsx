@@ -163,13 +163,20 @@ export default function PayableEditorDialog({
 
     const statusColor = item ? statusDotClassName[getStatusColor(item.status)] : statusDotClassName.amber
 
+    const isPurchaseOrderPayable = Boolean(item?.pedido_compra_id || item?.pedido_compra)
     const canDelete = Boolean(
         item &&
-        !item.pedido_compra &&
-        Number(item.valor_pago) === 0 &&
-        lancamentos.length === 0 &&
-        canEdit(item.status)
+        (
+            isPurchaseOrderPayable
+                ? item.status !== "CANCELADO"
+                : Number(item.valor_pago) === 0 &&
+                    lancamentos.length === 0 &&
+                    canEdit(item.status)
+        )
     )
+    const deleteActionLabel = isPurchaseOrderPayable ? "Estornar integração" : "Excluir conta"
+    const confirmDeleteLabel = isPurchaseOrderPayable ? "Confirmar estorno?" : "Excluir permanentemente?"
+    const deletingLabel = isPurchaseOrderPayable ? "Estornando..." : "Excluindo..."
 
     async function handleSubmit() {
         if (!canSubmit) return
@@ -232,11 +239,11 @@ export default function PayableEditorDialog({
         setDeleting(true)
         try {
             const res = await fetch(`/api/financeiro/payables/${item.id}`, { method: "DELETE" })
+            const body = await res.json().catch(() => ({}))
             if (!res.ok) {
-                const body = await res.json().catch(() => ({}))
                 throw new Error(body.error || "Falha ao excluir conta")
             }
-            toast.success("Conta excluída")
+            toast.success(body.message || (isPurchaseOrderPayable ? "Integração estornada" : "Conta excluída"))
             onOpenChange(false)
             await onSuccess()
         } catch (error) {
@@ -566,7 +573,7 @@ export default function PayableEditorDialog({
                             {canDelete ? (
                                 confirmDelete ? (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs text-[#8F3F37]">Excluir permanentemente?</span>
+                                        <span className="text-xs text-[#8F3F37]">{confirmDeleteLabel}</span>
                                         <Button
                                             type="button"
                                             size="sm"
@@ -584,7 +591,7 @@ export default function PayableEditorDialog({
                                             disabled={deleting}
                                             className="h-7 rounded-md bg-[#8F3F37] px-2 text-xs text-white hover:bg-[#7a332c]"
                                         >
-                                            {deleting ? <Loader2 className="size-3 animate-spin" /> : "Excluir"}
+                                            {deleting ? <Loader2 className="size-3 animate-spin" /> : isPurchaseOrderPayable ? "Estornar" : "Excluir"}
                                         </Button>
                                     </div>
                                 ) : (
@@ -596,7 +603,7 @@ export default function PayableEditorDialog({
                                         className="h-9 gap-1.5 rounded-lg px-3 text-[#8F3F37] shadow-none hover:bg-[#fef2f2] hover:text-[#7a332c]"
                                     >
                                         <Trash2 className="size-4" />
-                                        Excluir conta
+                                        {deleting ? deletingLabel : deleteActionLabel}
                                     </Button>
                                 )
                             ) : null}
