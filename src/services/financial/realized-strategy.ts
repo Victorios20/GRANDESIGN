@@ -49,8 +49,8 @@ export class PedidoCompraStrategy implements RealizedCostStrategy {
 
         byCategory.MADEIRAS = sumByCat("MADEIRA")
         byCategory.TELHAS = sumByCat("TELHA")
+        byCategory.ANDAIMES = sumByCat("ANDAIMES")
         byCategory.MATERIAIS_GERAIS = sumByCat("MATERIAIS")
-        byCategory.OUTROS = sumByCat("ANDAIMES")
 
         return {
             byCategory,

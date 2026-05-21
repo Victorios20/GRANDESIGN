@@ -15,6 +15,7 @@ export type BudgetSnapshotUpdateInput = {
     frete_previsto?: Decimalish
     empresa_ps_previsto?: Decimalish
     empresa_gd_previsto?: Decimalish
+    taxa_cartao_previsto?: Decimalish
 }
 
 function asDecimal(value: Decimalish) {
@@ -83,6 +84,65 @@ function matchesSelectedTelha(material: { descricao: string | null }, selectedTe
     return materialName.includes(selected) || selected.includes(materialName)
 }
 
+function parseCardInstallments(method: string | null | undefined) {
+    const match = normalizeStr(method).match(/(\d+)\s*x/)
+    if (!match) return null
+
+    const installments = Number(match[1])
+    return installments === 10 || installments === 18 ? installments : null
+}
+
+function roundMoney(value: Prisma.Decimal) {
+    return value.toDecimalPlaces(2)
+}
+
+function getPaymentRowsForSelectedTelha(
+    rows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>,
+    selectedTelha: string,
+) {
+    const selectedRows = rows.filter((row) => matchesSelectedTelha({ descricao: row.tipo_telhas }, selectedTelha))
+    if (selectedRows.length > 0) return selectedRows
+
+    const telhaTypes = new Set(rows.map((row) => normalizeStr(row.tipo_telhas)).filter(Boolean))
+    return telhaTypes.size === 1 ? rows : []
+}
+
+function getCardFeeRate(
+    rows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>,
+    installments: 10 | 18,
+) {
+    const pixRow = rows.find((row) => normalizeStr(row.metodo_pagamento).includes("pix"))
+    const cardRow = rows.find((row) => parseCardInstallments(row.metodo_pagamento) === installments)
+    const pixValue = asDecimal(pixRow?.valor)
+    const installmentValue = asDecimal(cardRow?.valor)
+
+    if (pixValue.lte(0) || installmentValue.lte(0)) return new Prisma.Decimal(0)
+
+    const rate = installmentValue.mul(installments).div(pixValue).minus(1)
+    return rate.gt(0) ? rate : new Prisma.Decimal(0)
+}
+
+function calculateCardFeePreview(input: {
+    selectedTelha: string
+    paymentRows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>
+    payments: Array<{ value: Decimalish; method: string | null }>
+}) {
+    const rows = getPaymentRowsForSelectedTelha(input.paymentRows, input.selectedTelha)
+    if (rows.length === 0) return new Prisma.Decimal(0)
+
+    const total = input.payments.reduce((sum, payment) => {
+        const installments = parseCardInstallments(payment.method)
+        if (!installments) return sum
+
+        const amount = asDecimal(payment.value)
+        if (amount.lte(0)) return sum
+
+        return sum.plus(amount.mul(getCardFeeRate(rows, installments)))
+    }, new Prisma.Decimal(0))
+
+    return roundMoney(total)
+}
+
 function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
     const data: Partial<Record<keyof BudgetSnapshotUpdateInput, Prisma.Decimal>> = {}
     const fields: Array<keyof BudgetSnapshotUpdateInput> = [
@@ -96,6 +156,7 @@ function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
         "frete_previsto",
         "empresa_ps_previsto",
         "empresa_gd_previsto",
+        "taxa_cartao_previsto",
     ]
 
     for (const field of fields) {
@@ -262,6 +323,10 @@ export const BudgetSnapshotService = {
                 valor_obra: true,
                 valor_mao_de_obra: true,
                 telha_escolhida: true,
+                pagamento_entrada: true,
+                forma_pagamento_entrada: true,
+                pagamento_quitacao: true,
+                forma_pagamento_quitacao: true,
                 orcamento: {
                     select: {
                         totais_madeiras_preco: true,
@@ -280,6 +345,13 @@ export const BudgetSnapshotService = {
                                 tamanho: true,
                                 frete: true,
                                 total: true,
+                            },
+                        },
+                        orcamento_pagamento: {
+                            select: {
+                                tipo_telhas: true,
+                                metodo_pagamento: true,
+                                valor: true,
                             },
                         },
                     },
@@ -308,6 +380,14 @@ export const BudgetSnapshotService = {
         const materiaisPrevisto = obra.orcamento?.totais_materiais_preco ?? sumMaterials(
             (material) => !isMadeiraMaterial(material) && !isTelhaMaterial(material) && !isAndaimeMaterial(material)
         )
+        const taxaCartaoPrevisto = calculateCardFeePreview({
+            selectedTelha,
+            paymentRows: obra.orcamento?.orcamento_pagamento ?? [],
+            payments: [
+                { value: obra.pagamento_entrada, method: obra.forma_pagamento_entrada },
+                { value: obra.pagamento_quitacao, method: obra.forma_pagamento_quitacao },
+            ],
+        })
 
         return {
             receita_orcada: obra.valor_obra,
@@ -320,6 +400,7 @@ export const BudgetSnapshotService = {
             frete_previsto: obra.orcamento?.totais_frete_preco ?? 0,
             empresa_ps_previsto: obra.orcamento?.totais_empresa_ps_preco ?? obra.valor_mao_de_obra,
             empresa_gd_previsto: obra.orcamento?.totais_empresa_gd_preco ?? 0,
+            taxa_cartao_previsto: taxaCartaoPrevisto,
         }
     },
 
@@ -366,8 +447,8 @@ export const BudgetSnapshotService = {
         return {
             MADEIRAS: sumByCategory(PedidoCategoria.MADEIRA),
             TELHAS: sumByCategory(PedidoCategoria.TELHA),
+            ANDAIMES: sumByCategory(PedidoCategoria.ANDAIMES),
             MATERIAIS_GERAIS: sumByCategory(PedidoCategoria.MATERIAIS),
-            OUTROS: sumByCategory(PedidoCategoria.ANDAIMES),
         }
     },
 }

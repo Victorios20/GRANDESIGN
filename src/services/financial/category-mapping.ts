@@ -6,6 +6,7 @@ export type ReportCategoryKey =
     | "EMPRESA_PS"
     | "EMPRESA_GD"
     | "TELHAS"
+    | "ANDAIMES"
     | "TAXA_CARTAO"
     | "OUTROS"
 
@@ -17,6 +18,8 @@ export type ReportBudgetField =
     | "empresa_ps_previsto"
     | "empresa_gd_previsto"
     | "telha_previsto"
+    | "andaime_previsto"
+    | "taxa_cartao_previsto"
 
 export type ReportCategoryDefinition = {
     key: ReportCategoryKey
@@ -32,7 +35,8 @@ export const REPORT_CATEGORIES: ReportCategoryDefinition[] = [
     { key: "EMPRESA_PS", label: "Empresa PS", budgetField: "empresa_ps_previsto" },
     { key: "EMPRESA_GD", label: "Empresa GD", budgetField: "empresa_gd_previsto" },
     { key: "TELHAS", label: "Telhas", budgetField: "telha_previsto" },
-    { key: "TAXA_CARTAO", label: "Taxa de Cartao", budgetField: null },
+    { key: "ANDAIMES", label: "Andaimes", budgetField: "andaime_previsto" },
+    { key: "TAXA_CARTAO", label: "Taxa de Cartao", budgetField: "taxa_cartao_previsto" },
     { key: "OUTROS", label: "Outros", budgetField: null },
 ]
 
@@ -53,6 +57,7 @@ export const CategoryMapping = {
         if (lower.includes("taxa") && lower.includes("cartao")) return "TAXA_CARTAO"
         if (lower.includes("madeira")) return "MADEIRAS"
         if (lower.includes("telha")) return "TELHAS"
+        if (lower.includes("andaime") || lower.includes("plataforma")) return "ANDAIMES"
         if (lower.includes("comissao")) return "COMISSAO"
         if (lower.includes("frete")) return "FRETE"
         if (lower.includes("empresa ps") || lower.includes("mao de obra") || lower.includes("pedreiro")) return "EMPRESA_PS"

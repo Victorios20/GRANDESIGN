@@ -28,6 +28,11 @@ function serializeSnapshot(snapshot: {
   telha_previsto: unknown
   andaime_previsto: unknown
   materiais_previsto: unknown
+  comissao_previsto: unknown
+  frete_previsto: unknown
+  empresa_ps_previsto: unknown
+  empresa_gd_previsto: unknown
+  taxa_cartao_previsto: unknown
 }) {
   return {
     id: snapshot.id,
@@ -38,6 +43,11 @@ function serializeSnapshot(snapshot: {
     telha_previsto: Number(snapshot.telha_previsto ?? 0),
     andaime_previsto: Number(snapshot.andaime_previsto ?? 0),
     materiais_previsto: Number(snapshot.materiais_previsto ?? 0),
+    comissao_previsto: Number(snapshot.comissao_previsto ?? 0),
+    frete_previsto: Number(snapshot.frete_previsto ?? 0),
+    empresa_ps_previsto: Number(snapshot.empresa_ps_previsto ?? 0),
+    empresa_gd_previsto: Number(snapshot.empresa_gd_previsto ?? 0),
+    taxa_cartao_previsto: Number(snapshot.taxa_cartao_previsto ?? 0),
   }
 }
 

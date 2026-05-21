@@ -62,6 +62,7 @@ type BudgetForecastValues = {
   telha_previsto: number
   andaime_previsto: number
   materiais_previsto: number
+  taxa_cartao_previsto: number
 }
 
 type PedidoCompraDTO = {
@@ -141,6 +142,7 @@ const emptyForecastValues: BudgetForecastValues = {
   telha_previsto: 0,
   andaime_previsto: 0,
   materiais_previsto: 0,
+  taxa_cartao_previsto: 0,
 }
 
 function calculatePedidoVMAmount(pedido: Partial<PedidoCompraVM> | null | undefined) {
@@ -1470,6 +1472,7 @@ export default function ObrasPage({
               ["telha_previsto", "Telha"],
               ["andaime_previsto", "Andaime"],
               ["materiais_previsto", "Materiais"],
+              ["taxa_cartao_previsto", "Taxa de Cartao"],
             ].map(([field, label]) => (
               <div key={field} className="space-y-2">
                 <Label htmlFor={`forecast-${field}`}>{label}</Label>
