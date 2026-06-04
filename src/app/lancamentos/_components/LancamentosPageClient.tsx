@@ -299,8 +299,8 @@ export default function LancamentosPageClient({
 
     const refreshCurrentView = useCallback(
         async (
-            targetPage = page,
-            targetLimit = limit,
+            targetPage: number,
+            targetLimit: number,
             options?: {
                 bankIds?: string[]
                 reviewBankId?: string
@@ -356,7 +356,7 @@ export default function LancamentosPageClient({
                 setLoading(false)
             }
         },
-        [bankFilterIds, buildParams, contaBancariaId, limit, page]
+        [bankFilterIds, buildParams, contaBancariaId]
     )
 
     useEffect(() => {
