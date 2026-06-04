@@ -366,7 +366,7 @@ export default function LancamentosPageClient({
     }, [contaBancariaId])
 
     useEffect(() => {
-        if (initialTransactionId && !skippedTransactionInitialRefresh.current) {
+        if (!skippedTransactionInitialRefresh.current) {
             skippedTransactionInitialRefresh.current = true
             return
         }

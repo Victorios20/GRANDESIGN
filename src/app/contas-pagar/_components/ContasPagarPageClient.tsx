@@ -148,6 +148,7 @@ export default function ContasPagarPageClient({
     const [selectedItem, setSelectedItem] = useState<PayableListItem | null>(null)
     const [highlightedId, setHighlightedId] = useState<number | null>(null)
     const composeHandled = useRef(false)
+    const filtersInitialized = useRef(false)
 
     const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
@@ -160,7 +161,7 @@ export default function ContasPagarPageClient({
         [centrosCusto]
     )
 
-    const fetchData = useCallback(async (targetPage = page) => {
+    const fetchData = useCallback(async (targetPage: number) => {
         setLoading(true)
         setError("")
 
@@ -202,9 +203,14 @@ export default function ContasPagarPageClient({
         } finally {
             setLoading(false)
         }
-    }, [categoriaId, centroCustoId, dateRange, page, search, sortBy, sortOrder, statusFilter])
+    }, [categoriaId, centroCustoId, dateRange, search, sortBy, sortOrder, statusFilter])
 
     useEffect(() => {
+        if (!filtersInitialized.current) {
+            filtersInitialized.current = true
+            return
+        }
+
         if (searchTimeout.current) clearTimeout(searchTimeout.current)
         searchTimeout.current = setTimeout(() => {
             setPage(1)
@@ -351,6 +357,12 @@ export default function ContasPagarPageClient({
             setSortOrder(DEFAULT_SORT_DIRECTIONS[column])
             return column
         })
+    }
+
+    function handlePageChange(nextPage: number) {
+        const boundedPage = Math.min(Math.max(nextPage, 1), meta.totalPages)
+        setPage(boundedPage)
+        void fetchData(boundedPage)
     }
 
     const statusTabItems = STATUS_TABS.map((item) => ({
@@ -666,8 +678,8 @@ export default function ContasPagarPageClient({
                                 {meta.total} registros - página {meta.page} de {meta.totalPages}
                             </span>
                             <div className="flex gap-2">
-                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)}>Anterior</Button>
-                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page >= meta.totalPages || loading} onClick={() => setPage((current) => current + 1)}>Próxima</Button>
+                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page <= 1 || loading} onClick={() => handlePageChange(page - 1)}>Anterior</Button>
+                                <Button type="button" variant="outline" size="sm" className={operationalListPaginationNavButtonClass} disabled={page >= meta.totalPages || loading} onClick={() => handlePageChange(page + 1)}>Próxima</Button>
                             </div>
                         </div>
                     ) : null}
