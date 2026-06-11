@@ -552,6 +552,9 @@ model obra_budget_snapshot {
   empresa_ps_previsto Decimal @default(0.00) @db.Decimal(15, 2)
   empresa_gd_previsto Decimal @default(0.00) @db.Decimal(15, 2)
 
+  // Taxa de cartão prevista (derivada do parcelamento da obra)
+  taxa_cartao_previsto Decimal @default(0.00) @db.Decimal(15, 2)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

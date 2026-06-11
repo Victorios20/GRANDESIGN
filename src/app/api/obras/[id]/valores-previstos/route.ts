@@ -32,6 +32,7 @@ function serializeSnapshot(snapshot: {
   frete_previsto: unknown
   empresa_ps_previsto: unknown
   empresa_gd_previsto: unknown
+  taxa_cartao_previsto: unknown
 }) {
   return {
     id: snapshot.id,
@@ -46,6 +47,7 @@ function serializeSnapshot(snapshot: {
     frete_previsto: Number(snapshot.frete_previsto ?? 0),
     empresa_ps_previsto: Number(snapshot.empresa_ps_previsto ?? 0),
     empresa_gd_previsto: Number(snapshot.empresa_gd_previsto ?? 0),
+    taxa_cartao_previsto: Number(snapshot.taxa_cartao_previsto ?? 0),
   }
 }
 

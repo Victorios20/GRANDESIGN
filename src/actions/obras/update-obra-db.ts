@@ -200,7 +200,14 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       if (payload.financeiro) {
         obraData.valor_obra = n(payload.financeiro.valor_obra)
         obraData.valor_mao_de_obra = n(payload.financeiro.valor_mao_de_obra)
-        if (payload.financeiro.valor_obra !== undefined || payload.financeiro.valor_mao_de_obra !== undefined) {
+        if (
+          payload.financeiro.valor_obra !== undefined ||
+          payload.financeiro.valor_mao_de_obra !== undefined ||
+          payload.financeiro.pagamento_entrada !== undefined ||
+          payload.financeiro.forma_pagamento_entrada !== undefined ||
+          payload.financeiro.pagamento_quitacao !== undefined ||
+          payload.financeiro.forma_pagamento_quitacao !== undefined
+        ) {
           shouldSyncBudgetSnapshot = true
         }
         obraData.pagamento_entrada = n(payload.financeiro.pagamento_entrada)

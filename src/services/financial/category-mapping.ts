@@ -18,6 +18,7 @@ export type ReportBudgetField =
     | "empresa_gd_previsto"
     | "telha_previsto"
     | "andaime_previsto"
+    | "taxa_cartao_previsto"
 
 export type ReportCategoryDefinition = {
     key: ReportCategoryKey
@@ -33,7 +34,7 @@ export const REPORT_CATEGORIES: ReportCategoryDefinition[] = [
     { key: "EMPRESA_PS", label: "Empresa PS", budgetField: "empresa_ps_previsto" },
     { key: "EMPRESA_GD", label: "Empresa GD", budgetField: "empresa_gd_previsto" },
     { key: "TELHAS", label: "Telhas", budgetField: "telha_previsto" },
-    { key: "TAXA_CARTAO", label: "Taxa de Cartão", budgetField: null },
+    { key: "TAXA_CARTAO", label: "Taxa de Cartão", budgetField: "taxa_cartao_previsto" },
     { key: "OUTROS", label: "Outros", budgetField: "andaime_previsto" },
 ]
 

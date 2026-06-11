@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { PedidoCategoria, Prisma } from "@prisma/client"
+import { fatorCartao } from "@/app/orcamento/_utils/fatoresCartao"
 
 type Decimalish = Prisma.Decimal | number | string | null | undefined
 type BudgetSnapshotClient = Pick<typeof prisma, "auditLog" | "obra_budget_snapshot" | "obras">
@@ -8,7 +9,20 @@ const DERIVED_BUDGET_FIELDS = [
     "frete_previsto",
     "empresa_ps_previsto",
     "empresa_gd_previsto",
+    "taxa_cartao_previsto",
 ] as const
+
+/**
+ * Taxa de cartão de um pagamento: o valor digitado já é o parcelado,
+ * então a parte à vista é valor ÷ fator e a taxa é a diferença.
+ */
+function cardFeeForPayment(valor: Decimalish, forma: string | null | undefined) {
+    const fator = fatorCartao(forma)
+    if (fator <= 1) return 0
+    const total = Number(asDecimal(valor).toString())
+    if (!Number.isFinite(total) || total <= 0) return 0
+    return Math.round((total - total / fator) * 100) / 100
+}
 
 export type BudgetSnapshotUpdateInput = {
     receita_orcada?: Decimalish
@@ -21,6 +35,7 @@ export type BudgetSnapshotUpdateInput = {
     frete_previsto?: Decimalish
     empresa_ps_previsto?: Decimalish
     empresa_gd_previsto?: Decimalish
+    taxa_cartao_previsto?: Decimalish
 }
 
 function asDecimal(value: Decimalish) {
@@ -127,6 +142,7 @@ function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
         "frete_previsto",
         "empresa_ps_previsto",
         "empresa_gd_previsto",
+        "taxa_cartao_previsto",
     ]
 
     for (const field of fields) {
@@ -305,6 +321,10 @@ export const BudgetSnapshotService = {
                 valor_obra: true,
                 valor_mao_de_obra: true,
                 telha_escolhida: true,
+                pagamento_entrada: true,
+                forma_pagamento_entrada: true,
+                pagamento_quitacao: true,
+                forma_pagamento_quitacao: true,
                 orcamento: {
                     select: {
                         totais_madeiras_preco: true,
@@ -347,6 +367,10 @@ export const BudgetSnapshotService = {
                 ? isTelhaMaterial(material) && matchesSelectedTelha(material, selectedTelha)
                 : false
         )
+        const taxaCartaoPrevista =
+            cardFeeForPayment(obra.pagamento_entrada, obra.forma_pagamento_entrada) +
+            cardFeeForPayment(obra.pagamento_quitacao, obra.forma_pagamento_quitacao)
+
         const andaimePrevisto = sumMaterials(isAndaimeMaterial)
         const materiaisPrevisto = obra.orcamento?.totais_materiais_preco ?? sumMaterials(
             (material) => !isMadeiraMaterial(material) && !isTelhaMaterial(material) && !isAndaimeMaterial(material)
@@ -363,6 +387,7 @@ export const BudgetSnapshotService = {
             frete_previsto: obra.orcamento?.totais_frete_preco ?? 0,
             empresa_ps_previsto: positiveOrFallback(obra.orcamento?.totais_empresa_ps_preco, obra.valor_mao_de_obra),
             empresa_gd_previsto: obra.orcamento?.totais_empresa_gd_preco ?? 0,
+            taxa_cartao_previsto: taxaCartaoPrevista,
         }
     },
 
