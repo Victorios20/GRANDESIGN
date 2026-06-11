@@ -239,6 +239,7 @@ model User {
 
   auditLogs           AuditLog[] // <<< novo (back-relation)
   passwordResetTokens PasswordResetToken[] // <<< novo (back-relation)
+  moduleOverrides     UserModuleAccess[] // exceções de acesso por usuário
 
   // Financeiro
   contasPagarCriadas  ContaPagar[] @relation("ContaPagarCreatedBy")
@@ -259,7 +260,42 @@ model Role {
   label String     @db.VarChar(100) // ex: 'Administrador'
   users UserRole[]
 
+  moduleAccess RoleModuleAccess[] // módulos concedidos a este papel
+
   @@map("roles")
+}
+
+// Efeito de uma exceção de acesso por usuário
+enum ModuleAccessEffect {
+  ALLOW
+  DENY
+}
+
+// Módulos concedidos a um papel. Presença da linha = concedido.
+model RoleModuleAccess {
+  role_id    Int
+  module_key String @db.VarChar(60) // chave do MODULE_CATALOG (src/lib/access/modules.ts)
+
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, module_key])
+  @@index([role_id])
+  @@index([module_key])
+  @@map("role_module_access")
+}
+
+// Exceções pontuais por usuário, sobre o acesso herdado dos papéis.
+model UserModuleAccess {
+  user_id    Int
+  module_key String             @db.VarChar(60)
+  effect     ModuleAccessEffect
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, module_key])
+  @@index([user_id])
+  @@index([module_key])
+  @@map("user_module_access")
 }
 
 model UserRole {

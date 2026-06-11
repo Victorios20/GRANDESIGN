@@ -1,7 +1,23 @@
 import { PrismaClient } from "@prisma/client"
 import * as bcrypt from "bcryptjs"
+import { MODULE_CATALOG } from "../src/lib/access/modules"
 
 const prisma = new PrismaClient()
+
+// Módulos não-administrativos (operacional + financeiro). Páginas do grupo
+// "admin" (/admin/users, /configuracoes) seguem protegidas por papel ADMIN/DEV.
+const NON_ADMIN_MODULE_KEYS = MODULE_CATALOG
+    .filter((m) => m.group !== "admin")
+    .map((m) => m.key)
+
+// Acesso default por papel, preservando o comportamento atual:
+// - VENDEDOR: apenas home/orcamento/obras (espelha a allowlist hardcoded antiga).
+// - VISITANTE: navega livre por todas as páginas não-administrativas (hoje não é restrito).
+// - ADMIN/DEV: NENHUMA linha (bypass total no resolver). Não seedar.
+const DEFAULT_ROLE_MODULES: Record<string, string[]> = {
+    VENDEDOR: ["home", "orcamento", "obras"],
+    VISITANTE: [...NON_ADMIN_MODULE_KEYS],
+}
 
 async function main() {
     console.log("🌱 Starting Security Seed (Users & Roles)...")
@@ -25,6 +41,19 @@ async function main() {
             console.log(`  -> Role exists: ${r.name}`)
         }
         roleMap[r.name] = role.id
+    }
+
+    // 1.1 Acesso default por papel (idempotente)
+    for (const [roleName, moduleKeys] of Object.entries(DEFAULT_ROLE_MODULES)) {
+        const roleId = roleMap[roleName]
+        if (!roleId) continue
+        if (moduleKeys.length === 0) continue
+
+        await prisma.roleModuleAccess.createMany({
+            data: moduleKeys.map((module_key) => ({ role_id: roleId, module_key })),
+            skipDuplicates: true,
+        })
+        console.log(`  -> Access seeded for ${roleName}: ${moduleKeys.join(", ")}`)
     }
 
     // 2. Admin User

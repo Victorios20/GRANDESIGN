@@ -4,6 +4,7 @@ import {
   FolderCog,
   GitBranch,
   Landmark,
+  ShieldCheck,
   SlidersHorizontal,
   Tags,
   UserCog,
@@ -89,6 +90,15 @@ const CONFIGURATION_MODULES: ConfigModule[] = [
     description: "Permissões e status de acesso para perfis administrativos.",
     helper: "Administrar acessos",
     icon: UserCog,
+    roles: ["ADMIN", "DEV"],
+  },
+  {
+    href: "/configuracoes/acessos",
+    badge: "Admin",
+    title: "Acessos",
+    description: "Defina os módulos de cada papel e exceções pontuais por usuário.",
+    helper: "Configurar acessos",
+    icon: ShieldCheck,
     roles: ["ADMIN", "DEV"],
   },
 ]
