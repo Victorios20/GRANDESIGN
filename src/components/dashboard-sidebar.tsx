@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact } from "lucide-react"
+import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact, Cog } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import { useMemo } from "react"
@@ -18,6 +18,7 @@ const LEGACY_NAV_ITEMS = [
   { href: "/pedidos", label: "Compras", icon: ShoppingCart },
   { href: "/cadastros", label: "Cadastros", icon: Settings },
   { href: "/usuarios", label: "Usuários", icon: Users },
+  { href: "/configuracoes", label: "Configurações", icon: Cog },
 ]
 
 export function DashboardSidebar() {
