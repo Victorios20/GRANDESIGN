@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import {
+  BellRing,
   FolderCog,
   GitBranch,
   Landmark,
@@ -81,6 +82,15 @@ const CONFIGURATION_MODULES: ConfigModule[] = [
     description: "Estruture receitas, despesas e subcategorias com consistência de visual e status.",
     helper: "Gerenciar categorias",
     icon: Tags,
+    roles: ["ADMIN", "DEV"],
+  },
+  {
+    href: "/configuracoes/notificacoes",
+    badge: "Financeiro",
+    title: "Notificações",
+    description: "E-mails que recebem aviso quando contas a pagar ou a receber são criadas.",
+    helper: "Configurar notificações",
+    icon: BellRing,
     roles: ["ADMIN", "DEV"],
   },
   {

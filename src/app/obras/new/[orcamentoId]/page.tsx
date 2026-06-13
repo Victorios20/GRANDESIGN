@@ -320,15 +320,18 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
   const fornecedoresAndaimesOptions: Option[] = toOptions((fornecedoresAndaimesJson as any)?.data ?? fornecedoresAndaimesJson)
 
   const equipesJson = await resEquipes.json().catch(() => ({ data: [] }))
-  const equipesOptions: Option[] = Array.isArray(equipesJson?.data)
-    ? (equipesJson.data as any[])
-      .map((e: any) => {
-        const label = String(e?.nome ?? "").trim()
-        const value = String(e?.id ?? "")
-        return label ? { value, label } : null
-      })
-      .filter((v): v is Option => v !== null)
-    : []
+  const equipesArr: any[] = Array.isArray(equipesJson?.data) ? equipesJson.data : []
+  const equipesOptions: Option[] = equipesArr
+    .map((e: any) => {
+      const label = String(e?.nome ?? "").trim()
+      const value = String(e?.id ?? "")
+      return label ? { value, label } : null
+    })
+    .filter((v): v is Option => v !== null)
+
+  // Equipe preferencial vem pré-selecionada ao lançar a obra
+  const preferredEquipe = equipesArr.find((e: any) => e?.preferencial)
+  const preferredEquipeId = preferredEquipe ? Number(preferredEquipe.id) : null
 
   const financeiroInit: Partial<FinanceiroVM> = {
     maoDeObra: Number(orc?.totais?.empresaPS ?? 0),
@@ -360,6 +363,7 @@ export default async function ObraCreatePage({ params }: { params: Promise<{ orc
       fornecedoresAndaimesOptions={fornecedoresAndaimesOptions}
       financeiroInit={financeiroInit}
       equipeOptions={equipesOptions}
+      preferredEquipeId={preferredEquipeId}
       anexosInit={anexosInit}
       pedidoInit={{}} // Empty, effectively disabling temporary orders
     />

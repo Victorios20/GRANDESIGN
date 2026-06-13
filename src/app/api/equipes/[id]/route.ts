@@ -46,10 +46,24 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     // cor is optional, can be null to remove or a hex string
     const cor: string | null = body?.cor !== undefined ? (body.cor || null) : undefined
 
-    const data: { nome: string; cor?: string | null } = { nome }
+    const data: { nome: string; cor?: string | null; preferencial?: boolean; fornecedor_id?: number | null } = { nome }
     if (cor !== undefined) data.cor = cor
 
-    const updated = await prisma.equipes.update({ where: { id }, data })
+    if (body?.preferencial !== undefined) data.preferencial = Boolean(body.preferencial)
+    if (body?.fornecedor_id !== undefined) {
+      data.fornecedor_id =
+        body.fornecedor_id === null || body.fornecedor_id === ""
+          ? null
+          : Number(body.fornecedor_id)
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      // Apenas uma equipe pode ser preferencial
+      if (data.preferencial === true) {
+        await tx.equipes.updateMany({ where: { id: { not: id } }, data: { preferencial: false } })
+      }
+      return tx.equipes.update({ where: { id }, data })
+    })
     return NextResponse.json({ data: updated }, { status: 200 })
   } catch {
     return NextResponse.json({ error: "Falha ao atualizar equipe" }, { status: 500 })

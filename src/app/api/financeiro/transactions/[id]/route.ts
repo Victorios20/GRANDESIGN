@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { ZodError } from "zod"
 import { authOptions } from "@/lib/auth"
 import { updateManualTransaction, updateManualTransactionSchema, deleteManualTransaction } from "@/actions/financeiro/transactions/manage-transactions"
-import { requireRole } from "@/lib/rbac"
+import { requireRole, isAdminOrDev } from "@/lib/rbac"
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions)
@@ -30,9 +30,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     try {
         await requireRole("ADMIN")
-        
+
         const { id } = await params
-        const result = await deleteManualTransaction(Number(id), Number(session.user.id))
+        const force = new URL(req.url).searchParams.get("force") === "1"
+        // Exclusão forçada só para ADMIN/DEV
+        const allowForce = force && (await isAdminOrDev())
+        const result = await deleteManualTransaction(Number(id), Number(session.user.id), allowForce)
         return NextResponse.json(result)
     } catch (error) {
         return NextResponse.json({ error: (error as Error).message }, { status: 400 })

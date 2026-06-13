@@ -5,6 +5,7 @@ import { PagamentoStatus, PedidoCategoria, PedidoCompraStatus, ObraStatus, Prism
 import { parseDateOnlyInput } from "@/lib/date-only"
 import { BudgetSnapshotService } from "@/services/budget-snapshot.service"
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
+import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
 
 type Id = number | string
 
@@ -240,6 +241,7 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
       if (payload.financeiro || payload.obra?.data_contrato || payload.obra?.data_criacao) {
         await syncObraReceivables(tx, id, Number(userId))
+        await syncObraPayables(tx, id, Number(userId))
       }
 
       /* ================= IMAGENS ================= */

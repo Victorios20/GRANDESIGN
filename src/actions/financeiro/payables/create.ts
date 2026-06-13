@@ -4,6 +4,7 @@ import { z } from "zod"
 import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { calculateInstallments } from "@/lib/financial/installments"
 import { prisma } from "@/lib/prisma"
+import { notifyContaCriada } from "@/lib/email/notifications"
 
 export const createPayableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -55,7 +56,7 @@ async function validateCategory(id: number) {
 export async function createPayable(input: CreatePayableInput, userId?: number) {
     await validateCategory(input.categoria_id)
 
-    return prisma.contaPagar.create({
+    const conta = await prisma.contaPagar.create({
         data: {
             descricao: input.descricao,
             valor_total: input.valor,
@@ -74,6 +75,15 @@ export async function createPayable(input: CreatePayableInput, userId?: number) 
             created_by: userId,
         },
     })
+
+    await notifyContaCriada({
+        tipo: "PAGAR",
+        descricao: conta.descricao,
+        valor: Number(conta.valor_total),
+        vencimento: conta.data_vencimento,
+    })
+
+    return conta
 }
 
 export async function createPayableInstallments(
@@ -88,7 +98,7 @@ export async function createPayableInstallments(
         input.primeiro_vencimento,
     )
 
-    return prisma.$transaction(
+    const contas = await prisma.$transaction(
         installments.map((inst) =>
             prisma.contaPagar.create({
                 data: {
@@ -109,4 +119,13 @@ export async function createPayableInstallments(
             }),
         ),
     )
+
+    await notifyContaCriada({
+        tipo: "PAGAR",
+        descricao: `${input.descricao} (${input.total_parcelas}x)`,
+        valor: input.valor_total,
+        vencimento: input.primeiro_vencimento,
+    })
+
+    return contas
 }

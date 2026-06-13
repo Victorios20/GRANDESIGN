@@ -962,7 +962,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir obra?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir esta obra? Esta ação removerá a obra e todos os dados vinculados (pedidos, imagens, agendamentos) permanentemente. Clientes e orçamentos vinculados não serão excluídos.
+              Tem certeza que deseja excluir esta obra? Esta ação removerá a obra e todos os dados vinculados (pedidos, imagens, agendamentos) permanentemente, <strong>incluindo o centro de custo e todo o financeiro da obra — contas a pagar, contas a receber e lançamentos, mesmo os já pagos</strong>. Clientes e orçamentos vinculados não serão excluídos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -5,6 +5,7 @@ import { updatePayable, updatePayableSchema } from "@/actions/financeiro/payable
 import { prisma } from "@/lib/prisma"
 import { OPEN_FINANCIAL_STATUSES } from "@/actions/financeiro/shared/open-status"
 import { estornarIntegracaoFinanceiraPedido } from "@/actions/pedido_compra/manage-finance-integration"
+import { isAdminOrDev } from "@/lib/rbac"
 import { ZodError } from "zod"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -52,12 +53,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { id } = await params
     const contaId = Number(id)
+
+    const force = new URL(req.url).searchParams.get("force") === "1"
 
     const payable = await prisma.contaPagar.findUnique({
         where: { id: contaId },
@@ -71,6 +74,30 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     })
 
     if (!payable) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 })
+
+    // Exclusão forçada (ADMIN/DEV): apaga lançamentos vinculados, desfaz o vínculo
+    // de pedido de compra e remove a conta, mesmo paga/parcial/integrada.
+    if (force) {
+        if (!(await isAdminOrDev())) {
+            return NextResponse.json({ error: "Apenas ADMIN/DEV podem forçar a exclusão." }, { status: 403 })
+        }
+        await prisma.$transaction(async (tx) => {
+            await tx.lancamento.deleteMany({ where: { conta_pagar_id: contaId } })
+            if (payable.pedido_compra_id !== null) {
+                // Libera o pedido para futura reintegração/exclusão
+                await tx.pedido_compra.update({
+                    where: { id: payable.pedido_compra_id },
+                    data: {
+                        financeiro_integracao_status: "NAO_INTEGRADO",
+                        financeiro_integrado_em: null,
+                        financeiro_integrado_por: null,
+                    },
+                })
+            }
+            await tx.contaPagar.delete({ where: { id: contaId } })
+        })
+        return NextResponse.json({ success: true, forced: true })
+    }
 
     if (payable.pedido_compra_id !== null) {
         if (payable.status === "CANCELADO") {

@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { excluirPedidoCompra, PedidoCompraDeleteError } from "@/actions/pedido_compra/delete-pedido-compra-db"
+import { isAdminOrDev } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -28,6 +29,7 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const force = _req.nextUrl.searchParams.get("force") === "1"
   const requestId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
 
   try {
@@ -46,7 +48,8 @@ export async function DELETE(
       )
     }
 
-    const result = await excluirPedidoCompra(pedidoCompraId, actorId)
+    const allowForce = force && (await isAdminOrDev())
+    const result = await excluirPedidoCompra(pedidoCompraId, actorId, allowForce)
     return json({ data: result, requestId }, 200, requestId)
   } catch (err: any) {
     if (err instanceof PedidoCompraDeleteError) {

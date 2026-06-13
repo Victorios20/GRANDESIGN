@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
   ArrowLeftRight,
+  BellRing,
   CalendarDays,
   ChartColumnIncreasing,
   ChartSpline,
@@ -208,6 +209,12 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
         label: "Categorias Financeiras",
         href: "/configuracoes/categorias-financeiras",
         icon: Tags,
+        roles: ["ADMIN", "DEV"],
+      },
+      {
+        label: "Notificações",
+        href: "/configuracoes/notificacoes",
+        icon: BellRing,
         roles: ["ADMIN", "DEV"],
       },
       {

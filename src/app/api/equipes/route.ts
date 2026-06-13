@@ -36,8 +36,21 @@ export async function POST(req: Request) {
     if (!nome) return NextResponse.json({ error: "Nome é obrigatório" }, { status: 400 })
 
     const cor: string | null = body?.cor || null
+    const preferencial = Boolean(body?.preferencial)
+    const fornecedorId =
+      body?.fornecedor_id === null || body?.fornecedor_id === undefined || body?.fornecedor_id === ""
+        ? null
+        : Number(body.fornecedor_id)
 
-    const created = await prisma.equipes.create({ data: { nome, cor } })
+    const created = await prisma.$transaction(async (tx) => {
+      // Apenas uma equipe pode ser preferencial
+      if (preferencial) {
+        await tx.equipes.updateMany({ data: { preferencial: false } })
+      }
+      return tx.equipes.create({
+        data: { nome, cor, preferencial, fornecedor_id: Number.isFinite(fornecedorId) ? fornecedorId : null },
+      })
+    })
     return NextResponse.json({ data: created }, { status: 201 })
   } catch {
     return NextResponse.json({ error: "Falha ao criar equipe" }, { status: 500 })

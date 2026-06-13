@@ -47,7 +47,8 @@ function normalizePedidoIds(ids: number[]) {
 async function excluirPedidoCompraInTx(
   tx: Prisma.TransactionClient,
   pedidoCompraId: number,
-  actorUserId: number
+  actorUserId: number,
+  force = false
 ): Promise<ExcluirPedidoCompraResult> {
   if (!Number.isFinite(Number(pedidoCompraId))) {
     throw new PedidoCompraDeleteError("PAYLOAD_INVALIDO", "pedidoCompraId inválido.", "validate", {
@@ -66,13 +67,27 @@ async function excluirPedidoCompraInTx(
     })
   }
 
-  if (existing.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
+  if (!force && existing.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
     throw new PedidoCompraDeleteError(
       "PEDIDO_INTEGRADO_FINANCEIRO",
       "Estorne a integração financeira antes de excluir o pedido.",
       "validate-financial-lock",
       { pedidoCompraId }
     )
+  }
+
+  // Exclusão forçada (ADMIN/DEV): remove a(s) conta(s) a pagar vinculada(s) e
+  // seus lançamentos antes de apagar o pedido, sem exigir estorno prévio.
+  if (force) {
+    const contas = await tx.contaPagar.findMany({
+      where: { pedido_compra_id: Number(pedidoCompraId) },
+      select: { id: true },
+    })
+    const contaIds = contas.map((c) => c.id)
+    if (contaIds.length) {
+      await tx.lancamento.deleteMany({ where: { conta_pagar_id: { in: contaIds } } })
+      await tx.contaPagar.deleteMany({ where: { id: { in: contaIds } } })
+    }
   }
 
   let itensRemovidos = 0
@@ -116,17 +131,19 @@ async function excluirPedidoCompraInTx(
 
 export async function excluirPedidoCompra(
   pedidoCompraId: number,
-  actorUserId: number
+  actorUserId: number,
+  force = false
 ): Promise<ExcluirPedidoCompraResult> {
   return prisma.$transaction(
-    async (tx) => excluirPedidoCompraInTx(tx, pedidoCompraId, actorUserId),
+    async (tx) => excluirPedidoCompraInTx(tx, pedidoCompraId, actorUserId, force),
     { timeout: 120_000, maxWait: 20_000 }
   )
 }
 
 export async function excluirPedidosCompra(
   pedidoCompraIds: number[],
-  actorUserId: number
+  actorUserId: number,
+  force = false
 ): Promise<ExcluirPedidosCompraResult> {
   const ids = normalizePedidoIds(pedidoCompraIds)
 
@@ -151,22 +168,24 @@ export async function excluirPedidosCompra(
         )
       }
 
-      const integratedIds = existing
-        .filter((item) => item.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO)
-        .map((item) => item.id)
+      if (!force) {
+        const integratedIds = existing
+          .filter((item) => item.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO)
+          .map((item) => item.id)
 
-      if (integratedIds.length > 0) {
-        throw new PedidoCompraDeleteError(
-          "PEDIDO_INTEGRADO_FINANCEIRO",
-          "Estorne a integração financeira antes de excluir pedidos integrados.",
-          "validate-financial-lock",
-          { integratedIds }
-        )
+        if (integratedIds.length > 0) {
+          throw new PedidoCompraDeleteError(
+            "PEDIDO_INTEGRADO_FINANCEIRO",
+            "Estorne a integração financeira antes de excluir pedidos integrados.",
+            "validate-financial-lock",
+            { integratedIds }
+          )
+        }
       }
 
       const results: ExcluirPedidoCompraResult[] = []
       for (const id of ids) {
-        results.push(await excluirPedidoCompraInTx(tx, id, actorUserId))
+        results.push(await excluirPedidoCompraInTx(tx, id, actorUserId, force))
       }
 
       return {

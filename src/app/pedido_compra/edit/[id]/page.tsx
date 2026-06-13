@@ -154,6 +154,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       initialComponentes={componentes}
       lockedMessage={isFinanceLocked ? "Pedido integrado ao financeiro. Estorne a integração para liberar edição." : null}
       disableEditAction={isFinanceLocked}
+      financeiroIntegracaoStatus={pedido.financeiro_integracao_status}
     />
   )
 }

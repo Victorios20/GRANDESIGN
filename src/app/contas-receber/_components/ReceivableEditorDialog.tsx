@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, Loader2, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
+import { useSession } from "next-auth/react"
 import { revertReceivable } from "@/actions/financeiro/receivables/revert"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -104,6 +105,7 @@ export default function ReceivableEditorDialog({
     const [confirmRevertId, setConfirmRevertId] = useState<number | null>(null)
     const [deleting, setDeleting] = useState(false)
     const [confirmDelete, setConfirmDelete] = useState(false)
+    const [confirmForce, setConfirmForce] = useState(false)
 
     useEffect(() => {
         if (!open) return
@@ -160,6 +162,10 @@ export default function ReceivableEditorDialog({
     }, [categoriaId, dataEmissao, dataVencimento, descricao, isEdit, isEditable, isInstallmentMode, primeiroVencimento, totalParcelas, valor])
 
     const statusColor = item ? statusDotClassName[getStatusColor(item.status)] : statusDotClassName.amber
+
+    const { data: session } = useSession()
+    const roles = ((session?.user as { roles?: unknown[] } | undefined)?.roles ?? []).map((r) => String(r).toUpperCase())
+    const isAdminOrDev = roles.includes("ADMIN") || roles.includes("DEV")
 
     const canDelete = Boolean(
         item &&
@@ -224,21 +230,23 @@ export default function ReceivableEditorDialog({
         }
     }
 
-    async function handleDelete() {
-        if (!item || !confirmDelete) return
+    async function handleDelete(force = false) {
+        if (!item) return
+        if (!force && !confirmDelete) return
         setDeleting(true)
         try {
-            const res = await fetch(`/api/financeiro/receivables/${item.id}`, { method: "DELETE" })
+            const res = await fetch(`/api/financeiro/receivables/${item.id}${force ? "?force=1" : ""}`, { method: "DELETE" })
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}))
                 throw new Error(body.error || "Falha ao excluir conta")
             }
-            toast.success("Conta excluída")
+            toast.success(force ? "Conta excluída (forçado)" : "Conta excluída")
             onOpenChange(false)
             await onSuccess()
         } catch (error) {
             toast.error((error as Error).message)
             setConfirmDelete(false)
+            setConfirmForce(false)
         } finally {
             setDeleting(false)
         }
@@ -562,7 +570,7 @@ export default function ReceivableEditorDialog({
                                         <Button
                                             type="button"
                                             size="sm"
-                                            onClick={handleDelete}
+                                            onClick={() => handleDelete()}
                                             disabled={deleting}
                                             className="h-7 rounded-md bg-[#8F3F37] px-2 text-xs text-white hover:bg-[#7a332c]"
                                         >
@@ -579,6 +587,47 @@ export default function ReceivableEditorDialog({
                                     >
                                         <Trash2 className="size-4" />
                                         Excluir conta
+                                    </Button>
+                                )
+                            ) : null}
+
+                            {/* Força-exclusão (ADMIN/DEV): disponível mesmo recebida/com lançamentos */}
+                            {item && isAdminOrDev && !canDelete ? (
+                                confirmForce ? (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-[#8F3F37]">
+                                            Exclusão irreversível: apaga lançamentos e a conta vinculada. Confirmar?
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setConfirmForce(false)}
+                                            disabled={deleting}
+                                            className="h-7 rounded-md px-2 text-xs text-[#6f6556]"
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            onClick={() => handleDelete(true)}
+                                            disabled={deleting}
+                                            className="h-7 rounded-md bg-[#8F3F37] px-2 text-xs text-white hover:bg-[#7a332c]"
+                                        >
+                                            {deleting ? <Loader2 className="size-3 animate-spin" /> : "Excluir definitivo"}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => setConfirmForce(true)}
+                                        disabled={submitting || deleting}
+                                        className="h-9 gap-1.5 rounded-lg px-3 text-[#8F3F37] shadow-none hover:bg-[#fef2f2] hover:text-[#7a332c]"
+                                    >
+                                        <Trash2 className="size-4" />
+                                        Excluir definitivo (admin)
                                     </Button>
                                 )
                             ) : null}

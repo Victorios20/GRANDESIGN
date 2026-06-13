@@ -6,6 +6,7 @@ import { Prisma, ObraStatus, PagamentoStatus, PedidoCategoria, PedidoCompraStatu
 import { formatObraTitle } from "@/utils/name-formatter"
 import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
+import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -411,6 +412,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       })
 
       await syncObraReceivables(tx, obra.id, input.actorUserId)
+      await syncObraPayables(tx, obra.id, input.actorUserId)
 
       return {
         obraId: obra.id,

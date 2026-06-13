@@ -123,6 +123,8 @@ type Props = {
   }
   equipeOptions?: Option[]
   equipesList?: { id: number; nome: string; cor: string | null }[]
+  /** Equipe preferencial — vem pré-selecionada ao lançar obra (mode "new") */
+  preferredEquipeId?: number | null
   agendaInit?: any[] // TODO: Define strict type if needed
   anexosInit?: {
     orcamento?: string | null
@@ -547,6 +549,7 @@ export default function ObrasPage({
   financeiroInit,
   equipeOptions = [],
   equipesList = [],
+  preferredEquipeId = null,
   agendaInit = [],
   anexosInit,
   cidades = [],
@@ -1131,7 +1134,7 @@ export default function ObrasPage({
           observacoes: vm.observacoes ?? null,
           status: vm.status as any,
 
-          equipe_id: null,
+          equipe_id: preferredEquipeId ?? null,
           data_prev_inicio: null,
           data_prev_conclusao: null,
 

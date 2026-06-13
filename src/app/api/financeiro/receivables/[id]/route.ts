@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { updateReceivable, updateReceivableSchema } from "@/actions/financeiro/receivables/update"
 import { prisma } from "@/lib/prisma"
 import { OPEN_FINANCIAL_STATUSES } from "@/actions/financeiro/shared/open-status"
+import { isAdminOrDev } from "@/lib/rbac"
 import { ZodError } from "zod"
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -51,12 +52,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
     const { id } = await params
     const contaId = Number(id)
+
+    const force = new URL(req.url).searchParams.get("force") === "1"
 
     const receivable = await prisma.contaReceber.findUnique({
         where: { id: contaId },
@@ -69,6 +72,18 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
     })
 
     if (!receivable) return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 })
+
+    // Exclusão forçada (ADMIN/DEV): apaga lançamentos e a conta, mesmo recebida/parcial.
+    if (force) {
+        if (!(await isAdminOrDev())) {
+            return NextResponse.json({ error: "Apenas ADMIN/DEV podem forçar a exclusão." }, { status: 403 })
+        }
+        await prisma.$transaction(async (tx) => {
+            await tx.lancamento.deleteMany({ where: { conta_receber_id: contaId } })
+            await tx.contaReceber.delete({ where: { id: contaId } })
+        })
+        return NextResponse.json({ success: true, forced: true })
+    }
 
     if (!OPEN_FINANCIAL_STATUSES.includes(receivable.status as any)) {
         return NextResponse.json({ error: "Apenas contas em aberto podem ser excluídas." }, { status: 400 })

@@ -115,6 +115,9 @@ model fornecedores {
   // Financeiro
   contas_pagar ContaPagar[]
 
+  // Equipes vinculadas a este fornecedor (mão de obra)
+  equipes equipes[]
+
   @@index([tipo])
 }
 
@@ -367,9 +370,18 @@ model equipes {
   nome String  @db.VarChar(120)
   cor  String? @db.VarChar(7) // HEX color, e.g. "#FF5733"
 
+  // Equipe preferencial: vem pré-selecionada ao lançar obra
+  preferencial Boolean @default(false)
+
+  // Vínculo com fornecedor (mão de obra gera conta a pagar para este fornecedor)
+  fornecedor_id Int?
+  fornecedor    fornecedores? @relation(fields: [fornecedor_id], references: [id], onDelete: SetNull)
+
   ordem_servico ordem_servico[]
   obras         obras[]
   segmentos     ObraAgendaSegmento[]
+
+  @@index([fornecedor_id])
 }
 
 enum PedidoCategoria {
@@ -557,6 +569,7 @@ model obras {
   // Financeiro
   centro_custo   CentroCusto[]
   contas_receber ContaReceber[]
+  contas_pagar   ContaPagar[]
 
   // Snapshot Orçamento
   budget_snapshot obra_budget_snapshot?
@@ -815,6 +828,12 @@ model ContaPagar {
   pedido_compra_id Int? // Link com módulo de compras
   pedido_compra    pedido_compra? @relation(fields: [pedido_compra_id], references: [id], onDelete: SetNull)
 
+  // Vínculo automático com Obra (mão de obra)
+  obra_id          Int?
+  obra             obras?  @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+  origem_obra_tipo String? @db.VarChar(20)
+  auto_gerado      Boolean @default(false)
+
   created_by Int?
   updated_by Int?
   createdBy  User? @relation("ContaPagarCreatedBy", fields: [created_by], references: [id], onDelete: SetNull)
@@ -826,10 +845,12 @@ model ContaPagar {
   // Relations
   lancamentos Lancamento[]
 
+  @@unique([obra_id, origem_obra_tipo, parcela_atual, total_parcelas], map: "ux_contas_pagar_obra_origem_parcela")
   @@index([status])
   @@index([data_vencimento])
   @@index([fornecedor_id])
   @@index([pedido_compra_id])
+  @@index([obra_id])
   @@map("contas_pagar")
 }
 
@@ -1022,4 +1043,16 @@ model FluxoCaixaParametro {
   updated_at          DateTime  @updatedAt
 
   @@map("fluxo_caixa_parametros")
+}
+
+model NotificacaoEmailConfig {
+  id                      Int      @id
+  emails_destinatarios    String   @db.Text // JSON array de e-mails
+  notificar_conta_pagar   Boolean  @default(true)
+  notificar_conta_receber Boolean  @default(true)
+  ativo                   Boolean  @default(true)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  @@map("notificacao_email_config")
 }

@@ -3,7 +3,13 @@
 
 import { prisma } from "@/lib/prisma";
 
-export type Equipe = { id: number; nome: string; cor: string | null };
+export type Equipe = {
+  id: number;
+  nome: string;
+  cor: string | null;
+  preferencial: boolean;
+  fornecedor_id: number | null;
+};
 
 type ListarArgs = {
   page?: number;
@@ -24,7 +30,7 @@ export async function listarEquipes(args: ListarArgs = {}): Promise<Equipe[]> {
     orderBy: { nome: "asc" },
     skip: (page - 1) * pageSize,
     take: pageSize,
-    select: { id: true, nome: true, cor: true },
+    select: { id: true, nome: true, cor: true, preferencial: true, fornecedor_id: true },
   });
 
   return rows as Equipe[];
@@ -34,7 +40,7 @@ export async function obterEquipe(id: number): Promise<Equipe | null> {
   if (!Number.isFinite(id)) return null;
   const row = await prisma.equipes.findUnique({
     where: { id: Number(id) },
-    select: { id: true, nome: true, cor: true },
+    select: { id: true, nome: true, cor: true, preferencial: true, fornecedor_id: true },
   });
   return row as Equipe | null;
 }

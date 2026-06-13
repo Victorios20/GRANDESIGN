@@ -354,13 +354,13 @@ export default function TransactionEditorDialog({
             return
         }
 
-        const confirmed = window.confirm("ATENÇÃO: A exclusão de um lançamento é IRREVERSÍVEL. Um snapshot será gerado para auditoria.\n\nTem certeza que deseja excluir?")
+        const confirmed = window.confirm("ATENÇÃO: A exclusão de um lançamento é IRREVERSÍVEL e ignora travas de período fechado e conferência. Um snapshot será gerado para auditoria.\n\nTem certeza que deseja excluir?")
         if (!confirmed) return
 
         setSubmitting(true)
 
         try {
-            const response = await fetch(`/api/financeiro/transactions/${item.id}`, {
+            const response = await fetch(`/api/financeiro/transactions/${item.id}?force=1`, {
                 method: "DELETE",
             })
 
@@ -744,7 +744,7 @@ export default function TransactionEditorDialog({
                             {conferenceMode ? "Voltar para a conferência" : "Fechar"}
                         </Button>
 
-                        {!isCreateMode && item && isAdmin && !sessionLocked ? (
+                        {!isCreateMode && item && isAdmin ? (
                             <Button
                                 type="button"
                                 variant="destructive"

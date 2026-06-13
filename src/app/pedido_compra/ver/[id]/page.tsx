@@ -86,6 +86,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       initialData={initialData}
       initialFornecedores={initialFornecedores}
       initialFornecedoresRaw={initialFornecedoresRaw}
+      financeiroIntegracaoStatus={pedido.financeiro_integracao_status}
     />
   )
 }

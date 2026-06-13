@@ -4,6 +4,7 @@ import { z } from "zod"
 import { calculateInstallments } from "@/lib/financial/installments"
 import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { prisma } from "@/lib/prisma"
+import { notifyContaCriada } from "@/lib/email/notifications"
 
 export const createReceivableSchema = z.object({
     descricao: z.string().min(1).max(200),
@@ -59,7 +60,7 @@ async function validateCategory(id: number) {
 export async function createReceivable(input: CreateReceivableInput, userId?: number) {
     await validateCategory(input.categoria_id)
 
-    return prisma.contaReceber.create({
+    const conta = await prisma.contaReceber.create({
         data: {
             descricao: input.descricao,
             valor_total: input.valor,
@@ -79,6 +80,15 @@ export async function createReceivable(input: CreateReceivableInput, userId?: nu
             created_by: userId,
         },
     })
+
+    await notifyContaCriada({
+        tipo: "RECEBER",
+        descricao: conta.descricao,
+        valor: Number(conta.valor_total),
+        vencimento: conta.data_vencimento,
+    })
+
+    return conta
 }
 
 export async function createReceivableInstallments(
@@ -93,7 +103,7 @@ export async function createReceivableInstallments(
         input.primeiro_vencimento,
     )
 
-    return prisma.$transaction(
+    const contas = await prisma.$transaction(
         installments.map((inst) =>
             prisma.contaReceber.create({
                 data: {
@@ -115,6 +125,15 @@ export async function createReceivableInstallments(
             }),
         ),
     )
+
+    await notifyContaCriada({
+        tipo: "RECEBER",
+        descricao: `${input.descricao} (${input.total_parcelas}x)`,
+        valor: input.valor_total,
+        vencimento: input.primeiro_vencimento,
+    })
+
+    return contas
 }
 
 export interface GetReceivablesOptions {

@@ -6,8 +6,23 @@ type FetchListParams = {
   obraId?: number | null
 }
 
+const PEDIDO_ERROR_BY_CODE: Record<string, string> = {
+  PEDIDO_SEM_FORNECEDOR: "Selecione um fornecedor no pedido antes de integrar ao financeiro.",
+  PEDIDO_SEM_VALOR: "O pedido não tem valor (itens/frete) para gerar a conta a pagar.",
+  PEDIDO_JA_INTEGRADO: "Este pedido já está integrado ao financeiro.",
+  PEDIDO_NAO_INTEGRADO: "Este pedido não está integrado ao financeiro.",
+  PEDIDO_CANCELADO: "Pedido cancelado não pode ser integrado ao financeiro.",
+  PEDIDO_INTEGRADO_FINANCEIRO: "Estorne a integração financeira antes de excluir o pedido.",
+  CATEGORIA_FINANCEIRA_NAO_ENCONTRADA: "Categoria financeira não encontrada para o pedido.",
+}
+
 function getErrorMessage(body: unknown, fallback: string) {
   if (typeof body === "object" && body !== null) {
+    const maybeCode = "code" in body ? body.code : null
+    if (typeof maybeCode === "string" && PEDIDO_ERROR_BY_CODE[maybeCode]) {
+      return PEDIDO_ERROR_BY_CODE[maybeCode]
+    }
+
     const maybeError = "error" in body ? body.error : null
     const maybeMessage = "message" in body ? body.message : null
 
