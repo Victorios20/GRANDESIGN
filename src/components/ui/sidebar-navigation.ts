@@ -22,6 +22,7 @@ import {
   PackageCheck,
   ReceiptText,
   Scale,
+  ShieldCheck,
   SlidersHorizontal,
   Tags,
   UserCog,
@@ -215,6 +216,12 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
         label: "Notificações",
         href: "/configuracoes/notificacoes",
         icon: BellRing,
+        roles: ["ADMIN", "DEV"],
+      },
+      {
+        label: "Acessos",
+        href: "/configuracoes/acessos",
+        icon: ShieldCheck,
         roles: ["ADMIN", "DEV"],
       },
       {
