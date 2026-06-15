@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react"
 import { format } from "date-fns"
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Loader2, RefreshCcw } from "lucide-react"
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -38,11 +39,11 @@ export default function OrcadoRealizadoDashboard() {
         try {
             setLoading(true)
             const res = await fetch(`/api/financeiro/reports/orcado-realizado?obraId=${obraId}`)
-            if (!res.ok) throw new Error("Falha ao carregar relatorio")
+            if (!res.ok) throw new Error("Falha ao carregar relatório")
             setData(await res.json())
         } catch (error) {
             console.error(error)
-            toast.error("Erro ao carregar dados do relatorio.")
+            toast.error("Erro ao carregar dados do relatório.")
         } finally {
             setLoading(false)
         }
@@ -83,11 +84,11 @@ export default function OrcadoRealizadoDashboard() {
                 body: JSON.stringify({ confirm: true }),
             })
             if (!res.ok) throw new Error("Falha ao recalcular")
-            toast.success("Orcamento base atualizado com sucesso.")
+            toast.success("Orçamento base atualizado com sucesso.")
             fetchReport()
         } catch (error) {
             console.error(error)
-            toast.error("Erro ao recalcular orcamento.")
+            toast.error("Erro ao recalcular orçamento.")
         } finally {
             setRecalculating(false)
         }
@@ -97,7 +98,7 @@ export default function OrcadoRealizadoDashboard() {
         if (obraId) fetchReport()
     }, [fetchReport, obraId])
 
-    if (loading) return <div className="p-8 text-center">Carregando relatorio financeiro...</div>
+    if (loading) return <div className="p-8 text-center">Carregando relatório financeiro...</div>
     if (!data) return <div className="p-8 text-center text-red-500">Erro ao carregar dados.</div>
 
     const { receita, rows, totais, warnings, realized_source } = data
@@ -108,7 +109,7 @@ export default function OrcadoRealizadoDashboard() {
         <div className="container mx-auto space-y-6 py-8">
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Orcado vs Realizado</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Orçado vs Realizado</h1>
                     <p className="text-muted-foreground">{data.nomeObra}</p>
                 </div>
 
@@ -116,7 +117,7 @@ export default function OrcadoRealizadoDashboard() {
                     {warnings.length > 0 ? (
                         <Badge variant="destructive" className="flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" />
-                            Atencao
+                            Atenção
                         </Badge>
                     ) : null}
                     <Badge variant="outline">Fonte Realizado: {realized_source === "lancamentos" ? "Financeiro" : "Pedidos"}</Badge>
@@ -148,7 +149,7 @@ export default function OrcadoRealizadoDashboard() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-                        <span className="text-xs text-muted-foreground">Orcado: {formatCurrency(receita.orcada)}</span>
+                        <span className="text-xs text-muted-foreground">Orçado: {formatCurrency(receita.orcada)}</span>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{formatCurrency(receita.realizada)}</div>
@@ -170,7 +171,7 @@ export default function OrcadoRealizadoDashboard() {
                         <div className={`text-2xl font-bold ${totais.custoRealizado > totais.custoPrevisto ? "text-red-500" : ""}`}>
                             {formatCurrency(totais.custoRealizado)}
                         </div>
-                        <p className="text-xs text-muted-foreground">vs Total Orcado: {formatCurrency(totais.custoPrevisto)}</p>
+                        <p className="text-xs text-muted-foreground">vs Total Orçado: {formatCurrency(totais.custoPrevisto)}</p>
                     </CardContent>
                 </Card>
 
@@ -204,7 +205,7 @@ export default function OrcadoRealizadoDashboard() {
             <Card>
                 <CardHeader>
                     <CardTitle>Detalhamento de Custos</CardTitle>
-                    <CardDescription>Comparativo: Orcado vs Realizado (Financeiro)</CardDescription>
+                    <CardDescription>Comparativo: Orçado vs Realizado (Financeiro)</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -212,7 +213,7 @@ export default function OrcadoRealizadoDashboard() {
                             <TableRow>
                                 <TableHead className="w-[50px]" />
                                 <TableHead>Categoria</TableHead>
-                                <TableHead className="text-right">Orcado</TableHead>
+                                <TableHead className="text-right">Orçado</TableHead>
                                 <TableHead className="text-right">Realizado</TableHead>
                                 <TableHead className="text-right">Desvio</TableHead>
                                 <TableHead className="text-right">% Exec.</TableHead>
@@ -255,21 +256,22 @@ export default function OrcadoRealizadoDashboard() {
                                             <TableRow>
                                                 <TableCell colSpan={6} className="bg-muted/10 p-0">
                                                     <div className="ml-4 border-l-2 border-primary p-4">
-                                                        <h4 className="mb-2 text-sm font-semibold">Lancamentos: {row.label}</h4>
+                                                        <h4 className="mb-2 text-sm font-semibold">Lançamentos: {row.label}</h4>
                                                         {isLoading ? (
                                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <Loader2 className="h-4 w-4 animate-spin" /> Carregando transacoes...
+                                                                <Loader2 className="h-4 w-4 animate-spin" /> Carregando transações...
                                                             </div>
                                                         ) : items.length === 0 ? (
-                                                            <div className="text-sm italic text-muted-foreground">Nenhum lancamento encontrado nesta categoria.</div>
+                                                            <div className="text-sm italic text-muted-foreground">Nenhum lançamento encontrado nesta categoria.</div>
                                                         ) : (
                                                             <div className="rounded-md border bg-background">
                                                                 <Table>
                                                                     <TableHeader>
                                                                         <TableRow className="h-8">
+                                                                            <TableHead className="h-8 text-xs">ID</TableHead>
                                                                             <TableHead className="h-8 text-xs">Data</TableHead>
                                                                             <TableHead className="h-8 text-xs">Fornecedor/Cliente</TableHead>
-                                                                            <TableHead className="h-8 text-xs">Descricao</TableHead>
+                                                                            <TableHead className="h-8 text-xs">Descrição</TableHead>
                                                                             <TableHead className="h-8 text-xs">Conta</TableHead>
                                                                             <TableHead className="h-8 text-right text-xs">Valor</TableHead>
                                                                         </TableRow>
@@ -277,6 +279,11 @@ export default function OrcadoRealizadoDashboard() {
                                                                     <TableBody>
                                                                         {items.map((transaction) => (
                                                                             <TableRow key={transaction.id} className="h-8 hover:bg-muted/50">
+                                                                                <TableCell className="py-1 text-xs font-semibold">
+                                                                                    <Link href={`/lancamentos?transaction_id=${transaction.id}`} className="underline-offset-2 hover:underline">
+                                                                                        #{transaction.id}
+                                                                                    </Link>
+                                                                                </TableCell>
                                                                                 <TableCell className="py-1 text-xs">{format(new Date(transaction.data), "dd/MM/yyyy")}</TableCell>
                                                                                 <TableCell className="py-1 text-xs">{transaction.fornecedor}</TableCell>
                                                                                 <TableCell className="py-1 text-xs text-muted-foreground">

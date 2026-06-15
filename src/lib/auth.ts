@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { prisma } from "./prisma";
 import { compareHash } from "./bcrypt";
+import { resolveEffectiveModuleKeys } from "./access/resolve.server";
 
 const SECONDS_12H = 60 * 60 * 12;
 const SECONDS_7D = 60 * 60 * 24 * 7;
@@ -43,8 +44,10 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        const roles = (user as any).roles || [];
         (token as any).uid = (user as any).id;
-        (token as any).roles = (user as any).roles || [];
+        (token as any).roles = roles;
+        (token as any).modules = await resolveEffectiveModuleKeys((user as any).id, roles);
         const remember = (user as any).remember === true;
         const ttl = remember ? SECONDS_7D : SECONDS_12H;
         (token as any).exp = Math.floor(Date.now() / 1000) + ttl;
@@ -64,12 +67,21 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
+      // Backfill para sessões emitidas antes do controle de acesso por módulo.
+      if ((token as any).modules === undefined) {
+        (token as any).modules = await resolveEffectiveModuleKeys(
+          (token as any).uid,
+          (token as any).roles || []
+        );
+      }
+
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).id = (token as any).uid;
         (session.user as any).roles = (token as any).roles || [];
+        (session.user as any).modules = (token as any).modules || [];
       }
       return session;
     },

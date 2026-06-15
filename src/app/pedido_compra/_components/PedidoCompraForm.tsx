@@ -4,6 +4,7 @@ import type React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import {
   Building2,
   Check,
@@ -61,6 +62,7 @@ import {
 } from "@/app/pedido_compra/_components/list/styles"
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { formatDateOnlyLongPtBr, fromDateOnlyDb } from "@/lib/date-only"
+import { integratePedidoCompraRequest, reversePedidoCompraIntegrationRequest } from "@/lib/pedido-compra-client"
 import {
   asNumber,
   asNumberOrNull,
@@ -98,6 +100,7 @@ type Props = {
   initialComponentes?: { id: number; nome: string }[]
   lockedMessage?: string | null
   disableEditAction?: boolean
+  financeiroIntegracaoStatus?: string | null
 }
 
 const emptyMateriaisByTipo: MateriaisByTipo = { madeira: [], telha: [], geral: [], andaime: [] }
@@ -197,13 +200,24 @@ export default function PedidoCompraForm({
   initialComponentes,
   lockedMessage,
   disableEditAction = false,
+  financeiroIntegracaoStatus = null,
 }: Props) {
   const router = useRouter()
+  const { data: session } = useSession()
+  const roles = ((session?.user as { roles?: unknown[] } | undefined)?.roles ?? []).map((r) => String(r).toUpperCase())
+  const isAdminOrDev = roles.includes("ADMIN") || roles.includes("DEV")
 
   const isView = mode === "view"
   const isEdit = mode === "edit"
   const isCreate = mode === "create"
   const resolvedPedidoId = Number(pedidoCompraId ?? initialData?.id ?? 0)
+
+  const integracaoStatus = String(
+    financeiroIntegracaoStatus ?? (initialData as { financeiro_integracao_status?: string } | null | undefined)?.financeiro_integracao_status ?? ""
+  ).toUpperCase()
+  const isIntegrated = integracaoStatus === "INTEGRADO"
+  const [financeBusy, setFinanceBusy] = useState(false)
+  const [forceDeleteMode, setForceDeleteMode] = useState(false)
 
   const initialSupplierList = useMemo<FornecedorItem[]>(
     () =>
@@ -773,8 +787,8 @@ export default function PedidoCompraForm({
     [formData.status, resolvedPedidoId]
   )
 
-  async function deletePedido(pedidoId: number) {
-    const response = await fetch(`/api/pedido_compra/excluir/${pedidoId}`, { method: "DELETE" })
+  async function deletePedido(pedidoId: number, force = false) {
+    const response = await fetch(`/api/pedido_compra/excluir/${pedidoId}${force ? "?force=1" : ""}`, { method: "DELETE" })
     const body = await response.json().catch(() => null)
     if (!response.ok) throw new Error(body?.error || body?.message || "Falha ao excluir pedido")
     return body?.data
@@ -784,13 +798,43 @@ export default function PedidoCompraForm({
     if (!resolvedPedidoId || !Number.isFinite(resolvedPedidoId)) return
 
     try {
-      await deletePedido(resolvedPedidoId)
+      await deletePedido(resolvedPedidoId, forceDeleteMode)
       toast.success("Pedido excluído")
       router.push("/pedido_compra")
       router.refresh()
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Falha ao excluir pedido"
       toast.error(message)
+    } finally {
+      setForceDeleteMode(false)
+    }
+  }
+
+  const handleIntegrarFinanceiro = async () => {
+    if (!resolvedPedidoId || !Number.isFinite(resolvedPedidoId)) return
+    setFinanceBusy(true)
+    try {
+      await integratePedidoCompraRequest(resolvedPedidoId)
+      toast.success("Pedido integrado ao financeiro")
+      router.refresh()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Falha ao integrar pedido ao financeiro")
+    } finally {
+      setFinanceBusy(false)
+    }
+  }
+
+  const handleEstornarFinanceiro = async () => {
+    if (!resolvedPedidoId || !Number.isFinite(resolvedPedidoId)) return
+    setFinanceBusy(true)
+    try {
+      await reversePedidoCompraIntegrationRequest(resolvedPedidoId)
+      toast.success("Integração financeira estornada")
+      router.refresh()
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Falha ao estornar integração financeira")
+    } finally {
+      setFinanceBusy(false)
     }
   }
 
@@ -879,6 +923,36 @@ export default function PedidoCompraForm({
             actions={
               isView ? (
                 <>
+                  {/* Integração financeira direto na tela de detalhe.
+                      Quando há lockedMessage (edição travada), o botão de estorno
+                      fica no próprio aviso para evitar duplicidade. */}
+                  {!lockedMessage ? (
+                    isIntegrated ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={cn(listMutedButtonClass, "h-9 rounded-lg")}
+                        onClick={handleEstornarFinanceiro}
+                        disabled={financeBusy || resolvedPedidoId <= 0}
+                      >
+                        <Wallet className="size-4" />
+                        {financeBusy ? "Estornando..." : "Estornar integração"}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className={cn(listMutedButtonClass, "h-9 rounded-lg")}
+                        onClick={handleIntegrarFinanceiro}
+                        disabled={financeBusy || resolvedPedidoId <= 0}
+                      >
+                        <Wallet className="size-4" />
+                        {financeBusy ? "Integrando..." : "Integrar financeiro"}
+                      </Button>
+                    )
+                  ) : null}
                   {!disableEditAction ? (
                     <Button
                       type="button"
@@ -891,7 +965,7 @@ export default function PedidoCompraForm({
                       Editar
                     </Button>
                   ) : null}
-                  {!disableEditAction ? (
+                  {(!disableEditAction || isAdminOrDev) ? (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button type="button" variant="outline" size="icon" className={cn(listMutedButtonClass, "size-9 rounded-lg px-0")}>
@@ -901,11 +975,15 @@ export default function PedidoCompraForm({
                       <DropdownMenuContent align="end" className="rounded-xl border-[#e8e1d6]">
                         <DropdownMenuItem
                           className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                          onSelect={() => setDeleteDialogOpen(true)}
+                          onSelect={() => {
+                            // Pedidos integrados/travados só podem ser excluídos forçando (ADMIN/DEV)
+                            setForceDeleteMode(disableEditAction || isIntegrated)
+                            setDeleteDialogOpen(true)
+                          }}
                           disabled={resolvedPedidoId <= 0}
                         >
                           <Trash2 className="mr-2 size-4" />
-                          Excluir
+                          {disableEditAction || isIntegrated ? "Excluir definitivo (admin)" : "Excluir"}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -917,7 +995,22 @@ export default function PedidoCompraForm({
 
           {lockedMessage ? (
             <Alert>
-              <AlertDescription>{lockedMessage}</AlertDescription>
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>{lockedMessage}</span>
+                {isIntegrated ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className={cn(listMutedButtonClass, "h-8 shrink-0 rounded-lg")}
+                    onClick={handleEstornarFinanceiro}
+                    disabled={financeBusy}
+                  >
+                    <Wallet className="size-4" />
+                    {financeBusy ? "Estornando..." : "Estornar integração"}
+                  </Button>
+                ) : null}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -1566,12 +1659,18 @@ export default function PedidoCompraForm({
         </form>
       </div>
 
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) setForceDeleteMode(false) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
             <AlertDialogDescription>
               Essa ação excluirá permanentemente o pedido de compra <b>#{formatPedidoId(resolvedPedidoId, formData.obraId)}</b> e todos os seus itens.
+              {forceDeleteMode ? (
+                <>
+                  <br />
+                  <strong>Exclusão forçada (admin): a conta a pagar vinculada e seus lançamentos também serão apagados, mesmo integrados/pagos.</strong>
+                </>
+              ) : null}
               <br />
               Essa ação não pode ser desfeita.
             </AlertDialogDescription>

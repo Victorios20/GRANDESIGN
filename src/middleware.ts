@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 import { isRestrictedVendedor, isVendedorAllowedPage, normalizeRoleList } from "@/lib/vendedor-access"
+import { resolveModuleKeyFromPath } from "@/lib/access/modules"
 
 const PUBLIC_EXACT = ["/favicon.ico", "/robots.txt", "/sitemap.xml"]
 const PUBLIC_PREFIX = ["/_next", "/assets", "/images", "/public"]
@@ -88,15 +89,28 @@ export async function middleware(req: NextRequest) {
 
   const roles = (token as { roles?: string[] }).roles ?? []
   const rolesUpper = normalizeRoleList(roles)
-  
+  const modules = (token as { modules?: string[] }).modules
+
   const canSeeAdmin = rolesUpper.includes("ADMIN") || rolesUpper.includes("DEV")
 
-  // Bloquear acesso a páginas diferentes dos módulos permitidos para VENDEDOR
-  if (isRestrictedVendedor(rolesUpper) && !isApi) {
-    if (!isVendedorAllowedPage(pathname)) {
-      const url = req.nextUrl.clone()
-      url.pathname = "/"
-      return NextResponse.redirect(url)
+  // Gate de PÁGINAS por módulo. ADMIN/DEV têm acesso total.
+  if (!isApi && !canSeeAdmin) {
+    if (modules === undefined) {
+      // Sessão emitida antes do controle por módulo: mantém a lógica legada
+      // (apenas VENDEDOR é restrito) para não travar ninguém até relogar.
+      if (isRestrictedVendedor(rolesUpper) && !isVendedorAllowedPage(pathname)) {
+        const url = req.nextUrl.clone()
+        url.pathname = "/"
+        return NextResponse.redirect(url)
+      }
+    } else {
+      // Rotas não catalogadas (key === null) passam livremente (fallback-allow).
+      const moduleKey = resolveModuleKeyFromPath(pathname)
+      if (moduleKey !== null && !modules.includes(moduleKey)) {
+        const url = req.nextUrl.clone()
+        url.pathname = "/"
+        return NextResponse.redirect(url)
+      }
     }
   }
 

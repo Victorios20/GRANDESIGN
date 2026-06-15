@@ -461,17 +461,21 @@ export async function reverseManualTransaction(
     })
 }
 
-export async function deleteManualTransaction(id: number, userId: number) {
+export async function deleteManualTransaction(id: number, userId: number, force = false) {
     const lancamento = await getTransactionForMutation(id)
     const settings = await getCashFlowSettings()
 
-    // O usuário com role ADMIN vai usar a exclusão direta mesmo para lançamentos vinculados,
-    // mas bloqueamos se as sessões de conferência já não permitirem.
-    ensureSessionEditable(lancamento.conferencia_sessoes)
-    ensureFinancialPeriodEditable(lancamento.data_competencia, settings.closing_date)
+    // Exclusão forçada (ADMIN/DEV): ignora travas de sessão de conferência,
+    // período financeiro fechado e lançamento já conciliado.
+    if (!force) {
+        // O usuário com role ADMIN vai usar a exclusão direta mesmo para lançamentos vinculados,
+        // mas bloqueamos se as sessões de conferência já não permitirem.
+        ensureSessionEditable(lancamento.conferencia_sessoes)
+        ensureFinancialPeriodEditable(lancamento.data_competencia, settings.closing_date)
 
-    if (lancamento.status_conferencia === StatusConferencia.CONFERIDO) {
-        throw new Error("Lançamento já está conciliado. Faça estorno em vez de excluir direto.")
+        if (lancamento.status_conferencia === StatusConferencia.CONFERIDO) {
+            throw new Error("Lançamento já está conciliado. Faça estorno em vez de excluir direto.")
+        }
     }
 
     const sessionId = lancamento.conferencia_sessao_id

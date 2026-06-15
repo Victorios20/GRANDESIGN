@@ -1,6 +1,7 @@
 ﻿"use client"
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { formatCurrency } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -109,12 +110,12 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
         try {
             setLoading(true)
             const res = await fetch(`/api/financeiro/reports/orcado-realizado?obraId=${selectedObraId}`)
-            if (!res.ok) throw new Error("Falha ao carregar relatÃ³rio")
+            if (!res.ok) throw new Error("Falha ao carregar relatório")
             const json = await res.json()
             setData(json)
         } catch (error) {
             console.error(error)
-            toast.error("Erro ao buscar dados do relatÃ³rio.")
+            toast.error("Erro ao buscar dados do relatório.")
         } finally {
             setLoading(false)
         }
@@ -237,7 +238,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
             setTransactions(prev => ({ ...prev, [catKey]: json.items }))
         } catch (err) {
             console.error(err)
-            toast.error("Erro ao carregar lanÃ§amentos.")
+            toast.error("Erro ao carregar lançamentos.")
         } finally {
             setLoadingCats(prev => ({ ...prev, [catKey]: false }))
         }
@@ -279,7 +280,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
             <div className="space-y-2">
                 <h2 className="text-2xl font-bold tracking-tight text-marromEscuro">Selecione uma Obra</h2>
                 <p className="text-muted-foreground max-w-[450px]">
-                    Para visualizar a anÃ¡lise de OrÃ§ado vs Realizado, selecione uma obra no seletor acima.
+                    Para visualizar a análise de Orçado vs Realizado, selecione uma obra no seletor acima.
                 </p>
             </div>
         </div>
@@ -312,7 +313,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Receita</CardTitle>
-                            <span className="text-xs text-muted-foreground">OrÃ§ado: {formatCurrency(receita.orcada)}</span>
+                            <span className="text-xs text-muted-foreground">Orçado: {formatCurrency(receita.orcada)}</span>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-marromEscuro">{formatCurrency(receita.realizada)}</div>
@@ -326,7 +327,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Custo Total</CardTitle>
-                            <span className="text-xs text-muted-foreground">OrÃ§: {formatCurrency(totais.custoPrevisto)}</span>
+                            <span className="text-xs text-muted-foreground">Orç: {formatCurrency(totais.custoPrevisto)}</span>
                         </CardHeader>
                         <CardContent>
                             <div className={cn("text-2xl font-bold", totais.custoRealizado > totais.custoPrevisto ? "text-red-600" : "text-marromEscuro")}>
@@ -372,10 +373,10 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                         </CardContent>
                     </Card>
 
-                    {/* EXECUÃ‡ÃƒO FINANCEIRA */}
+                    {/* EXECUÇÃO FINANCEIRA */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-muted-foreground">ExecuÃ§Ã£o</CardTitle>
+                            <CardTitle className="text-sm font-medium text-muted-foreground">Execução</CardTitle>
                             <RefreshCcw className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -383,7 +384,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                 {totais.custoPrevisto > 0 ? ((totais.custoRealizado / totais.custoPrevisto) * 100).toFixed(1) : 0}%
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                                do orÃ§amento total
+                                do orçamento total
                             </p>
                         </CardContent>
                     </Card>
@@ -407,7 +408,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                     <CardHeader className="bg-muted/30 pb-4">
                         <CardTitle className="text-lg text-marromEscuro">Detalhamento de Custos</CardTitle>
                         <CardDescription>
-                            Comparativo por categoria de custo. Clique na seta para ver os lanÃ§amentos.
+                            Comparativo por categoria de custo. Clique na seta para ver os lançamentos.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -416,7 +417,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                                     <TableHead className="w-[50px]"></TableHead>
                                     <TableHead>Categoria</TableHead>
-                                    <TableHead className="text-right">OrÃ§ado</TableHead>
+                                    <TableHead className="text-right">Orçado</TableHead>
                                     <TableHead className="text-right">Realizado</TableHead>
                                     <TableHead className="text-right">Desvio</TableHead>
                                     <TableHead className="text-right">% Exec.</TableHead>
@@ -430,8 +431,8 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                     const desvio = row.realizado - row.total_orcado
 
                                     return (
-                                        <>
-                                            <TableRow key={row.key} className={cn("transition-colors", isExpanded && "bg-muted/30")}>
+                                        <Fragment key={row.key}>
+                                            <TableRow className={cn("transition-colors", isExpanded && "bg-muted/30")}>
                                                 <TableCell>
                                                     <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-black/5" onClick={() => toggleCategory(row.key)}>
                                                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -466,25 +467,26 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                     <TableCell colSpan={6} className="p-0">
                                                         <div className="px-6 py-4 bg-muted/20 border-l-4 border-primary/20 shadow-[inset_0_2px_4px_rgba(0,0,0,0.02)]">
                                                             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                                                                LanÃ§amentos: {row.label}
+                                                                Lançamentos: {row.label}
                                                             </h4>
 
                                                             {isLoading ? (
                                                                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 pl-2">
-                                                                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando lanÃ§amentos...
+                                                                    <Loader2 className="h-4 w-4 animate-spin" /> Carregando lançamentos...
                                                                 </div>
                                                             ) : items.length === 0 ? (
                                                                 <div className="text-sm text-muted-foreground italic py-2 pl-2">
-                                                                    Nenhum lanÃ§amento encontrado nesta categoria.
+                                                                    Nenhum lançamento encontrado nesta categoria.
                                                                 </div>
                                                             ) : (
                                                                 <div className="rounded-md border bg-background overflow-hidden">
                                                                     <Table>
                                                                         <TableHeader>
                                                                             <TableRow className="h-8 bg-muted/40 hover:bg-muted/40">
+                                                                                <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">ID</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Data</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Fornecedor</TableHead>
-                                                                                <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">DescriÃ§Ã£o</TableHead>
+                                                                                <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Descrição</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">Conta</TableHead>
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground text-right">Valor</TableHead>
                                                                             </TableRow>
@@ -492,6 +494,11 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                                         <TableBody>
                                                                             {items.map(t => (
                                                                                 <TableRow key={t.id} className="h-8 border-b hover:bg-muted/30 text-xs">
+                                                                                    <TableCell className="py-2 font-semibold">
+                                                                                        <Link href={`/lancamentos?transaction_id=${t.id}`} className="text-marromEscuro underline-offset-2 hover:underline">
+                                                                                            #{t.id}
+                                                                                        </Link>
+                                                                                    </TableCell>
                                                                                     <TableCell className="py-2 text-muted-foreground">
                                                                                         {format(new Date(t.data), "dd/MM/yyyy")}
                                                                                     </TableCell>
@@ -517,7 +524,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                     </TableCell>
                                                 </TableRow>
                                             )}
-                                        </>
+                                        </Fragment>
                                     )
                                 })}
 
@@ -547,7 +554,7 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
 
     return (
         <PageLayout
-            title="OrÃ§ado vs Realizado"
+            title="Orçado vs Realizado"
             headerActions={HeaderActions}
             isTitulo={false}
         >

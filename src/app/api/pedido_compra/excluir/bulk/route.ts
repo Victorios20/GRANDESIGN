@@ -6,6 +6,7 @@ import {
   excluirPedidosCompra,
   PedidoCompraDeleteError,
 } from "@/actions/pedido_compra/delete-pedido-compra-db"
+import { isAdminOrDev } from "@/lib/rbac"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -40,7 +41,8 @@ export async function DELETE(req: NextRequest) {
     if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
 
     const ids = Array.isArray(body?.ids) ? body.ids.map((id: unknown) => Number(id)) : []
-    const result = await excluirPedidosCompra(ids, actorId)
+    const force = (req.nextUrl.searchParams.get("force") === "1" || body?.force === true) && (await isAdminOrDev())
+    const result = await excluirPedidosCompra(ids, actorId, force)
 
     return json({ data: result, requestId }, 200, requestId)
   } catch (error: unknown) {

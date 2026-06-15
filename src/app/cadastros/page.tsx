@@ -80,6 +80,8 @@ type CadastrosItem = {
   tipo?: string | null
   preco_unitario?: number
   cor?: string | null
+  preferencial?: boolean
+  fornecedor_id?: number | null
 }
 
 type MaterialPayload = {
@@ -280,7 +282,12 @@ export default function CadastrosPage() {
     } else if (type === "componente") {
       setFormData({ nome: item.nome || "" })
     } else if (type === "equipe") {
-      setFormData({ nome: item.nome || "", cor: item.cor || "" })
+      setFormData({
+        nome: item.nome || "",
+        cor: item.cor || "",
+        preferencial: item.preferencial ? "true" : "",
+        fornecedor_id: item.fornecedor_id != null ? String(item.fornecedor_id) : "",
+      })
     } else if (type === "cidade") {
       setFormData({ nome: item.nome || "", cor: item.cor || "" })
     }
@@ -347,7 +354,12 @@ export default function CadastrosPage() {
         }
         await loadComponentes()
       } else if (modalType === "equipe") {
-        const payload = { nome: formData.nome, cor: formData.cor || null }
+        const payload = {
+          nome: formData.nome,
+          cor: formData.cor || null,
+          preferencial: formData.preferencial === "true",
+          fornecedor_id: formData.fornecedor_id ? Number(formData.fornecedor_id) : null,
+        }
         if (editingItem) {
           const res = await fetch(`/api/equipes/${editingItem.id}`, {
             method: "PUT",
@@ -1075,10 +1087,19 @@ export default function CadastrosPage() {
                           </tr>
                         ) : (
                           filteredData.map((item) => {
-                            const equipe = item as { id: number; nome: string; cor: string | null }
+                            const equipe = item as { id: number; nome: string; cor: string | null; preferencial?: boolean }
                             return (
                               <tr key={equipe.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                                <td className="px-4 py-3 text-sm font-medium">{equipe.nome}</td>
+                                <td className="px-4 py-3 text-sm font-medium">
+                                  <div className="flex items-center gap-2">
+                                    {equipe.nome}
+                                    {equipe.preferencial && (
+                                      <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300 text-[10px]">
+                                        Preferencial
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="px-4 py-3">
                                   <div className="flex items-center gap-2">
                                     <div
@@ -1318,6 +1339,48 @@ export default function CadastrosPage() {
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Equipe: preferencial + fornecedor (mão de obra) */}
+            {modalType === "equipe" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="fornecedor">Fornecedor (mão de obra)</Label>
+                  <Select
+                    value={formData.fornecedor_id || "none"}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, fornecedor_id: value === "none" ? "" : value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sem fornecedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sem fornecedor</SelectItem>
+                      {fornecedores.map((f) => (
+                        <SelectItem key={f.id} value={String(f.id)}>
+                          {f.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    A conta a pagar de mão de obra das obras desta equipe será vinculada a este fornecedor.
+                  </p>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-border"
+                    checked={formData.preferencial === "true"}
+                    onChange={(e) =>
+                      setFormData({ ...formData, preferencial: e.target.checked ? "true" : "" })
+                    }
+                  />
+                  <span className="text-sm">Equipe preferencial (vem selecionada ao lançar obra)</span>
+                </label>
+              </>
             )}
           </div>
 

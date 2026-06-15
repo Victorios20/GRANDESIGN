@@ -1,9 +1,11 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import {
+  BellRing,
   FolderCog,
   GitBranch,
   Landmark,
+  ShieldCheck,
   SlidersHorizontal,
   Tags,
   UserCog,
@@ -83,12 +85,30 @@ const CONFIGURATION_MODULES: ConfigModule[] = [
     roles: ["ADMIN", "DEV"],
   },
   {
+    href: "/configuracoes/notificacoes",
+    badge: "Financeiro",
+    title: "Notificações",
+    description: "E-mails que recebem aviso quando contas a pagar ou a receber são criadas.",
+    helper: "Configurar notificações",
+    icon: BellRing,
+    roles: ["ADMIN", "DEV"],
+  },
+  {
     href: "/admin/users",
     badge: "Admin",
     title: "Usuários",
     description: "Permissões e status de acesso para perfis administrativos.",
     helper: "Administrar acessos",
     icon: UserCog,
+    roles: ["ADMIN", "DEV"],
+  },
+  {
+    href: "/configuracoes/acessos",
+    badge: "Admin",
+    title: "Acessos",
+    description: "Defina os módulos de cada papel e exceções pontuais por usuário.",
+    helper: "Configurar acessos",
+    icon: ShieldCheck,
     roles: ["ADMIN", "DEV"],
   },
 ]

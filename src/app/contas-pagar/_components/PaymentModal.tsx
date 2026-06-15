@@ -110,16 +110,16 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="border-[#2C201B]/10 bg-[#FFFCF7] sm:max-w-[520px]">
-                <DialogHeader>
+            <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden border-[#2C201B]/10 bg-[#FFFCF7] p-0 sm:max-w-[520px]">
+                <DialogHeader className="shrink-0 border-b border-[#2C201B]/10 px-4 pb-3 pt-4 pr-10 sm:px-5 sm:pt-5">
                     <DialogTitle className="text-[#2C201B]">Registrar baixa</DialogTitle>
                     <DialogDescription className="text-[#2C201B]/65">
                         Confirme a conta bancária, a data e o valor efetivo para quitar esta conta.
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-2">
-                    <div className="rounded-xl border border-[#2C201B]/10 bg-white/70 p-4">
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3 sm:px-5">
+                    <div className="rounded-xl border border-[#2C201B]/10 bg-white/70 p-3">
                         <p className="text-sm font-semibold text-[#2C201B]">{item.descricao}</p>
                         {item.pedido_compra ? (
                             <Link
@@ -131,7 +131,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                                 Origem {formatPedidoId(item.pedido_compra.id, item.pedido_compra.obra_id)}
                             </Link>
                         ) : null}
-                        <div className="mt-3 grid gap-3 text-sm text-[#2C201B]/70 sm:grid-cols-3">
+                        <div className="mt-3 grid gap-2 text-sm text-[#2C201B]/70 sm:grid-cols-3">
                             <div>
                                 <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Total</p>
                                 <p className="mt-1 font-medium text-[#2C201B]">{formatCurrency(item.valor_total)}</p>
@@ -200,11 +200,11 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     </div>
 
                     <div className={cn(
-                        "rounded-xl border p-4 text-center",
+                        "rounded-xl border p-3 text-center",
                         valorFinal > saldo + 0.01 ? "border-[#F1B7B0] bg-[#FFF4F2]" : "border-[#E8D9BC] bg-[#FFF9EE]"
                     )}>
                         <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Valor final da baixa</p>
-                        <p className={cn("mt-2 text-3xl font-semibold", valorFinal > saldo + 0.01 ? "text-[#B42318]" : "text-[#2C201B]")}>
+                        <p className={cn("mt-1 text-2xl font-semibold", valorFinal > saldo + 0.01 ? "text-[#B42318]" : "text-[#2C201B]")}>
                             {formatCurrency(valorFinal)}
                         </p>
                         {valorFinal > saldo + 0.01 ? (
@@ -225,11 +225,11 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     ) : null}
                 </div>
 
-                <DialogFooter className="gap-2">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+                <DialogFooter className="shrink-0 gap-2 border-t border-[#2C201B]/10 bg-[#FFFCF7] px-4 py-3 sm:px-5">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting} className="sm:min-w-28">
                         Cancelar
                     </Button>
-                    <Button type="button" onClick={handleSubmit} disabled={!isValid || submitting} className="btn-primary">
+                    <Button type="button" onClick={handleSubmit} disabled={!isValid || submitting} className="btn-primary sm:min-w-40">
                         {submitting ? <><Loader2 className="mr-2 size-4 animate-spin" /> Processando...</> : "Confirmar baixa"}
                     </Button>
                 </DialogFooter>

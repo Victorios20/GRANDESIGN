@@ -1,8 +1,28 @@
 import { prisma } from "@/lib/prisma"
 import { PedidoCategoria, Prisma } from "@prisma/client"
+import { fatorCartao } from "@/app/orcamento/_utils/fatoresCartao"
 
 type Decimalish = Prisma.Decimal | number | string | null | undefined
 type BudgetSnapshotClient = Pick<typeof prisma, "auditLog" | "obra_budget_snapshot" | "obras">
+const DERIVED_BUDGET_FIELDS = [
+    "comissao_previsto",
+    "frete_previsto",
+    "empresa_ps_previsto",
+    "empresa_gd_previsto",
+    "taxa_cartao_previsto",
+] as const
+
+/**
+ * Taxa de cartão de um pagamento: o valor digitado já é o parcelado,
+ * então a parte à vista é valor ÷ fator e a taxa é a diferença.
+ */
+function cardFeeForPayment(valor: Decimalish, forma: string | null | undefined) {
+    const fator = fatorCartao(forma)
+    if (fator <= 1) return 0
+    const total = Number(asDecimal(valor).toString())
+    if (!Number.isFinite(total) || total <= 0) return 0
+    return Math.round((total - total / fator) * 100) / 100
+}
 
 export type BudgetSnapshotUpdateInput = {
     receita_orcada?: Decimalish
@@ -22,6 +42,31 @@ function asDecimal(value: Decimalish) {
     if (value instanceof Prisma.Decimal) return value
     if (value == null || value === "") return new Prisma.Decimal(0)
     return new Prisma.Decimal(String(value).replace(",", "."))
+}
+
+function isZero(value: Decimalish) {
+    return asDecimal(value).isZero()
+}
+
+function positiveOrFallback(value: Decimalish, fallback: Decimalish) {
+    const decimal = asDecimal(value)
+    return decimal.gt(0) ? decimal : asDecimal(fallback)
+}
+
+function buildMissingDerivedBudgetPatch(
+    snapshot: Record<(typeof DERIVED_BUDGET_FIELDS)[number], Decimalish>,
+    baseline: Record<(typeof DERIVED_BUDGET_FIELDS)[number], Decimalish>
+) {
+    const patch: Partial<Record<(typeof DERIVED_BUDGET_FIELDS)[number], Prisma.Decimal>> = {}
+
+    for (const field of DERIVED_BUDGET_FIELDS) {
+        const baselineValue = asDecimal(baseline[field])
+        if (isZero(snapshot[field]) && baselineValue.gt(0)) {
+            patch[field] = baselineValue
+        }
+    }
+
+    return patch
 }
 
 function normalizeStr(value: string | null | undefined) {
@@ -84,65 +129,6 @@ function matchesSelectedTelha(material: { descricao: string | null }, selectedTe
     return materialName.includes(selected) || selected.includes(materialName)
 }
 
-function parseCardInstallments(method: string | null | undefined) {
-    const match = normalizeStr(method).match(/(\d+)\s*x/)
-    if (!match) return null
-
-    const installments = Number(match[1])
-    return installments === 10 || installments === 18 ? installments : null
-}
-
-function roundMoney(value: Prisma.Decimal) {
-    return value.toDecimalPlaces(2)
-}
-
-function getPaymentRowsForSelectedTelha(
-    rows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>,
-    selectedTelha: string,
-) {
-    const selectedRows = rows.filter((row) => matchesSelectedTelha({ descricao: row.tipo_telhas }, selectedTelha))
-    if (selectedRows.length > 0) return selectedRows
-
-    const telhaTypes = new Set(rows.map((row) => normalizeStr(row.tipo_telhas)).filter(Boolean))
-    return telhaTypes.size === 1 ? rows : []
-}
-
-function getCardFeeRate(
-    rows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>,
-    installments: 10 | 18,
-) {
-    const pixRow = rows.find((row) => normalizeStr(row.metodo_pagamento).includes("pix"))
-    const cardRow = rows.find((row) => parseCardInstallments(row.metodo_pagamento) === installments)
-    const pixValue = asDecimal(pixRow?.valor)
-    const installmentValue = asDecimal(cardRow?.valor)
-
-    if (pixValue.lte(0) || installmentValue.lte(0)) return new Prisma.Decimal(0)
-
-    const rate = installmentValue.mul(installments).div(pixValue).minus(1)
-    return rate.gt(0) ? rate : new Prisma.Decimal(0)
-}
-
-function calculateCardFeePreview(input: {
-    selectedTelha: string
-    paymentRows: Array<{ tipo_telhas: string; metodo_pagamento: string; valor: Decimalish }>
-    payments: Array<{ value: Decimalish; method: string | null }>
-}) {
-    const rows = getPaymentRowsForSelectedTelha(input.paymentRows, input.selectedTelha)
-    if (rows.length === 0) return new Prisma.Decimal(0)
-
-    const total = input.payments.reduce((sum, payment) => {
-        const installments = parseCardInstallments(payment.method)
-        if (!installments) return sum
-
-        const amount = asDecimal(payment.value)
-        if (amount.lte(0)) return sum
-
-        return sum.plus(amount.mul(getCardFeeRate(rows, installments)))
-    }, new Prisma.Decimal(0))
-
-    return roundMoney(total)
-}
-
 function normalizeSnapshotInput(input: BudgetSnapshotUpdateInput) {
     const data: Partial<Record<keyof BudgetSnapshotUpdateInput, Prisma.Decimal>> = {}
     const fields: Array<keyof BudgetSnapshotUpdateInput> = [
@@ -190,6 +176,18 @@ export const BudgetSnapshotService = {
         })
 
         if (existing) {
+            if (DERIVED_BUDGET_FIELDS.some((field) => isZero(existing[field]))) {
+                const baseline = await this.calculateBaselineData(obraId)
+                const patch = buildMissingDerivedBudgetPatch(existing, baseline)
+
+                if (Object.keys(patch).length > 0) {
+                    return prisma.obra_budget_snapshot.update({
+                        where: { obra_id: obraId },
+                        data: patch,
+                    })
+                }
+            }
+
             return existing
         }
 
@@ -347,13 +345,6 @@ export const BudgetSnapshotService = {
                                 total: true,
                             },
                         },
-                        orcamento_pagamento: {
-                            select: {
-                                tipo_telhas: true,
-                                metodo_pagamento: true,
-                                valor: true,
-                            },
-                        },
                     },
                 },
             },
@@ -376,18 +367,14 @@ export const BudgetSnapshotService = {
                 ? isTelhaMaterial(material) && matchesSelectedTelha(material, selectedTelha)
                 : false
         )
+        const taxaCartaoPrevista =
+            cardFeeForPayment(obra.pagamento_entrada, obra.forma_pagamento_entrada) +
+            cardFeeForPayment(obra.pagamento_quitacao, obra.forma_pagamento_quitacao)
+
         const andaimePrevisto = sumMaterials(isAndaimeMaterial)
         const materiaisPrevisto = obra.orcamento?.totais_materiais_preco ?? sumMaterials(
             (material) => !isMadeiraMaterial(material) && !isTelhaMaterial(material) && !isAndaimeMaterial(material)
         )
-        const taxaCartaoPrevisto = calculateCardFeePreview({
-            selectedTelha,
-            paymentRows: obra.orcamento?.orcamento_pagamento ?? [],
-            payments: [
-                { value: obra.pagamento_entrada, method: obra.forma_pagamento_entrada },
-                { value: obra.pagamento_quitacao, method: obra.forma_pagamento_quitacao },
-            ],
-        })
 
         return {
             receita_orcada: obra.valor_obra,
@@ -398,9 +385,9 @@ export const BudgetSnapshotService = {
             materiais_previsto: materiaisPrevisto,
             comissao_previsto: obra.orcamento?.totais_comissao_preco ?? 0,
             frete_previsto: obra.orcamento?.totais_frete_preco ?? 0,
-            empresa_ps_previsto: obra.orcamento?.totais_empresa_ps_preco ?? obra.valor_mao_de_obra,
+            empresa_ps_previsto: positiveOrFallback(obra.orcamento?.totais_empresa_ps_preco, obra.valor_mao_de_obra),
             empresa_gd_previsto: obra.orcamento?.totais_empresa_gd_preco ?? 0,
-            taxa_cartao_previsto: taxaCartaoPrevisto,
+            taxa_cartao_previsto: taxaCartaoPrevista,
         }
     },
 
@@ -447,8 +434,8 @@ export const BudgetSnapshotService = {
         return {
             MADEIRAS: sumByCategory(PedidoCategoria.MADEIRA),
             TELHAS: sumByCategory(PedidoCategoria.TELHA),
-            ANDAIMES: sumByCategory(PedidoCategoria.ANDAIMES),
             MATERIAIS_GERAIS: sumByCategory(PedidoCategoria.MATERIAIS),
+            OUTROS: sumByCategory(PedidoCategoria.ANDAIMES),
         }
     },
 }

@@ -6,7 +6,6 @@ export type ReportCategoryKey =
     | "EMPRESA_PS"
     | "EMPRESA_GD"
     | "TELHAS"
-    | "ANDAIMES"
     | "TAXA_CARTAO"
     | "OUTROS"
 
@@ -30,14 +29,13 @@ export type ReportCategoryDefinition = {
 export const REPORT_CATEGORIES: ReportCategoryDefinition[] = [
     { key: "MADEIRAS", label: "Madeiras", budgetField: "madeira_previsto" },
     { key: "MATERIAIS_GERAIS", label: "Materiais Gerais", budgetField: "materiais_previsto" },
-    { key: "COMISSAO", label: "Comissao", budgetField: "comissao_previsto" },
+    { key: "COMISSAO", label: "Comissão", budgetField: "comissao_previsto" },
     { key: "FRETE", label: "Frete", budgetField: "frete_previsto" },
     { key: "EMPRESA_PS", label: "Empresa PS", budgetField: "empresa_ps_previsto" },
     { key: "EMPRESA_GD", label: "Empresa GD", budgetField: "empresa_gd_previsto" },
     { key: "TELHAS", label: "Telhas", budgetField: "telha_previsto" },
-    { key: "ANDAIMES", label: "Andaimes", budgetField: "andaime_previsto" },
-    { key: "TAXA_CARTAO", label: "Taxa de Cartao", budgetField: "taxa_cartao_previsto" },
-    { key: "OUTROS", label: "Outros", budgetField: null },
+    { key: "TAXA_CARTAO", label: "Taxa de Cartão", budgetField: "taxa_cartao_previsto" },
+    { key: "OUTROS", label: "Outros", budgetField: "andaime_previsto" },
 ]
 
 export const REPORT_CATEGORY_KEYS = REPORT_CATEGORIES.map((category) => category.key)
@@ -57,7 +55,6 @@ export const CategoryMapping = {
         if (lower.includes("taxa") && lower.includes("cartao")) return "TAXA_CARTAO"
         if (lower.includes("madeira")) return "MADEIRAS"
         if (lower.includes("telha")) return "TELHAS"
-        if (lower.includes("andaime") || lower.includes("plataforma")) return "ANDAIMES"
         if (lower.includes("comissao")) return "COMISSAO"
         if (lower.includes("frete")) return "FRETE"
         if (lower.includes("empresa ps") || lower.includes("mao de obra") || lower.includes("pedreiro")) return "EMPRESA_PS"

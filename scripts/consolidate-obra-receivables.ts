@@ -7,8 +7,8 @@ import {
 } from "@/actions/financeiro/receivables/sync-obra-receivables"
 
 const prisma = new PrismaClient()
-const FROM = new Date(2026, 4, 4)
-const TO = new Date(2026, 4, 18)
+const DEFAULT_FROM = new Date(2026, 4, 4)
+const DEFAULT_TO = new Date(2026, 4, 18)
 const OPEN_STATUSES: StatusFinanceiro[] = [StatusFinanceiro.PENDENTE, StatusFinanceiro.ATRASADO]
 
 type ObraWithReceivables = Awaited<ReturnType<typeof getAffectedObras>>[number]
@@ -18,10 +18,45 @@ function hasFlag(flag: string) {
   return process.argv.includes(flag)
 }
 
+function getArgValue(flag: string) {
+  const index = process.argv.findIndex((arg) => arg === flag)
+  const value = index >= 0 ? process.argv[index + 1] : undefined
+  return value && !value.startsWith("--") ? value : undefined
+}
+
+function parseDateArg(flag: string, fallback: Date) {
+  const value = getArgValue(flag)
+  if (!value) return fallback
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) throw new Error(`${flag} deve usar o formato YYYY-MM-DD.`)
+
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+
 function parseUserId() {
-  const index = process.argv.findIndex((arg) => arg === "--user-id")
-  const value = index >= 0 ? Number(process.argv[index + 1]) : NaN
+  const value = Number(getArgValue("--user-id"))
   return Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function parseObraIds() {
+  const value = getArgValue("--obra-id")
+  if (!value) return []
+
+  const ids = value
+    .split(",")
+    .map((item) => item.trim())
+    .map((item) => Number(item))
+
+  if (ids.some((id) => !Number.isFinite(id) || id <= 0)) {
+    throw new Error("--obra-id deve conter um ou mais IDs positivos separados por virgula.")
+  }
+
+  return ids
+}
+
+function getClientSearch() {
+  return getArgValue("--client")?.trim() || null
 }
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
@@ -33,6 +68,17 @@ function startOfDate(value: Date) {
   const date = new Date(value)
   date.setHours(0, 0, 0, 0)
   return date
+}
+
+function getDateWindow() {
+  const from = parseDateArg("--from", DEFAULT_FROM)
+  const to = parseDateArg("--to", DEFAULT_TO)
+
+  if (from >= to) {
+    throw new Error("--from deve ser anterior a --to.")
+  }
+
+  return { from, to }
 }
 
 function isOpenWithoutMovement(row: ReceivableRow) {
@@ -65,32 +111,45 @@ function getConsolidatedPlan(obra: ObraWithReceivables, valor: number) {
 }
 
 async function getAffectedObras() {
-  return prisma.obras.findMany({
-    where: {
-      OR: [
-        { data_criacao: { gte: FROM, lt: TO } },
-        {
-          contas_receber: {
-            some: {
-              auto_gerado: true,
-              origem_obra_tipo: "QUITACAO",
-              total_parcelas: { gt: 1 },
-              OR: [
-                { created_at: { gte: FROM, lt: TO } },
-                { updated_at: { gte: FROM, lt: TO } },
-              ],
-            },
+  const { from, to } = getDateWindow()
+  const clientSearch = getClientSearch()
+  const obraIds = parseObraIds()
+  const where: Prisma.obrasWhereInput = {
+    OR: [
+      { data_criacao: { gte: from, lt: to } },
+      {
+        contas_receber: {
+          some: {
+            auto_gerado: true,
+            origem_obra_tipo: "QUITACAO",
+            total_parcelas: { gt: 1 },
+            OR: [
+              { created_at: { gte: from, lt: to } },
+              { updated_at: { gte: from, lt: to } },
+            ],
           },
         },
-      ],
-      contas_receber: {
-        some: {
-          auto_gerado: true,
-          origem_obra_tipo: "QUITACAO",
-          total_parcelas: { gt: 1 },
-        },
+      },
+    ],
+    contas_receber: {
+      some: {
+        auto_gerado: true,
+        origem_obra_tipo: "QUITACAO",
+        total_parcelas: { gt: 1 },
       },
     },
+  }
+
+  if (clientSearch) {
+    where.cliente = { nome: { contains: clientSearch, mode: "insensitive" } }
+  }
+
+  if (obraIds.length > 0) {
+    where.id = { in: obraIds }
+  }
+
+  return prisma.obras.findMany({
+    where,
     orderBy: [{ data_criacao: "asc" }, { id: "asc" }],
     select: {
       id: true,
@@ -251,6 +310,9 @@ async function consolidateObra(obra: ObraWithReceivables, apply: boolean, userId
 async function main() {
   const apply = hasFlag("--apply")
   const userId = parseUserId()
+  const { from, to } = getDateWindow()
+  const client = getClientSearch()
+  const obraIds = parseObraIds()
   const obras = await getAffectedObras()
   const results = []
 
@@ -260,9 +322,13 @@ async function main() {
 
   console.log(JSON.stringify({
     apply,
+    filters: {
+      client,
+      obraIds,
+    },
     window: {
-      from: FROM.toISOString().slice(0, 10),
-      toExclusive: TO.toISOString().slice(0, 10),
+      from: from.toISOString().slice(0, 10),
+      toExclusive: to.toISOString().slice(0, 10),
     },
     totalObras: obras.length,
     results,

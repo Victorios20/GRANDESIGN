@@ -74,6 +74,14 @@ function getConferenceLabel(item: TransactionListItem) {
     return "Pendente"
 }
 
+function parsePositiveDecimal(value: string) {
+    const normalized = value.trim().replace(",", ".")
+    if (!normalized) return null
+
+    const parsed = Number(normalized)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 function getOriginMeta(item: TransactionListItem) {
     if (item.conta_pagar) {
         return {
@@ -115,6 +123,9 @@ export default function TransactionEditorDialog({
     const isCreateMode = !item
     const [descricao, setDescricao] = useState("")
     const [valor, setValor] = useState<number | null>(null)
+    const [recebimentoCartao, setRecebimentoCartao] = useState(false)
+    const [taxaCartaoValor, setTaxaCartaoValor] = useState<number | null>(null)
+    const [taxaCartaoPercentual, setTaxaCartaoPercentual] = useState("")
     const [tipo, setTipo] = useState<TransactionFormMode>("DESPESA")
     const [dataLancamento, setDataLancamento] = useState("")
     const [dataCompetencia, setDataCompetencia] = useState("")
@@ -133,6 +144,9 @@ export default function TransactionEditorDialog({
         if (item) {
             setDescricao(item.descricao)
             setValor(Number(item.valor))
+            setRecebimentoCartao(false)
+            setTaxaCartaoValor(null)
+            setTaxaCartaoPercentual("")
             setTipo(item.tipo)
             setDataLancamento(toInputDate(item.data_lancamento))
             setDataCompetencia(toInputDate(item.data_competencia))
@@ -150,6 +164,9 @@ export default function TransactionEditorDialog({
 
         setDescricao("")
         setValor(null)
+        setRecebimentoCartao(false)
+        setTaxaCartaoValor(null)
+        setTaxaCartaoPercentual("")
         setTipo("DESPESA")
         setDataLancamento(defaultDate)
         setDataCompetencia(defaultDate)
@@ -171,6 +188,17 @@ export default function TransactionEditorDialog({
     const canEditDirectly = Boolean(item && !originMeta && item.status_conferencia !== "CONFERIDO" && !sessionLocked && !isClosedPeriod)
     const canAdjust = Boolean(item && !originMeta && item.status_conferencia === "CONFERIDO" && !sessionLocked && !isClosedPeriod)
     const canCreate = isCreateMode && !isClosedPeriod
+    const canConfigureCardFee = canCreate && tipo === "RECEITA"
+    const parsedTaxaCartaoPercentual = parsePositiveDecimal(taxaCartaoPercentual)
+    const taxaCartaoCalculada = recebimentoCartao
+        ? Number(taxaCartaoValor ?? 0) > 0
+            ? Number(taxaCartaoValor)
+            : valor != null && parsedTaxaCartaoPercentual
+                ? Math.round(valor * (parsedTaxaCartaoPercentual / 100) * 100) / 100
+                : 0
+        : 0
+    const taxaCartaoInvalida = Boolean(canConfigureCardFee && recebimentoCartao && valor != null && taxaCartaoCalculada >= valor)
+    const valorLiquidoCartao = valor != null ? Math.max(valor - taxaCartaoCalculada, 0) : null
 
     const accountItems = useMemo(
         () => banks.filter((bank) => bank.ativo).map((bank) => ({ value: String(bank.id), label: bank.nome })),
@@ -212,7 +240,8 @@ export default function TransactionEditorDialog({
             contaBancariaId &&
             (isTransferMode
                 ? contaDestinoId && contaDestinoId !== contaBancariaId
-                : dataCompetencia && categoriaId)
+                : dataCompetencia && categoriaId) &&
+            !taxaCartaoInvalida
     )
 
     async function handleSave() {
@@ -241,6 +270,12 @@ export default function TransactionEditorDialog({
                 centro_custo_id: centroCustoId === "none" ? null : Number(centroCustoId),
                 observacoes: observacoes.trim() || undefined,
                 reason: justificativa.trim() || null,
+                ...(canConfigureCardFee && recebimentoCartao
+                    ? {
+                        taxa_cartao_valor: taxaCartaoValor && taxaCartaoValor > 0 ? taxaCartaoValor : undefined,
+                        taxa_cartao_percentual: parsedTaxaCartaoPercentual ?? undefined,
+                    }
+                    : {}),
             }
 
             const endpoint = isTransferMode
@@ -319,13 +354,13 @@ export default function TransactionEditorDialog({
             return
         }
 
-        const confirmed = window.confirm("ATENÇÃO: A exclusão de um lançamento é IRREVERSÍVEL. Um snapshot será gerado para auditoria.\n\nTem certeza que deseja excluir?")
+        const confirmed = window.confirm("ATENÇÃO: A exclusão de um lançamento é IRREVERSÍVEL e ignora travas de período fechado e conferência. Um snapshot será gerado para auditoria.\n\nTem certeza que deseja excluir?")
         if (!confirmed) return
 
         setSubmitting(true)
 
         try {
-            const response = await fetch(`/api/financeiro/transactions/${item.id}`, {
+            const response = await fetch(`/api/financeiro/transactions/${item.id}?force=1`, {
                 method: "DELETE",
             })
 
@@ -470,6 +505,11 @@ export default function TransactionEditorDialog({
                                         const nextTipo = val as TransactionFormMode
                                         setTipo(nextTipo)
                                         setCategoriaId("")
+                                        if (nextTipo !== "RECEITA") {
+                                            setRecebimentoCartao(false)
+                                            setTaxaCartaoValor(null)
+                                            setTaxaCartaoPercentual("")
+                                        }
                                         if (nextTipo === "TRANSFERENCIA") {
                                             setCentroCustoId("none")
                                             setDataCompetencia(dataLancamento)
@@ -564,6 +604,71 @@ export default function TransactionEditorDialog({
                                 </div>
                             ) : null}
 
+                            {canConfigureCardFee ? (
+                                <div className="space-y-3 rounded-xl border border-[#e7e0d4] bg-[#faf8f4] p-3 md:col-span-2">
+                                    <div className="flex items-start gap-2">
+                                        <Checkbox
+                                            id="recebimentoCartao"
+                                            checked={recebimentoCartao}
+                                            onCheckedChange={(checked) => setRecebimentoCartao(Boolean(checked))}
+                                            disabled={submitting}
+                                        />
+                                        <div className="space-y-1">
+                                            <Label htmlFor="recebimentoCartao" className="text-sm font-semibold text-[#2c201b]">
+                                                Recebimento via cartao
+                                            </Label>
+                                            <p className="text-xs text-[#6f6556]">
+                                                O sistema registra a taxa como uma despesa vinculada a esta receita.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {recebimentoCartao ? (
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <div className="space-y-1.5">
+                                                <Label className={labelClassName}>Taxa de cartao (R$)</Label>
+                                                <MoneyInput
+                                                    value={taxaCartaoValor}
+                                                    onValueChange={setTaxaCartaoValor}
+                                                    className={cn(fieldClassName, "tabular-nums")}
+                                                    disabled={submitting}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label className={labelClassName}>Taxa de cartao (%)</Label>
+                                                <Input
+                                                    value={taxaCartaoPercentual}
+                                                    onChange={(event) => setTaxaCartaoPercentual(event.target.value.replace(/[^\d.,]/g, ""))}
+                                                    inputMode="decimal"
+                                                    placeholder="Ex: 3,49"
+                                                    className={cn(fieldClassName, "tabular-nums")}
+                                                    disabled={submitting}
+                                                />
+                                            </div>
+
+                                            <div className="rounded-lg border border-[#ddd7cc] bg-white px-3 py-2 text-xs text-[#6f6556] md:col-span-2">
+                                                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                    <span>
+                                                        Taxa estimada: <strong className="text-[#2c201b]">{formatCurrency(taxaCartaoCalculada)}</strong>
+                                                    </span>
+                                                    <span>
+                                                        Liquido previsto:{" "}
+                                                        <strong className="text-[#2c201b]">
+                                                            {valorLiquidoCartao == null ? "Informe o valor" : formatCurrency(valorLiquidoCartao)}
+                                                        </strong>
+                                                    </span>
+                                                </div>
+                                                <p className="mt-1">Se preencher R$ e %, o valor fixo em R$ tem prioridade.</p>
+                                                {taxaCartaoInvalida ? (
+                                                    <p className="mt-1 font-medium text-[#B42318]">A taxa deve ser menor que o valor da receita.</p>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ) : null}
+
                             {!isTransferMode ? (
                                 <div className="space-y-1.5">
                                     <Label className={labelClassName}>Centro de custo</Label>
@@ -639,7 +744,7 @@ export default function TransactionEditorDialog({
                             {conferenceMode ? "Voltar para a conferência" : "Fechar"}
                         </Button>
 
-                        {!isCreateMode && item && isAdmin && !sessionLocked ? (
+                        {!isCreateMode && item && isAdmin ? (
                             <Button
                                 type="button"
                                 variant="destructive"

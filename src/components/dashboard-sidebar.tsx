@@ -2,11 +2,12 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact } from "lucide-react"
+import { Home, FileText, Building2, Users, ShoppingCart, CalendarDays, Settings, Contact, Cog } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSession } from "next-auth/react"
 import { useMemo } from "react"
 import { isRestrictedVendedor, isVendedorAllowedPage, normalizeRoleList } from "@/lib/vendedor-access"
+import { resolveModuleKeyFromPath } from "@/lib/access/modules"
 
 const LEGACY_NAV_ITEMS = [
   { href: "/", label: "Home", icon: Home },
@@ -17,6 +18,7 @@ const LEGACY_NAV_ITEMS = [
   { href: "/pedidos", label: "Compras", icon: ShoppingCart },
   { href: "/cadastros", label: "Cadastros", icon: Settings },
   { href: "/usuarios", label: "Usuários", icon: Users },
+  { href: "/configuracoes", label: "Configurações", icon: Cog },
 ]
 
 export function DashboardSidebar() {
@@ -28,15 +30,26 @@ export function DashboardSidebar() {
     return normalizeRoleList(rs)
   }, [session])
 
+  const modules = (session?.user as { modules?: string[] } | undefined)?.modules
+
   const isVendedor = isRestrictedVendedor(rolesUpper)
 
   const allowedNavItems = useMemo(() => {
+    // Sessão atual com módulos resolvidos: filtra pelo acesso efetivo.
+    if (Array.isArray(modules)) {
+      return LEGACY_NAV_ITEMS.filter((item) => {
+        const key = resolveModuleKeyFromPath(item.href)
+        return key === null || modules.includes(key)
+      })
+    }
+
+    // Fallback para sessões antigas (sem `modules` no token).
     if (isVendedor) {
       return LEGACY_NAV_ITEMS.filter((item) => isVendedorAllowedPage(item.href))
     }
 
     return LEGACY_NAV_ITEMS
-  }, [isVendedor])
+  }, [modules, isVendedor])
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar text-sidebar-foreground flex flex-col">

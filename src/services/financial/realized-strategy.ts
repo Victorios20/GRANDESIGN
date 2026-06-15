@@ -55,7 +55,7 @@ export class PedidoCompraStrategy implements RealizedCostStrategy {
         return {
             byCategory,
             total: Object.values(byCategory).reduce((acc, value) => acc + value, 0),
-            warnings: ["Empresa PS, Empresa GD, Comissao, Frete e Taxa de Cartao nao sao rastreados via Pedidos de Compra."],
+            warnings: ["Empresa PS, Empresa GD, Comissão, Frete e Taxa de Cartão não são rastreados via Pedidos de Compra."],
         }
     }
 }
@@ -113,7 +113,7 @@ export class LancamentoStrategy implements RealizedCostStrategy {
 
         const warnings: string[] = []
         if (byCategory.OUTROS > 0) {
-            warnings.push(`R$ ${byCategory.OUTROS.toFixed(2)} em categorias nao mapeadas (Outros).`)
+            warnings.push(`R$ ${byCategory.OUTROS.toFixed(2)} em categorias não mapeadas (Outros).`)
         }
 
         return { byCategory, total, warnings }

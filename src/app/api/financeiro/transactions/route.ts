@@ -31,6 +31,13 @@ function parseBankIds(value: string | null) {
         .filter((item) => Number.isInteger(item) && item > 0)
 }
 
+function parsePositiveInteger(value: string | null) {
+    if (!value) return undefined
+
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 export async function GET(req: Request) {
     const session = await getServerSession(authOptions)
     if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -41,6 +48,7 @@ export async function GET(req: Request) {
         // Parse Query Params
         const page = Number(searchParams.get("page")) || 1
         const limit = Number(searchParams.get("limit")) || 20
+        const transaction_id = parsePositiveInteger(searchParams.get("transaction_id"))
         const search = searchParams.get("search") ?? undefined
         const startDate = searchParams.get("startDate") ? parseDateOnlyInput(searchParams.get("startDate")) ?? undefined : undefined
         const endDate = searchParams.get("endDate") ? parseDateOnlyInput(searchParams.get("endDate")) ?? undefined : undefined
@@ -62,6 +70,7 @@ export async function GET(req: Request) {
         const result = await getTransactions({
             page,
             limit,
+            transaction_id,
             search,
             startDate,
             endDate,

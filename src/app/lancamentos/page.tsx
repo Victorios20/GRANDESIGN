@@ -44,6 +44,13 @@ function parseCsvParam(value?: string) {
         .filter(Boolean)
 }
 
+function parsePositiveIntegerParam(value?: string) {
+    if (!value) return undefined
+
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 function buildInitialQuery(params: Record<string, string | string[] | undefined>) {
     const query = new URLSearchParams()
     query.set("page", getParam(params, "page") ?? "1")
@@ -57,6 +64,7 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     const contaBancariaIds = getParam(params, "conta_bancaria_ids")
     const categoriaId = getParam(params, "categoria_id")
     const centroCustoId = getParam(params, "centro_custo_id")
+    const transactionId = getParam(params, "transaction_id")
     const costScope = getParam(params, "cost_scope")
     const tipo = getParam(params, "tipo")
     const conciliado = getParam(params, "conciliado")
@@ -71,6 +79,7 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
     if (contaBancariaIds) query.set("conta_bancaria_ids", contaBancariaIds)
     if (categoriaId) query.set("categoria_id", categoriaId)
     if (centroCustoId) query.set("centro_custo_id", centroCustoId)
+    if (transactionId) query.set("transaction_id", transactionId)
     if (costScope) query.set("cost_scope", costScope)
     if (tipo) query.set("tipo", tipo)
     if (conciliado) query.set("conciliado", conciliado)
@@ -92,6 +101,7 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
     const csvBankIds = parseCsvParam(getParam(resolvedSearchParams, "conta_bancaria_ids"))
     const initialBankIds = csvBankIds.length > 0 ? csvBankIds : singleBankId ? [singleBankId] : []
     const dateType = getParam(resolvedSearchParams, "dateType") === "competencia" ? "competencia" : "lancamento"
+    const initialTransactionId = parsePositiveIntegerParam(getParam(resolvedSearchParams, "transaction_id"))
 
     const [listData, banks, categories, centrosCusto, cashFlowSettings] = await Promise.all([
         ssrJSON<PaginatedResponse<TransactionListItem>>(`/api/financeiro/transactions?${initialQuery}`),
@@ -112,6 +122,7 @@ export default async function LancamentosPage({ searchParams }: PageProps) {
             categories={categories.filter(isOperationalFinancialCategory)}
             centrosCusto={centrosCusto}
             closingDate={cashFlowSettings.closing_date}
+            initialTransactionId={initialTransactionId}
             initialFilters={{
                 search: getParam(resolvedSearchParams, "search") ?? "",
                 contaBancariaId: initialBankIds.length === 1 ? initialBankIds[0] : "all",
