@@ -5,11 +5,12 @@ import { receiveBill } from "@/actions/financeiro/receivables/receive"
 import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
+import { zDateOnly } from "@/lib/date-only"
 
 const bulkReceiveSchema = z.object({
     conta_ids: z.array(z.number().int().positive()).min(1),
     conta_bancaria_id: z.number().int().positive(),
-    data_recebimento: z.coerce.date(),
+    data_recebimento: zDateOnly,
 })
 
 export async function POST(req: Request) {

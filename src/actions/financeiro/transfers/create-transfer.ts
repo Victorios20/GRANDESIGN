@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
+import { fromDateOnlyDb, zDateOnly } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 
 export const transferSchema = z.object({
@@ -11,7 +12,7 @@ export const transferSchema = z.object({
         .number()
         .positive()
         .refine((val) => Number(val.toFixed(2)) === val, "Maximo 2 casas decimais"),
-    data_transferencia: z.coerce.date(),
+    data_transferencia: zDateOnly,
     conta_origem_id: z.number().int().positive(),
     conta_destino_id: z.number().int().positive(),
     observacoes: z.string().max(1000).optional(),
@@ -21,7 +22,10 @@ export type TransferInput = z.infer<typeof transferSchema>
 
 function isDateClosed(date: Date, closingDateIso?: string | null) {
     if (!closingDateIso) return false
-    return new Date(date) <= new Date(closingDateIso)
+    // Compara em date-only (YYYY-MM-DD) para nao depender de fuso/hora.
+    const transferDay = fromDateOnlyDb(date)
+    const closingDay = fromDateOnlyDb(closingDateIso)
+    return !!transferDay && !!closingDay && transferDay <= closingDay
 }
 
 export async function createTransfer(input: TransferInput, userId?: number) {

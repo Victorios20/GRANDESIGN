@@ -2,13 +2,14 @@ import { StatusFinanceiro, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
 
 import { createCardFeeTransaction, resolveCardFeeAmount } from "@/actions/financeiro/card-fee"
+import { zDateOnly } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 
 export const receiveBillSchema = z.object({
     conta_receber_id: z.number().int().positive(),
     conta_bancaria_id: z.number().int().positive(),
     valor: z.number().positive(),
-    data_recebimento: z.coerce.date(),
+    data_recebimento: zDateOnly,
     juros: z.number().min(0).optional().default(0),
     descontos: z.number().min(0).optional().default(0),
     taxa_cartao_valor: z.number().min(0).optional(),

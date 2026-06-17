@@ -3,13 +3,14 @@ import { z } from "zod"
 
 import { createCardFeeTransaction, resolveCardFeeAmount } from "@/actions/financeiro/card-fee"
 import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
+import { zDateOnly } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 
 export const payBillSchema = z.object({
     conta_pagar_id: z.number().int().positive(),
     conta_bancaria_id: z.number().int().positive(),
     valor: z.number().positive(),
-    data_pagamento: z.coerce.date(),
+    data_pagamento: zDateOnly,
     juros: z.number().min(0).optional().default(0),
     descontos: z.number().min(0).optional().default(0),
     taxa_cartao_valor: z.number().min(0).optional(),

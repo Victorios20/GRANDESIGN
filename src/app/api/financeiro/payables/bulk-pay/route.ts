@@ -5,11 +5,12 @@ import { payBill } from "@/actions/financeiro/payables/pay"
 import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
+import { zDateOnly } from "@/lib/date-only"
 
 const bulkPaySchema = z.object({
     conta_ids: z.array(z.number().int().positive()).min(1),
     conta_bancaria_id: z.number().int().positive(),
-    data_pagamento: z.coerce.date(),
+    data_pagamento: zDateOnly,
 })
 
 export async function POST(req: Request) {

@@ -1,6 +1,7 @@
 import { FrequenciaRecorrencia, StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
+import { zDateOnly } from "@/lib/date-only"
 import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { calculateInstallments } from "@/lib/financial/installments"
 import { prisma } from "@/lib/prisma"
@@ -9,8 +10,8 @@ import { notifyContaCriada } from "@/lib/email/notifications"
 export const createPayableSchema = z.object({
     descricao: z.string().min(1).max(200),
     valor: z.number().positive(),
-    data_emissao: z.coerce.date(),
-    data_vencimento: z.coerce.date(),
+    data_emissao: zDateOnly,
+    data_vencimento: zDateOnly,
     fornecedor_id: z.number().int().positive().optional().nullable(),
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().optional().nullable(),
@@ -23,8 +24,8 @@ export const createPayableInstallmentSchema = z.object({
     descricao: z.string().min(1).max(200),
     valor_total: z.number().positive(),
     total_parcelas: z.number().int().min(2).max(36),
-    data_emissao: z.coerce.date(),
-    primeiro_vencimento: z.coerce.date(),
+    data_emissao: zDateOnly,
+    primeiro_vencimento: zDateOnly,
     fornecedor_id: z.number().int().positive().optional().nullable(),
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().optional().nullable(),

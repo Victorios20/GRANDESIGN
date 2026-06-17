@@ -1522,6 +1522,7 @@ export default function ObrasPage({
         tiposObraOptions={tiposObraOptions}
         telhaOptions={telhaOptions}
         onEditCliente={onEditCliente}
+        obraId={obraId ?? null}
       />
 
       <div className="mt-6">

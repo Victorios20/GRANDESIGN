@@ -1,3 +1,5 @@
+import { z } from "zod"
+
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
 const DATE_ONLY_PREFIX_RE = /^(\d{4})-(\d{2})-(\d{2})(?:T|\s|$)/
 
@@ -61,6 +63,21 @@ export function toDateOnlyValue(value: Date | string | null | undefined): string
 export function getTodayDateOnly(): string {
   return toDateOnlyStringLocal(new Date())
 }
+
+/**
+ * Zod schema que normaliza uma data "date-only" (string "YYYY-MM-DD" ou Date)
+ * para um Date em meio-dia UTC, mesmo referencial usado pelos filtros de período
+ * (parseDateOnlyInput). Usar para campos de vencimento/emissão e evitar que o
+ * registro caia fora do range após salvar por causa de fuso horário.
+ */
+export const zDateOnly = z.union([z.string(), z.date()]).transform((value, ctx) => {
+  const parsed = parseDateOnlyInput(value)
+  if (!parsed) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Data invalida" })
+    return z.NEVER
+  }
+  return parsed
+})
 
 export function shiftDateOnly(value: string, days: number): string {
   const date = parseDateOnlyInput(value)

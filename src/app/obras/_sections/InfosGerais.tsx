@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { Card, CardContent } from "@/components/ui/card"
+import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -48,6 +49,7 @@ type Props = {
   tiposObraOptions: Option[]
   telhaOptions: Option[]
   onEditCliente: () => void
+  obraId?: number | null
 }
 
 const STATUS_OPTIONS: StatusOption<ObraStatus>[] = [
@@ -95,6 +97,7 @@ export default function InfosGerais({
   tiposObraOptions,
   telhaOptions,
   onEditCliente,
+  obraId,
 }: Props) {
   const dims = useMemo(
     () => ({
@@ -192,9 +195,19 @@ export default function InfosGerais({
                 </div>
               ) : (
                 <div>
-                  <h1 className="text-2xl font-bold text-marromEscuro leading-tight">
-                    {value.titulo || "Sem título definido"}
-                  </h1>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-2xl font-bold text-marromEscuro leading-tight">
+                      {value.titulo || "Sem título definido"}
+                    </h1>
+                    {obraId && obraId > 0 ? (
+                      <div className="flex items-center gap-1">
+                        <span className="bg-secondary text-secondary-foreground inline-flex items-center rounded-md border px-2.5 py-0.5 text-sm font-normal">
+                          ID: {obraId}
+                        </span>
+                        <CopyLinkButton value={String(obraId)} label="Copiar ID da obra" />
+                      </div>
+                    ) : null}
+                  </div>
                   <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
                     <Hammer className="w-3 h-3" />
                     {value.tipoObra || "Tipo não informado"}
