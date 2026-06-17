@@ -1,6 +1,6 @@
 import Link from "next/link"
 
-import { formatPedidoId } from "@/lib/pedido-compra-utils"
+import { formatMoney, formatPedidoId } from "@/lib/pedido-compra-utils"
 
 type PedidoItemPrint = {
   id: number
@@ -23,6 +23,8 @@ type PedidoPrint = {
   rua: string | null
   mapsUrl: string | null
   observacoes: string | null
+  frete: number
+  valorPedido: number
   itens: PedidoItemPrint[]
 }
 
@@ -167,6 +169,21 @@ export function PedidoCompraPrintDocument({ pedido }: { pedido: PedidoPrint }) {
               )}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="flex justify-end print:break-inside-avoid">
+        <div className="w-full max-w-xs space-y-1 rounded-lg border border-slate-200 bg-slate-50/60 p-3 text-sm">
+          {pedido.frete > 0 ? (
+            <div className="flex items-center justify-between text-slate-600">
+              <span>Frete</span>
+              <span className="font-medium tabular-nums">{formatMoney(pedido.frete)}</span>
+            </div>
+          ) : null}
+          <div className="flex items-center justify-between border-t border-slate-200 pt-1 text-slate-900">
+            <span className="font-semibold uppercase tracking-[0.08em] text-xs">Valor do pedido</span>
+            <span className="text-base font-semibold tabular-nums">{formatMoney(pedido.valorPedido)}</span>
+          </div>
         </div>
       </section>
     </article>

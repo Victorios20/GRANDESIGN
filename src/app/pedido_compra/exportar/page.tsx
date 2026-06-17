@@ -47,6 +47,7 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
           descricao: true,
           tamanho: true,
           componente: true,
+          total: true,
         },
       },
     },
@@ -85,6 +86,10 @@ export default async function Page({ searchParams }: { searchParams: SearchParam
               rua: pedido.endereco_entrega || pedido.obra?.endereco_obra || null,
               mapsUrl: pedido.link_maps || pedido.obra?.maps_url || null,
               observacoes: pedido.observacoes ?? null,
+              frete: Number(pedido.frete ?? 0),
+              valorPedido:
+                (pedido.itens ?? []).reduce((acc, item) => acc + Number(item.total ?? 0), 0) +
+                Number(pedido.frete ?? 0),
               itens: (pedido.itens ?? []).map((item) => ({
                 id: item.id,
                 quantidade: item.quantidade?.toString?.() ?? null,

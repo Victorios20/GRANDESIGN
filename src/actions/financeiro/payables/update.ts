@@ -2,14 +2,16 @@ import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
 import { syncPedidoCompraValorRealizadoInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
+import { resolveOpenFinancialStatus } from "@/actions/financeiro/shared/open-status"
+import { zDateOnly } from "@/lib/date-only"
 import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { prisma } from "@/lib/prisma"
 
 export const updatePayableSchema = z.object({
     descricao: z.string().min(1).max(200),
     valor: z.number().positive(),
-    data_emissao: z.coerce.date(),
-    data_vencimento: z.coerce.date(),
+    data_emissao: zDateOnly,
+    data_vencimento: zDateOnly,
     fornecedor_id: z.number().int().positive().nullable().optional(),
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().nullable().optional(),
@@ -35,13 +37,6 @@ async function validateExpenseCategory(categoryId: number) {
     if (!isPayableCategory(category)) {
         throw new Error("Categoria deve ser operacional de custo ou despesa")
     }
-}
-
-function resolveOpenStatus(currentStatus: StatusFinanceiro, dueDate: Date) {
-    if (currentStatus === StatusFinanceiro.PARCIAL) return StatusFinanceiro.PARCIAL
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return dueDate < today ? StatusFinanceiro.ATRASADO : StatusFinanceiro.PENDENTE
 }
 
 export async function updatePayable(id: number, input: UpdatePayableInput) {
@@ -73,7 +68,7 @@ export async function updatePayable(id: number, input: UpdatePayableInput) {
                 categoria_id: input.categoria_id,
                 centro_custo_id: input.centro_custo_id ?? null,
                 observacoes: input.observacoes ?? null,
-                status: resolveOpenStatus(payable.status, input.data_vencimento),
+                status: resolveOpenFinancialStatus(payable.status, input.data_vencimento),
             },
             include: {
                 fornecedor: { select: { id: true, nome: true } },

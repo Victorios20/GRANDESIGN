@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client"
 import { z } from "zod"
 
+import { zDateOnly } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
 import type { CashFlowSettings } from "@/types/financeiro"
 
@@ -9,7 +10,7 @@ const CASH_FLOW_SETTINGS_ID = 1
 
 export const cashFlowSettingsSchema = z.object({
     safety_limit: z.coerce.number().finite().min(0),
-    closing_date: z.coerce.date().nullable().optional(),
+    closing_date: zDateOnly.nullable().optional(),
     margem_padrao_obras: z.coerce.number().finite().min(0).max(100).optional(),
 })
 

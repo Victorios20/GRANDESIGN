@@ -1,14 +1,16 @@
 import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
+import { resolveOpenFinancialStatus } from "@/actions/financeiro/shared/open-status"
+import { zDateOnly } from "@/lib/date-only"
 import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
 import { prisma } from "@/lib/prisma"
 
 export const updateReceivableSchema = z.object({
     descricao: z.string().min(1).max(200),
     valor: z.number().positive(),
-    data_emissao: z.coerce.date(),
-    data_vencimento: z.coerce.date(),
+    data_emissao: zDateOnly,
+    data_vencimento: zDateOnly,
     cliente_id: z.number().int().positive().nullable().optional(),
     categoria_id: z.number().int().positive(),
     centro_custo_id: z.number().int().positive().nullable().optional(),
@@ -36,13 +38,6 @@ async function validateRevenueCategory(categoryId: number) {
     }
 }
 
-function resolveOpenStatus(currentStatus: StatusFinanceiro, dueDate: Date) {
-    if (currentStatus === StatusFinanceiro.PARCIAL) return StatusFinanceiro.PARCIAL
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return dueDate < today ? StatusFinanceiro.ATRASADO : StatusFinanceiro.PENDENTE
-}
-
 export async function updateReceivable(id: number, input: UpdateReceivableInput) {
     const receivable = await prisma.contaReceber.findUnique({ where: { id } })
     if (!receivable) throw new Error("Conta a receber nao encontrada")
@@ -63,7 +58,7 @@ export async function updateReceivable(id: number, input: UpdateReceivableInput)
             categoria_id: input.categoria_id,
             centro_custo_id: input.centro_custo_id ?? null,
             observacoes: input.observacoes ?? null,
-            status: resolveOpenStatus(receivable.status, input.data_vencimento),
+            status: resolveOpenFinancialStatus(receivable.status, input.data_vencimento),
         },
         include: {
             cliente: { select: { id: true, nome: true } },
