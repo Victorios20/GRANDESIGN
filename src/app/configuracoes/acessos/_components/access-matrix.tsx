@@ -139,7 +139,7 @@ function RoleMatrix({
       <Table className="w-full">
         <TableHeader className={operationalListTableHeadClass}>
           <TableRow className={operationalListTableHeadRowClass}>
-            <TableHead className={cn(operationalListTableHeadCellClass, "min-w-[200px]")}>Módulo</TableHead>
+            <TableHead className={cn(operationalListTableHeadCellClass, "sticky left-0 z-10 min-w-[200px] bg-[#faf8f3]")}>Módulo</TableHead>
             {editableRoles.map((role) => (
               <TableHead key={role.id} className={cn(operationalListTableHeadCellClass, "text-center")}>
                 {role.label}
@@ -150,7 +150,7 @@ function RoleMatrix({
         <TableBody>
           {modules.map((module) => (
             <TableRow key={module.key} className={operationalListTableRowClass}>
-              <TableCell className="px-4">
+              <TableCell className="sticky left-0 z-10 bg-white px-4">
                 <div className="flex flex-col">
                   <span className="font-medium text-[#2c201b]">{module.label}</span>
                   <span className="text-[11px] uppercase tracking-[0.08em] text-[#9a8f7c]">

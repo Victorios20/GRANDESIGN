@@ -874,7 +874,7 @@ export default function ObrasClient({ initial }: { initial: InitialData }) {
         <ListSummaryBar countLabel={`${total} obra${total === 1 ? "" : "s"} na listagem atual`} />
 
         <section className={cn(operationalListShellClass, "overflow-hidden")}>
-          <div className="px-0 py-0">
+          <div className="overflow-x-auto px-0 py-0">
             {loadingTabela ? (
               <div className="space-y-3">
                 <Skeleton className="h-[36px] w-full" /> {/* Header */}

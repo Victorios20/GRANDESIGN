@@ -252,10 +252,10 @@ export default function HomeClient({ initial }: Props) {
                       <tr className="border-b border-border bg-muted/30">
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Título</th>
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Cliente</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Bairro</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Cidade</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Tipo</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Equipe</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Bairro</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Cidade</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Tipo</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3 hidden sm:table-cell">Equipe</th>
                         <th className="text-left text-xs font-semibold text-muted-foreground px-4 py-3">Status</th>
                       </tr>
                     </thead>
@@ -275,10 +275,10 @@ export default function HomeClient({ initial }: Props) {
                               {obra.cliente.nome}
                             </Link>
                           </td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">{obra.cliente.bairro ?? "-"}</td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">{obra.cliente.cidade ?? "-"}</td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">{obra.tipo_obra}</td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">{obra.equipe ?? "-"}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">{obra.cliente.bairro ?? "-"}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">{obra.cliente.cidade ?? "-"}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">{obra.tipo_obra}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">{obra.equipe ?? "-"}</td>
                           <td className="px-4 py-3 align-middle">
                             <ObraStatusBadge status={obra.status} layout="compact" />
                           </td>

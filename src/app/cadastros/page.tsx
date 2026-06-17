@@ -630,7 +630,7 @@ export default function CadastrosPage() {
         ) : (
           // Main Tabs View
           <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as Category)}>
-            <TabsList className={cn(operationalListShellClass, "grid w-full grid-cols-6 h-auto gap-1 p-1")}>
+            <TabsList className={cn(operationalListShellClass, "grid w-full grid-cols-3 sm:grid-cols-6 h-auto gap-1 p-1")}>
               <TabsTrigger value="fornecedores" className="gap-2 data-[state=active]:bg-background data-[state=active]:text-foreground">
                 <Truck className="w-4 h-4" />
                 <span className="hidden lg:inline">Fornecedores</span>

@@ -120,7 +120,7 @@ export default function FilterCard({
   }
 
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {/* Botão: FILTROS */}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
@@ -134,7 +134,7 @@ export default function FilterCard({
           align="start"
           sideOffset={8}
           className={cn(
-            "w-[360px] p-3 sm:w-[400px] shadow-lg",
+            "w-[calc(100vw-2rem)] p-3 sm:w-[400px] shadow-lg",
             "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
           )}
         >

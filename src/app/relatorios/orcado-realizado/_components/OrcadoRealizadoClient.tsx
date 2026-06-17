@@ -411,8 +411,8 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                             Comparativo por categoria de custo. Clique na seta para ver os lançamentos.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="p-0">
-                        <Table>
+                    <CardContent className="overflow-x-auto p-0">
+                        <Table className="min-w-[640px]">
                             <TableHeader>
                                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                                     <TableHead className="w-[50px]"></TableHead>
@@ -479,8 +479,8 @@ export function OrcadoRealizadoClient({ obras }: OrcadoRealizadoClientProps) {
                                                                     Nenhum lançamento encontrado nesta categoria.
                                                                 </div>
                                                             ) : (
-                                                                <div className="rounded-md border bg-background overflow-hidden">
-                                                                    <Table>
+                                                                <div className="rounded-md border bg-background overflow-x-auto">
+                                                                    <Table className="min-w-[640px]">
                                                                         <TableHeader>
                                                                             <TableRow className="h-8 bg-muted/40 hover:bg-muted/40">
                                                                                 <TableHead className="h-8 text-[10px] font-bold uppercase text-muted-foreground">ID</TableHead>

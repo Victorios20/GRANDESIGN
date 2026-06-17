@@ -772,10 +772,10 @@ export default function CalendarioPage() {
     <PageLayout pageBackground="bg-bege-pagina">
       <Toaster position="top-right" duration={5000} closeButton richColors offset={80} />
 
-      <div className="flex gap-4 h-[calc(100vh-120px)]">
+      <div className="flex flex-col lg:flex-row gap-4 lg:h-[calc(100vh-120px)]">
         {/* Left Sidebar - Obras Sem Agenda */}
         <div
-          className={`flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? "w-12" : "w-72"
+          className={`flex-shrink-0 transition-all duration-300 ${sidebarCollapsed ? "w-12" : "w-full lg:w-72"
             }`}
         >
           <Card className="bg-card h-full flex flex-col shadow-sm">
@@ -950,14 +950,14 @@ export default function CalendarioPage() {
           {/* Calendar Card */}
           <Card className="bg-card flex-1 flex flex-col min-h-0 shadow-sm">
             <CardHeader className="border-b py-2 px-4 flex-shrink-0">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Calendário
                   {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
                 </CardTitle>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   {lastUpdated && (
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-md border border-border/50">
                       <Clock className="w-3.5 h-3.5 text-amber-600/70" />
@@ -967,7 +967,7 @@ export default function CalendarioPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Select value={filterEquipe} onValueChange={setFilterEquipe}>
                       <SelectTrigger className="w-[150px] h-8 text-xs">
                         <SelectValue placeholder="Equipe" />
