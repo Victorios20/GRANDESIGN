@@ -1001,19 +1001,19 @@ export default function LancamentosPageClient({
                                     <SortableHeader column="data_lancamento" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
                                         Data
                                     </SortableHeader>
-                                    <SortableHeader column="tipo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                    <SortableHeader column="tipo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} className="hidden sm:table-cell">
                                         Tipo
                                     </SortableHeader>
-                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} className="hidden sm:table-cell">
                                         Categoria
                                     </SortableHeader>
                                     <SortableHeader column="descricao" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
                                         Descrição
                                     </SortableHeader>
-                                    <SortableHeader column="conta_bancaria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                    <SortableHeader column="conta_bancaria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} className="hidden sm:table-cell">
                                         Conta
                                     </SortableHeader>
-                                    <SortableHeader column="centro_custo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                    <SortableHeader column="centro_custo" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} className="hidden sm:table-cell">
                                         Centro de custo
                                     </SortableHeader>
                                     <SortableHeader column="valor" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
@@ -1078,12 +1078,12 @@ export default function LancamentosPageClient({
                                                 <td className="px-3 py-3.5 whitespace-nowrap text-[#2c201b]">
                                                     {formatDateBR(item.data_lancamento)}
                                                 </td>
-                                                <td className="px-3 py-3.5">
+                                                <td className="hidden sm:table-cell px-3 py-3.5">
                                                     <span className={cn("text-sm font-medium", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>
                                                         {isReceita ? "Receita" : "Despesa"}
                                                     </span>
                                                 </td>
-                                                <td className="px-3 py-3.5">
+                                                <td className="hidden sm:table-cell px-3 py-3.5">
                                                     {item.categoria ? (
                                                         <span
                                                             className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
@@ -1116,10 +1116,10 @@ export default function LancamentosPageClient({
                                                         </p>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
+                                                <td className="hidden sm:table-cell px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
                                                     {item.conta_bancaria?.nome ?? "Não definida"}
                                                 </td>
-                                                <td className="px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
+                                                <td className="hidden sm:table-cell px-3 py-3.5 whitespace-nowrap text-[#6f6556]">
                                                     {item.centro_custo?.nome ?? "—"}
                                                 </td>
                                                 <td className={cn("px-3 py-3.5 whitespace-nowrap font-semibold", isReceita ? "text-[#027A48]" : "text-[#B42318]")}>

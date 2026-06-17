@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-import { DashboardSidebar } from "@/components/dashboard-sidebar"
-import { DashboardTopbar } from "@/components/dashboard-topbar"
+import { PageLayout } from "@/components/ui/pageLayout"
 
 import { useState } from "react"
 import { Search, Plus, Home, ChevronRight, X, LayoutList, LayoutGrid, ArrowUpDown } from "lucide-react"
@@ -314,16 +313,19 @@ export default function PurchaseOrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      <div className="pl-64">
-        <DashboardTopbar
-          title="Pedidos de Compra"
-          showNewButton={true}
-          newButtonLabel="Novo Pedido"
-          onNewClick={() => setIsCreateModalOpen(true)}
-        />
-        <main className="p-8 space-y-6">
+    <PageLayout
+      title="Pedidos de Compra"
+      headerActions={
+        <Button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all duration-200"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Pedido
+        </Button>
+      }
+    >
+      <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1 border rounded-xl p-1 bg-card">
@@ -351,7 +353,7 @@ export default function PurchaseOrdersPage() {
           {/* Kanban configuration controls */}
           {viewMode === "kanban" && (
             <div className="bg-card border rounded-lg p-4">
-              <div className="flex items-center gap-6">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium">Agrupar por:</span>
                   <Select value={kanbanGroupBy} onValueChange={(v) => setKanbanGroupBy(v as "category" | "status")}>
@@ -485,7 +487,7 @@ export default function PurchaseOrdersPage() {
           )}
 
           {viewMode === "list" && (
-            <div className="flex items-center gap-3 justify-end">
+            <div className="flex flex-wrap items-center gap-3 justify-end">
               <span className="text-sm font-medium">Ordenar por:</span>
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
                 <SelectTrigger className="w-48">
@@ -512,18 +514,18 @@ export default function PurchaseOrdersPage() {
           {paginatedOrders.length > 0 ? (
             <>
               {viewMode === "list" ? (
-                <div className="border rounded-lg overflow-hidden bg-card">
-                  <table className="w-full">
+                <div className="border rounded-lg overflow-x-auto bg-card">
+                  <table className="w-full min-w-[900px]">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-left p-4 font-medium text-sm">Número</th>
                         <th className="text-left p-4 font-medium text-sm">Descrição</th>
-                        <th className="text-left p-4 font-medium text-sm">Categoria</th>
+                        <th className="hidden sm:table-cell text-left p-4 font-medium text-sm">Categoria</th>
                         <th className="text-left p-4 font-medium text-sm">Status</th>
                         <th className="text-left p-4 font-medium text-sm">Valor Previsto</th>
-                        <th className="text-left p-4 font-medium text-sm">Valor Realizado</th>
-                        <th className="text-left p-4 font-medium text-sm">Entrega</th>
-                        <th className="text-left p-4 font-medium text-sm">Integração</th>
+                        <th className="hidden sm:table-cell text-left p-4 font-medium text-sm">Valor Realizado</th>
+                        <th className="hidden sm:table-cell text-left p-4 font-medium text-sm">Entrega</th>
+                        <th className="hidden sm:table-cell text-left p-4 font-medium text-sm">Integração</th>
                         <th className="w-12"></th>
                       </tr>
                     </thead>
@@ -554,7 +556,7 @@ export default function PurchaseOrdersPage() {
                             <td className="p-4">
                               <div className="text-sm line-clamp-2 max-w-md">{order.description}</div>
                             </td>
-                            <td className="p-4">
+                            <td className="hidden sm:table-cell p-4">
                               <Badge variant="outline" className="font-medium">
                                 {order.category}
                               </Badge>
@@ -570,7 +572,7 @@ export default function PurchaseOrdersPage() {
                                 })}
                               </div>
                             </td>
-                            <td className="p-4">
+                            <td className="hidden sm:table-cell p-4">
                               {order.actualValue ? (
                                 <div className="space-y-1">
                                   <div className="text-sm font-medium">
@@ -596,7 +598,7 @@ export default function PurchaseOrdersPage() {
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
                             </td>
-                            <td className="p-4">
+                            <td className="hidden sm:table-cell p-4">
                               {order.deliveryDate ? (
                                 <div className="flex items-center gap-2 text-sm">
                                   <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -606,7 +608,7 @@ export default function PurchaseOrdersPage() {
                                 <span className="text-sm text-muted-foreground">-</span>
                               )}
                             </td>
-                            <td className="p-4">
+                            <td className="hidden sm:table-cell p-4">
                               {order.integrated ? (
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
                                   {order.integratedCode}
@@ -827,7 +829,6 @@ export default function PurchaseOrdersPage() {
               </div>
             </div>
           )}
-        </main>
       </div>
 
       {selectedOrder && <PurchaseOrderModal order={selectedOrder} onClose={() => setSelectedOrder(null)} />}
@@ -838,6 +839,6 @@ export default function PurchaseOrdersPage() {
           onClose={() => setIsCreateModalOpen(false)}
         />
       )}
-    </div>
+    </PageLayout>
   )
 }

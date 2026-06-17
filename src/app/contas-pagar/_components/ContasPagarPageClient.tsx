@@ -556,10 +556,10 @@ export default function ContasPagarPageClient({
                                     <SortableHeader column="descricao" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
                                         Descrição
                                     </SortableHeader>
-                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
+                                    <SortableHeader column="categoria" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} className="hidden sm:table-cell">
                                         Categoria
                                     </SortableHeader>
-                                    <th className={operationalListTableHeadCellClass}>Centro de custo</th>
+                                    <th className={cn(operationalListTableHeadCellClass, "hidden sm:table-cell")}>Centro de custo</th>
                                     <SortableHeader column="valor_total" activeColumn={sortBy} direction={sortOrder} onSort={handleSort} align="right">
                                         Valor total
                                     </SortableHeader>
@@ -625,8 +625,8 @@ export default function ContasPagarPageClient({
                                                         </Link>
                                                     ) : null}
                                                 </td>
-                                                <td className="px-3 py-3.5 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
-                                                <td className="px-3 py-3.5">
+                                                <td className="hidden sm:table-cell px-3 py-3.5 text-[#2C201B]/78">{item.categoria?.nome ?? "Sem categoria"}</td>
+                                                <td className="hidden sm:table-cell px-3 py-3.5">
                                                     {item.centro_custo ? (
                                                         <span className="inline-flex items-center rounded-md bg-[#f0ece4] px-2 py-0.5 text-[11px] font-medium text-[#6e6050]">
                                                             {item.centro_custo.nome}

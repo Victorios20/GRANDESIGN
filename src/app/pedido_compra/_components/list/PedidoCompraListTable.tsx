@@ -73,7 +73,7 @@ export function PedidoCompraListTable({
             <SortableHeader column="description" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
               Descrição
             </SortableHeader>
-            <SortableHeader column="category" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+            <SortableHeader column="category" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="hidden sm:table-cell px-3 py-3">
               Categoria
             </SortableHeader>
             <SortableHeader column="status" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
@@ -82,13 +82,13 @@ export function PedidoCompraListTable({
             <SortableHeader column="value" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
               Valor do pedido
             </SortableHeader>
-            <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
+            <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="hidden sm:table-cell px-3 py-3">
               Valor realizado
             </SortableHeader>
-            <SortableHeader column="delivery" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+            <SortableHeader column="delivery" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="hidden sm:table-cell px-3 py-3">
               Entrega
             </SortableHeader>
-            <SortableHeader column="integration" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="px-3 py-3">
+            <SortableHeader column="integration" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="hidden sm:table-cell px-3 py-3">
               Integração
             </SortableHeader>
             <TableHead className="w-14 px-3 py-3" />
@@ -133,7 +133,7 @@ export function PedidoCompraListTable({
                   </div>
                 </TableCell>
 
-                <TableCell className="px-3 py-3.5 align-top">
+                <TableCell className="hidden sm:table-cell px-3 py-3.5 align-top">
                   <Badge variant="outline" className={listCategoryBadgeClass}>
                     {order.category}
                   </Badge>
@@ -147,7 +147,7 @@ export function PedidoCompraListTable({
                   <div className="text-sm font-semibold text-[#2c201b]">{formatMoney(order.expectedValue)}</div>
                 </TableCell>
 
-                <TableCell className="px-3 py-3.5 text-right align-top">
+                <TableCell className="hidden sm:table-cell px-3 py-3.5 text-right align-top">
                   {order.actualValue != null ? (
                     <div className="space-y-1">
                       <div className="text-sm font-semibold text-[#2c201b]">{formatMoney(order.actualValue)}</div>
@@ -168,7 +168,7 @@ export function PedidoCompraListTable({
                   )}
                 </TableCell>
 
-                <TableCell className="px-3 py-3.5 align-top">
+                <TableCell className="hidden sm:table-cell px-3 py-3.5 align-top">
                   {order.deliveryDate ? (
                     <div className="inline-flex items-center gap-2 text-sm text-[#5b5347]">
                       <Calendar className="h-4 w-4 text-[#9a8f7c]" />
@@ -179,7 +179,7 @@ export function PedidoCompraListTable({
                   )}
                 </TableCell>
 
-                <TableCell className="px-3 py-3.5 align-top">
+                <TableCell className="hidden sm:table-cell px-3 py-3.5 align-top">
                   <span
                     className={cn(
                       listIntegrationBadgeClass,

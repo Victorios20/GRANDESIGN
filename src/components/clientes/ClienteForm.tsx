@@ -268,13 +268,13 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
                                 {obras.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">Este cliente ainda não tem obras.</div>
                                 ) : (
-                                    <div className="border rounded-md overflow-hidden">
+                                    <div className="border rounded-md overflow-x-auto">
                                         <table className="w-full text-sm text-left">
                                             <thead className="bg-muted text-muted-foreground font-medium">
                                                 <tr>
-                                                    <th className="p-3">ID</th>
+                                                    <th className="p-3 hidden sm:table-cell">ID</th>
                                                     <th className="p-3">Título</th>
-                                                    <th className="p-3">Status</th>
+                                                    <th className="p-3 hidden sm:table-cell">Status</th>
                                                     <th className="p-3">Valor</th>
                                                     <th className="p-3 text-right">Ação</th>
                                                 </tr>
@@ -282,9 +282,9 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
                                             <tbody>
                                                 {obras.map(obra => (
                                                     <tr key={obra.id} className="border-t hover:bg-muted/50">
-                                                        <td className="p-3">{obra.id}</td>
+                                                        <td className="p-3 hidden sm:table-cell">{obra.id}</td>
                                                         <td className="p-3 font-medium">{obra.titulo || "Sem título"}</td>
-                                                        <td className="p-3">
+                                                        <td className="p-3 hidden sm:table-cell">
                                                             <span className="px-2 py-1 rounded bg-secondary text-[11px] font-semibold">
                                                                 {obra.status}
                                                             </span>
@@ -319,13 +319,13 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
                                 {orcamentos.length === 0 ? (
                                     <div className="text-center py-8 text-muted-foreground">Nenhum orçamento encontrado.</div>
                                 ) : (
-                                    <div className="border rounded-md overflow-hidden">
+                                    <div className="border rounded-md overflow-x-auto">
                                         <table className="w-full text-sm text-left">
                                             <thead className="bg-muted text-muted-foreground font-medium">
                                                 <tr>
-                                                    <th className="p-3">ID</th>
+                                                    <th className="p-3 hidden sm:table-cell">ID</th>
                                                     <th className="p-3">Título</th>
-                                                    <th className="p-3">Data</th>
+                                                    <th className="p-3 hidden sm:table-cell">Data</th>
                                                     <th className="p-3">Valor Total</th>
                                                     <th className="p-3 text-right">Ação</th>
                                                 </tr>
@@ -333,9 +333,9 @@ export default function ClienteForm({ initialData, listaCidades }: ClienteFormPr
                                             <tbody>
                                                 {orcamentos.map(orc => (
                                                     <tr key={orc.id} className="border-t hover:bg-muted/50">
-                                                        <td className="p-3">{orc.id}</td>
+                                                        <td className="p-3 hidden sm:table-cell">{orc.id}</td>
                                                         <td className="p-3 font-medium">{orc.titulo || "-"}</td>
-                                                        <td className="p-3">
+                                                        <td className="p-3 hidden sm:table-cell">
                                                             {orc.data_criacao ? new Date(orc.data_criacao).toLocaleDateString('pt-BR') : "-"}
                                                         </td>
                                                         <td className="p-3">

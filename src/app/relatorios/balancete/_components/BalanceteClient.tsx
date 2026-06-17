@@ -194,8 +194,8 @@ export default function BalanceteClient({ initialData, costCenters }: Props) {
                             </div>
                         </div>
                     </CardHeader>
-                    <div className="rounded-none border-0">
-                        <Table>
+                    <div className="overflow-x-auto rounded-none border-0">
+                        <Table className="min-w-[640px]">
                             <TableHeader>
                                 <TableRow className="bg-marromClaro/10 hover:bg-marromClaro/20 border-b-marromClaro/20">
                                     <TableHead className="w-[40%] text-marromEscuro font-semibold text-xs uppercase tracking-wide">Categoria</TableHead>
