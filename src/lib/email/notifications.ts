@@ -73,9 +73,9 @@ export async function notifyContaCriada(input: NotifyContaInput): Promise<void> 
         const link = buildContaLink(input.tipo, input.id)
 
         await resend.emails.send({
-            from: "Suporte <suporte@grandesignce.com.br>",
+            from: "GD <suporte@grandesignce.com.br>",
             to: recipients,
-            subject: `Nova ${tipoLabel.toLowerCase()} criada - Grandesign`,
+            subject: `[GD] Nova ${tipoLabel.toLowerCase()} criada`,
             html: `
                 <div style="font-family: Arial, sans-serif; padding: 20px; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.5;">
                     <h2 style="color: #8B5E3C; margin-bottom: 16px;">${tipoLabel} criada</h2>
