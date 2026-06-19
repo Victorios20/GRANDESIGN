@@ -95,7 +95,7 @@ function formatDecimal(value: Prisma.Decimal | number | string | null | undefine
   return asDecimal(value).toFixed(2)
 }
 
-function calculatePedidoAmount(pedido: {
+export function calculatePedidoAmount(pedido: {
   frete?: Prisma.Decimal | number | string | null
   itens?: Array<{ total: Prisma.Decimal | number | string | null }>
 }) {
@@ -346,6 +346,113 @@ async function auditPedidoFinanceiro(
   })
 }
 
+/**
+ * Núcleo da integração financeira que roda DENTRO de uma transação já aberta.
+ * Reutilizado tanto pela integração manual (`integrarPedidoCompraAoFinanceiro`)
+ * quanto pela integração automática disparada por mudança de status do pedido.
+ *
+ * Pré-requisito: `syncFixedFinancialCategoryTaxonomy()` deve ter sido chamado
+ * antes de abrir a transação (ele faz writes próprios e não recebe `tx`).
+ *
+ * Quando `origem === "AUTOMATICA"`, a observação da conta reflete a origem.
+ */
+export async function integrarPedidoCompraAoFinanceiroInTransaction(
+  tx: Tx,
+  pedidoId: number,
+  userId?: number,
+  origem: "MANUAL" | "AUTOMATICA" = "MANUAL"
+): Promise<PedidoCompraFinanceiroResult> {
+  const pedido = await buildPedidoIntegrationSnapshot(tx, pedidoId)
+  if (!pedido) {
+    throw new PedidoCompraFinanceiroError("PEDIDO_NAO_ENCONTRADO", "Pedido de compra não encontrado.", "load-pedido", {
+      pedidoId,
+    })
+  }
+
+  const valorPedido = calculatePedidoAmount(pedido)
+
+  assertPedidoCanIntegrate(pedido, valorPedido)
+
+  try {
+    const categoriaId = await resolveExpenseCategoryId(tx, pedido.categoria)
+    const centroCusto = await getOrCreateActiveCostCenterForWork(tx, pedido.obra_id)
+
+    const now = new Date()
+    const descricao = truncate(
+      pedido.descricao?.trim() || `Pedido de compra #${pedido.id}`,
+      200
+    )
+
+    const observacoes =
+      origem === "AUTOMATICA"
+        ? `Integração financeira automática do pedido de compra #${pedido.id} (status: ${pedido.status}).`
+        : `Integração financeira explícita do pedido de compra #${pedido.id}.`
+
+    const contaPagar = await tx.contaPagar.create({
+      data: {
+        descricao,
+        valor_total: valorPedido,
+        valor_pago: new Prisma.Decimal(0),
+        data_emissao: now,
+        data_vencimento: pedido.data_entrega ?? now,
+        status: StatusFinanceiro.PENDENTE,
+        fornecedor_id: pedido.fornecedor_id,
+        categoria_id: categoriaId,
+        centro_custo_id: centroCusto?.id ?? null,
+        pedido_compra_id: pedido.id,
+        observacoes,
+        created_by: userId,
+        updated_by: userId,
+      },
+      select: {
+        id: true,
+        status: true,
+        valor_total: true,
+      },
+    })
+
+    await tx.pedido_compra.update({
+      where: { id: pedido.id },
+      data: {
+        financeiro_integracao_status: IntegracaoFinanceiraStatus.INTEGRADO,
+        financeiro_integrado_em: now,
+        financeiro_integrado_por: userId ?? null,
+        financeiro_estornado_em: null,
+        financeiro_estornado_por: null,
+        valor_realizado: contaPagar.valor_total,
+      },
+    })
+
+    await auditPedidoFinanceiro(tx, userId, pedido.id, "PEDIDO_COMPRA_FINANCEIRO_INTEGRADO", {
+      conta_pagar_id: contaPagar.id,
+      conta_pagar_status: contaPagar.status,
+      valor_pedido: formatDecimal(valorPedido),
+      categoria_id: categoriaId,
+      centro_custo_id: centroCusto?.id ?? null,
+      origem,
+    })
+
+    return {
+      pedidoId: pedido.id,
+      integracaoStatus: IntegracaoFinanceiraStatus.INTEGRADO,
+      contaPagarId: contaPagar.id,
+      contaPagarStatus: contaPagar.status,
+      valorRealizado: formatDecimal(contaPagar.valor_total),
+      flow: "INTEGRACAO" as const,
+      message: "Pedido integrado ao financeiro com sucesso.",
+    }
+  } catch (error) {
+    if (error instanceof PedidoCompraFinanceiroError) throw error
+
+    throw new PedidoCompraFinanceiroError(
+      "INTEGRACAO_FINANCEIRA_FALHOU",
+      "Falha ao integrar pedido ao financeiro.",
+      "integrate",
+      { pedidoId, error: error instanceof Error ? error.message : String(error) }
+    )
+  }
+}
+
 export async function integrarPedidoCompraAoFinanceiro(
   pedidoId: number,
   userId?: number
@@ -358,91 +465,7 @@ export async function integrarPedidoCompraAoFinanceiro(
   await syncFixedFinancialCategoryTaxonomy()
 
   return prisma.$transaction(
-    async (tx) => {
-      const pedido = await buildPedidoIntegrationSnapshot(tx, id)
-      if (!pedido) {
-        throw new PedidoCompraFinanceiroError("PEDIDO_NAO_ENCONTRADO", "Pedido de compra não encontrado.", "load-pedido", {
-          pedidoId: id,
-        })
-      }
-
-      const valorPedido = calculatePedidoAmount(pedido)
-
-      assertPedidoCanIntegrate(pedido, valorPedido)
-
-      try {
-        const categoriaId = await resolveExpenseCategoryId(tx, pedido.categoria)
-        const centroCusto = await getOrCreateActiveCostCenterForWork(tx, pedido.obra_id)
-
-        const now = new Date()
-        const descricao = truncate(
-          pedido.descricao?.trim() || `Pedido de compra #${pedido.id}`,
-          200
-        )
-
-        const contaPagar = await tx.contaPagar.create({
-          data: {
-            descricao,
-            valor_total: valorPedido,
-            valor_pago: new Prisma.Decimal(0),
-            data_emissao: now,
-            data_vencimento: pedido.data_entrega ?? now,
-            status: StatusFinanceiro.PENDENTE,
-            fornecedor_id: pedido.fornecedor_id,
-            categoria_id: categoriaId,
-            centro_custo_id: centroCusto?.id ?? null,
-            pedido_compra_id: pedido.id,
-            observacoes: `Integração financeira explícita do pedido de compra #${pedido.id}.`,
-            created_by: userId,
-            updated_by: userId,
-          },
-          select: {
-            id: true,
-            status: true,
-            valor_total: true,
-          },
-        })
-
-        await tx.pedido_compra.update({
-          where: { id: pedido.id },
-          data: {
-            financeiro_integracao_status: IntegracaoFinanceiraStatus.INTEGRADO,
-            financeiro_integrado_em: now,
-            financeiro_integrado_por: userId ?? null,
-            financeiro_estornado_em: null,
-            financeiro_estornado_por: null,
-            valor_realizado: contaPagar.valor_total,
-          },
-        })
-
-        await auditPedidoFinanceiro(tx, userId, pedido.id, "PEDIDO_COMPRA_FINANCEIRO_INTEGRADO", {
-          conta_pagar_id: contaPagar.id,
-          conta_pagar_status: contaPagar.status,
-          valor_pedido: formatDecimal(valorPedido),
-          categoria_id: categoriaId,
-          centro_custo_id: centroCusto?.id ?? null,
-        })
-
-        return {
-          pedidoId: pedido.id,
-          integracaoStatus: IntegracaoFinanceiraStatus.INTEGRADO,
-          contaPagarId: contaPagar.id,
-          contaPagarStatus: contaPagar.status,
-          valorRealizado: formatDecimal(contaPagar.valor_total),
-          flow: "INTEGRACAO" as const,
-          message: "Pedido integrado ao financeiro com sucesso.",
-        }
-      } catch (error) {
-        if (error instanceof PedidoCompraFinanceiroError) throw error
-
-        throw new PedidoCompraFinanceiroError(
-          "INTEGRACAO_FINANCEIRA_FALHOU",
-          "Falha ao integrar pedido ao financeiro.",
-          "integrate",
-          { pedidoId: id, error: error instanceof Error ? error.message : String(error) }
-        )
-      }
-    },
+    async (tx) => integrarPedidoCompraAoFinanceiroInTransaction(tx, id, userId, "MANUAL"),
     { timeout: 120_000, maxWait: 20_000 }
   )
 }

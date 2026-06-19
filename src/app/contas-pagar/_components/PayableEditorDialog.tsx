@@ -79,8 +79,14 @@ export default function PayableEditorDialog({
     onSuccess,
     onRequestPay,
 }: Props) {
+    const { data: session } = useSession()
+    const roles = ((session?.user as { roles?: unknown[] } | undefined)?.roles ?? []).map((r) => String(r).toUpperCase())
+    const isAdminOrDev = roles.includes("ADMIN") || roles.includes("DEV")
+
     const isEdit = Boolean(item)
-    const isEditable = !item || canEdit(item.status)
+    const isLockedStatus = Boolean(item) && !canEdit(item!.status)
+    const [adminEditUnlocked, setAdminEditUnlocked] = useState(false)
+    const isEditable = (!item || canEdit(item.status)) || (isAdminOrDev && adminEditUnlocked)
     const [descricao, setDescricao] = useState("")
     const [valor, setValor] = useState<number | null>(null)
     const [dataEmissao, setDataEmissao] = useState("")
@@ -132,6 +138,7 @@ export default function PayableEditorDialog({
         setHistoryOpen(false)
         setConfirmRevertId(null)
         setConfirmDelete(false)
+        setAdminEditUnlocked(false)
         if (!canEdit(item.status)) {
             fetch(`/api/financeiro/payables/${item.id}`)
                 .then((r) => r.json())
@@ -164,10 +171,6 @@ export default function PayableEditorDialog({
     }, [categoriaId, dataEmissao, dataVencimento, descricao, isEdit, isEditable, isInstallmentMode, primeiroVencimento, totalParcelas, valor])
 
     const statusColor = item ? statusDotClassName[getStatusColor(item.status)] : statusDotClassName.amber
-
-    const { data: session } = useSession()
-    const roles = ((session?.user as { roles?: unknown[] } | undefined)?.roles ?? []).map((r) => String(r).toUpperCase())
-    const isAdminOrDev = roles.includes("ADMIN") || roles.includes("DEV")
 
     const isPurchaseOrderPayable = Boolean(item?.pedido_compra_id || item?.pedido_compra)
     const canDelete = Boolean(
@@ -337,8 +340,25 @@ export default function PayableEditorDialog({
                         ) : null}
 
                         {item && !isEditable ? (
-                            <div className="rounded-lg border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-sm text-[#6f6556]">
-                                Conta encerrada em modo leitura. Para alterar, ajuste o status no fluxo apropriado.
+                            <div className="flex flex-col gap-2 rounded-lg border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-sm text-[#6f6556] sm:flex-row sm:items-center sm:justify-between">
+                                <span>Conta encerrada em modo leitura. Para alterar, ajuste o status no fluxo apropriado.</span>
+                                {isAdminOrDev ? (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setAdminEditUnlocked(true)}
+                                        className="h-8 shrink-0 rounded-md border-[#ddd7cc] bg-white px-3 text-xs text-[#8F3F37] hover:bg-[#fef2f2]"
+                                    >
+                                        Editar mesmo assim (admin)
+                                    </Button>
+                                ) : null}
+                            </div>
+                        ) : null}
+
+                        {item && isLockedStatus && adminEditUnlocked ? (
+                            <div className="rounded-lg border border-[#e7c9a3] bg-[#fdf4e7] px-3 py-2 text-sm text-[#8a5b12]">
+                                Edição administrativa desbloqueada para uma conta {getStatusLabel(item.status).toLowerCase()}. As alterações são registradas em auditoria.
                             </div>
                         ) : null}
 

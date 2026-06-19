@@ -88,6 +88,7 @@ export default async function ContasReceberPage({ searchParams }: PageProps) {
                 centroCustoId: getParam(resolvedSearchParams, "centro_custo_id") ?? "all",
                 scope: getParam(resolvedSearchParams, "scope") ?? "",
                 compose: getParam(resolvedSearchParams, "compose") === "1",
+                highlight: getParam(resolvedSearchParams, "highlight") ?? null,
             }}
         />
     )

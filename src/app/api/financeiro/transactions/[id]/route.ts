@@ -13,7 +13,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         const { id } = await params
         const body = await req.json()
         const input = updateManualTransactionSchema.parse(body)
-        const result = await updateManualTransaction(Number(id), input, Number(session.user.id))
+        const force = new URL(req.url).searchParams.get("force") === "1"
+        // Edição forçada (ignora travas) só para ADMIN/DEV
+        const allowForce = force && (await isAdminOrDev())
+        const result = await updateManualTransaction(Number(id), input, Number(session.user.id), allowForce)
         return NextResponse.json(result)
     } catch (error) {
         if (error instanceof ZodError) {

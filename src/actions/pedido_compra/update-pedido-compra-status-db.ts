@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma"
-import { IntegracaoFinanceiraStatus, PedidoCompraStatus, Prisma } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, PedidoCompraStatus, Prisma, StatusFinanceiro } from "@prisma/client"
+import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
+import {
+  calculatePedidoAmount,
+  integrarPedidoCompraAoFinanceiroInTransaction,
+  PedidoCompraFinanceiroError,
+} from "@/actions/pedido_compra/manage-finance-integration"
 
 export type PedidoCompraStatusErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -7,7 +13,42 @@ export type PedidoCompraStatusErrorCode =
   | "PEDIDO_NAO_ENCONTRADO"
   | "PEDIDOS_NAO_ENCONTRADOS"
   | "PEDIDO_INTEGRADO_FINANCEIRO"
+  | "PEDIDO_SEM_FORNECEDOR"
+  | "PEDIDO_SEM_VALOR"
+  | "INTEGRACAO_AUTOMATICA_FALHOU"
   | "STATUS_UPDATE_FAILED"
+
+/**
+ * Ordem do fluxo de status (CANCELADO é tratado à parte, fora da ordem).
+ * Usada para validar "APROVADO ou além" e disparar a integração automática
+ * a partir de AGUARDANDO_PAGAMENTO.
+ */
+const STATUS_FLOW_ORDER: PedidoCompraStatus[] = [
+  PedidoCompraStatus.RASCUNHO,
+  PedidoCompraStatus.PENDENTE,
+  PedidoCompraStatus.APROVADO,
+  PedidoCompraStatus.EM_COMPRA,
+  PedidoCompraStatus.AGUARDANDO_PAGAMENTO,
+  PedidoCompraStatus.AGUARDANDO_ENTREGA,
+  PedidoCompraStatus.ENTREGUE,
+]
+
+function isStatusAtLeast(status: PedidoCompraStatus, threshold: PedidoCompraStatus) {
+  const statusIndex = STATUS_FLOW_ORDER.indexOf(status)
+  const thresholdIndex = STATUS_FLOW_ORDER.indexOf(threshold)
+  if (statusIndex < 0 || thresholdIndex < 0) return false
+  return statusIndex >= thresholdIndex
+}
+
+/** A partir deste status a conta a pagar é lançada automaticamente. */
+function isAutoIntegrationStatus(status: PedidoCompraStatus) {
+  return isStatusAtLeast(status, PedidoCompraStatus.AGUARDANDO_PAGAMENTO)
+}
+
+/** A partir deste status fornecedor + valor passam a ser obrigatórios. */
+function requiresApprovalData(status: PedidoCompraStatus) {
+  return isStatusAtLeast(status, PedidoCompraStatus.APROVADO)
+}
 
 export class PedidoCompraStatusError extends Error {
   code: PedidoCompraStatusErrorCode
@@ -95,10 +136,95 @@ async function ensurePedidosExist(
   }
 }
 
+/**
+ * Valida que o pedido tem fornecedor e valor > 0 antes de avançar para
+ * APROVADO ou status posterior. Reaproveita `calculatePedidoAmount`.
+ */
+async function assertPedidoPodeSerAprovado(tx: Prisma.TransactionClient, pedidoCompraId: number) {
+  const pedido = await tx.pedido_compra.findUnique({
+    where: { id: pedidoCompraId },
+    select: {
+      fornecedor_id: true,
+      frete: true,
+      itens: { select: { total: true } },
+    },
+  })
+
+  if (!pedido) {
+    throw new PedidoCompraStatusError("PEDIDO_NAO_ENCONTRADO", "Pedido de compra não encontrado.", "validate-approval", {
+      pedidoCompraId,
+    })
+  }
+
+  if (!pedido.fornecedor_id) {
+    throw new PedidoCompraStatusError(
+      "PEDIDO_SEM_FORNECEDOR",
+      "Selecione um fornecedor antes de aprovar o pedido.",
+      "validate-approval",
+      { pedidoCompraId }
+    )
+  }
+
+  if (calculatePedidoAmount(pedido).lte(0)) {
+    throw new PedidoCompraStatusError(
+      "PEDIDO_SEM_VALOR",
+      "Informe itens ou frete com valor maior que zero antes de aprovar o pedido.",
+      "validate-approval",
+      { pedidoCompraId }
+    )
+  }
+}
+
+/**
+ * Integra o pedido ao financeiro automaticamente quando ainda não há
+ * integração ativa. Idempotente: se já estiver integrado ou já houver conta a
+ * pagar ativa vinculada, não faz nada.
+ */
+async function maybeAutoIntegrarPedido(
+  tx: Prisma.TransactionClient,
+  pedidoCompraId: number,
+  userId?: number
+) {
+  const pedido = await tx.pedido_compra.findUnique({
+    where: { id: pedidoCompraId },
+    select: {
+      financeiro_integracao_status: true,
+      contas_pagar: {
+        where: { status: { not: StatusFinanceiro.CANCELADO } },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  })
+
+  if (!pedido) return
+  if (pedido.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) return
+  if (pedido.contas_pagar.length > 0) return
+
+  try {
+    await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedidoCompraId, userId, "AUTOMATICA")
+  } catch (error) {
+    if (error instanceof PedidoCompraFinanceiroError) {
+      throw new PedidoCompraStatusError(
+        error.code === "PEDIDO_SEM_FORNECEDOR"
+          ? "PEDIDO_SEM_FORNECEDOR"
+          : error.code === "PEDIDO_SEM_VALOR"
+            ? "PEDIDO_SEM_VALOR"
+            : "INTEGRACAO_AUTOMATICA_FALHOU",
+        error.message,
+        "auto-integrate",
+        { pedidoCompraId, integrationCode: error.code }
+      )
+    }
+    throw error
+  }
+}
+
 async function updatePedidoCompraStatusInTx(
   tx: Prisma.TransactionClient,
   pedidoCompraId: number,
-  nextStatus: PedidoCompraStatus
+  nextStatus: PedidoCompraStatus,
+  userId?: number
 ) {
   if (nextStatus === PedidoCompraStatus.CANCELADO) {
     const pedido = await tx.pedido_compra.findUnique({
@@ -116,8 +242,13 @@ async function updatePedidoCompraStatusInTx(
     }
   }
 
+  if (requiresApprovalData(nextStatus)) {
+    await assertPedidoPodeSerAprovado(tx, pedidoCompraId)
+  }
+
+  let updated
   try {
-    return await tx.pedido_compra.update({
+    updated = await tx.pedido_compra.update({
       where: { id: pedidoCompraId },
       data: { status: nextStatus },
       select: { id: true, status: true, updated_at: true },
@@ -130,11 +261,18 @@ async function updatePedidoCompraStatusInTx(
       { pedidoCompraId, error: error instanceof Error ? error.message : String(error) }
     )
   }
+
+  if (isAutoIntegrationStatus(nextStatus)) {
+    await maybeAutoIntegrarPedido(tx, pedidoCompraId, userId)
+  }
+
+  return updated
 }
 
 export async function atualizarStatusPedidoCompra(
   pedidoCompraId: number,
-  rawStatus: unknown
+  rawStatus: unknown,
+  userId?: number
 ): Promise<AtualizarStatusPedidoCompraResult> {
   const id = Number(pedidoCompraId)
   if (!Number.isFinite(id) || id <= 0) {
@@ -146,10 +284,16 @@ export async function atualizarStatusPedidoCompra(
     throw new PedidoCompraStatusError("STATUS_INVALIDO", "Status inválido.", "validate", { rawStatus })
   }
 
+  // A integração automática cria contas a pagar usando a taxonomia fixa de
+  // categorias; ela faz writes próprios e precisa rodar antes da transação.
+  if (isAutoIntegrationStatus(nextStatus)) {
+    await syncFixedFinancialCategoryTaxonomy()
+  }
+
   return prisma.$transaction(
     async (tx) => {
       await ensurePedidosExist(tx, [id])
-      return updatePedidoCompraStatusInTx(tx, id, nextStatus)
+      return updatePedidoCompraStatusInTx(tx, id, nextStatus, userId)
     },
     { timeout: 120_000, maxWait: 20_000 }
   )
@@ -157,7 +301,8 @@ export async function atualizarStatusPedidoCompra(
 
 export async function atualizarStatusPedidosCompra(
   pedidoCompraIds: number[],
-  rawStatus: unknown
+  rawStatus: unknown,
+  userId?: number
 ): Promise<AtualizarStatusPedidosCompraResult> {
   const ids = normalizeIds(pedidoCompraIds)
   const nextStatus = parsePedidoCompraStatus(rawStatus)
@@ -166,13 +311,17 @@ export async function atualizarStatusPedidosCompra(
     throw new PedidoCompraStatusError("STATUS_INVALIDO", "Status inválido.", "validate", { rawStatus })
   }
 
+  if (isAutoIntegrationStatus(nextStatus)) {
+    await syncFixedFinancialCategoryTaxonomy()
+  }
+
   return prisma.$transaction(
     async (tx) => {
       await ensurePedidosExist(tx, ids)
 
       const updated: AtualizarStatusPedidoCompraResult[] = []
       for (const id of ids) {
-        updated.push(await updatePedidoCompraStatusInTx(tx, id, nextStatus))
+        updated.push(await updatePedidoCompraStatusInTx(tx, id, nextStatus, userId))
       }
 
       return { ids, updated }

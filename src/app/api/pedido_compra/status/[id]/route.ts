@@ -46,7 +46,7 @@ export async function PATCH(
     const body = await req.json().catch(() => null)
     if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
 
-    const updated = await atualizarStatusPedidoCompra(id, body?.status)
+    const updated = await atualizarStatusPedidoCompra(id, body?.status, actorId)
 
     return json({ data: updated, requestId }, 200, requestId)
   } catch (error: any) {
@@ -57,6 +57,9 @@ export async function PATCH(
         PEDIDO_NAO_ENCONTRADO: 404,
         PEDIDOS_NAO_ENCONTRADOS: 404,
         PEDIDO_INTEGRADO_FINANCEIRO: 409,
+        PEDIDO_SEM_FORNECEDOR: 422,
+        PEDIDO_SEM_VALOR: 422,
+        INTEGRACAO_AUTOMATICA_FALHOU: 500,
         STATUS_UPDATE_FAILED: 500,
       }
 

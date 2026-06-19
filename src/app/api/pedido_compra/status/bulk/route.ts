@@ -40,7 +40,7 @@ export async function PATCH(req: NextRequest) {
     if (!body) return json({ error: "BODY_REQUIRED", requestId }, 400, requestId)
 
     const ids = Array.isArray(body?.ids) ? body.ids.map((id: unknown) => Number(id)) : []
-    const result = await atualizarStatusPedidosCompra(ids, body?.status)
+    const result = await atualizarStatusPedidosCompra(ids, body?.status, actorId)
 
     return json({ data: result, requestId }, 200, requestId)
   } catch (error: unknown) {
@@ -51,6 +51,9 @@ export async function PATCH(req: NextRequest) {
         PEDIDO_NAO_ENCONTRADO: 404,
         PEDIDOS_NAO_ENCONTRADOS: 404,
         PEDIDO_INTEGRADO_FINANCEIRO: 409,
+        PEDIDO_SEM_FORNECEDOR: 422,
+        PEDIDO_SEM_VALOR: 422,
+        INTEGRACAO_AUTOMATICA_FALHOU: 500,
         STATUS_UPDATE_FAILED: 500,
       }
 

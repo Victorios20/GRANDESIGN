@@ -39,7 +39,11 @@ async function validateExpenseCategory(categoryId: number) {
     }
 }
 
-export async function updatePayable(id: number, input: UpdatePayableInput) {
+export async function updatePayable(
+    id: number,
+    input: UpdatePayableInput,
+    options?: { allowLocked?: boolean }
+) {
     const payable = await prisma.contaPagar.findUnique({
         where: { id },
         select: {
@@ -50,7 +54,8 @@ export async function updatePayable(id: number, input: UpdatePayableInput) {
     })
 
     if (!payable) throw new Error("Conta a pagar nao encontrada")
-    if (payable.status === StatusFinanceiro.PAGO || payable.status === StatusFinanceiro.CANCELADO) {
+    const isLocked = payable.status === StatusFinanceiro.PAGO || payable.status === StatusFinanceiro.CANCELADO
+    if (isLocked && !options?.allowLocked) {
         throw new Error("Essa conta nao pode mais ser editada")
     }
 
@@ -68,7 +73,9 @@ export async function updatePayable(id: number, input: UpdatePayableInput) {
                 categoria_id: input.categoria_id,
                 centro_custo_id: input.centro_custo_id ?? null,
                 observacoes: input.observacoes ?? null,
-                status: resolveOpenFinancialStatus(payable.status, input.data_vencimento),
+                // Conta travada editada por ADMIN preserva o status atual (PAGO/CANCELADO);
+                // contas em aberto recalculam PENDENTE/ATRASADO/PARCIAL pela data.
+                status: isLocked ? payable.status : resolveOpenFinancialStatus(payable.status, input.data_vencimento),
             },
             include: {
                 fornecedor: { select: { id: true, nome: true } },

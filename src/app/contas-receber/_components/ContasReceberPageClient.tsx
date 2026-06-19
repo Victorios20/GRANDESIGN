@@ -88,6 +88,7 @@ interface InitialFilters {
     centroCustoId: string
     scope: string
     compose: boolean
+    highlight: string | null
 }
 
 interface Props {
@@ -145,6 +146,7 @@ export default function ContasReceberPageClient({
     const [selectedItem, setSelectedItem] = useState<ReceivableListItem | null>(null)
     const [highlightedId, setHighlightedId] = useState<number | null>(null)
     const composeHandled = useRef(false)
+    const highlightHandled = useRef(false)
     const filtersInitialized = useRef(false)
     const searchTimeout = useRef<NodeJS.Timeout | null>(null)
 
@@ -223,6 +225,30 @@ export default function ContasReceberPageClient({
         setSelectedItem(null)
         setEditorOpen(true)
     }, [initialFilters.compose])
+
+    useEffect(() => {
+        if (!initialFilters.highlight || highlightHandled.current) return
+        highlightHandled.current = true
+        const itemId = Number(initialFilters.highlight)
+        if (Number.isNaN(itemId)) return
+
+        const existing = data.find((row) => row.id === itemId)
+        if (existing) {
+            setSelectedItem(existing)
+            setEditorOpen(true)
+            return
+        }
+
+        fetch(`/api/financeiro/receivables/${itemId}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((item) => {
+                if (item) {
+                    setSelectedItem(item)
+                    setEditorOpen(true)
+                }
+            })
+            .catch(console.error)
+    }, [data, initialFilters.highlight])
 
     function openCreateDialog() {
         setSelectedItem(null)

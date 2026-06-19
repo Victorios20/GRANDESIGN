@@ -1,5 +1,21 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Bancos de dados
+
+O acesso ao Postgres é feito por um **túnel SSH em `localhost:15432`**. Existem dois bancos:
+
+| Banco | O que é | Uso |
+|---|---|---|
+| `gdprod_clone` | **Clone dos dados de PRODUÇÃO** | ⚠️ **Não** use para testar nem alterar dados |
+| `gdprod` | Versão **antiga** | ✅ Seguro para testes locais |
+
+Para testar localmente sem tocar em produção, aponte a `DATABASE_URL` no `.env` para
+`gdprod` (em vez de `gdprod_clone`):
+
+```env
+DATABASE_URL="postgres://postgres:postgres1@localhost:15432/gdprod?sslmode=disable"
+```
+
 ## Getting Started
 
 First, run the development server:

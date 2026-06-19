@@ -86,14 +86,14 @@ function getOriginMeta(item: TransactionListItem) {
     if (item.conta_pagar) {
         return {
             label: "Conta a Pagar",
-            href: `/contas-pagar?search=${encodeURIComponent(item.conta_pagar.descricao)}`,
+            href: `/contas-pagar?highlight=${item.conta_pagar.id}`,
         }
     }
 
     if (item.conta_receber) {
         return {
             label: "Conta a Receber",
-            href: `/contas-receber?search=${encodeURIComponent(item.conta_receber.descricao)}`,
+            href: `/contas-receber?highlight=${item.conta_receber.id}`,
         }
     }
 
@@ -136,6 +136,7 @@ export default function TransactionEditorDialog({
     const [observacoes, setObservacoes] = useState("")
     const [justificativa, setJustificativa] = useState("")
     const [confirmLinkedDelete, setConfirmLinkedDelete] = useState(false)
+    const [adminForceEdit, setAdminForceEdit] = useState(false)
     const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
@@ -156,6 +157,7 @@ export default function TransactionEditorDialog({
             setCentroCustoId(item.centro_custo?.id ? String(item.centro_custo.id) : "none")
             setObservacoes(item.observacoes ?? "")
             setJustificativa("")
+            setAdminForceEdit(false)
             return
         }
 
@@ -188,6 +190,10 @@ export default function TransactionEditorDialog({
     const canEditDirectly = Boolean(item && !originMeta && item.status_conferencia !== "CONFERIDO" && !sessionLocked && !isClosedPeriod)
     const canAdjust = Boolean(item && !originMeta && item.status_conferencia === "CONFERIDO" && !sessionLocked && !isClosedPeriod)
     const canCreate = isCreateMode && !isClosedPeriod
+    // Transação manual bloqueada (conferida/sessão encerrada/período fechado) que o
+    // ADMIN optou por destravar. Vinculadas continuam editáveis só na origem.
+    const isManualLocked = Boolean(item && !originMeta && !canEditDirectly)
+    const adminForceEditable = Boolean(isManualLocked && isAdmin && adminForceEdit)
     const canConfigureCardFee = canCreate && tipo === "RECEITA"
     const parsedTaxaCartaoPercentual = parsePositiveDecimal(taxaCartaoPercentual)
     const taxaCartaoCalculada = recebimentoCartao
@@ -232,7 +238,7 @@ export default function TransactionEditorDialog({
     }, [isCreateMode])
 
     const canSubmit = Boolean(
-        (canCreate || canEditDirectly || canAdjust) &&
+        (canCreate || canEditDirectly || canAdjust || adminForceEditable) &&
             descricao.trim() &&
             valor != null &&
             valor > 0 &&
@@ -278,14 +284,17 @@ export default function TransactionEditorDialog({
                     : {}),
             }
 
+            // Edição forçada por ADMIN: PATCH direto com ?force=1, ignorando o fluxo de ajuste.
             const endpoint = isTransferMode
                 ? "/api/financeiro/transfers"
                 : isCreateMode
                 ? "/api/financeiro/transactions"
-                : canAdjust
-                    ? `/api/financeiro/transactions/${item!.id}/adjust`
-                    : `/api/financeiro/transactions/${item!.id}`
-            const method = isCreateMode ? "POST" : canAdjust ? "POST" : "PATCH"
+                : adminForceEditable
+                    ? `/api/financeiro/transactions/${item!.id}?force=1`
+                    : canAdjust
+                        ? `/api/financeiro/transactions/${item!.id}/adjust`
+                        : `/api/financeiro/transactions/${item!.id}`
+            const method = isCreateMode ? "POST" : canAdjust && !adminForceEditable ? "POST" : "PATCH"
 
             const response = await fetch(endpoint, {
                 method,
@@ -450,6 +459,27 @@ export default function TransactionEditorDialog({
                             </div>
                         ) : null}
 
+                        {isManualLocked && isAdmin && !adminForceEdit ? (
+                            <div className="flex flex-col gap-2 rounded-lg border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-sm text-[#6f6556] sm:flex-row sm:items-center sm:justify-between">
+                                <span>Lançamento bloqueado por conferência ou período. Edite via ajuste/estorno ou destrave como administrador.</span>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setAdminForceEdit(true)}
+                                    className="h-8 shrink-0 rounded-md border-[#ddd7cc] bg-white px-3 text-xs text-[#8F3F37] hover:bg-[#fef2f2]"
+                                >
+                                    Editar mesmo assim (admin)
+                                </Button>
+                            </div>
+                        ) : null}
+
+                        {adminForceEditable ? (
+                            <div className="rounded-lg border border-[#e7c9a3] bg-[#fdf4e7] px-3 py-2 text-sm text-[#8a5b12]">
+                                Edição administrativa desbloqueada: as travas de conferência e período fechado serão ignoradas e a alteração ficará registrada em auditoria.
+                            </div>
+                        ) : null}
+
                         {originMeta ? (
                             <div className="flex items-start gap-2 rounded-lg border border-[#ddd7cc] bg-[#faf8f4] px-3 py-2 text-sm text-[#6f6556]">
                                 <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[#7b705f]" />
@@ -461,7 +491,7 @@ export default function TransactionEditorDialog({
                                             onClick={() => onOpenChange(false)}
                                             className="inline-flex text-sm font-medium text-[#393316] underline-offset-2 hover:underline"
                                         >
-                                            Abrir origem
+                                            Abrir conta de origem
                                         </Link>
                                     ) : null}
                                     {conferenceMode ? (
@@ -493,7 +523,7 @@ export default function TransactionEditorDialog({
                                     value={descricao}
                                     onChange={(event) => setDescricao(event.target.value)}
                                     className={fieldClassName}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -519,7 +549,7 @@ export default function TransactionEditorDialog({
                                     placeholder="Selecionar tipo"
                                     searchPlaceholder="Buscar tipo"
                                     className={fieldClassName}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -529,7 +559,7 @@ export default function TransactionEditorDialog({
                                     value={valor}
                                     onValueChange={setValor}
                                     className={cn(fieldClassName, "tabular-nums")}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -542,7 +572,7 @@ export default function TransactionEditorDialog({
                                     placeholder={isTransferMode ? "Selecionar origem" : "Selecionar conta"}
                                     searchPlaceholder="Buscar conta"
                                     className={fieldClassName}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -572,7 +602,7 @@ export default function TransactionEditorDialog({
                                         placeholder="Selecionar categoria"
                                         searchPlaceholder="Buscar categoria"
                                         className={fieldClassName}
-                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                     />
                                 </div>
                             )}
@@ -587,7 +617,7 @@ export default function TransactionEditorDialog({
                                         if (isTransferMode) setDataCompetencia(event.target.value)
                                     }}
                                     className={cn(fieldClassName, "tabular-nums")}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -599,7 +629,7 @@ export default function TransactionEditorDialog({
                                         value={dataCompetencia}
                                         onChange={(event) => setDataCompetencia(event.target.value)}
                                         className={cn(fieldClassName, "tabular-nums")}
-                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                     />
                                 </div>
                             ) : null}
@@ -679,7 +709,7 @@ export default function TransactionEditorDialog({
                                         placeholder="Selecionar centro de custo"
                                         searchPlaceholder="Buscar centro de custo"
                                         className={fieldClassName}
-                                        disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                        disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                     />
                                 </div>
                             ) : null}
@@ -691,7 +721,7 @@ export default function TransactionEditorDialog({
                                     onChange={(event) => setObservacoes(event.target.value)}
                                     rows={3}
                                     className={cn("bg-white", fieldClassName, "h-auto")}
-                                    disabled={!(canCreate || canEditDirectly || canAdjust) || submitting}
+                                    disabled={!(canCreate || canEditDirectly || canAdjust || adminForceEditable) || submitting}
                                 />
                             </div>
 
@@ -770,7 +800,7 @@ export default function TransactionEditorDialog({
                             </Button>
                         ) : null}
 
-                        {(canCreate || canEditDirectly || canAdjust) ? (
+                        {(canCreate || canEditDirectly || canAdjust || adminForceEditable) ? (
                             <Button
                                 type="button"
                                 onClick={handleSave}

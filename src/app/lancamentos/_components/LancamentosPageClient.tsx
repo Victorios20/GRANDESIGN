@@ -131,7 +131,7 @@ function getOriginMeta(item: TransactionListItem) {
         return {
             kind: "linked" as const,
             label: "Conta a Pagar",
-            href: `/contas-pagar?search=${encodeURIComponent(item.conta_pagar.descricao)}`,
+            href: `/contas-pagar?highlight=${item.conta_pagar.id}`,
             helper: "Este lançamento deve ser editado na origem",
         }
     }
@@ -140,7 +140,7 @@ function getOriginMeta(item: TransactionListItem) {
         return {
             kind: "linked" as const,
             label: "Conta a Receber",
-            href: `/contas-receber?search=${encodeURIComponent(item.conta_receber.descricao)}`,
+            href: `/contas-receber?highlight=${item.conta_receber.id}`,
             helper: "Este lançamento deve ser editado na origem",
         }
     }
@@ -1176,7 +1176,7 @@ export default function LancamentosPageClient({
                                                                         <Link href={originMeta.href}>
                                                                             <span className="inline-flex items-center gap-2">
                                                                                 <ExternalLink className="size-4" />
-                                                                                Abrir origem
+                                                                                Abrir conta de origem
                                                                             </span>
                                                                         </Link>
                                                                     </DropdownMenuItem>

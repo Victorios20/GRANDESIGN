@@ -241,18 +241,28 @@ async function buildConferenceSessionSummary(db: DbClient, sessionId: number) {
     }
 }
 
-export async function updateManualTransaction(id: number, input: UpdateManualTransactionInput, userId?: number) {
+export async function updateManualTransaction(
+    id: number,
+    input: UpdateManualTransactionInput,
+    userId?: number,
+    force = false
+) {
     await validateTransaction(input)
 
     const lancamento = await getTransactionForMutation(id)
     const settings = await getCashFlowSettings()
+    // Transações vinculadas (conta a pagar/receber) sempre são editadas na origem,
+    // mesmo no modo força, para não dessincronizar valor_pago/valor_recebido.
     ensureManualTransaction(lancamento)
 
-    ensureSessionEditable(lancamento.conferencia_sessoes)
-    ensureFinancialPeriodEditable(lancamento.data_competencia, settings.closing_date)
+    // Modo força (ADMIN/DEV): ignora travas de sessão, período fechado e conciliação.
+    if (!force) {
+        ensureSessionEditable(lancamento.conferencia_sessoes)
+        ensureFinancialPeriodEditable(lancamento.data_competencia, settings.closing_date)
 
-    if (lancamento.status_conferencia === StatusConferencia.CONFERIDO) {
-        throw new Error("Lançamento conciliado. Faça ajuste ou estorno")
+        if (lancamento.status_conferencia === StatusConferencia.CONFERIDO) {
+            throw new Error("Lançamento conciliado. Faça ajuste ou estorno")
+        }
     }
 
     return prisma.$transaction(async (tx) => {
@@ -263,7 +273,9 @@ export async function updateManualTransaction(id: number, input: UpdateManualTra
         await applyAccountDelta(tx, input.conta_bancaria_id, newSignedAmount)
 
         const dataCompetencia = input.data_competencia || input.data_lancamento
-        ensureFinancialPeriodEditable(dataCompetencia, settings.closing_date)
+        if (!force) {
+            ensureFinancialPeriodEditable(dataCompetencia, settings.closing_date)
+        }
 
         const updated = await tx.lancamento.update({
             where: { id: lancamento.id },
