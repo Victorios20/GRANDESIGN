@@ -119,6 +119,7 @@ export async function syncObraPayables(tx: Tx, obraId: number, userId?: number) 
     const plan = buildPlan(obra)
     const plannedKeys = new Set(plan.map(planKey))
     const editableStatuses: StatusFinanceiro[] = [StatusFinanceiro.PENDENTE, StatusFinanceiro.ATRASADO]
+    const createdIds: number[] = []
 
     const existing = await tx.contaPagar.findMany({
         where: {
@@ -165,7 +166,7 @@ export async function syncObraPayables(tx: Tx, obraId: number, userId?: number) 
             continue
         }
 
-        await tx.contaPagar.create({
+        const created = await tx.contaPagar.create({
             data: {
                 descricao,
                 valor_total: item.valor,
@@ -184,7 +185,9 @@ export async function syncObraPayables(tx: Tx, obraId: number, userId?: number) 
                 created_by: userId,
                 updated_by: userId,
             },
+            select: { id: true },
         })
+        createdIds.push(created.id)
     }
 
     const staleIds = existing
@@ -205,4 +208,7 @@ export async function syncObraPayables(tx: Tx, obraId: number, userId?: number) 
             },
         })
     }
+
+    // Ids das contas a pagar recém-criadas (para notificar após o commit).
+    return createdIds
 }

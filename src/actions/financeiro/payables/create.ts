@@ -78,6 +78,7 @@ export async function createPayable(input: CreatePayableInput, userId?: number) 
     })
 
     await notifyContaCriada({
+        id: conta.id,
         tipo: "PAGAR",
         descricao: conta.descricao,
         valor: Number(conta.valor_total),
@@ -122,6 +123,7 @@ export async function createPayableInstallments(
     )
 
     await notifyContaCriada({
+        id: contas[0]?.id,
         tipo: "PAGAR",
         descricao: `${input.descricao} (${input.total_parcelas}x)`,
         valor: input.valor_total,

@@ -6,6 +6,7 @@ import { parseDateOnlyInput } from "@/lib/date-only"
 import { BudgetSnapshotService } from "@/services/budget-snapshot.service"
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
 import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
+import { notifyContaPagarCriadaById, notifyContaReceberCriadaById } from "@/lib/email/notifications"
 
 type Id = number | string
 
@@ -115,6 +116,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
   if (!obra) {
     return { ok: false as const, status: 404, code: "OBRA_NAO_ENCONTRADA", message: "Obra não encontrada." }
   }
+
+  // Ids das contas auto-geradas, para notificar após o commit (fora da transação).
+  let createdReceivableIds: number[] = []
+  let createdPayableIds: number[] = []
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -240,8 +245,8 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
       }
 
       if (payload.financeiro || payload.obra?.data_contrato || payload.obra?.data_criacao) {
-        await syncObraReceivables(tx, id, Number(userId))
-        await syncObraPayables(tx, id, Number(userId))
+        createdReceivableIds = await syncObraReceivables(tx, id, Number(userId))
+        createdPayableIds = await syncObraPayables(tx, id, Number(userId))
       }
 
       /* ================= IMAGENS ================= */
@@ -329,6 +334,10 @@ export async function updateObraDB(obraId: Id, payload: UpdateObraPayload, userI
 
       return { id }
     })
+
+    // Notifica as contas auto-geradas após o commit (fire-and-forget).
+    for (const cId of createdReceivableIds) await notifyContaReceberCriadaById(cId)
+    for (const cId of createdPayableIds) await notifyContaPagarCriadaById(cId)
 
     return { ok: true, status: 200, data: result }
   } catch (err: unknown) {

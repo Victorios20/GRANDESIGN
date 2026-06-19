@@ -7,6 +7,7 @@ import { formatObraTitle } from "@/utils/name-formatter"
 import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
 import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
+import { notifyContaPagarCriadaById, notifyContaReceberCriadaById } from "@/lib/email/notifications"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -154,7 +155,11 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     throw new ObraCreateError("PAYLOAD_INVALIDO", "orcamentoId inválido.", "validate")
   }
 
-  return await prisma.$transaction(
+  // Ids das contas auto-geradas, para notificar após o commit (fora da transação).
+  let createdReceivableIds: number[] = []
+  let createdPayableIds: number[] = []
+
+  const result = await prisma.$transaction(
     async (tx) => {
       const orc = await tx.orcamento.findUnique({
         where: { id: input.orcamentoId },
@@ -411,8 +416,8 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         data: { lancado_obra: true, lancado_obra_em: new Date(), updatedBy: { connect: { id: input.actorUserId } } },
       })
 
-      await syncObraReceivables(tx, obra.id, input.actorUserId)
-      await syncObraPayables(tx, obra.id, input.actorUserId)
+      createdReceivableIds = await syncObraReceivables(tx, obra.id, input.actorUserId)
+      createdPayableIds = await syncObraPayables(tx, obra.id, input.actorUserId)
 
       return {
         obraId: obra.id,
@@ -424,4 +429,10 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
     },
     { maxWait: 20000, timeout: 60000 }
   )
+
+  // Notifica as contas auto-geradas após o commit (fire-and-forget).
+  for (const id of createdReceivableIds) await notifyContaReceberCriadaById(id)
+  for (const id of createdPayableIds) await notifyContaPagarCriadaById(id)
+
+  return result
 }

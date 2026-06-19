@@ -6,6 +6,7 @@ import {
   integrarPedidoCompraAoFinanceiroInTransaction,
   PedidoCompraFinanceiroError,
 } from "@/actions/pedido_compra/manage-finance-integration"
+import { notifyContaPagarCriadaById } from "@/lib/email/notifications"
 
 export type PedidoCompraStatusErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -197,12 +198,13 @@ async function maybeAutoIntegrarPedido(
     },
   })
 
-  if (!pedido) return
-  if (pedido.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) return
-  if (pedido.contas_pagar.length > 0) return
+  if (!pedido) return null
+  if (pedido.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) return null
+  if (pedido.contas_pagar.length > 0) return null
 
   try {
-    await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedidoCompraId, userId, "AUTOMATICA")
+    const result = await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedidoCompraId, userId, "AUTOMATICA")
+    return result.contaPagarId ?? null
   } catch (error) {
     if (error instanceof PedidoCompraFinanceiroError) {
       throw new PedidoCompraStatusError(
@@ -262,11 +264,12 @@ async function updatePedidoCompraStatusInTx(
     )
   }
 
+  let notifyContaId: number | null = null
   if (isAutoIntegrationStatus(nextStatus)) {
-    await maybeAutoIntegrarPedido(tx, pedidoCompraId, userId)
+    notifyContaId = await maybeAutoIntegrarPedido(tx, pedidoCompraId, userId)
   }
 
-  return updated
+  return { updated, notifyContaId }
 }
 
 export async function atualizarStatusPedidoCompra(
@@ -290,13 +293,19 @@ export async function atualizarStatusPedidoCompra(
     await syncFixedFinancialCategoryTaxonomy()
   }
 
-  return prisma.$transaction(
+  const { result, notifyContaId } = await prisma.$transaction(
     async (tx) => {
       await ensurePedidosExist(tx, [id])
-      return updatePedidoCompraStatusInTx(tx, id, nextStatus, userId)
+      const r = await updatePedidoCompraStatusInTx(tx, id, nextStatus, userId)
+      return { result: r.updated, notifyContaId: r.notifyContaId }
     },
     { timeout: 120_000, maxWait: 20_000 }
   )
+
+  // Notifica a conta a pagar criada pela auto-integração, após o commit.
+  if (notifyContaId) await notifyContaPagarCriadaById(notifyContaId)
+
+  return result
 }
 
 export async function atualizarStatusPedidosCompra(
@@ -315,17 +324,25 @@ export async function atualizarStatusPedidosCompra(
     await syncFixedFinancialCategoryTaxonomy()
   }
 
-  return prisma.$transaction(
+  const { result, notifyContaIds } = await prisma.$transaction(
     async (tx) => {
       await ensurePedidosExist(tx, ids)
 
       const updated: AtualizarStatusPedidoCompraResult[] = []
+      const notifyContaIds: number[] = []
       for (const id of ids) {
-        updated.push(await updatePedidoCompraStatusInTx(tx, id, nextStatus, userId))
+        const r = await updatePedidoCompraStatusInTx(tx, id, nextStatus, userId)
+        updated.push(r.updated)
+        if (r.notifyContaId) notifyContaIds.push(r.notifyContaId)
       }
 
-      return { ids, updated }
+      return { result: { ids, updated }, notifyContaIds }
     },
     { timeout: 120_000, maxWait: 20_000 }
   )
+
+  // Notifica as contas a pagar criadas pela auto-integração, após o commit.
+  for (const cId of notifyContaIds) await notifyContaPagarCriadaById(cId)
+
+  return result
 }

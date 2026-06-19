@@ -83,6 +83,7 @@ export async function createReceivable(input: CreateReceivableInput, userId?: nu
     })
 
     await notifyContaCriada({
+        id: conta.id,
         tipo: "RECEBER",
         descricao: conta.descricao,
         valor: Number(conta.valor_total),
@@ -128,6 +129,7 @@ export async function createReceivableInstallments(
     )
 
     await notifyContaCriada({
+        id: contas[0]?.id,
         tipo: "RECEBER",
         descricao: `${input.descricao} (${input.total_parcelas}x)`,
         valor: input.valor_total,

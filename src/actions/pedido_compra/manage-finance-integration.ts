@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
+import { notifyContaPagarCriadaById } from "@/lib/email/notifications"
 import {
   IntegracaoFinanceiraStatus,
   PedidoCategoria,
@@ -464,10 +465,15 @@ export async function integrarPedidoCompraAoFinanceiro(
 
   await syncFixedFinancialCategoryTaxonomy()
 
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => integrarPedidoCompraAoFinanceiroInTransaction(tx, id, userId, "MANUAL"),
     { timeout: 120_000, maxWait: 20_000 }
   )
+
+  // Notifica a conta a pagar criada após o commit (fire-and-forget).
+  if (result.contaPagarId) await notifyContaPagarCriadaById(result.contaPagarId)
+
+  return result
 }
 
 export async function integrarPedidosCompraAoFinanceiro(

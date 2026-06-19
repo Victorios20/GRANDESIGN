@@ -152,6 +152,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
     const plan = buildPlan(obra)
     const plannedKeys = new Set(plan.map(planKey))
     const editableStatuses: StatusFinanceiro[] = [StatusFinanceiro.PENDENTE, StatusFinanceiro.ATRASADO]
+    const createdIds: number[] = []
 
     const existing = await tx.contaReceber.findMany({
         where: {
@@ -199,7 +200,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
             continue
         }
 
-        await tx.contaReceber.create({
+        const created = await tx.contaReceber.create({
             data: {
                 descricao,
                 valor_total: item.valor,
@@ -221,7 +222,9 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
                 created_by: userId,
                 updated_by: userId,
             },
+            select: { id: true },
         })
+        createdIds.push(created.id)
     }
 
     const staleIds = existing
@@ -242,4 +245,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
             },
         })
     }
+
+    // Ids das contas a receber recém-criadas (para notificar após o commit).
+    return createdIds
 }
