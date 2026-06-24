@@ -30,6 +30,7 @@ import {
   Users2,
   Wrench,
 } from "lucide-react"
+import { resolveModuleKeyFromPath } from "@/lib/access/modules"
 import { isRestrictedVendedor, isVendedorAllowedPage } from "@/lib/vendedor-access"
 
 export type SidebarChildItem = {
@@ -264,9 +265,19 @@ function hasRequiredRole(itemRoles: string[] | undefined, rolesUpper: string[]) 
 
 export function filterSidebarNavigation(
   items: SidebarNavigationItem[],
-  rolesUpper: string[]
+  rolesUpper: string[],
+  modules?: string[]
 ): SidebarNavigationItem[] {
   const isVendedor = isRestrictedVendedor(rolesUpper)
+
+  const isPathAllowed = (href: string): boolean => {
+    if (modules !== undefined) {
+      const moduleKey = resolveModuleKeyFromPath(href)
+      if (moduleKey === null) return true
+      return modules.includes(moduleKey)
+    }
+    return !isVendedor || isVendedorAllowedPage(href)
+  }
 
   return items.reduce<SidebarNavigationItem[]>((result, item) => {
     if (item.type === "section") {
@@ -275,10 +286,7 @@ export function filterSidebarNavigation(
     }
 
     if (item.type === "link") {
-      if (
-        hasRequiredRole(item.roles, rolesUpper) &&
-        (!isVendedor || isVendedorAllowedPage(item.href))
-      ) {
+      if (hasRequiredRole(item.roles, rolesUpper) && isPathAllowed(item.href)) {
         result.push(item)
       }
 
@@ -286,9 +294,7 @@ export function filterSidebarNavigation(
     }
 
     const children = item.children.filter(
-      (child) =>
-        hasRequiredRole(child.roles, rolesUpper) &&
-        (!isVendedor || isVendedorAllowedPage(child.href))
+      (child) => hasRequiredRole(child.roles, rolesUpper) && isPathAllowed(child.href)
     )
 
     if (children.length === 0) {

@@ -117,6 +117,7 @@ export function CustomSidebar() {
         email?: string | null
         image?: string | null
         roles?: unknown[]
+        modules?: string[]
       }
     | undefined
 
@@ -127,9 +128,11 @@ export function CustomSidebar() {
     return Array.isArray(roles) ? roles.map((role) => String(role).toUpperCase()) : []
   }, [sessionUser])
 
+  const modules = sessionUser?.modules
+
   const navigationItems = React.useMemo(
-    () => filterSidebarNavigation(SIDEBAR_NAVIGATION, rolesUpper),
-    [rolesUpper]
+    () => filterSidebarNavigation(SIDEBAR_NAVIGATION, rolesUpper, modules),
+    [rolesUpper, modules]
   )
   const activeGroupIds = React.useMemo(
     () => getActiveGroupIds(pathname, navigationItems),
