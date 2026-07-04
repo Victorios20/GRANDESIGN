@@ -40,7 +40,8 @@ export async function getBalanceteReport(params: BalanceteParams): Promise<Balan
     // Note: Prisma QueryRaw returns Decimal for sums, need to cast or handle BigInt/Decimal
     // We strictly use data_competencia for DRE/Balancete compatibility
 
-    let whereClause = `WHERE 1=1`
+    // Excluir transferências entre contas (contadas em origem+destino) — alinhado ao DRE (get-operational-result)
+    let whereClause = `WHERE transferencia_id IS NULL`
     const queryParams: Array<Date | number> = [start, end] // $1, $2
 
     if (costCenterId) {

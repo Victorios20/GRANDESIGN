@@ -75,7 +75,7 @@ export const OrcadoRealizadoService = {
         const ccIds = centros.map((centro) => centro.id)
         const receitaRealizada = ccIds.length > 0
             ? Number((await prisma.lancamento.aggregate({
-                where: { centro_custo_id: { in: ccIds }, tipo: "RECEITA" },
+                where: { centro_custo_id: { in: ccIds }, tipo: "RECEITA", transferencia_id: null },
                 _sum: { valor: true },
             }))._sum.valor || 0)
             : 0
