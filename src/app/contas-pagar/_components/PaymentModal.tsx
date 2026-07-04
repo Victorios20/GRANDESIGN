@@ -5,6 +5,16 @@ import { useEffect, useMemo, useState } from "react"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +48,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
     const [dataPagamento, setDataPagamento] = useState(getTodayValue)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState("")
+    const [confirmPartialOpen, setConfirmPartialOpen] = useState(false)
 
     useEffect(() => {
         if (!open) return
@@ -72,8 +83,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
         return true
     }, [contaBancariaId, dataPagamento, saldo, valorFinal])
 
-    async function handleSubmit() {
-        if (!isValid) return
+    async function doPay(quitarSaldo: boolean) {
         setSubmitting(true)
         setError("")
 
@@ -90,6 +100,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     taxa_cartao_valor: taxaCartaoValor,
                     taxa_cartao_percentual: taxaCartaoPercentual,
                     idempotencyKey,
+                    quitarSaldo,
                 }),
             })
 
@@ -106,6 +117,16 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
         } finally {
             setSubmitting(false)
         }
+    }
+
+    function handleSubmit() {
+        if (!isValid) return
+        const deixaSaldo = valorFinal < saldo - 0.01
+        if (deixaSaldo) {
+            setConfirmPartialOpen(true)
+            return
+        }
+        void doPay(false)
     }
 
     return (
@@ -234,6 +255,43 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
+            <AlertDialog open={confirmPartialOpen} onOpenChange={setConfirmPartialOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Ainda há saldo em aberto</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            O valor informado ({formatCurrency(valorFinal)}) é menor que o saldo
+                            de {formatCurrency(saldo)}. Deseja quitar a conta com este valor
+                            (reduzindo o total) ou manter o saldo restante em aberto?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={submitting}>Voltar</AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            disabled={submitting}
+                            onClick={() => {
+                                setConfirmPartialOpen(false)
+                                void doPay(false)
+                            }}
+                        >
+                            Deixar saldo em aberto
+                        </Button>
+                        <AlertDialogAction
+                            disabled={submitting}
+                            onClick={(e) => {
+                                e.preventDefault()
+                                setConfirmPartialOpen(false)
+                                void doPay(true)
+                            }}
+                        >
+                            Quitar conta
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Dialog>
     )
 }
