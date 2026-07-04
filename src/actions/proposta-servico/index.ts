@@ -82,17 +82,34 @@ export async function atualizarProposta(id: number, rawInput: PropostaInput) {
 }
 
 export async function getProposta(id: number) {
-  return prisma.proposta_servico.findUnique({
+  const proposta = await prisma.proposta_servico.findUnique({
     where: { id },
     include: { itens: true, cliente: true },
   })
+  if (!proposta) return null
+  return {
+    ...proposta,
+    custo_mao_obra: Number(proposta.custo_mao_obra),
+    custo_materiais: Number(proposta.custo_materiais),
+    custo_frete: Number(proposta.custo_frete),
+    lucro: Number(proposta.lucro),
+    valor_final: Number(proposta.valor_final),
+  }
 }
 
 export async function listPropostas() {
-  return prisma.proposta_servico.findMany({
+  const propostas = await prisma.proposta_servico.findMany({
     orderBy: { created_at: "desc" },
     include: { cliente: { select: { nome: true } } },
   })
+  return propostas.map((proposta) => ({
+    ...proposta,
+    custo_mao_obra: Number(proposta.custo_mao_obra),
+    custo_materiais: Number(proposta.custo_materiais),
+    custo_frete: Number(proposta.custo_frete),
+    lucro: Number(proposta.lucro),
+    valor_final: Number(proposta.valor_final),
+  }))
 }
 
 export async function excluirProposta(id: number) {
