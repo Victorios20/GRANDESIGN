@@ -71,6 +71,8 @@ model cliente {
   // Financeiro
   contas_receber ContaReceber[]
 
+  propostas proposta_servico[]
+
   @@index([cidade_id], map: "idx_cliente_cidade_id")
   @@index([nome], map: "idx_cliente_nome") // novo índice “normal” no nome
 }
@@ -1055,4 +1057,49 @@ model NotificacaoEmailConfig {
   updated_at              DateTime @updatedAt
 
   @@map("notificacao_email_config")
+}
+
+enum PropostaStatus {
+  RASCUNHO @map("Rascunho")
+  ENVIADA  @map("Enviada")
+}
+
+model proposta_servico {
+  id                Int             @id @default(autoincrement())
+  titulo            String
+  cliente_id        Int
+  descricao_servico String          @db.Text
+  dimensoes         String?
+  status            PropostaStatus  @default(RASCUNHO)
+  custo_mao_obra    Decimal         @default(0) @db.Decimal(10, 2)
+  custo_materiais   Decimal         @default(0) @db.Decimal(10, 2)
+  custo_frete       Decimal         @default(0) @db.Decimal(10, 2)
+  lucro             Decimal         @default(0) @db.Decimal(10, 2)
+  valor_final       Decimal         @default(0) @db.Decimal(10, 2)
+  forma_pagamento   String?
+  prazo_execucao    String?
+  validade          DateTime?       @db.Date
+  observacoes       String?         @db.Text
+  link_pdf          String?
+  created_by        Int?
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+
+  cliente cliente                   @relation(fields: [cliente_id], references: [id])
+  itens   proposta_servico_item[]
+
+  @@index([cliente_id])
+  @@index([status, created_at(sort: Desc)])
+  @@map("proposta_servico")
+}
+
+model proposta_servico_item {
+  id          Int    @id @default(autoincrement())
+  proposta_id Int
+  descricao   String
+
+  proposta proposta_servico @relation(fields: [proposta_id], references: [id], onDelete: Cascade)
+
+  @@index([proposta_id])
+  @@map("proposta_servico_item")
 }
