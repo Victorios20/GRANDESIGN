@@ -1,4 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer"
+import fs from "node:fs"
 import path from "node:path"
 
 export type PropostaPDFData = {
@@ -26,10 +27,14 @@ const COLORS = {
 const CNPJ = "59.769.971/0001-43"
 const WHATSAPP = "(85) 9 9411-5576"
 
-// Assets resolvidos a partir da pasta public (execução server-side)
+// Assets lidos como Buffer a partir da pasta public (execução server-side).
+// Ler com readFileSync no carregamento do módulo garante falha imediata e clara
+// (ENOENT) caso o asset não exista no filesystem do runtime, em vez de gerar
+// silenciosamente um PDF com imagem quebrada. Também evita depender de
+// react-pdf resolver um caminho de arquivo em ambientes serverless.
 const publicDir = path.join(process.cwd(), "public", "images")
-const CAPA = path.join(publicDir, "proposta-capa.jpg")
-const LOGO = path.join(publicDir, "logo.png")
+const CAPA = fs.readFileSync(path.join(publicDir, "proposta-capa.jpg"))
+const LOGO = fs.readFileSync(path.join(publicDir, "logo.png"))
 
 const brl = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v)

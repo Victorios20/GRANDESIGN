@@ -6,6 +6,14 @@ process.env.TZ = process.env.TZ || "America/Sao_Paulo"
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
 
+  // Garante que os assets de public/images (capa e logo usados na geração
+  // do PDF de proposta) sejam incluídos no bundle de deploy serverless,
+  // já que são lidos diretamente do filesystem via fs.readFileSync em
+  // src/lib/pdf/PropostaServicoPDF.tsx (não passam pelo next/image).
+  outputFileTracingIncludes: {
+    "/api/proposta-servico/[id]/pdf": ["./public/images/**"],
+  },
+
   // async redirects() {
   //   return [
   //     { source: "/Orcamento", destination: "/orcamento", permanent: true },
