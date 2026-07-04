@@ -3,12 +3,13 @@ import tsconfigPaths from "vite-tsconfig-paths"
 
 export default defineConfig({
   plugins: [tsconfigPaths()],
+  css: {
+    postcss: {},
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     globals: false,
-  },
-  optimizeDeps: {
-    exclude: ["@tailwindcss/postcss"],
+    css: false,
   },
 })
