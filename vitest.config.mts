@@ -6,6 +6,9 @@ export default defineConfig({
   css: {
     postcss: {},
   },
+  esbuild: {
+    jsx: "automatic",
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
