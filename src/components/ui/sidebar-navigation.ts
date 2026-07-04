@@ -12,6 +12,7 @@ import {
   ClipboardPenLine,
   Construction,
   FileChartColumnIncreasing,
+  FileText,
   FolderCog,
   GitBranch,
   HandCoins,
@@ -93,6 +94,12 @@ export const SIDEBAR_NAVIGATION: SidebarNavigationItem[] = [
     label: "Orçamentos",
     href: "/orcamento",
     icon: ClipboardPenLine,
+  },
+  {
+    type: "link",
+    label: "Proposta de Serviço",
+    href: "/proposta-servico",
+    icon: FileText,
   },
   {
     type: "group",
