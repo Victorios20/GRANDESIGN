@@ -148,18 +148,27 @@ export async function payBill(input: PayBillInput, userId?: number) {
         if (result.pedido_compra_id) {
             await syncPedidoCompraValorRealizado(result.pedido_compra_id)
 
-            const pedido = await prisma.pedido_compra.findUnique({
-                where: { id: result.pedido_compra_id },
-                select: { status: true },
-            })
-            if (
-                pedido &&
-                shouldAdvancePedidoToAwaitingDelivery(pedido.status, result.status)
-            ) {
-                await atualizarStatusPedidoCompra(
-                    result.pedido_compra_id,
-                    "AGUARDANDO_ENTREGA",
-                    userId,
+            try {
+                const pedido = await prisma.pedido_compra.findUnique({
+                    where: { id: result.pedido_compra_id },
+                    select: { status: true },
+                })
+                if (
+                    pedido &&
+                    shouldAdvancePedidoToAwaitingDelivery(pedido.status, result.status)
+                ) {
+                    await atualizarStatusPedidoCompra(
+                        result.pedido_compra_id,
+                        "AGUARDANDO_ENTREGA",
+                        userId,
+                    )
+                }
+            } catch (error) {
+                // O pagamento ja foi confirmado; uma falha aqui nao deve reverter
+                // o pagamento nem marcar o idempotency log como FAILED.
+                console.error(
+                    `Falha ao avancar status do pedido ${result.pedido_compra_id} para AGUARDANDO_ENTREGA:`,
+                    error,
                 )
             }
         }
