@@ -3,8 +3,10 @@ import { z } from "zod"
 
 import { createCardFeeTransaction, resolveCardFeeAmount } from "@/actions/financeiro/card-fee"
 import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
+import { atualizarStatusPedidoCompra } from "@/actions/pedido_compra/update-pedido-compra-status-db"
 import { zDateOnly } from "@/lib/date-only"
 import { prisma } from "@/lib/prisma"
+import { resolvePaymentOutcome, shouldAdvancePedidoToAwaitingDelivery } from "@/lib/payment-rules"
 
 export const payBillSchema = z.object({
     conta_pagar_id: z.number().int().positive(),
@@ -16,6 +18,7 @@ export const payBillSchema = z.object({
     taxa_cartao_valor: z.number().min(0).optional(),
     taxa_cartao_percentual: z.number().min(0).optional(),
     idempotencyKey: z.string().optional(),
+    quitarSaldo: z.boolean().optional().default(false),
 })
 
 export type PayBillInput = z.infer<typeof payBillSchema>
@@ -80,15 +83,21 @@ export async function payBill(input: PayBillInput, userId?: number) {
                 throw new Error("Conflito de concorrencia: O registro foi alterado por outra transacao. Tente novamente.")
             }
 
-            const newPaid = paid + amortized
-            const isPaid = Math.abs(total - newPaid) < 0.01
-            const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
+            const outcome = resolvePaymentOutcome({
+                total,
+                paid,
+                amortized,
+                quitarSaldo: input.quitarSaldo,
+            })
+            const newStatus = outcome.isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
 
             const updatedBill = await tx.contaPagar.update({
                 where: { id: bill.id },
                 data: {
                     status: newStatus,
-                    data_pagamento: isPaid ? input.data_pagamento : undefined,
+                    // Quitação com redução: total passa a ser o quanto foi pago.
+                    valor_total: outcome.newValorTotal ?? undefined,
+                    data_pagamento: outcome.isPaid ? input.data_pagamento : undefined,
                 },
             })
 
@@ -138,6 +147,21 @@ export async function payBill(input: PayBillInput, userId?: number) {
 
         if (result.pedido_compra_id) {
             await syncPedidoCompraValorRealizado(result.pedido_compra_id)
+
+            const pedido = await prisma.pedido_compra.findUnique({
+                where: { id: result.pedido_compra_id },
+                select: { status: true },
+            })
+            if (
+                pedido &&
+                shouldAdvancePedidoToAwaitingDelivery(pedido.status, result.status)
+            ) {
+                await atualizarStatusPedidoCompra(
+                    result.pedido_compra_id,
+                    "AGUARDANDO_ENTREGA",
+                    userId,
+                )
+            }
         }
 
         if (input.idempotencyKey) {

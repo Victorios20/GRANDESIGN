@@ -36,7 +36,8 @@ async function main() {
             valor: 40,
             data_pagamento: new Date(),
             juros: 0,
-            descontos: 0
+            descontos: 0,
+            quitarSaldo: false
         })
 
         if (p1.status !== StatusFinanceiro.PARCIAL) throw new Error("Status should be PARCIAL")
@@ -50,7 +51,8 @@ async function main() {
             valor: 60,
             data_pagamento: new Date(),
             juros: 0,
-            descontos: 0
+            descontos: 0,
+            quitarSaldo: false
         })
 
         if (p2.status !== StatusFinanceiro.PAGO) throw new Error("Status should be PAGO")

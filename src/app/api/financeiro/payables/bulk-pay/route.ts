@@ -39,6 +39,7 @@ export async function POST(req: Request) {
                 data_pagamento: input.data_pagamento,
                 juros: 0,
                 descontos: 0,
+                quitarSaldo: false,
                 idempotencyKey: `bulk-pay-${payable.id}-${input.data_pagamento.toISOString()}`,
             }, Number(session.user.id))
             results.push(result)

@@ -29,7 +29,8 @@ async function main() {
             valor: 100,
             data_pagamento: new Date(),
             juros: 0,
-            descontos: 0
+            descontos: 0,
+            quitarSaldo: false
         }
 
         console.log("Launching 2 concurrent payment requests...")
