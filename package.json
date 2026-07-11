@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "npm run test:payable-status",
+    "test:payable-status": "tsx scripts/test-payable-status.ts",
     "postinstall": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
     "version": "node scripts/update-version-date.js && git add version.json"

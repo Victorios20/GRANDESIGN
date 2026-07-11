@@ -5,12 +5,23 @@ import { useEffect, useMemo, useState } from "react"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn } from "@/lib/utils"
 import { formatCurrency, remaining } from "@/lib/financeiro-utils"
+import { calculateCashPaymentAmount, isGreaterMoneyAmount, isLessMoneyAmount } from "@/lib/financial/money"
 import { getTodayDateOnly } from "@/lib/date-only"
 import { formatPedidoId } from "@/lib/pedido-compra-utils"
 import type { BankOption, PayableListItem } from "@/types/financeiro"
@@ -37,6 +48,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
     const [taxaCartaoPercentual, setTaxaCartaoPercentual] = useState(0)
     const [dataPagamento, setDataPagamento] = useState(getTodayValue)
     const [submitting, setSubmitting] = useState(false)
+    const [partialConfirmationOpen, setPartialConfirmationOpen] = useState(false)
     const [error, setError] = useState("")
 
     useEffect(() => {
@@ -48,10 +60,11 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
         setTaxaCartaoValor(0)
         setTaxaCartaoPercentual(0)
         setDataPagamento(getTodayValue())
+        setPartialConfirmationOpen(false)
         setError("")
     }, [open, saldo, item.id])
 
-    const valorFinal = useMemo(() => valor + juros - descontos, [valor, juros, descontos])
+    const valorFinal = useMemo(() => calculateCashPaymentAmount(valor, juros, descontos), [valor, juros, descontos])
     const taxaCartao = useMemo(() => {
         if (taxaCartaoValor > 0) return taxaCartaoValor
         if (taxaCartaoPercentual > 0) return Number((valorFinal * (taxaCartaoPercentual / 100)).toFixed(2))
@@ -66,14 +79,23 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
 
     const isValid = useMemo(() => {
         if (!contaBancariaId) return false
+        if (valor <= 0) return false
         if (valorFinal <= 0) return false
-        if (valorFinal > saldo + 0.01) return false
+        if (isGreaterMoneyAmount(valor, saldo)) return false
         if (!dataPagamento) return false
         return true
-    }, [contaBancariaId, dataPagamento, saldo, valorFinal])
+    }, [contaBancariaId, dataPagamento, saldo, valor, valorFinal])
 
-    async function handleSubmit() {
+    function handleSubmit() {
         if (!isValid) return
+        if (isLessMoneyAmount(valor, saldo)) {
+            setPartialConfirmationOpen(true)
+            return
+        }
+        void submitPayment(false)
+    }
+
+    async function submitPayment(ajustarValorTotal: boolean) {
         setSubmitting(true)
         setError("")
 
@@ -87,8 +109,11 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     conta_bancaria_id: Number(contaBancariaId),
                     valor: valorFinal,
                     data_pagamento: dataPagamento,
+                    juros,
+                    descontos,
                     taxa_cartao_valor: taxaCartaoValor,
                     taxa_cartao_percentual: taxaCartaoPercentual,
+                    ajustar_valor_total: ajustarValorTotal,
                     idempotencyKey,
                 }),
             })
@@ -98,6 +123,7 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                 throw new Error(body.error || "Erro ao processar pagamento")
             }
 
+            setPartialConfirmationOpen(false)
             onSuccess()
         } catch (err) {
             const message = err instanceof Error ? err.message : "Erro inesperado"
@@ -107,6 +133,8 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
             setSubmitting(false)
         }
     }
+
+    const adjustedTotal = Number(item.valor_pago) + valor
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,14 +229,14 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
 
                     <div className={cn(
                         "rounded-xl border p-3 text-center",
-                        valorFinal > saldo + 0.01 ? "border-[#F1B7B0] bg-[#FFF4F2]" : "border-[#E8D9BC] bg-[#FFF9EE]"
+                        isGreaterMoneyAmount(valor, saldo) ? "border-[#F1B7B0] bg-[#FFF4F2]" : "border-[#E8D9BC] bg-[#FFF9EE]"
                     )}>
                         <p className="text-[11px] uppercase tracking-[0.16em] text-[#2C201B]/45">Valor final da baixa</p>
-                        <p className={cn("mt-1 text-2xl font-semibold", valorFinal > saldo + 0.01 ? "text-[#B42318]" : "text-[#2C201B]")}>
+                        <p className={cn("mt-1 text-2xl font-semibold", isGreaterMoneyAmount(valor, saldo) ? "text-[#B42318]" : "text-[#2C201B]")}>
                             {formatCurrency(valorFinal)}
                         </p>
-                        {valorFinal > saldo + 0.01 ? (
-                            <p className="mt-2 text-sm text-[#B42318]">O valor final não pode ultrapassar o saldo restante.</p>
+                        {isGreaterMoneyAmount(valor, saldo) ? (
+                            <p className="mt-2 text-sm text-[#B42318]">O valor da baixa não pode ultrapassar o saldo restante.</p>
                         ) : null}
                         {taxaCartao > 0 ? (
                             <p className="mt-2 text-sm text-[#2C201B]/65">
@@ -234,6 +262,24 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
                     </Button>
                 </DialogFooter>
             </DialogContent>
+            <AlertDialog open={partialConfirmationOpen} onOpenChange={setPartialConfirmationOpen}>
+                <AlertDialogContent className="border-[#2C201B]/10 bg-[#FFFCF7]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Esta conta ficará parcial</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            O valor informado é menor que o saldo atual. Deseja alterar o valor total da conta de {formatCurrency(item.valor_total)} para {formatCurrency(adjustedTotal)} e concluí-la como paga?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => void submitPayment(false)} disabled={submitting}>
+                            Manter como parcial
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={() => void submitPayment(true)} disabled={submitting}>
+                            Ajustar valor e pagar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </Dialog>
     )
 }

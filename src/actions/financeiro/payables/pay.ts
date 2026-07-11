@@ -2,8 +2,10 @@ import { StatusFinanceiro, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
 
 import { createCardFeeTransaction, resolveCardFeeAmount } from "@/actions/financeiro/card-fee"
-import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
+import { resolvePayablePaymentState } from "@/actions/financeiro/shared/open-status"
+import { syncPedidoCompraValorRealizadoInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
 import { zDateOnly } from "@/lib/date-only"
+import { calculateAmortizedAmount, isGreaterMoneyAmount } from "@/lib/financial/money"
 import { prisma } from "@/lib/prisma"
 
 export const payBillSchema = z.object({
@@ -15,6 +17,7 @@ export const payBillSchema = z.object({
     descontos: z.number().min(0).optional().default(0),
     taxa_cartao_valor: z.number().min(0).optional(),
     taxa_cartao_percentual: z.number().min(0).optional(),
+    ajustar_valor_total: z.boolean().optional(),
     idempotencyKey: z.string().optional(),
 })
 
@@ -58,10 +61,14 @@ export async function payBill(input: PayBillInput, userId?: number) {
         const total = Number(bill.valor_total)
         const paid = Number(bill.valor_pago)
         const remaining = total - paid
-        const amortized = input.valor + input.descontos - input.juros
+        const amortized = calculateAmortizedAmount(input.valor, input.juros, input.descontos)
         const cardFee = resolveCardFeeAmount(input, input.valor)
 
-        if (amortized > remaining + 0.01) {
+        if (!isGreaterMoneyAmount(amortized, 0)) {
+            throw new Error("A amortizacao deve ser maior que zero")
+        }
+
+        if (isGreaterMoneyAmount(amortized, remaining)) {
             throw new Error(`Amortizacao excedente. Restante: ${remaining.toFixed(2)} (Amortizacao calculada: ${amortized.toFixed(2)})`)
         }
 
@@ -70,6 +77,7 @@ export async function payBill(input: PayBillInput, userId?: number) {
                 where: {
                     id: bill.id,
                     valor_pago: bill.valor_pago,
+                    valor_total: bill.valor_total,
                 },
                 data: {
                     valor_pago: { increment: amortized },
@@ -80,13 +88,20 @@ export async function payBill(input: PayBillInput, userId?: number) {
                 throw new Error("Conflito de concorrencia: O registro foi alterado por outra transacao. Tente novamente.")
             }
 
-            const newPaid = paid + amortized
-            const isPaid = Math.abs(total - newPaid) < 0.01
-            const newStatus = isPaid ? StatusFinanceiro.PAGO : StatusFinanceiro.PARCIAL
+            const { newTotal, status: newStatus } = resolvePayablePaymentState({
+                currentStatus: bill.status,
+                total,
+                paid,
+                amortized,
+                dueDate: bill.data_vencimento,
+                adjustTotal: input.ajustar_valor_total === true,
+            })
+            const isPaid = newStatus === StatusFinanceiro.PAGO
 
             const updatedBill = await tx.contaPagar.update({
                 where: { id: bill.id },
                 data: {
+                    valor_total: input.ajustar_valor_total ? newTotal : undefined,
                     status: newStatus,
                     data_pagamento: isPaid ? input.data_pagamento : undefined,
                 },
@@ -133,12 +148,12 @@ export async function payBill(input: PayBillInput, userId?: number) {
                 })
             }
 
+            if (updatedBill.pedido_compra_id) {
+                await syncPedidoCompraValorRealizadoInTransaction(tx, updatedBill.pedido_compra_id)
+            }
+
             return updatedBill
         })
-
-        if (result.pedido_compra_id) {
-            await syncPedidoCompraValorRealizado(result.pedido_compra_id)
-        }
 
         if (input.idempotencyKey) {
             await prisma.idempotencyLog.update({

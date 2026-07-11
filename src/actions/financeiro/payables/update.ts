@@ -2,9 +2,10 @@ import { StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
 import { syncPedidoCompraValorRealizadoInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
-import { resolveOpenFinancialStatus } from "@/actions/financeiro/shared/open-status"
+import { resolveFinancialStatusFromAmounts } from "@/actions/financeiro/shared/open-status"
 import { zDateOnly } from "@/lib/date-only"
 import { isPayableCategory } from "@/lib/financial/fixed-category-taxonomy"
+import { isLessMoneyAmount } from "@/lib/financial/money"
 import { prisma } from "@/lib/prisma"
 
 export const updatePayableSchema = z.object({
@@ -49,7 +50,15 @@ export async function updatePayable(
         select: {
             id: true,
             status: true,
+            valor_pago: true,
+            data_pagamento: true,
             pedido_compra_id: true,
+            lancamentos: {
+                where: { valor: { gt: 0 } },
+                orderBy: { data_lancamento: "desc" },
+                take: 1,
+                select: { data_lancamento: true },
+            },
         },
     })
 
@@ -60,6 +69,19 @@ export async function updatePayable(
     }
 
     await validateExpenseCategory(input.categoria_id)
+
+    const paid = Number(payable.valor_pago)
+    if (isLessMoneyAmount(input.valor, paid)) {
+        throw new Error("O valor total nao pode ser menor que o valor ja pago")
+    }
+
+    const status = resolveFinancialStatusFromAmounts({
+        currentStatus: payable.status,
+        total: input.valor,
+        paid,
+        dueDate: input.data_vencimento,
+    })
+    const paymentDate = payable.lancamentos[0]?.data_lancamento ?? payable.data_pagamento
 
     return prisma.$transaction(async (tx) => {
         const updated = await tx.contaPagar.update({
@@ -73,9 +95,8 @@ export async function updatePayable(
                 categoria_id: input.categoria_id,
                 centro_custo_id: input.centro_custo_id ?? null,
                 observacoes: input.observacoes ?? null,
-                // Conta travada editada por ADMIN preserva o status atual (PAGO/CANCELADO);
-                // contas em aberto recalculam PENDENTE/ATRASADO/PARCIAL pela data.
-                status: isLocked ? payable.status : resolveOpenFinancialStatus(payable.status, input.data_vencimento),
+                status,
+                data_pagamento: status === StatusFinanceiro.PAGO ? paymentDate : null,
             },
             include: {
                 fornecedor: { select: { id: true, nome: true } },
