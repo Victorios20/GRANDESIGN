@@ -25,6 +25,7 @@ const HALF = 0.5
 const ROUND_HALF = (v: number) => ceil(v / HALF) * HALF
 const ROUND_INT = (v: number) => ceil(v)
 const toStr = (v: number) => v.toFixed(1).replace(".", ",")
+const PONTALETE_DESCRICAO = "Linha 15cm"
 
 interface BaseRow {
   descricao: string
@@ -160,7 +161,7 @@ async function calcularMateriaisNormal(
   const telhasRaw: BaseRow[] = []
 
   // Flag para evitar duplicar sextavado quando já for calculado em casos específicos
-  let adicionouSextavado = false
+  const adicionouSextavado = false
 
   let area = largura * ROUND_HALF(comprimento + 0.5)
   const isCorredorQuedaQuintal = /^Corredor Queda Quintal/i.test(tipoNorm)
@@ -182,8 +183,6 @@ async function calcularMateriaisNormal(
 
   /* ------------------ Tipos auxiliares (NOVOS) ------------------ */
   const isCorredorQuedaLateral = /^Corredor Queda Lateral/i.test(tipoNorm)
-  const isCorredorQuedaQuintal_flag = isCorredorQuedaQuintal 
-  const isCaibroRipa = /^Caibro e Ripa/i.test(tipoNorm) || isCorredorQuedaLateral
   const isCorredorQueda = isCorredorQuedaLateral || isCorredorQuedaQuintal
   const isMaoFrancesa = /^Mão Francesa/i.test(tipoNorm)
   const isEucalipto = /^Caramanhão de Eucalipto/i.test(tipoNorm)
@@ -199,7 +198,7 @@ async function calcularMateriaisNormal(
 
     case /^Pontalete /i.test(tipoNorm): {
       const pranchaoBase = comprimento >= 6 ? 3 : 2
-      add(`Linha ${espessura}`, "Pontalete", pranchaoBase * 2, 2.5)
+      add(PONTALETE_DESCRICAO, "Pontalete", pranchaoBase * 2, 2.5)
       break
     }
 
@@ -318,7 +317,7 @@ async function calcularMateriaisNormal(
         if (qtdPranchao20 > 0) add("Linha 25cm", "Pranchão", qtdPranchao20, largArred)
 
         const qtdPontalete = qtdPranchao20 * 2
-        if (qtdPontalete > 0) add(`Linha ${espessura}`, "Pontalete", qtdPontalete, 2.5)
+        if (qtdPontalete > 0) add(PONTALETE_DESCRICAO, "Pontalete", qtdPontalete, 2.5)
       }
     } else {
       const pranchaoBase = comprimento >= 6 ? 3 : 2
@@ -332,7 +331,7 @@ async function calcularMateriaisNormal(
       const pranchaoBase = comprimento >= 6 ? 3 : 2
       const pranchaoEfetivoLP = Math.max(0, pranchaoBase - 1)
       if (pranchaoEfetivoLP > 0)
-        add(`Linha ${espessura}`, "Pontalete", pranchaoEfetivoLP * 2, 2.5)
+        add(PONTALETE_DESCRICAO, "Pontalete", pranchaoEfetivoLP * 2, 2.5)
     }
 
     // ===== TERÇAS =====
@@ -576,7 +575,7 @@ export async function calcularMateriaisCobertaL(
 
   /* ---------- 2) Pontaletes ---------- */
   const qtdPontaletes = comLinhaNaParede ? 3 : 5
-  add(`Linha ${espessura}`, "Pontalete", qtdPontaletes, 2.5)
+  add(PONTALETE_DESCRICAO, "Pontalete", qtdPontaletes, 2.5)
 
   /* ---------- 3) Terças (L) ---------- */
   const tipoTercaL = "Linha 11,5cm"
