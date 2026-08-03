@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { salvarRascunhoOrcamentoDB } from "@/actions/salvar-orcamento-db/salvar-orcamento-db"
 import { updateOrcamento } from "@/actions/edit-orcamento-db/edit-orcamento-db"
+import { prisma } from "@/lib/prisma"
 import axios, { isAxiosError } from "axios"
 
 export const runtime = "nodejs"
@@ -172,6 +173,34 @@ function pickLinks(data: GerarPDFResponse): PdfLinks | null {
   return null
 }
 
+/**
+ * Localiza o orçamento que já ocupa o título, para o 409 devolver o registro
+ * existente (com links, se já tiver) em vez de só recusar.
+ *
+ * Isso fecha o ciclo da request longa: se a conexão do cliente cair depois do
+ * rascunho ter sido salvo, a retentativa com o mesmo título encontra o que foi
+ * gravado em vez de virar um beco sem saída.
+ */
+async function findOrcamentoByTitulo(titulo: string) {
+  try {
+    const rows = (await prisma.$queryRaw`
+      SELECT id, link_slide, link_pdf FROM orcamento WHERE titulo = ${titulo} LIMIT 1
+    `) as Array<{ id: number | bigint; link_slide: string | null; link_pdf: string | null }>
+
+    const row = rows?.[0]
+    if (!row) return undefined
+
+    return {
+      id: Number(row.id),
+      slideUrl: row.link_slide,
+      pdfUrl: row.link_pdf,
+    }
+  } catch (err) {
+    console.error("[gerar-proposta] falha ao localizar orçamento duplicado", err)
+    return undefined
+  }
+}
+
 function mapErrorToHttp(err: any, requestId: string): { status: number; body: ApiErrorShape } {
   const code = typeof err?.code === "string" ? err.code : undefined
   const step = typeof err?.step === "string" ? err.step : undefined
@@ -313,6 +342,12 @@ export async function POST(req: Request) {
     return res
   } catch (err: any) {
     const { status, body: errBody } = mapErrorToHttp(err, requestId)
+
+    if (errBody.code === "DUPLICATE_TITLE") {
+      const existente = await findOrcamentoByTitulo(titulo)
+      if (existente) errBody.details = { ...(errBody.details ?? {}), existente }
+    }
+
     console.error("[POST /api/Orcamentos/gerar-proposta] erro", { ...errBody, stack: err?.stack })
     const res = NextResponse.json<ApiErrorShape>(errBody, { status })
     res.headers.set("X-Request-Id", requestId)

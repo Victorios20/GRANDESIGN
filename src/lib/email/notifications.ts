@@ -1,6 +1,7 @@
 import { Resend } from "resend"
 
 import { getNotificationSettings } from "@/actions/financeiro/settings/notifications"
+import { escapeHtml } from "@/lib/email/html"
 import { prisma } from "@/lib/prisma"
 
 type ContaTipo = "PAGAR" | "RECEBER"
@@ -72,7 +73,10 @@ export async function notifyContaCriada(input: NotifyContaInput): Promise<void> 
         const venc = formatDate(input.vencimento)
         const link = buildContaLink(input.tipo, input.id)
 
-        await resend.emails.send({
+        // Atenção: o SDK da Resend NÃO lança em erro de API — devolve
+        // `{ data: null, error }`. Sem checar o `error`, domínio bloqueado,
+        // rate limit e destinatário inválido passariam como sucesso.
+        const { data, error } = await resend.emails.send({
             from: "GD <suporte@grandesignce.com.br>",
             to: recipients,
             subject: `[GD] Nova ${tipoLabel.toLowerCase()} criada`,
@@ -83,7 +87,7 @@ export async function notifyContaCriada(input: NotifyContaInput): Promise<void> 
                     <table style="border-collapse: collapse; margin: 16px 0; width: 100%;">
                         <tr>
                             <td style="padding: 6px 0; color: #666;">Descrição</td>
-                            <td style="padding: 6px 0; font-weight: bold;">${input.descricao}</td>
+                            <td style="padding: 6px 0; font-weight: bold;">${escapeHtml(input.descricao)}</td>
                         </tr>
                         <tr>
                             <td style="padding: 6px 0; color: #666;">Valor</td>
@@ -96,6 +100,24 @@ export async function notifyContaCriada(input: NotifyContaInput): Promise<void> 
                     <p style="color: #999; font-size: 12px;">Notificação automática do sistema financeiro da Grandesign.</p>
                 </div>
             `,
+        })
+
+        if (error) {
+            console.error("[notifyContaCriada] Resend recusou o envio:", {
+                tipo: input.tipo,
+                contaId: input.id,
+                destinatarios: recipients.length,
+                name: error.name,
+                message: error.message,
+            })
+            return
+        }
+
+        console.info("[notifyContaCriada] Notificação enviada:", {
+            tipo: input.tipo,
+            contaId: input.id,
+            destinatarios: recipients.length,
+            emailId: data?.id,
         })
     } catch (error) {
         console.error("[notifyContaCriada] Falha ao enviar notificação:", error)

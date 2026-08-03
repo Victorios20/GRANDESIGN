@@ -31,6 +31,14 @@ import CopyLinkButton from "@/components/ui/CopyLinkButton"
 import { calcularTotais } from "@/actions/calculo_totais/calculo_totais"
 import { gerarPDF, GerarPDFError } from "@/api/useGerarPDF"
 import { logOrcamentoWebhook } from "@/api/useLogWebhook"
+import {
+    ApiRequestError,
+    ConnectionLostError,
+    isConnectionLost,
+    isDuplicateTitleError,
+    messageForOrcamentoFailure,
+    parseExistente,
+} from "@/lib/orcamento/save-errors"
 
 import ClienteModal from "@/components/modals/ClienteModal"
 import type { UpdateOrcamentoInput } from "@/actions/edit-orcamento-db/edit-orcamento-db"
@@ -270,40 +278,68 @@ type SalvarPayload = {
 }
 
 async function postJSON<T>(url: string, data: unknown): Promise<T> {
-    const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify(data),
-    })
+    let r: Response
+    try {
+        r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify(data),
+        })
+    } catch (err) {
+        // fetch nativo estoura TypeError ("Failed to fetch") quando a resposta
+        // não chega. A request pode ter sido processada pelo servidor.
+        console.error("[API NETWORK]", { url, err })
+        throw new ConnectionLostError(err)
+    }
 
     const isJson = r.headers.get("content-type")?.includes("application/json")
 
     if (!r.ok) {
         let msg = `Falha ao salvar (${r.status})`
+        let j: ApiErrorShape | undefined
         if (isJson) {
             try {
-                const j = (await r.json()) as ApiErrorShape
+                j = (await r.json()) as ApiErrorShape
                 if (j?.error) msg = j.error
                 console.error("[API ERROR]", { url, status: r.status, ...j })
             } catch { }
         } else {
             try { msg = `Falha ao salvar (${r.status}): ${(await r.text()) || "Erro"}` } catch { }
         }
-        throw new Error(msg)
+        throw new ApiRequestError(msg, {
+            status: r.status,
+            code: j?.code,
+            step: j?.step,
+            requestId: j?.requestId,
+            existente: parseExistente(j?.details),
+        })
     }
 
-    return (isJson ? r.json() : (null as unknown)) as Promise<T>
+    try {
+        return (isJson ? await r.json() : (null as unknown)) as T
+    } catch (err) {
+        // Resposta começou a chegar e o corpo morreu no meio: o servidor
+        // concluiu, então vale o mesmo aviso da conexão interrompida.
+        console.error("[API BODY]", { url, status: r.status, err })
+        throw new ConnectionLostError(err)
+    }
 }
 
 
 async function putJSON<T>(url: string, data: unknown): Promise<T> {
-    const r = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify(data),
-    })
+    let r: Response
+    try {
+        r = await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            cache: "no-store",
+            body: JSON.stringify(data),
+        })
+    } catch (err) {
+        console.error("[API NETWORK]", { url, err })
+        throw new ConnectionLostError(err)
+    }
 
     const isJson = r.headers.get("content-type")?.includes("application/json")
 
@@ -1674,8 +1710,46 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     toast.success("Proposta gerada! Links prontos abaixo.")
                     setModalSucessoAberto(true)
                 } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : "Erro ao salvar automaticamente"
-                    toast.error(msg)
+                    // Título já ocupado: o servidor devolve o orçamento existente,
+                    // então recuperamos os links dele em vez de deixar o usuário no vácuo.
+                    if (isDuplicateTitleError(err) && err.existente) {
+                        const ex = err.existente
+                        const temLinks = Boolean(ex.slideUrl && ex.pdfUrl)
+
+                        if (temLinks) setLinks({ slide: ex.slideUrl ?? undefined, pdf: ex.pdfUrl ?? undefined })
+
+                        toast.warning(
+                            temLinks
+                                ? `Este título já é do orçamento #${ex.id}, que já tem proposta gerada.`
+                                : `Este título já é do orçamento #${ex.id}, salvo sem proposta.`,
+                            {
+                                description: temLinks
+                                    ? "Recuperamos os links dele abaixo. Para gerar uma proposta nova, mude o título."
+                                    : "Abra o orçamento existente para gerar a proposta, ou mude o título.",
+                                duration: Infinity,
+                                action: {
+                                    label: "Abrir existente",
+                                    onClick: () => router.push(`/orcamento/edit/${ex.id}`),
+                                },
+                            },
+                        )
+                        return
+                    }
+
+                    // A resposta não chegou. A geração leva de 16 a 31s e o
+                    // rascunho é salvo antes do PDF, então pode ter dado certo.
+                    if (isConnectionLost(err)) {
+                        toast.error(messageForOrcamentoFailure(err), {
+                            duration: Infinity,
+                            action: {
+                                label: "Ver orçamentos",
+                                onClick: () => router.push("/orcamento"),
+                            },
+                        })
+                        return
+                    }
+
+                    toast.error(messageForOrcamentoFailure(err))
                 } finally {
                     setLoadingSave(false)
                 }
@@ -1724,8 +1798,7 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 console.debug("[handleGerarProposta] retorno sem links completos:", result)
             }
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : "Erro inesperado ao gerar proposta."
-            toast.error(msg)
+            toast.error(messageForOrcamentoFailure(err))
         } finally {
             setLoadingPDF(false)
         }

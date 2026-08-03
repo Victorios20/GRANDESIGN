@@ -9,8 +9,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "npm run test:payable-status",
+    "test": "npm run test:payable-status && npm run test:orcamento-save-errors",
     "test:payable-status": "tsx scripts/test-payable-status.ts",
+    "test:orcamento-save-errors": "tsx scripts/test-orcamento-save-errors.ts",
     "postinstall": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
     "version": "node scripts/update-version-date.js && git add version.json"
