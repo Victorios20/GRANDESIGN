@@ -292,13 +292,39 @@ No mapeamento de retorno (`rows.map(r => ({ ... }))`), incluir:
     fornecedorNome: r.fornecedor?.nome ?? null,
 ```
 
-- [ ] **Step 2: Tipo compartilhado**
+- [ ] **Step 2: Tipo em cada arquivo (não é um tipo compartilhado)**
 
-Localizar a definição de `MaterialRow` (busca: `grep -rn "MaterialRow" src/actions/calcular-materiais/*.ts`) e adicionar o campo:
+`MaterialRow` é declarado DUAS VEZES com a mesma forma, sem import entre elas — `calcularMateriais-db.server.ts` (tipo local, server-only) e `calcularMateriais-db.ts` (tipo exportado, lado cliente-seguro). Adicionar o mesmo campo nas DUAS declarações:
+
+Em `src/actions/calcular-materiais/calcularMateriais-db.server.ts` (busca: `type MaterialRow = {`):
 
 ```ts
-    fornecedorNome?: string | null
+type MaterialRow = {
+  id: number
+  descricao: string
+  tipo: string
+  preco_unitario: number
+  unidade_de_medida: string | null
+  fornecedorId: number | null
+  fornecedorNome: string | null
+}
 ```
+
+Em `src/actions/calcular-materiais/calcularMateriais-db.ts` (busca: `export type MaterialRow = {`):
+
+```ts
+export type MaterialRow = {
+  id: number
+  descricao: string
+  tipo: string
+  preco_unitario: number
+  unidade_de_medida: string | null
+  fornecedorId: number | null
+  fornecedorNome: string | null
+}
+```
+
+Aqui o campo é obrigatório (não opcional) nas duas — o Step 1 já preenche `fornecedorNome` em todo retorno do server, então o lado cliente pode exigir o campo sem quebrar nada.
 
 - [ ] **Step 3: Checar o modo strict**
 

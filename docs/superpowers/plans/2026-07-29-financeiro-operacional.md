@@ -800,7 +800,8 @@ import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categor
           try {
             await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedido.id, input.actorUserId, "OBRA")
           } catch (err) {
-            logError("auto-integracao de pedido na criacao da obra falhou", {
+            // Convenção do arquivo: console.error (não há helper de log neste módulo).
+            console.error("Auto-integração de pedido na criação da obra falhou:", {
               pedidoId: pedido.id,
               categoria: g.categoria,
               error: err instanceof Error ? err.message : String(err),
