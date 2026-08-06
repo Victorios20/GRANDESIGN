@@ -1,5 +1,6 @@
 import { addDays } from "date-fns"
 import { Prisma, StatusFinanceiro, TipoCategoria } from "@prisma/client"
+import { getTodayDateOnlyDate } from "@/lib/date-only"
 
 type Tx = Prisma.TransactionClient
 type ObraReceivableOrigin = "ENTRADA" | "QUITACAO"
@@ -205,7 +206,7 @@ export async function syncObraReceivables(tx: Tx, obraId: number, userId?: numbe
                 descricao,
                 valor_total: item.valor,
                 valor_recebido: 0,
-                data_emissao: startOfDate(new Date()),
+                data_emissao: getTodayDateOnlyDate(),
                 data_vencimento: item.vencimento,
                 status: StatusFinanceiro.PENDENTE,
                 cliente_id: obra.cliente_id,

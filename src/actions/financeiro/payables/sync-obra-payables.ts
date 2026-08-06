@@ -1,4 +1,5 @@
 import { Prisma, StatusFinanceiro, TipoCategoria } from "@prisma/client"
+import { getTodayDateOnlyDate } from "@/lib/date-only"
 
 type Tx = Prisma.TransactionClient
 type ObraPayableOrigin = "MAO_DE_OBRA"
@@ -171,7 +172,7 @@ export async function syncObraPayables(tx: Tx, obraId: number, userId?: number) 
                 descricao,
                 valor_total: item.valor,
                 valor_pago: 0,
-                data_emissao: startOfDate(new Date()),
+                data_emissao: getTodayDateOnlyDate(),
                 data_vencimento: item.vencimento,
                 status: StatusFinanceiro.PENDENTE,
                 fornecedor_id: fornecedorId,

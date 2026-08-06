@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma"
 import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-centers"
 import { notifyContaPagarCriadaById } from "@/lib/email/notifications"
+import { getTodayDateOnlyDate } from "@/lib/date-only"
 import {
   IntegracaoFinanceiraStatus,
   PedidoCategoria,
@@ -379,6 +380,7 @@ export async function integrarPedidoCompraAoFinanceiroInTransaction(
     const centroCusto = await getOrCreateActiveCostCenterForWork(tx, pedido.obra_id)
 
     const now = new Date()
+    const emissao = getTodayDateOnlyDate()
     const descricao = truncate(
       pedido.descricao?.trim() || `Pedido de compra #${pedido.id}`,
       200
@@ -394,8 +396,8 @@ export async function integrarPedidoCompraAoFinanceiroInTransaction(
         descricao,
         valor_total: valorPedido,
         valor_pago: new Prisma.Decimal(0),
-        data_emissao: now,
-        data_vencimento: pedido.data_entrega ?? now,
+        data_emissao: emissao,
+        data_vencimento: pedido.data_entrega ?? emissao,
         status: StatusFinanceiro.PENDENTE,
         fornecedor_id: pedido.fornecedor_id,
         categoria_id: categoriaId,
@@ -532,7 +534,7 @@ async function createReverseLancamentos(tx: Tx, pedidoId: number, contaPagarId: 
 
   if (!payable) return 0
 
-  const reversalDate = new Date()
+  const reversalDate = getTodayDateOnlyDate()
 
   for (const lancamento of payable.lancamentos) {
     const valor = asDecimal(lancamento.valor)
