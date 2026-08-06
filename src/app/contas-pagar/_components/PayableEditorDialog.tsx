@@ -87,6 +87,8 @@ export default function PayableEditorDialog({
     const isLockedStatus = Boolean(item) && !canEdit(item!.status)
     const [adminEditUnlocked, setAdminEditUnlocked] = useState(false)
     const isEditable = (!item || canEdit(item.status)) || (isAdminOrDev && adminEditUnlocked)
+    const isPaidSafeEdit = Boolean(item) && item!.status === "PAGO" && !isEditable
+    const safeEditable = isEditable || isPaidSafeEdit
     const [descricao, setDescricao] = useState("")
     const [valor, setValor] = useState<number | null>(null)
     const [dataEmissao, setDataEmissao] = useState("")
@@ -164,11 +166,11 @@ export default function PayableEditorDialog({
     )
 
     const canSubmit = useMemo(() => {
-        if (!isEditable || !descricao.trim() || valor == null || valor <= 0 || !dataEmissao || !categoriaId) return false
+        if (!safeEditable || !descricao.trim() || valor == null || valor <= 0 || !dataEmissao || !categoriaId) return false
         if (isEdit) return Boolean(dataVencimento)
         if (isInstallmentMode) return Number(totalParcelas) >= 2 && Boolean(primeiroVencimento)
         return Boolean(dataVencimento)
-    }, [categoriaId, dataEmissao, dataVencimento, descricao, isEdit, isEditable, isInstallmentMode, primeiroVencimento, totalParcelas, valor])
+    }, [categoriaId, dataEmissao, dataVencimento, descricao, isEdit, isInstallmentMode, primeiroVencimento, safeEditable, totalParcelas, valor])
 
     const statusColor = item ? statusDotClassName[getStatusColor(item.status)] : statusDotClassName.amber
 
@@ -362,6 +364,12 @@ export default function PayableEditorDialog({
                             </div>
                         ) : null}
 
+                        {item && isPaidSafeEdit ? (
+                            <p className="rounded-lg border border-[#E8D9BC] bg-[#FFF9EE] px-3 py-2 text-xs text-[#6B5D52]">
+                                Conta paga: descrição, fornecedor, categoria, centro de custo e observações podem ser corrigidos (com registro em auditoria). Valor e datas ficam protegidos.
+                            </p>
+                        ) : null}
+
                         {/* Payment history — shown when conta is PAGO or PARCIAL */}
                         {item && !isEditable && lancamentos.length > 0 ? (
                             <div className="rounded-xl border border-[#ece6db] bg-[#faf8f3]">
@@ -503,7 +511,7 @@ export default function PayableEditorDialog({
                                     value={descricao}
                                     onChange={(event) => setDescricao(event.target.value)}
                                     className={fieldClassName}
-                                    disabled={!isEditable || submitting}
+                                    disabled={!safeEditable || submitting}
                                 />
                             </div>
 
@@ -516,7 +524,7 @@ export default function PayableEditorDialog({
                                     placeholder="Selecionar fornecedor"
                                     searchPlaceholder="Buscar fornecedor"
                                     className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
-                                    disabled={!isEditable || submitting}
+                                    disabled={!safeEditable || submitting}
                                 />
                             </div>
 
@@ -529,7 +537,7 @@ export default function PayableEditorDialog({
                                     placeholder="Selecionar categoria"
                                     searchPlaceholder="Buscar categoria"
                                     className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
-                                    disabled={!isEditable || submitting}
+                                    disabled={!safeEditable || submitting}
                                 />
                             </div>
 
@@ -553,7 +561,7 @@ export default function PayableEditorDialog({
                                     placeholder="Selecionar centro de custo"
                                     searchPlaceholder="Buscar centro de custo"
                                     className="h-9 rounded-lg border-[#d9d3c8] text-sm text-[#2c201b] shadow-none"
-                                    disabled={!isEditable || submitting}
+                                    disabled={!safeEditable || submitting}
                                 />
                             </div>
 
@@ -589,7 +597,7 @@ export default function PayableEditorDialog({
                                     rows={4}
                                     placeholder="Observações internas do lançamento"
                                     className="rounded-lg border-[#d9d3c8] bg-white text-sm text-[#2c201b] shadow-none focus-visible:ring-[#393316]/15"
-                                    disabled={!isEditable || submitting}
+                                    disabled={!safeEditable || submitting}
                                 />
                             </div>
                         </div>

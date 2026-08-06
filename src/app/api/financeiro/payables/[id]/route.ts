@@ -44,7 +44,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const body = await req.json()
         const input = updatePayableSchema.parse(body)
         const allowLocked = await isAdminOrDev()
-        const result = await updatePayable(Number(id), input, { allowLocked })
+        const userId = Number(session.user.id) || undefined
+        const result = await updatePayable(Number(id), input, { allowLocked, userId })
         return NextResponse.json(result)
     } catch (error) {
         if (error instanceof ZodError) {
