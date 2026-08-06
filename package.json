@@ -9,9 +9,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "npm run test:payable-status && npm run test:date-only",
+    "test": "npm run test:payable-status && npm run test:date-only && npm run test:search-filter",
     "test:payable-status": "tsx scripts/test-payable-status.ts",
     "test:date-only": "tsx scripts/test-date-only.ts",
+    "test:search-filter": "tsx scripts/test-search-filter.ts",
     "postinstall": "prisma generate",
     "migrate:deploy": "prisma migrate deploy",
     "version": "node scripts/update-version-date.js && git add version.json"

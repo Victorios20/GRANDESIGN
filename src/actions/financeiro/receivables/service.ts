@@ -1,6 +1,7 @@
 import { FrequenciaRecorrencia, Prisma, StatusFinanceiro } from "@prisma/client"
 import { z } from "zod"
 
+import { buildSearchWhere } from "@/actions/financeiro/shared/search"
 import { zDateOnly } from "@/lib/date-only"
 import { calculateInstallments } from "@/lib/financial/installments"
 import { isReceivableCategory } from "@/lib/financial/fixed-category-taxonomy"
@@ -205,7 +206,7 @@ function buildReceivablesWhere(
     if (cliente_id) where.cliente_id = cliente_id
     if (categoria_id) where.categoria_id = categoria_id
     if (centro_custo_id) where.centro_custo_id = centro_custo_id
-    if (search) where.descricao = { contains: search, mode: "insensitive" }
+    if (search) Object.assign(where, buildSearchWhere(search))
 
     return where
 }

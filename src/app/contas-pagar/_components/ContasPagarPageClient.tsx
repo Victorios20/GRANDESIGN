@@ -413,7 +413,7 @@ export default function ContasPagarPageClient({
                                 <Input
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Buscar por número, descrição ou fornecedor"
+                                    placeholder="Buscar por ID, descrição ou fornecedor"
                                     className={operationalListSearchInputClass}
                                 />
                             </div>
@@ -560,6 +560,7 @@ export default function ContasPagarPageClient({
                                             aria-label="Selecionar contas"
                                         />
                                     </th>
+                                    <th className={cn(operationalListTableHeadCellClass, "w-16")}>ID</th>
                                     <SortableHeader column="data_vencimento" activeColumn={sortBy} direction={sortOrder} onSort={handleSort}>
                                         Vencimento
                                     </SortableHeader>
@@ -585,15 +586,15 @@ export default function ContasPagarPageClient({
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-10 text-center text-[#2C201B]/55">Carregando contas...</td>
+                                        <td colSpan={10} className="px-4 py-10 text-center text-[#2C201B]/55">Carregando contas...</td>
                                     </tr>
                                 ) : error ? (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-10 text-center text-[#B42318]">{error}</td>
+                                        <td colSpan={10} className="px-4 py-10 text-center text-[#B42318]">{error}</td>
                                     </tr>
                                 ) : data.length === 0 ? (
                                     <tr>
-                                        <td colSpan={9} className="px-4 py-12 text-center text-[#2C201B]/55">Nenhuma conta para este recorte.</td>
+                                        <td colSpan={10} className="px-4 py-12 text-center text-[#2C201B]/55">Nenhuma conta para este recorte.</td>
                                     </tr>
                                 ) : (
                                     data.map((item) => {
@@ -618,6 +619,7 @@ export default function ContasPagarPageClient({
                                                         onCheckedChange={(checked) => toggleRowSelection(item.id, checked === true)}
                                                     />
                                                 </td>
+                                                <td className="px-3 py-3.5 text-xs font-medium text-[#2C201B]/60">#{item.id}</td>
                                                 <td className="px-3 py-3.5 text-[#2C201B]">
                                                     <p className="font-medium">{formatDateBR(item.data_vencimento)}</p>
                                                     <p className="text-xs text-[#2C201B]/50">{item.parcela_atual}/{item.total_parcelas}</p>

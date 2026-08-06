@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import { StatusFinanceiro, Prisma } from "@prisma/client"
 
+import { buildSearchWhere } from "@/actions/financeiro/shared/search"
+
 export interface GetPayablesOptions {
     page?: number
     limit?: number
@@ -61,7 +63,7 @@ function buildPayablesWhere(
     if (fornecedor_id) where.fornecedor_id = fornecedor_id
     if (categoria_id) where.categoria_id = categoria_id
     if (centro_custo_id) where.centro_custo_id = centro_custo_id
-    if (search) where.descricao = { contains: search, mode: "insensitive" }
+    if (search) Object.assign(where, buildSearchWhere(search))
 
     return where
 }
