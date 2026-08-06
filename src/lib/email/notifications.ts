@@ -54,19 +54,30 @@ function buildContaLink(tipo: ContaTipo, id?: number) {
 export async function notifyContaCriada(input: NotifyContaInput): Promise<void> {
     try {
         const settings = await getNotificationSettings()
-        if (!settings.ativo) return
+        if (!settings.ativo) {
+            console.warn("[notifyContaCriada] notificações desativadas (ativo=false); e-mail não enviado.")
+            return
+        }
 
         const enabled = input.tipo === "PAGAR" ? settings.notificar_conta_pagar : settings.notificar_conta_receber
-        if (!enabled) return
+        if (!enabled) {
+            console.warn(`[notifyContaCriada] notificação de ${input.tipo} desligada nas configurações; e-mail não enviado.`)
+            return
+        }
 
         const recipients = settings.emails.filter(Boolean)
-        if (recipients.length === 0) return
+        if (recipients.length === 0) {
+            console.warn("[notifyContaCriada] nenhum destinatário configurado; e-mail não enviado.")
+            return
+        }
 
         const apiKey = process.env.RESEND_API_KEY
         if (!apiKey) {
             console.warn("[notifyContaCriada] RESEND_API_KEY ausente; e-mail não enviado.")
             return
         }
+
+        console.info(`[notifyContaCriada] usando RESEND_API_KEY ${apiKey.slice(0, 6)}...${apiKey.slice(-4)}`)
 
         const resend = new Resend(apiKey)
         const tipoLabel = input.tipo === "PAGAR" ? "Conta a pagar" : "Conta a receber"
