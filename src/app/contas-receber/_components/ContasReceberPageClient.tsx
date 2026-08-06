@@ -56,9 +56,9 @@ import {
 
 type ReceivableSortBy = "data_vencimento" | "cliente" | "descricao" | "categoria" | "valor_total" | "status" | "created_at"
 type SortDirection = "asc" | "desc"
-type FinancialStatusFilter = "todos" | "PENDENTE" | "PARCIAL" | "ATRASADO" | "PAGO" | "CANCELADO"
+type FinancialStatusFilter = "todos" | "EM_ABERTO" | "PENDENTE" | "PARCIAL" | "ATRASADO" | "PAGO" | "CANCELADO"
 
-const STATUS_TABS: Array<{ value: FinancialStatusFilter; label: string }> = [
+const STATUS_TABS: Array<{ value: Exclude<FinancialStatusFilter, "EM_ABERTO">; label: string }> = [
     { value: "todos", label: "Todos" },
     { value: "PENDENTE", label: "Pendente" },
     { value: "PARCIAL", label: "Parcial" },
@@ -66,6 +66,8 @@ const STATUS_TABS: Array<{ value: FinancialStatusFilter; label: string }> = [
     { value: "PAGO", label: "Recebidas" },
     { value: "CANCELADO", label: "Canceladas" },
 ]
+
+const OPEN_STATUS_PARAM = "PENDENTE,PARCIAL,ATRASADO"
 
 const DEFAULT_SORT_DIRECTIONS: Record<ReceivableSortBy, SortDirection> = {
     data_vencimento: "desc",
@@ -125,7 +127,7 @@ export default function ContasReceberPageClient({
 
     const [search, setSearch] = useState(initialFilters.search)
     const [statusFilter, setStatusFilter] = useState<FinancialStatusFilter>(
-        initialFilters.status && isFinancialStatus(initialFilters.status) ? initialFilters.status : "todos"
+        initialFilters.status && isFinancialStatus(initialFilters.status) ? initialFilters.status : "EM_ABERTO"
     )
     const [categoriaId, setCategoriaId] = useState<string>(initialFilters.categoriaId)
     const [centroCustoId, setCentroCustoId] = useState<string>(initialFilters.centroCustoId)
@@ -168,7 +170,8 @@ export default function ContasReceberPageClient({
             params.set("page", String(targetPage))
             params.set("limit", "50")
             if (search) params.set("search", search)
-            if (statusFilter !== "todos") params.set("status", statusFilter)
+            if (statusFilter === "EM_ABERTO") params.set("status", OPEN_STATUS_PARAM)
+            else if (statusFilter !== "todos") params.set("status", statusFilter)
             if (categoriaId !== "all") params.set("categoria_id", categoriaId)
             if (centroCustoId !== "all") params.set("centro_custo_id", centroCustoId)
             if (dateRange?.from) {
@@ -292,7 +295,7 @@ export default function ContasReceberPageClient({
         [selectedItems]
     )
     const hasAdvancedFilters = categoriaId !== "all" || centroCustoId !== "all"
-    const hasActiveFilters = hasAdvancedFilters || Boolean(search.trim()) || statusFilter !== "todos" || Boolean(dateRange?.from)
+    const hasActiveFilters = hasAdvancedFilters || Boolean(search.trim()) || (statusFilter !== "todos" && statusFilter !== "EM_ABERTO") || Boolean(dateRange?.from)
     const advancedFilterCount = [
         categoriaId !== "all",
         centroCustoId !== "all",
@@ -303,7 +306,7 @@ export default function ContasReceberPageClient({
 
         if (search.trim()) chips.push({ key: "search", label: `Busca: ${search.trim()}` })
 
-        if (statusFilter !== "todos") {
+        if (statusFilter !== "todos" && statusFilter !== "EM_ABERTO") {
             const statusLabel = FINANCIAL_STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? statusFilter
             chips.push({ key: "status", label: `Status: ${statusLabel}` })
         }
@@ -330,7 +333,7 @@ export default function ContasReceberPageClient({
 
     function clearAllFilters() {
         setSearch("")
-        setStatusFilter("todos")
+        setStatusFilter("EM_ABERTO")
         setDateRange(undefined)
         setCategoriaId("all")
         setCentroCustoId("all")
@@ -338,7 +341,7 @@ export default function ContasReceberPageClient({
 
     function removeFilterChip(key: string) {
         if (key === "search") setSearch("")
-        if (key === "status") setStatusFilter("todos")
+        if (key === "status") setStatusFilter("EM_ABERTO")
         if (key === "period") setDateRange(undefined)
         if (key === "category") setCategoriaId("all")
         if (key === "cost-center") setCentroCustoId("all")
@@ -362,10 +365,20 @@ export default function ContasReceberPageClient({
         void fetchData(boundedPage)
     }
 
-    const statusTabItems = STATUS_TABS.map((item) => ({
-        ...item,
-        count: summary.statusCounts?.[item.value] ?? 0,
-    }))
+    const statusTabItems = [
+        {
+            value: "EM_ABERTO" as const,
+            label: "Em aberto",
+            count:
+                (summary?.statusCounts?.PENDENTE ?? 0) +
+                (summary?.statusCounts?.PARCIAL ?? 0) +
+                (summary?.statusCounts?.ATRASADO ?? 0),
+        },
+        ...STATUS_TABS.map((item) => ({
+            ...item,
+            count: summary.statusCounts?.[item.value] ?? 0,
+        })),
+    ]
 
     return (
         <PageLayout title="Contas a Receber" links={[{ label: "Home", href: "/" }]} pageBackground="bg-[#F7F4EE]">
