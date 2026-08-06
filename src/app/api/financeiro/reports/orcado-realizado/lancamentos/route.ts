@@ -88,6 +88,8 @@ export async function GET(request: NextRequest) {
             fornecedor: transaction.conta_pagar?.fornecedor?.nome || transaction.conta_receber?.cliente?.nome || "-",
             categoriaOriginal: transaction.categoria.nome,
             conciliado: transaction.status_conferencia === StatusConferencia.CONFERIDO,
+            contaPagarId: transaction.conta_pagar_id,
+            contaReceberId: transaction.conta_receber_id,
         }))
 
         return NextResponse.json({ items, total: items.length })
