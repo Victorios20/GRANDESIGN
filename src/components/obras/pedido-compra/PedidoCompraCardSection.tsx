@@ -6,8 +6,6 @@ import {
   Plus,
   MoreVertical,
   Calendar,
-  TrendingDown,
-  TrendingUp,
   ShoppingCart,
   ExternalLink,
   Trash2,
@@ -33,7 +31,7 @@ import { deletePedidoCompra } from "@/actions/pedido_compra/delete-pedido-compra
 import { cancelPedidoCompra } from "@/actions/pedido_compra/cancel-pedido-compra"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
-import { formatMoney, formatDateBR, calcVariancePercent, formatPedidoId } from "@/lib/pedido-compra-utils"
+import { formatMoney, formatDateBR, formatPedidoId } from "@/lib/pedido-compra-utils"
 
 type Props = {
   pedidos: PedidoCompraVM[]
@@ -236,7 +234,6 @@ export function PedidoCompraCardSection({
                   <th className="text-left p-4 font-medium text-sm">Categoria</th>
                   <th className="text-left p-4 font-medium text-sm">Status</th>
                   <th className="text-left p-4 font-medium text-sm">Valor do pedido</th>
-                  <th className="text-left p-4 font-medium text-sm">Valor Realizado</th>
                   <th className="text-left p-4 font-medium text-sm">Entrega</th>
                   <th className="text-left p-4 font-medium text-sm">Integração</th>
                   <th className="w-12"></th>
@@ -255,24 +252,17 @@ export function PedidoCompraCardSection({
                   const statusStr = String(status).toUpperCase()
 
                   const valorPedido = getPedidoCompraValorPedido(p as any)
-                  const realizado =
-                    (p as any)?.valorRealizado ?? (p as any)?.valor_realizado ?? (p as any)?.valores?.realizado
 
                   const entrega = (p as any)?.dataEntrega ?? (p as any)?.data_entrega ?? (p as any)?.entrega?.data
 
                   const fornecedor =
                     String((p as any)?.fornecedorNome ?? (p as any)?.fornecedor?.nome ?? "—").trim() || "—"
 
-                  const variance = calcVariancePercent(valorPedido, realizado)
-
                   const integrado =
                     Boolean((p as any)?.integrado) ||
                     Boolean((p as any)?.integrated) ||
                     Boolean((p as any)?.isIntegrated) ||
                     false
-
-                  const varianceIsPositive = typeof variance === "number" && variance > 0
-                  const varianceIsNegative = typeof variance === "number" && variance < 0
 
                   const isProcessing = processingId === id
                   const canDelete = ["RASCUNHO", "PENDENTE", "CANCELADO"].includes(statusStr)
@@ -311,35 +301,6 @@ export function PedidoCompraCardSection({
 
                       <td className="p-4">
                         <div className="text-sm font-medium">{formatMoney(valorPedido)}</div>
-                      </td>
-
-                      <td className="p-4">
-                        {realizado != null && String(realizado) !== "" ? (
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium">{formatMoney(realizado)}</div>
-
-                            {variance != null && (
-                              <div
-                                className={[
-                                  "flex items-center gap-1 text-xs",
-                                  varianceIsPositive ? "text-red-600" : "",
-                                  varianceIsNegative ? "text-green-600" : "",
-                                  !varianceIsPositive && !varianceIsNegative ? "text-muted-foreground" : "",
-                                ].join(" ")}
-                              >
-                                {varianceIsPositive ? (
-                                  <TrendingUp className="w-3 h-3" />
-                                ) : varianceIsNegative ? (
-                                  <TrendingDown className="w-3 h-3" />
-                                ) : null}
-
-                                {Math.abs(variance).toFixed(1)}%
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
                       </td>
 
                       <td className="p-4">
