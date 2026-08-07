@@ -8,6 +8,8 @@ import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-ce
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
 import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
 import { notifyContaPagarCriadaById, notifyContaReceberCriadaById } from "@/lib/email/notifications"
+import { integrarPedidoCompraAoFinanceiroInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
+import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -158,6 +160,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   // Ids das contas auto-geradas, para notificar após o commit (fora da transação).
   let createdReceivableIds: number[] = []
   let createdPayableIds: number[] = []
+  let autoContaIds: number[] = []
+
+  await syncFixedFinancialCategoryTaxonomy()
 
   const result = await prisma.$transaction(
     async (tx) => {
@@ -281,12 +286,15 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       const telhaEscolhidaNorm = normalizeStr(input.telha_escolhida || "")
 
       // Find the budget item that matches the chosen tile
+      // Preferindo a linha marcada como "vai pra proposta" (proposta !== false) entre as candidatas,
+      // já que pode haver mais de um fornecedor cadastrado para a mesma telha.
       let telhaBudgetItem: (typeof orc.orcamento_material)[number] | undefined = undefined
       if (telhaEscolhidaNorm) {
-        telhaBudgetItem = orc.orcamento_material?.find((m) => {
+        const candidatas = orc.orcamento_material.filter((m) => {
           const d = normalizeStr(m.descricao || "")
           return d.includes(telhaEscolhidaNorm) || telhaEscolhidaNorm.includes(d)
         })
+        telhaBudgetItem = candidatas.find((m) => m.proposta !== false) ?? candidatas[0]
       }
 
       // If strict match fails, try looking for any "telha" item if the input was generic
@@ -324,8 +332,12 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       // Resolve supplier IDs with fallback from orcamento
       const madeiraFornecedorId = input.fornecedor_madeira_id ?? orc.id_fornecedor ?? null
 
+      // Fornecedor da telha em cascata: input manual (override explícito) vence;
+      // senão, cai pro fornecedor marcado (ou primeiro) no orçamento; senão, null.
+      const telhaFornecedorId = input.fornecedor_telha_id ?? telhaBudgetItem?.fornecedor_id ?? null
+
       const gruposAutomated: { categoria: PedidoCategoria; itens: PedidoItemInput[]; fornecedor?: number | null }[] = [
-        { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: input.fornecedor_telha_id },
+        { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: telhaFornecedorId },
         { categoria: PedidoCategoria.MADEIRA, itens: madeiraItems, fornecedor: madeiraFornecedorId },
         { categoria: PedidoCategoria.ANDAIMES, itens: andaimeItems, fornecedor: input.andaimes_fornecedor_id },
       ]
@@ -353,12 +365,13 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         // 1. I will calculate `somaFrete` for each group (Telha, Madeira, Andaime) separately above.
         // 2. Then I will pass it here. 
 
-        let somaFrete = 0
-
-        // For Telha, we already found `telhaBudgetItem` above. 
-        if (g.categoria === PedidoCategoria.TELHA && telhaBudgetItem) {
-          somaFrete = Number(telhaBudgetItem.frete || 0)
-        }
+        // Frete da telha NÃO entra aqui: `telhaBudgetItem.total` (usado em `telhaItems`)
+        // já é `quantidade * preco_unitario + frete` (ver salvar-orcamento-db.ts /
+        // edit-orcamento-db.ts). Se também somássemos o frete no header do pedido,
+        // `calculatePedidoAmount` (itens.total + pedido.frete) contaria o frete em dobro.
+        // Madeira e Andaimes não têm esse problema: seus `total` nunca incluem frete
+        // (frete de madeira é sempre 0 no orçamento; andaimes é regra fixa sem frete).
+        const somaFrete = 0
 
         const catLabel = g.categoria === PedidoCategoria.ANDAIMES ? "Andaimes" :
           g.categoria === PedidoCategoria.TELHA ? "Telha" : "Madeira"
@@ -398,6 +411,23 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             },
           })
         }
+
+        // Conta a pagar nasce junto com a obra (decisão: sem status novo, direto PENDENTE).
+        // Pedido sem valor (ex.: telha não encontrada no orçamento, qty 0) fica de fora —
+        // será integrado manualmente quando ganhar itens/valor.
+        if (somaTotal > 0) {
+          try {
+            const resultado = await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedido.id, input.actorUserId, "OBRA")
+            if (resultado.contaPagarId) autoContaIds.push(resultado.contaPagarId)
+          } catch (err) {
+            // Convenção do arquivo: console.error (não há helper de log neste módulo).
+            console.error("Auto-integração de pedido na criação da obra falhou:", {
+              pedidoId: pedido.id,
+              categoria: g.categoria,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
       }
 
       if (Array.isArray(input.imagens) && input.imagens.length > 0) {
@@ -433,6 +463,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   // Notifica as contas auto-geradas após o commit (fire-and-forget).
   for (const id of createdReceivableIds) await notifyContaReceberCriadaById(id)
   for (const id of createdPayableIds) await notifyContaPagarCriadaById(id)
+  for (const id of autoContaIds) await notifyContaPagarCriadaById(id)
 
   return result
 }

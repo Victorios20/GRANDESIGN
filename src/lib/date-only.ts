@@ -65,6 +65,15 @@ export function getTodayDateOnly(): string {
 }
 
 /**
+ * Dia de hoje (fuso local) como Date em meio-dia UTC — o mesmo referencial
+ * usado por parseDateOnlyInput/zDateOnly. Usar SEMPRE que for gravar "hoje"
+ * em coluna @db.Date, no lugar de new Date() cru.
+ */
+export function getTodayDateOnlyDate(): Date {
+  return parseDateOnlyInput(getTodayDateOnly())!
+}
+
+/**
  * Zod schema que normaliza uma data "date-only" (string "YYYY-MM-DD" ou Date)
  * para um Date em meio-dia UTC, mesmo referencial usado pelos filtros de período
  * (parseDateOnlyInput). Usar para campos de vencimento/emissão e evitar que o

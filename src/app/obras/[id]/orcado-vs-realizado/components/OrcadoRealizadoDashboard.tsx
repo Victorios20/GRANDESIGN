@@ -1,7 +1,6 @@
 "use client"
 
 import { Fragment, useCallback, useEffect, useState } from "react"
-import { format } from "date-fns"
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Loader2, RefreshCcw } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { formatDateOnlyPtBr } from "@/lib/date-only"
 import { formatCurrency } from "@/lib/utils"
 import type { OrcadoRealizadoDTO } from "@/services/financial/orcado-realizado.service"
 
@@ -22,6 +22,8 @@ type TransactionItem = {
     valor: number
     fornecedor: string
     categoriaOriginal: string
+    contaPagarId: number | null
+    contaReceberId: number | null
 }
 
 export default function OrcadoRealizadoDashboard() {
@@ -277,22 +279,30 @@ export default function OrcadoRealizadoDashboard() {
                                                                         </TableRow>
                                                                     </TableHeader>
                                                                     <TableBody>
-                                                                        {items.map((transaction) => (
-                                                                            <TableRow key={transaction.id} className="h-8 hover:bg-muted/50">
-                                                                                <TableCell className="py-1 text-xs font-semibold">
-                                                                                    <Link href={`/lancamentos?transaction_id=${transaction.id}`} className="underline-offset-2 hover:underline">
-                                                                                        #{transaction.id}
-                                                                                    </Link>
-                                                                                </TableCell>
-                                                                                <TableCell className="py-1 text-xs">{format(new Date(transaction.data), "dd/MM/yyyy")}</TableCell>
-                                                                                <TableCell className="py-1 text-xs">{transaction.fornecedor}</TableCell>
-                                                                                <TableCell className="py-1 text-xs text-muted-foreground">
-                                                                                    {transaction.descricao} <span className="opacity-50">({transaction.categoriaOriginal})</span>
-                                                                                </TableCell>
-                                                                                <TableCell className="py-1 text-xs text-muted-foreground">{transaction.conta}</TableCell>
-                                                                                <TableCell className="py-1 text-right text-xs font-medium">{formatCurrency(transaction.valor)}</TableCell>
-                                                                            </TableRow>
-                                                                        ))}
+                                                                        {items.map((transaction) => {
+                                                                            const contaHref = transaction.contaPagarId
+                                                                                ? `/contas-pagar?highlight=${transaction.contaPagarId}`
+                                                                                : transaction.contaReceberId
+                                                                                    ? `/contas-receber?highlight=${transaction.contaReceberId}`
+                                                                                    : `/lancamentos?transaction_id=${transaction.id}`
+
+                                                                            return (
+                                                                                <TableRow key={transaction.id} className="h-8 hover:bg-muted/50">
+                                                                                    <TableCell className="py-1 text-xs font-semibold">
+                                                                                        <Link href={contaHref} className="underline-offset-2 hover:underline">
+                                                                                            #{transaction.id}
+                                                                                        </Link>
+                                                                                    </TableCell>
+                                                                                    <TableCell className="py-1 text-xs">{formatDateOnlyPtBr(transaction.data)}</TableCell>
+                                                                                    <TableCell className="py-1 text-xs">{transaction.fornecedor}</TableCell>
+                                                                                    <TableCell className="py-1 text-xs text-muted-foreground">
+                                                                                        {transaction.descricao} <span className="opacity-50">({transaction.categoriaOriginal})</span>
+                                                                                    </TableCell>
+                                                                                    <TableCell className="py-1 text-xs text-muted-foreground">{transaction.conta}</TableCell>
+                                                                                    <TableCell className="py-1 text-right text-xs font-medium">{formatCurrency(transaction.valor)}</TableCell>
+                                                                                </TableRow>
+                                                                            )
+                                                                        })}
                                                                     </TableBody>
                                                                 </Table>
                                                             </div>

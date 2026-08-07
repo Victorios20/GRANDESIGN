@@ -13,6 +13,10 @@ export type UIMaterial = {
   preco: number
   tamanho?: number | null
   frete?: number | null
+  /** NOVO — telhas: fornecedor selecionado para a proposta */
+  fornecedorId?: number | null
+  fornecedorNome?: string | null
+  proposta?: boolean
 }
 
 export type GetOrcamentoResult = {
@@ -113,6 +117,10 @@ export type UpdateOrcamentoInput = {
       quantidade: number | string
       preco: number | string
       frete?: number | string | null
+      /** NOVO — fornecedor selecionado para a proposta */
+      fornecedorId?: number | null
+      fornecedorNome?: string | null
+      proposta?: boolean
     }>
   }
   totais: {
@@ -223,6 +231,8 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
         const mats = await tx.orcamento_material.findMany({
           where: { orcamento_id: id },
           orderBy: { id: "asc" },
+          /** NOVO: traz fornecedor da telha (nome) junto com fornecedor_id/proposta (colunas escalares já vêm por padrão) */
+          include: { fornecedor: { select: { nome: true } } },
         })
 
         const pays = await tx.orcamento_pagamento.findMany({
@@ -271,6 +281,9 @@ export async function getOrcamentoById(id: number): Promise<GetOrcamentoResult> 
           ...base,
           tamanho: null,
           frete: toNumber(m.frete) ?? 0,
+          fornecedorId: (m as any).fornecedor_id ?? null,
+          fornecedorNome: (m as any).fornecedor?.nome ?? null,
+          proposta: (m as any).proposta !== false,
         })
       }
     })
@@ -483,6 +496,9 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
         tamanho: number | null
         frete: number
         total: number
+        /** NOVO — telhas: fornecedor selecionado para a proposta */
+        fornecedor_id: number | null
+        proposta: boolean
       }> = []
 
       for (const m of input.materiais.madeiras ?? []) {
@@ -500,6 +516,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           tamanho,
           frete: 0,
           total,
+          fornecedor_id: null,
+          proposta: true,
         })
       }
 
@@ -517,6 +535,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           tamanho: null,
           frete: 0,
           total,
+          fornecedor_id: null,
+          proposta: true,
         })
       }
 
@@ -535,6 +555,8 @@ export async function updateOrcamento(id: number, input: UpdateOrcamentoInput): 
           tamanho: null,
           frete,
           total,
+          fornecedor_id: (m as any).fornecedorId ?? null,
+          proposta: (m as any).proposta !== false,
         })
       }
 

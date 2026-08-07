@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { parseDateOnlyInput } from "@/lib/date-only"
-import { IntegracaoFinanceiraStatus, Prisma, PedidoCategoria, PedidoCompraStatus } from "@prisma/client"
+import { IntegracaoFinanceiraStatus, Prisma, PedidoCategoria, PedidoCompraStatus, StatusFinanceiro } from "@prisma/client"
+import { calculatePedidoAmount } from "@/actions/pedido_compra/manage-finance-integration"
 
 export type PedidoCompraEditErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -172,13 +173,24 @@ export async function editarPedidoCompraComItens(
         })
       }
 
+      let contaParaSincronizar: { id: number } | null = null
       if (existing.financeiro_integracao_status === IntegracaoFinanceiraStatus.INTEGRADO) {
-        throw new PedidoCompraEditError(
-          "PEDIDO_INTEGRADO_FINANCEIRO",
-          "Estorne a integração financeira antes de editar o pedido.",
-          "validate-financial-lock",
-          { pedidoCompraId: input.pedidoCompraId }
-        )
+        const contaAtiva = await tx.contaPagar.findFirst({
+          where: { pedido_compra_id: existing.id, status: { not: StatusFinanceiro.CANCELADO } },
+          orderBy: [{ created_at: "desc" }, { id: "desc" }],
+          select: { id: true, valor_pago: true },
+        })
+
+        if (contaAtiva && Number(contaAtiva.valor_pago) > 0) {
+          throw new PedidoCompraEditError(
+            "PEDIDO_INTEGRADO_FINANCEIRO",
+            "Este pedido tem pagamentos registrados na conta vinculada. Ajuste o valor diretamente na conta a pagar (o mínimo é o valor já pago), ou estorne os pagamentos antes de editar o pedido.",
+            "validate-financial-lock",
+            { pedidoCompraId: existing.id, contaPagarId: contaAtiva.id }
+          )
+        }
+
+        contaParaSincronizar = contaAtiva
       }
 
       const obra = await tx.obras.findUnique({
@@ -259,6 +271,23 @@ export async function editarPedidoCompraComItens(
       } catch (err: any) {
         throw new PedidoCompraEditError("ITENS_REPLACE_FAILED", "Erro ao substituir itens do pedido.", "replace-itens", {
           err: String(err?.message ?? ""),
+        })
+      }
+
+      if (contaParaSincronizar) {
+        const pedidoAtualizado = await tx.pedido_compra.findUniqueOrThrow({
+          where: { id: existing.id },
+          select: { frete: true, data_entrega: true, fornecedor_id: true, itens: { select: { total: true } } },
+        })
+        const novoValor = calculatePedidoAmount(pedidoAtualizado)
+
+        await tx.contaPagar.update({
+          where: { id: contaParaSincronizar.id },
+          data: {
+            valor_total: novoValor,
+            ...(pedidoAtualizado.data_entrega ? { data_vencimento: pedidoAtualizado.data_entrega } : {}),
+            fornecedor_id: pedidoAtualizado.fornecedor_id,
+          },
         })
       }
 

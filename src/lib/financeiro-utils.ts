@@ -68,3 +68,13 @@ export function canCancel(status: string): boolean {
 export function remaining(total: number | string, paid: number | string): number {
     return Number(total) - Number(paid)
 }
+
+/**
+ * Reconhece buscas por ID (inteiro positivo, com ou sem prefixo "#"),
+ * mesma regra usada no filtro server-side (actions/financeiro/shared/search.ts).
+ * Usado para decidir quando a busca deve ignorar o recorte de status atual.
+ */
+export function isIdSearchTerm(term: string): boolean {
+    const digits = term.trim().replace(/^#/, "")
+    return /^\d+$/.test(digits) && Number(digits) > 0
+}

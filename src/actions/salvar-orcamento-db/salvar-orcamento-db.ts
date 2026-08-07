@@ -51,6 +51,10 @@ export type MaterialInput = {
   preco: number
   tamanho?: number | string | null
   frete?: number | null
+  /** NOVO — telhas: fornecedor selecionado para a proposta */
+  fornecedorId?: number | null
+  fornecedorNome?: string | null
+  proposta?: boolean
 }
 
 export type ClienteInput = {
@@ -280,15 +284,17 @@ async function insertMaterial(
     tamanho: number | null
     frete: number
     total: number
+    /** NOVO — opcional; madeira/geral não enviam, mantém comportamento antigo */
+    fornecedor_id?: number | null
+    /** NOVO — opcional; madeira/geral não enviam, mantém comportamento antigo */
+    proposta?: boolean
   }
 ) {
   await tx.$executeRaw`
-    INSERT INTO orcamento_material (
-      orcamento_id, tipo, descricao, componente, quantidade, preco_unitario, tamanho, frete, total
-    ) VALUES (
-      ${row.orcamento_id}, ${row.tipo}, ${row.descricao}, ${row.componente},
-      ${row.quantidade}, ${row.preco_unitario}, ${row.tamanho}, ${row.frete}, ${row.total}
-    )
+    INSERT INTO orcamento_material
+      (orcamento_id, tipo, descricao, componente, quantidade, preco_unitario, tamanho, frete, total, fornecedor_id, proposta)
+    VALUES
+      (${row.orcamento_id}, ${row.tipo}, ${row.descricao}, ${row.componente}, ${row.quantidade}, ${row.preco_unitario}, ${row.tamanho}, ${row.frete}, ${row.total}, ${row.fornecedor_id ?? null}, ${row.proposta ?? true})
   `
 }
 
@@ -492,6 +498,8 @@ export async function salvarOrcamentoDB(params: SalvarOrcamentoParams): Promise<
             tamanho: null,
             frete: freteV,
             total,
+            fornecedor_id: (m as any).fornecedorId ?? null,
+            proposta: (m as any).proposta !== false,
           })
         } catch (err: any) {
           logError("insert-material failed", {
@@ -698,6 +706,8 @@ export async function salvarRascunhoOrcamentoDB(params: SalvarRascunhoParams): P
             tamanho: null,
             frete: freteV,
             total,
+            fornecedor_id: (m as any).fornecedorId ?? null,
+            proposta: (m as any).proposta !== false,
           })
         } catch (err: any) {
           logError("insert-material failed", {

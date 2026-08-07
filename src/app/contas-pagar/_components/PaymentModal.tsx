@@ -21,7 +21,7 @@ import { Label } from "@/components/ui/label"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { cn } from "@/lib/utils"
 import { formatCurrency, remaining } from "@/lib/financeiro-utils"
-import { calculateCashPaymentAmount, isGreaterMoneyAmount, isLessMoneyAmount } from "@/lib/financial/money"
+import { calculateAmortizedAmount, calculateCashPaymentAmount, isGreaterMoneyAmount, isLessMoneyAmount } from "@/lib/financial/money"
 import { getTodayDateOnly } from "@/lib/date-only"
 import { formatPedidoId } from "@/lib/pedido-compra-utils"
 import type { BankOption, PayableListItem } from "@/types/financeiro"
@@ -65,6 +65,10 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
     }, [open, saldo, item.id])
 
     const valorFinal = useMemo(() => calculateCashPaymentAmount(valor, juros, descontos), [valor, juros, descontos])
+    const saldoRestante = useMemo(
+        () => Math.max(0, saldo - calculateAmortizedAmount(valor, juros, descontos)),
+        [saldo, valor, juros, descontos]
+    )
     const taxaCartao = useMemo(() => {
         if (taxaCartaoValor > 0) return taxaCartaoValor
         if (taxaCartaoPercentual > 0) return Number((valorFinal * (taxaCartaoPercentual / 100)).toFixed(2))
@@ -265,17 +269,25 @@ export default function PaymentModal({ open, onOpenChange, item, banks, onSucces
             <AlertDialog open={partialConfirmationOpen} onOpenChange={setPartialConfirmationOpen}>
                 <AlertDialogContent className="border-[#2C201B]/10 bg-[#FFFCF7]">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Esta conta ficará parcial</AlertDialogTitle>
+                        <AlertDialogTitle>Pagamento parcial</AlertDialogTitle>
                         <AlertDialogDescription>
-                            O valor informado é menor que o saldo atual. Deseja alterar o valor total da conta de {formatCurrency(item.valor_total)} para {formatCurrency(adjustedTotal)} e concluí-la como paga?
+                            Você está baixando {formatCurrency(valor)} de um saldo de {formatCurrency(saldo)}.
+                            Ficam {formatCurrency(saldoRestante)} em aberto nesta conta.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => void submitPayment(false)} disabled={submitting}>
-                            Manter como parcial
-                        </AlertDialogCancel>
-                        <AlertDialogAction onClick={() => void submitPayment(true)} disabled={submitting}>
-                            Ajustar valor e pagar
+                        <AlertDialogCancel disabled={submitting}>Voltar</AlertDialogCancel>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="border-[#F1B7B0] text-[#8F3F37] hover:bg-[#FFF4F2]"
+                            onClick={() => void submitPayment(true)}
+                            disabled={submitting}
+                        >
+                            Encerrar como paga (abre mão de {formatCurrency(saldoRestante)})
+                        </Button>
+                        <AlertDialogAction onClick={() => void submitPayment(false)} disabled={submitting}>
+                            Deixar {formatCurrency(saldoRestante)} em aberto
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

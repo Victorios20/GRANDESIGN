@@ -18,6 +18,8 @@ export interface MaterialCalculado {
   preco_unitario: number
   tamanho?: string
   frete?: number
+  fornecedorId?: number | null
+  fornecedorNome?: string | null
 }
 
 const ceil = Math.ceil
@@ -510,10 +512,28 @@ async function calcularMateriaisNormal(
     ...(r.tamanho ? { tamanho: r.tamanho } : {}),
   })
 
+  const telhaPrecoRows = precos.filter((row) => (row.tipo ?? "").toLowerCase() === "telha")
+
+  const telhasPorFornecedor = telhasAgrup.flatMap((r) => {
+    const ofertas = telhaPrecoRows.filter((p) => p.descricao === r.descricao)
+    if (ofertas.length === 0) {
+      // sem cadastro: mantém a linha com preço zero, como hoje
+      return [{ ...toCalc(r), fornecedorId: null, fornecedorNome: null }]
+    }
+    return ofertas.map((p) => ({
+      descricao: r.descricao,
+      componente: r.componente,
+      quantidade: r.quantidade,
+      preco_unitario: Number(p.preco_unitario) || 0,
+      fornecedorId: p.fornecedorId ?? null,
+      fornecedorNome: p.fornecedorNome ?? null,
+    }))
+  })
+
   return {
     madeira: madeiraAgrup.map(toCalc),
     materiais: materiaisAgrup.map(toCalc),
-    telhas: telhasAgrup.map(toCalc),
+    telhas: telhasPorFornecedor,
   }
 }
 
@@ -735,9 +755,27 @@ export async function calcularMateriaisCobertaL(
 
   console.log("[calcularMateriaisCobertaL] RESULTADO madeiraRaw:", madeiraAgrupOrd)
 
+  const telhaPrecoRowsL = precosL.filter((row) => (row.tipo ?? "").toLowerCase() === "telha")
+
+  const telhasPorFornecedorL = telhasAgrup.flatMap((r) => {
+    const ofertas = telhaPrecoRowsL.filter((p) => p.descricao === r.descricao)
+    if (ofertas.length === 0) {
+      // sem cadastro: mantém a linha com preço zero, como hoje
+      return [{ ...toCalcL(r), fornecedorId: null, fornecedorNome: null }]
+    }
+    return ofertas.map((p) => ({
+      descricao: r.descricao,
+      componente: r.componente,
+      quantidade: r.quantidade,
+      preco_unitario: Number(p.preco_unitario) || 0,
+      fornecedorId: p.fornecedorId ?? null,
+      fornecedorNome: p.fornecedorNome ?? null,
+    }))
+  })
+
   return {
     madeira: madeiraAgrupOrd.map(toCalcL),
     materiais: materiaisAgrup.map(toCalcL),
-    telhas: telhasAgrup.map(toCalcL),
+    telhas: telhasPorFornecedorL,
   }
 }

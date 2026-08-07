@@ -57,6 +57,7 @@ import {
     CardDescription,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
     Select,
     SelectTrigger,
@@ -86,6 +87,7 @@ import {
 import ModalSucessoProposta from "@/components/modals/ModalSucessoProposta"
 
 import { aplicarFreteTelhasPorCidade } from "@/lib/regra-frete-telhas"
+import { custoTelha, marcarMaisBaratas, selecionarFornecedor } from "@/lib/orcamento/telha-selection"
 
 // ===========================================
 //               CONSTANTES TELHAS
@@ -116,6 +118,9 @@ export type Material = {
     preco: number
     tamanho?: string | number
     frete?: number
+    fornecedorId?: number | null
+    fornecedorNome?: string | null
+    proposta?: boolean
 }
 
 type Categoria = "madeiras" | "materiaisGerais" | "telhas"
@@ -629,6 +634,16 @@ const toPos = (s?: string | number): number => {
 
 
 
+const makePagto = (totalGeral: number, extra: number): Pagto => {
+    const base = totalGeral + extra
+    const pix = Math.ceil(base / 100) * 100
+    return {
+        pix,
+        x10: Math.ceil((pix * FATOR_10X) / 10),
+        x18: Math.ceil((pix * FATOR_18X) / 18),
+    }
+}
+
 const calcTelhaValores = (
     telhasArr: {
         id: number
@@ -638,33 +653,25 @@ const calcTelhaValores = (
         preco: number
         tamanho?: string | number
         frete?: number
+        proposta?: boolean
     }[],
     totalGeral: number,
 ): Record<string, Pagto> => {
-    // Soma “extra” por NOME exato da telha (Etapa 2)
+    // Soma “extra” por NOME exato da telha (Etapa 2), só considerando a linha marcada na proposta
     const grupos = new Map<string, number>()
     for (const t of telhasArr) {
+        if (t.proposta === false) continue
         const nome = (t.nome ?? "").trim()
         if (!nome) continue
         const extra = (t.quantidade * t.preco) + (t.frete ?? 0)
         grupos.set(nome, (grupos.get(nome) ?? 0) + extra)
     }
 
-    const make = (extra: number): Pagto => {
-        const base = totalGeral + extra
-        const pix = Math.ceil(base / 100) * 100
-        return {
-            pix,
-            x10: Math.ceil((pix * FATOR_10X) / 10),
-            x18: Math.ceil((pix * FATOR_18X) / 18),
-        }
-    }
-
     const out: Record<string, Pagto> = {}
         ;[...grupos.entries()]
             .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
             .forEach(([nome, extra]) => {
-                out[nome] = make(extra)
+                out[nome] = makePagto(totalGeral, extra)
             })
     return out
 }
@@ -1322,6 +1329,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                 preco: r.preco_unitario,
                 tamanho: r.tamanho,
                 frete: r.frete ?? 0,
+                fornecedorId: r.fornecedorId ?? null,
+                fornecedorNome: r.fornecedorNome ?? null,
             })
 
             const madeirasNew = madeira.map(mapRow)
@@ -1329,6 +1338,10 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
             let telhasNew = telhas.map(mapRow)
 
             telhasNew = aplicarFreteTelhasPorCidade(telhasNew, cidades, form.cidade)
+
+            telhasNew = marcarMaisBaratas(
+                telhasNew.map((t: any) => ({ ...t, nome: t.nome, preco: t.preco }))
+            ) as typeof telhasNew
 
             setMateriais({ madeiras: madeirasNew, materiaisGerais: materGNew, telhas: telhasNew })
 
@@ -1909,6 +1922,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     preco: toPos(m.preco),
                     tamanho: null,
                     frete: m.frete != null ? toPos(m.frete) : 0,
+                    fornecedorId: (m as any).fornecedorId ?? null,
+                    proposta: (m as any).proposta !== false,
                 })),
             },
             totais: { ...totEdit },
@@ -2640,63 +2655,66 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                             <CardTitle className="text-sm">Telhas – valores fixos*</CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="bg-bege">
-                                        <TableHead>Tipo</TableHead>
-                                        <TableHead className="text-right">Pix</TableHead>
-                                        <TableHead className="text-right">10×</TableHead>
-                                        <TableHead className="text-right">18×</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {telhaTipos.map((tipo) => {
-                                        const v = ensureTelha(tipo)
-                                        const group = getTileGroup(tipo)
-
-                                        // Lógica de destaque (maior preço do grupo)
-                                        // Precisamos saber se este 'tipo' é o mais caro do seu grupo
-                                        let isMostExpensive = false
-                                        if (group) {
-                                            // Filtra todos dste grupo
-                                            const sameGroup = telhaTipos.filter(t => getTileGroup(t) === group)
-                                            // Encontra o maior preço pix
-                                            const maxPix = Math.max(...sameGroup.map(t => ensureTelha(t).pix))
-                                            // Se o atual for igual ao max
-                                            if (v.pix > 0 && v.pix >= maxPix) {
-                                                isMostExpensive = true
-                                            }
-                                        }
-
-                                        const styleRow = isMostExpensive ? "bg-yellow-50 font-medium" : ""
-
-                                        return (
-                                            <TableRow key={tipo} className={styleRow}>
-                                                <TableCell className="flex items-center gap-2">
-                                                    {group && (
-                                                        <div
-                                                            className={`w-3 h-3 rounded-full ${GROUP_CONFIG[group].color}`}
-                                                            title={`Grupo: ${group}`}
-                                                        />
-                                                    )}
-                                                    {tipo}
-                                                    {isMostExpensive && (
-                                                        <Badge variant="outline" className="ml-auto text-[10px] h-5 px-1 bg-yellow-100 text-yellow-800 border-yellow-200">
-                                                            Maior Valor
-                                                        </Badge>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
-                                                <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
-                                                <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
+                            {(() => {
+                                const telhasOrdenadas = [...materiais.telhas].sort((a, b) =>
+                                    a.nome.trim().localeCompare(b.nome.trim(), "pt-BR")
+                                )
+                                return (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-bege">
+                                                <TableHead className="w-16">Proposta</TableHead>
+                                                <TableHead>Tipo</TableHead>
+                                                <TableHead>Fornecedor</TableHead>
+                                                <TableHead className="text-right">Pix</TableHead>
+                                                <TableHead className="text-right">10×</TableHead>
+                                                <TableHead className="text-right">18×</TableHead>
                                             </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {telhasOrdenadas.map((t, index) => {
+                                                const selecionada = t.proposta !== false
+                                                const v = makePagto(somaTotal, custoTelha({ quantidade: t.quantidade, preco: t.preco, frete: t.frete ?? 0 }))
+                                                const primeiraDoTipo =
+                                                    index === 0 || telhasOrdenadas[index - 1].nome.trim() !== t.nome.trim()
+                                                const group = getTileGroup(t.nome)
 
-                            </Table>
+                                                return (
+                                                    <TableRow
+                                                        key={`${t.nome}-${t.fornecedorId ?? "s/f"}`}
+                                                        className={selecionada ? "bg-green-50/60" : "opacity-60"}
+                                                    >
+                                                        <TableCell>
+                                                            <Checkbox
+                                                                checked={selecionada}
+                                                                onCheckedChange={() =>
+                                                                    setMateriais((m) => ({
+                                                                        ...m,
+                                                                        telhas: selecionarFornecedor(m.telhas as any, t.nome, t.fornecedorId ?? null) as any,
+                                                                    }))
+                                                                }
+                                                                aria-label={`Usar ${t.fornecedorNome ?? "sem fornecedor"} para ${t.nome}`}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="flex items-center gap-2">
+                                                            {group && primeiraDoTipo && (
+                                                                <div className={`w-3 h-3 rounded-full ${GROUP_CONFIG[group].color}`} title={`Grupo: ${group}`} />
+                                                            )}
+                                                            <span className={primeiraDoTipo ? "font-medium" : "text-muted-foreground text-xs"}>{t.nome}</span>
+                                                        </TableCell>
+                                                        <TableCell>{t.fornecedorNome ?? "—"}</TableCell>
+                                                        <TableCell className="text-right">{formatBR(v.pix)}</TableCell>
+                                                        <TableCell className="text-right">{formatBR(v.x10)}</TableCell>
+                                                        <TableCell className="text-right">{formatBR(v.x18)}</TableCell>
+                                                    </TableRow>
+                                                )
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                )
+                            })()}
                             <p className="mt-2 text-xs text-marromEscuro/60">
-                                * A proposta ira com o valor maior de cada grupo de telha para preservar a margem de lucro
+                                * A proposta vai com o fornecedor marcado de cada telha (pré-marcado o mais barato).
                             </p>
                         </CardContent>
                     </Card>

@@ -57,6 +57,8 @@ function buildInitialQuery(params: Record<string, string | string[] | undefined>
         if (endDate) query.set("endDate", endDate)
     }
 
+    if (!query.get("status")) query.set("status", "PENDENTE,PARCIAL,ATRASADO")
+
     return query
 }
 

@@ -112,6 +112,8 @@ model fornecedores {
 
   orcamentosFornecedor orcamento[] @relation("FornecedorOrcamentos")
 
+  orcamentoMateriais orcamento_material[] @relation("FornecedorOrcamentoMaterial")
+
   // Financeiro
   contas_pagar ContaPagar[]
 
@@ -180,20 +182,24 @@ model orcamento {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model orcamento_material {
-  id             Int       @id @default(autoincrement())
+  id             Int           @id @default(autoincrement())
   orcamento_id   Int
   material_id    Int?
-  quantidade     Decimal   @db.Decimal(10, 2)
-  preco_unitario Decimal   @db.Decimal(10, 2)
+  quantidade     Decimal       @db.Decimal(10, 2)
+  preco_unitario Decimal       @db.Decimal(10, 2)
   tipo           String?
   descricao      String?
-  tamanho        Decimal?  @db.Decimal(10, 2)
+  tamanho        Decimal?      @db.Decimal(10, 2)
   componente     String?
-  total          Decimal   @default(0.00) @db.Decimal(10, 2)
-  frete          Decimal   @default(0.00) @db.Decimal(10, 2)
-  orcamento      orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  total          Decimal       @default(0.00) @db.Decimal(10, 2)
+  frete          Decimal       @default(0.00) @db.Decimal(10, 2)
+  fornecedor_id  Int?
+  fornecedor     fornecedores? @relation("FornecedorOrcamentoMaterial", fields: [fornecedor_id], references: [id], onDelete: SetNull)
+  proposta       Boolean       @default(true)
+  orcamento      orcamento     @relation(fields: [orcamento_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([orcamento_id, id], map: "idx_orc_mat_orcamento_id_id")
+  @@index([fornecedor_id], map: "idx_orc_mat_fornecedor_id")
 }
 
 model orcamento_pagamento {

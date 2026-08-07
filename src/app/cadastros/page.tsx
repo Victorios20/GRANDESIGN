@@ -82,6 +82,7 @@ type CadastrosItem = {
   cor?: string | null
   preferencial?: boolean
   fornecedor_id?: number | null
+  fornecedorId?: number | null
 }
 
 type MaterialPayload = {
@@ -278,7 +279,13 @@ export default function CadastrosPage() {
       const tipoNormalized = item.tipo?.toLowerCase() || "material"
       setFormData({ nome: item.nome || "", tipo: tipoNormalized })
     } else if (type === "material" || type === "madeira" || type === "telha" || type === "andaime") {
-      setFormData({ nome: item.descricao || "", preco: String(item.preco_unitario ?? "") })
+      setFormData({
+        nome: item.descricao || "",
+        preco: String(item.preco_unitario ?? ""),
+        ...(type === "telha"
+          ? { fornecedor_id: item.fornecedorId != null ? String(item.fornecedorId) : "" }
+          : {}),
+      })
     } else if (type === "componente") {
       setFormData({ nome: item.nome || "" })
     } else if (type === "equipe") {
@@ -334,6 +341,13 @@ export default function CadastrosPage() {
         if (modalType === "madeira" || modalType === "telha" || modalType === "andaime") {
           payload.fornecedorId = selectedFornecedor?.id
           payload.tipo = modalType
+        }
+
+        // Telha não navega por um fornecedor selecionado (fornecedores de telha não são
+        // clicáveis na listagem, ao contrário de madeira/andaime): o fornecedor vem do
+        // select opcional do próprio modal.
+        if (modalType === "telha") {
+          payload.fornecedorId = formData.fornecedor_id ? Number(formData.fornecedor_id) : undefined
         }
 
         if (editingItem) {
@@ -926,7 +940,14 @@ export default function CadastrosPage() {
                             const telha = item as MaterialDTO
                             return (
                               <tr key={telha.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                                <td className="px-4 py-3 text-sm font-medium">{telha.descricao}</td>
+                                <td className="px-4 py-3 text-sm font-medium">
+                                  {telha.descricao}
+                                  {telha.fornecedorId != null && (
+                                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                      · {fornecedores.find((f) => f.id === telha.fornecedorId)?.nome ?? "—"}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="px-4 py-3 text-sm text-muted-foreground">{formatCurrency(Number(telha.preco_unitario))}</td>
                                 <td className="px-4 py-3 text-right">
                                   <div className="flex items-center justify-end gap-1">
@@ -1266,6 +1287,36 @@ export default function CadastrosPage() {
                   onChange={(e) => setFormData({ ...formData, preco: e.target.value })}
                   placeholder="0,00"
                 />
+              </div>
+            )}
+
+            {/* Fornecedor da telha - opcional (telha sem fornecedor continua válida) */}
+            {modalType === "telha" && (
+              <div className="space-y-2">
+                <Label htmlFor="fornecedor_telha">Fornecedor</Label>
+                <Select
+                  value={formData.fornecedor_id || "none"}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, fornecedor_id: value === "none" ? "" : value })
+                  }
+                >
+                  <SelectTrigger id="fornecedor_telha">
+                    <SelectValue placeholder="Sem fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem fornecedor</SelectItem>
+                    {fornecedores
+                      .filter((f) => f.tipo?.toLowerCase() === "telha")
+                      .map((f) => (
+                        <SelectItem key={f.id} value={String(f.id)}>
+                          {f.nome}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Opcional. Telhas sem fornecedor continuam funcionando normalmente.
+                </p>
               </div>
             )}
 
