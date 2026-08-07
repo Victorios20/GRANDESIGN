@@ -1849,6 +1849,8 @@ export default function OrcamentoPage(props: OrcamentoPageProps) {
                     preco: toPos(m.preco),
                     tamanho: null,
                     frete: m.frete != null ? toPos(m.frete) : 0,
+                    fornecedorId: (m as any).fornecedorId ?? null,
+                    proposta: (m as any).proposta !== false,
                 })),
             },
             totais: { ...totEdit },
