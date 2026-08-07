@@ -55,6 +55,7 @@ export async function criarMaterialGenerico(data: {
   tipo: "geral" | "telha"
   preco_unitario: number
   unidade_de_medida?: string | null
+  fornecedorId?: number | null
 }) {
   const descricao = String(data.descricao || "").trim()
   const tipo = String(data.tipo || "")
@@ -63,12 +64,21 @@ export async function criarMaterialGenerico(data: {
   if (!descricao) throw new Error("Descricao obrigatória")
   if (!["geral", "telha"].includes(tipo)) throw new Error("tipo inválido")
   if (!Number.isFinite(preco) || preco < 0) throw new Error("preco_unitario inválido")
+
+  // Telha aceita fornecedor opcional (legado sem fornecedor continua válido); "geral" nunca tem.
+  let fornecedorId: number | undefined
+  if (tipo === "telha" && data.fornecedorId != null) {
+    const f = Number(data.fornecedorId)
+    if (Number.isFinite(f) && f > 0) fornecedorId = f
+  }
+
   return prisma.materiais.create({
     data: {
       descricao,
       tipo,
       preco_unitario: preco,
       unidade_de_medida: unidade,
+      ...(fornecedorId !== undefined ? { fornecedorId } : {}),
     },
     select: { id: true },
   })
@@ -97,6 +107,7 @@ export async function criarMaterial(data: {
     tipo: data.tipo as "geral" | "telha",
     preco_unitario: data.preco_unitario,
     unidade_de_medida: data.unidade_de_medida ?? undefined,
+    fornecedorId: data.fornecedorId,
   })
 }
 

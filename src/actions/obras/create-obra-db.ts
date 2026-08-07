@@ -286,12 +286,15 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       const telhaEscolhidaNorm = normalizeStr(input.telha_escolhida || "")
 
       // Find the budget item that matches the chosen tile
+      // Preferindo a linha marcada como "vai pra proposta" (proposta !== false) entre as candidatas,
+      // já que pode haver mais de um fornecedor cadastrado para a mesma telha.
       let telhaBudgetItem: (typeof orc.orcamento_material)[number] | undefined = undefined
       if (telhaEscolhidaNorm) {
-        telhaBudgetItem = orc.orcamento_material?.find((m) => {
+        const candidatas = orc.orcamento_material.filter((m) => {
           const d = normalizeStr(m.descricao || "")
           return d.includes(telhaEscolhidaNorm) || telhaEscolhidaNorm.includes(d)
         })
+        telhaBudgetItem = candidatas.find((m) => m.proposta !== false) ?? candidatas[0]
       }
 
       // If strict match fails, try looking for any "telha" item if the input was generic
@@ -329,8 +332,12 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
       // Resolve supplier IDs with fallback from orcamento
       const madeiraFornecedorId = input.fornecedor_madeira_id ?? orc.id_fornecedor ?? null
 
+      // Fornecedor da telha em cascata: input manual (override explícito) vence;
+      // senão, cai pro fornecedor marcado (ou primeiro) no orçamento; senão, null.
+      const telhaFornecedorId = input.fornecedor_telha_id ?? telhaBudgetItem?.fornecedor_id ?? null
+
       const gruposAutomated: { categoria: PedidoCategoria; itens: PedidoItemInput[]; fornecedor?: number | null }[] = [
-        { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: input.fornecedor_telha_id },
+        { categoria: PedidoCategoria.TELHA, itens: telhaItems, fornecedor: telhaFornecedorId },
         { categoria: PedidoCategoria.MADEIRA, itens: madeiraItems, fornecedor: madeiraFornecedorId },
         { categoria: PedidoCategoria.ANDAIMES, itens: andaimeItems, fornecedor: input.andaimes_fornecedor_id },
       ]
