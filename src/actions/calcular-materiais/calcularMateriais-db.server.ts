@@ -8,6 +8,7 @@ type MaterialRow = {
   preco_unitario: number
   unidade_de_medida: string | null
   fornecedorId: number | null
+  fornecedorNome: string | null
 }
 
 function toNumber(n: Prisma.Decimal | number): number {
@@ -39,7 +40,8 @@ export async function getMateriaisByDescricoesServer(
       descricao: { in: list },
       OR: [
         { AND: [{ tipo: "madeira" }, { fornecedorId }] },
-        { AND: [{ NOT: { tipo: "madeira" } }, { fornecedorId: null }] },
+        { tipo: "telha" },
+        { AND: [{ NOT: { tipo: { in: ["madeira", "telha"] } } }, { fornecedorId: null }] },
       ],
     },
     select: {
@@ -49,6 +51,7 @@ export async function getMateriaisByDescricoesServer(
       preco_unitario: true,
       unidade_de_medida: true,
       fornecedorId: true,
+      fornecedor: { select: { nome: true } },
     },
   })
 
@@ -59,6 +62,7 @@ export async function getMateriaisByDescricoesServer(
     preco_unitario: toNumber(r.preco_unitario),
     unidade_de_medida: r.unidade_de_medida,
     fornecedorId: r.fornecedorId ?? null,
+    fornecedorNome: r.fornecedor?.nome ?? null,
   }))
 
   if (opts?.strict !== false) {
@@ -99,6 +103,7 @@ export async function getMateriaisByIdsServer(
       preco_unitario: true,
       unidade_de_medida: true,
       fornecedorId: true,
+      fornecedor: { select: { nome: true } },
     },
   })
 
@@ -109,6 +114,7 @@ export async function getMateriaisByIdsServer(
     preco_unitario: toNumber(r.preco_unitario),
     unidade_de_medida: r.unidade_de_medida,
     fornecedorId: r.fornecedorId ?? null,
+    fornecedorNome: r.fornecedor?.nome ?? null,
   }))
 
   if (opts?.strict !== false) {

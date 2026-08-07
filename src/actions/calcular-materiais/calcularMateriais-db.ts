@@ -6,6 +6,7 @@ export type MaterialRow = {
   preco_unitario: number
   unidade_de_medida: string | null
   fornecedorId: number | null
+  fornecedorNome: string | null
 }
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
