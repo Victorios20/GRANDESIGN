@@ -22,7 +22,7 @@ import BulkDeleteDialog from "@/components/financeiro/BulkDeleteDialog"
 import { ListSummaryBar } from "@/components/financeiro/ListSummaryBar"
 import { SortableHeader } from "@/components/financeiro/SortableHeader"
 import { StatusTabs } from "@/components/financeiro/StatusTabs"
-import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, remaining } from "@/lib/financeiro-utils"
+import { canPay, FINANCIAL_STATUS_OPTIONS, formatCurrency, formatDateBR, isIdSearchTerm, remaining } from "@/lib/financeiro-utils"
 import { toDateOnlyValue } from "@/lib/date-only"
 import type {
     BankOption,
@@ -253,6 +253,16 @@ export default function ContasReceberPageClient({
             .catch(console.error)
     }, [data, initialFilters.highlight])
 
+    function handleSearchChange(value: string) {
+        setSearch(value)
+        // Busca por ID deve encontrar a conta independente do recorte de status:
+        // uma conta PAGA ou CANCELADA some da aba "Em aberto" (e de qualquer outra
+        // aba fixa), então buscar #482/482 precisa alargar o filtro para "Todos".
+        if (isIdSearchTerm(value) && statusFilter !== "todos") {
+            setStatusFilter("todos")
+        }
+    }
+
     function openCreateDialog() {
         setSelectedItem(null)
         setEditorOpen(true)
@@ -409,7 +419,7 @@ export default function ContasReceberPageClient({
                             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8a7d69]" />
                             <Input
                                 value={search}
-                                onChange={(event) => setSearch(event.target.value)}
+                                onChange={(event) => handleSearchChange(event.target.value)}
                                 placeholder="Buscar por ID, descrição ou cliente"
                                 className={operationalListSearchInputClass}
                             />
