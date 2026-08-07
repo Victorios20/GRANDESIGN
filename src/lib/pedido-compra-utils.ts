@@ -165,18 +165,6 @@ export function calcVariancePercent(
     return ((r - p) / p) * 100
 }
 
-export function calcVariance(
-    previsto: number | string | null | undefined,
-    realizado: number | string | null | undefined
-): { diff: number; percent: number; isPositive: boolean } | null {
-    const p = asNumber(previsto)
-    const r = asNumber(realizado)
-    if (p <= 0) return null
-    const diff = r - p
-    const percent = (diff / p) * 100
-    return { diff, percent, isPositive: diff > 0 }
-}
-
 // ═══════════════════════════════════════════════════════════
 // ID FORMATTING
 // ═══════════════════════════════════════════════════════════

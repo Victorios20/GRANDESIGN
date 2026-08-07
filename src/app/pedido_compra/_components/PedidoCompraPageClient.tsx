@@ -10,8 +10,6 @@ import {
   ChevronRight,
   MapPin,
   MoreVertical,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -997,11 +995,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
 
                         <div className="max-h-[calc(100vh-320px)] space-y-3 overflow-y-auto pr-1">
                           {group.orders.map((order) => {
-                            const variance =
-                              order.actualValue != null && order.expectedValue
-                                ? ((order.actualValue - order.expectedValue) / order.expectedValue) * 100
-                                : null
-
                             return (
                               <div
                                 key={order.id}
@@ -1110,21 +1103,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
                                     <span className="text-[#7b705f]">Valor do pedido:</span>
                                     <span className="font-medium text-[#2c201b]">{formatMoney(order.expectedValue)}</span>
                                   </div>
-
-                                  {order.actualValue != null ? (
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[#7b705f]">Realizado:</span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium text-[#2c201b]">{formatMoney(order.actualValue)}</span>
-                                        {variance !== null ? (
-                                          <span className={`flex items-center gap-0.5 ${variance > 0 ? "text-red-600" : "text-green-600"}`}>
-                                            {variance > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                                            {Math.abs(variance).toFixed(1)}%
-                                          </span>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  ) : null}
                                 </div>
 
                                 {order.deliveryDate ? (

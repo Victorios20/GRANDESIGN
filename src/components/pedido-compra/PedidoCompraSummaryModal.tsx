@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Calendar, ExternalLink, Loader2, TrendingDown, TrendingUp } from "lucide-react"
+import Link from "next/link"
+import { Calendar, ExternalLink, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { getPedidoDetailsAction } from "@/actions/pedido_compra/get-pedido-details"
@@ -31,7 +32,7 @@ import {
   getPedidoFinanceLabel,
   isPedidoIntegrated,
 } from "@/lib/pedido-compra-finance"
-import { formatDateLongBR, formatMoney, normalizeStatus, formatPedidoId, calcVariance } from "@/lib/pedido-compra-utils"
+import { formatDateLongBR, formatMoney, normalizeStatus, formatPedidoId } from "@/lib/pedido-compra-utils"
 import type {
   PedidoCompraDetalhadoSnake,
   PedidoCompraSummaryInitialData,
@@ -204,7 +205,6 @@ export function PedidoCompraSummaryModal({
   const displayId = details?.id ?? data?.id ?? pedidoId ?? 0
   const displayObraId = details?.obra_id ?? data?.obraId ?? obraId ?? null
   const displayValorPedido = calculateDisplayPedidoValue(details, data)
-  const displayRealizado = details?.valor_realizado ?? data?.valorRealizado ?? null
   const currentStatus = normalizeStatus(String(details?.status ?? data?.status ?? "RASCUNHO"))
   const integrationStatus =
     (details?.financeiro_integracao_status ??
@@ -220,7 +220,6 @@ export function PedidoCompraSummaryModal({
 
   const loadingInitial = open && loading && !display
   const loadingRefresh = open && loading && Boolean(display)
-  const variance = calcVariance(displayValorPedido, displayRealizado)
   const itens = Array.isArray(details?.itens) ? details.itens : []
 
   const handleStatusSubmit = async () => {
@@ -405,26 +404,24 @@ export function PedidoCompraSummaryModal({
               </div>
             </div>
 
-            <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3">
+            <div className="grid gap-4 rounded-lg border bg-muted/30 p-4 sm:grid-cols-2">
               <div>
                 <span className="block text-xs text-muted-foreground">Valor do pedido</span>
                 <span className="text-lg font-semibold">{formatMoney(displayValorPedido)}</span>
               </div>
 
               <div className="sm:border-l sm:pl-4">
-                <span className="block text-xs text-muted-foreground">Valor realizado</span>
-                <span className="text-lg font-semibold">{formatMoney(display.valor_realizado ?? display.valorRealizado)}</span>
-              </div>
-
-              <div className="sm:border-l sm:pl-4">
-                <span className="block text-xs text-muted-foreground">Variação</span>
-                {variance ? (
-                  <span className={`flex items-center gap-1 text-sm font-semibold ${variance.isPositive ? "text-red-600" : "text-green-600"}`}>
-                    {variance.isPositive ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                    {formatMoney(Math.abs(variance.diff))} ({Math.abs(variance.percent).toFixed(1)}%)
-                  </span>
+                <span className="block text-xs text-muted-foreground">Conta a pagar</span>
+                {linkedPayableId ? (
+                  <Link
+                    href={`/contas-pagar?highlight=${linkedPayableId}`}
+                    className="text-sm font-semibold underline underline-offset-2"
+                  >
+                    CP #{linkedPayableId}
+                    {linkedPayableStatus ? ` · ${linkedPayableStatus}` : ""}
+                  </Link>
                 ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
+                  <span className="text-sm text-muted-foreground">Não integrado</span>
                 )}
               </div>
             </div>
