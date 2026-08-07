@@ -365,12 +365,13 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
         // 1. I will calculate `somaFrete` for each group (Telha, Madeira, Andaime) separately above.
         // 2. Then I will pass it here. 
 
-        let somaFrete = 0
-
-        // For Telha, we already found `telhaBudgetItem` above. 
-        if (g.categoria === PedidoCategoria.TELHA && telhaBudgetItem) {
-          somaFrete = Number(telhaBudgetItem.frete || 0)
-        }
+        // Frete da telha NÃO entra aqui: `telhaBudgetItem.total` (usado em `telhaItems`)
+        // já é `quantidade * preco_unitario + frete` (ver salvar-orcamento-db.ts /
+        // edit-orcamento-db.ts). Se também somássemos o frete no header do pedido,
+        // `calculatePedidoAmount` (itens.total + pedido.frete) contaria o frete em dobro.
+        // Madeira e Andaimes não têm esse problema: seus `total` nunca incluem frete
+        // (frete de madeira é sempre 0 no orçamento; andaimes é regra fixa sem frete).
+        const somaFrete = 0
 
         const catLabel = g.categoria === PedidoCategoria.ANDAIMES ? "Andaimes" :
           g.categoria === PedidoCategoria.TELHA ? "Telha" : "Madeira"
