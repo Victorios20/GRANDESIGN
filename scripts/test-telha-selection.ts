@@ -5,9 +5,10 @@ import {
     linhasProposta,
     marcarMaisBaratas,
     selecionarFornecedor,
+    type TelhaSelecionavel,
 } from "../src/lib/orcamento/telha-selection"
 
-const rows = [
+const rows: TelhaSelecionavel[] = [
     { nome: "Americana", fornecedorId: 1, fornecedorNome: "São Bento", quantidade: 370, preco: 2.1, frete: 100 },
     { nome: "Americana", fornecedorId: 2, fornecedorNome: "Telhas Norte", quantidade: 370, preco: 2.45, frete: 0 },
     { nome: "Colonial", fornecedorId: 1, fornecedorNome: "São Bento", quantidade: 1000, preco: 1.8 },
@@ -40,7 +41,7 @@ assert.deepEqual(proposta.map((r) => [r.nome, r.fornecedorId]), [
 ])
 
 // Empate de custo: primeira vence
-const empate = marcarMaisBaratas([
+const empate = marcarMaisBaratas<TelhaSelecionavel>([
     { nome: "Romana", fornecedorId: 1, quantidade: 10, preco: 5 },
     { nome: "Romana", fornecedorId: 2, quantidade: 10, preco: 5 },
 ])
