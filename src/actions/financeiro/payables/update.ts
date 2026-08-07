@@ -147,6 +147,7 @@ export async function updatePayable(
                         fornecedor_id: input.fornecedor_id ?? null,
                         categoria_id: input.categoria_id,
                         centro_custo_id: input.centro_custo_id ?? null,
+                        observacoes: input.observacoes ?? null,
                     },
                 },
             })
