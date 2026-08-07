@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 
 import { listControlClass, listMutedButtonClass, listToolbarClass } from "./styles"
 
-type SortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
+type SortBy = "date" | "number" | "description" | "category" | "value" | "delivery" | "status" | "integration"
 
 type ActiveFilterChip = {
   key: string
@@ -79,7 +79,6 @@ export function PedidoCompraListToolbar({
               <SelectItem value="description">Descrição</SelectItem>
               <SelectItem value="category">Categoria</SelectItem>
               <SelectItem value="value">Valor do pedido</SelectItem>
-              <SelectItem value="actualValue">Valor realizado</SelectItem>
               <SelectItem value="delivery">Entrega</SelectItem>
               <SelectItem value="status">Status</SelectItem>
               <SelectItem value="integration">Integração</SelectItem>

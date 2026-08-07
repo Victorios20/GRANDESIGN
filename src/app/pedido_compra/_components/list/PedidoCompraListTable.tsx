@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import type { CheckedState } from "@radix-ui/react-checkbox"
-import { Calendar, CheckCircle2, MoreVertical, TrendingDown, TrendingUp } from "lucide-react"
+import { Calendar, CheckCircle2, MoreVertical } from "lucide-react"
 
 import { StatusBadge } from "@/components/pedido-compra/StatusBadge"
 import { SortableHeader } from "@/components/financeiro/SortableHeader"
@@ -13,7 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { canIntegratePedido, canReversePedidoIntegration, getPedidoFinanceBadgeClass, getPedidoFinanceLabel } from "@/lib/pedido-compra-finance"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { StatusSlug } from "@/lib/pedido-compra-theme"
-import { calcVariancePercent, formatMoney, fromSlugStatus } from "@/lib/pedido-compra-utils"
+import { formatMoney, fromSlugStatus } from "@/lib/pedido-compra-utils"
 import { cn } from "@/lib/utils"
 import type { PurchaseOrder } from "@/types/pedido-compra"
 
@@ -34,7 +34,7 @@ type Props = {
   onSortChange: (column: PedidoCompraSortBy) => void
 }
 
-type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "delivery" | "status" | "integration"
 
 function formatSafeDate(dateValue: string | null | undefined) {
   if (!dateValue) return "Sem data"
@@ -82,9 +82,6 @@ export function PedidoCompraListTable({
             <SortableHeader column="value" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="px-3 py-3">
               Valor do pedido
             </SortableHeader>
-            <SortableHeader column="actualValue" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} align="right" className="hidden sm:table-cell px-3 py-3">
-              Valor realizado
-            </SortableHeader>
             <SortableHeader column="delivery" activeColumn={sortBy} direction={sortOrder} onSort={onSortChange} className="hidden sm:table-cell px-3 py-3">
               Entrega
             </SortableHeader>
@@ -98,7 +95,6 @@ export function PedidoCompraListTable({
         <TableBody>
           {orders.map((order) => {
             const isSelected = selectedIds.includes(order.id)
-            const variance = calcVariancePercent(order.expectedValue, order.actualValue)
             const isIntegrated = order.financeiroIntegracaoStatus === "INTEGRADO"
 
             return (
@@ -145,27 +141,6 @@ export function PedidoCompraListTable({
 
                 <TableCell className="px-3 py-3.5 text-right align-top">
                   <div className="text-sm font-semibold text-[#2c201b]">{formatMoney(order.expectedValue)}</div>
-                </TableCell>
-
-                <TableCell className="hidden sm:table-cell px-3 py-3.5 text-right align-top">
-                  {order.actualValue != null ? (
-                    <div className="space-y-1">
-                      <div className="text-sm font-semibold text-[#2c201b]">{formatMoney(order.actualValue)}</div>
-                      {variance !== null ? (
-                        <div
-                          className={cn(
-                            "inline-flex items-center justify-end gap-1 text-xs font-medium",
-                            variance > 0 ? "text-[#9b4b1d]" : "text-[#2f7a52]"
-                          )}
-                        >
-                          {variance > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                          {Math.abs(variance).toFixed(1)}%
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-[#9a8f7c]">-</span>
-                  )}
                 </TableCell>
 
                 <TableCell className="hidden sm:table-cell px-3 py-3.5 align-top">

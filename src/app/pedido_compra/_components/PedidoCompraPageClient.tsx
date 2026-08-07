@@ -85,7 +85,7 @@ type Props = {
   initialObrasById: Record<number, ObraSearchItem>
 }
 
-type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "actualValue" | "delivery" | "status" | "integration"
+type PedidoCompraSortBy = "date" | "number" | "description" | "category" | "value" | "delivery" | "status" | "integration"
 
 type PedidoCompraUIState = {
   viewMode: "list" | "kanban"
@@ -443,7 +443,6 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
       if (sortBy === "description") comparison = a.description.localeCompare(b.description, "pt-BR")
       if (sortBy === "category") comparison = a.category.localeCompare(b.category, "pt-BR")
       if (sortBy === "value") comparison = a.expectedValue - b.expectedValue
-      if (sortBy === "actualValue") comparison = (a.actualValue ?? -Infinity) - (b.actualValue ?? -Infinity)
       if (sortBy === "delivery") comparison = (a.deliveryDate ?? "9999-12-31").localeCompare(b.deliveryDate ?? "9999-12-31")
       if (sortBy === "status") {
         const order = ["todos", "rascunho", "aprovado", "em-compra", "aguardando-pagamento", "aguardando-entrega", "entregue"]
@@ -543,7 +542,7 @@ export default function PedidoCompraPageClient({ initialList, initialFornecedore
         return current
       }
 
-      setSortOrder(["date", "value", "actualValue", "delivery"].includes(column) ? "desc" : "asc")
+      setSortOrder(["date", "value", "delivery"].includes(column) ? "desc" : "asc")
       return column
     })
   }, [])
