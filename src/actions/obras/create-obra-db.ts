@@ -8,6 +8,8 @@ import { getOrCreateActiveCostCenterForWork } from "@/actions/financeiro/cost-ce
 import { syncObraReceivables } from "@/actions/financeiro/receivables/sync-obra-receivables"
 import { syncObraPayables } from "@/actions/financeiro/payables/sync-obra-payables"
 import { notifyContaPagarCriadaById, notifyContaReceberCriadaById } from "@/lib/email/notifications"
+import { integrarPedidoCompraAoFinanceiroInTransaction } from "@/actions/pedido_compra/manage-finance-integration"
+import { syncFixedFinancialCategoryTaxonomy } from "@/actions/financeiro/categories/sync-fixed-taxonomy"
 
 export type ObraCreateErrorCode =
   | "PAYLOAD_INVALIDO"
@@ -158,6 +160,9 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   // Ids das contas auto-geradas, para notificar após o commit (fora da transação).
   let createdReceivableIds: number[] = []
   let createdPayableIds: number[] = []
+  let autoContaIds: number[] = []
+
+  await syncFixedFinancialCategoryTaxonomy()
 
   const result = await prisma.$transaction(
     async (tx) => {
@@ -398,6 +403,23 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
             },
           })
         }
+
+        // Conta a pagar nasce junto com a obra (decisão: sem status novo, direto PENDENTE).
+        // Pedido sem valor (ex.: telha não encontrada no orçamento, qty 0) fica de fora —
+        // será integrado manualmente quando ganhar itens/valor.
+        if (somaTotal > 0) {
+          try {
+            const resultado = await integrarPedidoCompraAoFinanceiroInTransaction(tx, pedido.id, input.actorUserId, "OBRA")
+            if (resultado.contaPagarId) autoContaIds.push(resultado.contaPagarId)
+          } catch (err) {
+            // Convenção do arquivo: console.error (não há helper de log neste módulo).
+            console.error("Auto-integração de pedido na criação da obra falhou:", {
+              pedidoId: pedido.id,
+              categoria: g.categoria,
+              error: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
       }
 
       if (Array.isArray(input.imagens) && input.imagens.length > 0) {
@@ -433,6 +455,7 @@ export async function criarObraComHeadPedidoCompra(input: CriarObraInput): Promi
   // Notifica as contas auto-geradas após o commit (fire-and-forget).
   for (const id of createdReceivableIds) await notifyContaReceberCriadaById(id)
   for (const id of createdPayableIds) await notifyContaPagarCriadaById(id)
+  for (const id of autoContaIds) await notifyContaPagarCriadaById(id)
 
   return result
 }

@@ -263,7 +263,8 @@ async function buildPedidoIntegrationSnapshot(tx: Tx, pedidoId: number) {
 
 function assertPedidoCanIntegrate(
   pedido: NonNullable<Awaited<ReturnType<typeof buildPedidoIntegrationSnapshot>>>,
-  valorPedido: Prisma.Decimal
+  valorPedido: Prisma.Decimal,
+  opts: { requireFornecedor?: boolean } = {}
 ) {
   if (pedido.status === PedidoCompraStatus.CANCELADO) {
     throw new PedidoCompraFinanceiroError("PEDIDO_CANCELADO", "Pedido cancelado não pode ser integrado.", "validate", {
@@ -289,7 +290,7 @@ function assertPedidoCanIntegrate(
     )
   }
 
-  if (!pedido.fornecedor_id) {
+  if (opts.requireFornecedor !== false && !pedido.fornecedor_id) {
     throw new PedidoCompraFinanceiroError(
       "PEDIDO_SEM_FORNECEDOR",
       "Selecione um fornecedor antes de integrar o pedido ao financeiro.",
@@ -362,7 +363,7 @@ export async function integrarPedidoCompraAoFinanceiroInTransaction(
   tx: Tx,
   pedidoId: number,
   userId?: number,
-  origem: "MANUAL" | "AUTOMATICA" = "MANUAL"
+  origem: "MANUAL" | "AUTOMATICA" | "OBRA" = "MANUAL"
 ): Promise<PedidoCompraFinanceiroResult> {
   const pedido = await buildPedidoIntegrationSnapshot(tx, pedidoId)
   if (!pedido) {
@@ -373,7 +374,7 @@ export async function integrarPedidoCompraAoFinanceiroInTransaction(
 
   const valorPedido = calculatePedidoAmount(pedido)
 
-  assertPedidoCanIntegrate(pedido, valorPedido)
+  assertPedidoCanIntegrate(pedido, valorPedido, { requireFornecedor: origem !== "OBRA" })
 
   try {
     const categoriaId = await resolveExpenseCategoryId(tx, pedido.categoria)
@@ -387,9 +388,11 @@ export async function integrarPedidoCompraAoFinanceiroInTransaction(
     )
 
     const observacoes =
-      origem === "AUTOMATICA"
-        ? `Integração financeira automática do pedido de compra #${pedido.id} (status: ${pedido.status}).`
-        : `Integração financeira explícita do pedido de compra #${pedido.id}.`
+      origem === "OBRA"
+        ? `Conta gerada automaticamente ao lançar a obra (pedido de compra #${pedido.id}).`
+        : origem === "AUTOMATICA"
+          ? `Integração financeira automática do pedido de compra #${pedido.id} (status: ${pedido.status}).`
+          : `Integração financeira explícita do pedido de compra #${pedido.id}.`
 
     const contaPagar = await tx.contaPagar.create({
       data: {
