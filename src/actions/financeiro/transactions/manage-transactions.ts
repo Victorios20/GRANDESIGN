@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { transactionSchema, validateTransaction } from "@/lib/validators/financial"
-import { ConferenciaStatus, Prisma, StatusConferencia, TipoLancamento } from "@prisma/client"
+import { ConferenciaStatus, Prisma, StatusConferencia, StatusFinanceiro, TipoLancamento } from "@prisma/client"
 import { z } from "zod"
 import { getCashFlowSettings } from "@/actions/financeiro/settings/cash-flow"
 
@@ -500,7 +500,8 @@ export async function deleteManualTransaction(id: number, userId: number, force 
         // Se estiver atrelado a ContaPagar, decrementa o valor pago e atualiza o status
         if (lancamento.conta_pagar_id) {
             const cp = await tx.contaPagar.findUnique({ where: { id: lancamento.conta_pagar_id } })
-            if (cp) {
+            // Conta cancelada permanece cancelada: excluir lançamento vinculado não a ressuscita.
+            if (cp && cp.status !== StatusFinanceiro.CANCELADO) {
                 const newVal = Number(cp.valor_pago) - Number(lancamento.valor)
                 let newStatus = cp.status
                 if (newVal <= 0) newStatus = "PENDENTE"
@@ -519,7 +520,8 @@ export async function deleteManualTransaction(id: number, userId: number, force 
         // Se estiver atrelado a ContaReceber, decrementa o valor recebido e atualiza o status
         if (lancamento.conta_receber_id) {
             const cr = await tx.contaReceber.findUnique({ where: { id: lancamento.conta_receber_id } })
-            if (cr) {
+            // Conta cancelada permanece cancelada: excluir lançamento vinculado não a ressuscita.
+            if (cr && cr.status !== StatusFinanceiro.CANCELADO) {
                 const newVal = Number(cr.valor_recebido) - Number(lancamento.valor)
                 let newStatus = cr.status
                 if (newVal <= 0) newStatus = "PENDENTE"

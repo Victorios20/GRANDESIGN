@@ -1,8 +1,9 @@
 "use server"
 
-import { ConferenciaStatus, StatusFinanceiro } from "@prisma/client"
+import { ConferenciaStatus } from "@prisma/client"
 
 import { prisma } from "@/lib/prisma"
+import { resolveReversalStatus } from "@/lib/financial/reversal-status"
 
 export async function revertReceivable(lancamento_id: number) {
     const lancamento = await prisma.lancamento.findUnique({
@@ -55,15 +56,13 @@ export async function revertReceivable(lancamento_id: number) {
         let newReceived = Number(bill.valor_recebido) - amortized
         if (newReceived < 0.01) newReceived = 0
 
-        let newStatus: StatusFinanceiro = StatusFinanceiro.PARCIAL
-        if (newReceived <= 0) {
-            newStatus = StatusFinanceiro.PENDENTE
-            const today = new Date()
-            today.setHours(0, 0, 0, 0)
-            if (bill.data_vencimento < today) {
-                newStatus = StatusFinanceiro.ATRASADO
-            }
-        }
+        // Conta já cancelada permanece cancelada: estornar recebimento não a ressuscita.
+        const newStatus = resolveReversalStatus({
+            currentStatus: bill.status,
+            newAmount: newReceived,
+            valorTotal: Number(bill.valor_total),
+            dataVencimento: bill.data_vencimento,
+        })
 
         await tx.contaReceber.update({
             where: { id: bill.id },

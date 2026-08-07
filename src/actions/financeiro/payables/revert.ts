@@ -1,9 +1,10 @@
 "use server"
 
-import { ConferenciaStatus, StatusFinanceiro } from "@prisma/client"
+import { ConferenciaStatus } from "@prisma/client"
 
 import { syncPedidoCompraValorRealizado } from "@/actions/pedido_compra/manage-finance-integration"
 import { prisma } from "@/lib/prisma"
+import { resolveReversalStatus } from "@/lib/financial/reversal-status"
 
 export async function revertPayable(lancamento_id: number) {
     const lancamento = await prisma.lancamento.findUnique({
@@ -56,15 +57,13 @@ export async function revertPayable(lancamento_id: number) {
         let newPaid = Number(bill.valor_pago) - amortized
         if (newPaid < 0.01) newPaid = 0
 
-        let newStatus: StatusFinanceiro = StatusFinanceiro.PARCIAL
-        if (newPaid <= 0) {
-            newStatus = StatusFinanceiro.PENDENTE
-            const today = new Date()
-            today.setHours(0, 0, 0, 0)
-            if (bill.data_vencimento < today) {
-                newStatus = StatusFinanceiro.ATRASADO
-            }
-        }
+        // Conta já cancelada permanece cancelada: estornar pagamento não a ressuscita.
+        const newStatus = resolveReversalStatus({
+            currentStatus: bill.status,
+            newAmount: newPaid,
+            valorTotal: Number(bill.valor_total),
+            dataVencimento: bill.data_vencimento,
+        })
 
         await tx.contaPagar.update({
             where: { id: bill.id },
